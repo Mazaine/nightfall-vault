@@ -1,0 +1,129 @@
+.my-orders {
+  display: grid;
+  gap: 1.5rem;
+}
+
+.my-orders-hero,
+.my-order-detail,
+.my-orders-table-wrap {
+  background: linear-gradient(145deg, rgba(26, 22, 18, 0.96), rgba(10, 9, 12, 0.98));
+  border: 1px solid rgba(216, 173, 74, 0.35);
+  border-radius: 8px;
+  box-shadow: 0 0 32px rgba(105, 72, 156, 0.14);
+  padding: clamp(1rem, 3vw, 2rem);
+}
+
+.my-orders-table-wrap {
+  overflow-x: auto;
+}
+
+.my-orders-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 720px;
+}
+
+.my-orders-table th,
+.my-orders-table td {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.09);
+  padding: 1rem;
+  text-align: left;
+}
+
+.my-orders-table th {
+  color: #f0c15b;
+}
+
+.order-status {
+  display: inline-flex;
+  border-radius: 999px;
+  border: 1px solid rgba(216, 173, 74, 0.45);
+  padding: 0.35rem 0.65rem;
+  color: #fff8e5;
+  font-weight: 800;
+}
+
+.order-status.completed {
+  border-color: rgba(72, 210, 132, 0.75);
+}
+
+.order-status.cancelled {
+  border-color: rgba(255, 83, 83, 0.75);
+}
+
+.my-order-detail {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.back-link {
+  color: #f0c15b;
+  font-weight: 800;
+}
+
+.my-order-detail-header,
+.my-order-meta,
+.my-order-item {
+  display: grid;
+  gap: 1rem;
+}
+
+.my-order-detail-header {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+}
+
+.my-order-detail-header span,
+.my-order-meta span {
+  color: #b8ac99;
+  font-size: 0.88rem;
+}
+
+.my-order-detail-header strong {
+  display: block;
+  color: #fff8e5;
+  font-size: clamp(1.6rem, 4vw, 2.4rem);
+}
+
+.my-order-meta {
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+}
+
+.my-order-meta p {
+  background: rgba(0, 0, 0, 0.35);
+  border-left: 3px solid #d8ad4a;
+  margin: 0;
+  padding: 0.9rem;
+}
+
+.my-order-items {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.my-order-item {
+  grid-template-columns: minmax(0, 1fr) 5rem 7rem 7rem;
+  align-items: center;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 0.9rem;
+}
+
+.my-orders-message,
+.my-orders-error {
+  border: 1px solid rgba(216, 173, 74, 0.35);
+  border-radius: 8px;
+  padding: 1rem;
+}
+
+.my-orders-error {
+  border-color: rgba(255, 83, 83, 0.65);
+}
+
+@media (max-width: 720px) {
+  .my-order-detail-header,
+  .my-order-item {
+    grid-template-columns: 1fr;
+  }
+}

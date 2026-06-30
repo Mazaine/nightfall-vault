@@ -1,0 +1,166 @@
+.admin-users-page {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.admin-user-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.admin-user-stats span {
+  border-left: 3px solid #d8ad4a;
+  background: #11100f;
+  color: #fff8e5;
+  font-weight: 900;
+  padding: 0.8rem 1rem;
+}
+
+.admin-user-toolbar {
+  display: grid;
+  grid-template-columns: minmax(16rem, 28rem) minmax(0, 1fr) auto;
+  gap: 1rem;
+  align-items: end;
+  border: 1px solid rgba(216, 173, 74, 0.18);
+  border-radius: 8px;
+  background: #11100f;
+  padding: 1rem;
+}
+
+.admin-user-filters,
+.admin-user-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+.admin-user-filters button,
+.admin-user-actions button,
+.admin-import-reset-button {
+  border: 1px solid rgba(216, 173, 74, 0.28);
+  border-radius: 8px;
+  background: rgba(216, 173, 74, 0.1);
+  color: #d8ad4a;
+  cursor: pointer;
+  font-weight: 900;
+  padding: 0.65rem 0.8rem;
+}
+
+.admin-user-filters button.active {
+  background: #d8ad4a;
+  color: #12100f;
+}
+
+.admin-user-table {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.admin-success {
+  border-left: 4px solid #5bd884;
+  border-radius: 8px;
+  background: rgba(91, 216, 132, 0.12);
+  color: #d9ffe5;
+  font-weight: 800;
+  padding: 0.8rem 1rem;
+}
+
+.admin-user-row {
+  display: grid;
+  grid-template-columns: minmax(13rem, 1.2fr) minmax(10rem, 0.8fr) minmax(12rem, 0.8fr) minmax(8rem, 0.5fr);
+  gap: 1rem;
+  align-items: start;
+  border: 1px solid rgba(216, 173, 74, 0.14);
+  border-radius: 8px;
+  background: #171514;
+  padding: 0.9rem;
+}
+
+.admin-user-main,
+.admin-user-statuses,
+.admin-status-box,
+.admin-point-box {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.admin-user-main h2 {
+  margin: 0;
+  color: #fff8e5;
+  font-size: 1rem;
+}
+
+.admin-user-row span {
+  display: block;
+  color: #c9c0b0;
+  font-size: 0.9rem;
+}
+
+.admin-user-row strong {
+  color: #f0c15b;
+}
+
+.admin-user-statuses label {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.admin-user-statuses label span {
+  color: #d8ad4a;
+  font-weight: 900;
+}
+
+.admin-user-row select {
+  min-width: 0;
+  border: 1px solid rgba(216, 173, 74, 0.28);
+  border-radius: 4px;
+  background: #070707;
+  color: #fff8e5;
+  padding: 0.6rem;
+}
+
+.admin-user-actions {
+  grid-column: 1 / -1;
+  justify-content: flex-end;
+  border-top: 1px solid rgba(216, 173, 74, 0.1);
+  padding-top: 0.75rem;
+}
+
+.admin-user-filters button,
+.admin-user-actions button,
+.admin-import-reset-button {
+  min-height: 2.7rem;
+  white-space: nowrap;
+}
+
+.admin-user-actions button:disabled,
+.admin-import-reset-button:disabled,
+.admin-user-row select:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.admin-import-reset-button {
+  align-self: end;
+  background: linear-gradient(135deg, rgba(216, 173, 74, 0.95), rgba(176, 126, 32, 0.95));
+  color: #12100f;
+}
+
+@media (max-width: 1350px) {
+  .admin-user-row {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .admin-user-actions {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 760px) {
+  .admin-user-toolbar,
+  .admin-user-row {
+    grid-template-columns: 1fr;
+  }
+}
+

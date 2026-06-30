@@ -1,0 +1,9 @@
+﻿.site-footer { margin-top: 3rem; border-top: 1px solid rgba(255,255,255,.09); background: rgba(4,4,8,.72); }
+.site-footer-inner { width: min(100% - 2rem, 1180px); margin: 0 auto; padding: 2rem 0; display: flex; align-items: center; justify-content: space-between; gap: 1.5rem; }
+.footer-brand { display: flex; gap: .8rem; align-items: center; }
+.footer-brand strong { color: #fff8e7; }
+.footer-brand p { margin: .25rem 0 0; color: #aaa0b8; }
+.site-footer nav { display: flex; flex-wrap: wrap; gap: .5rem; }
+.site-footer nav a { color: #d8d0e2; border-radius: 8px; padding: .5rem .7rem; }
+.site-footer nav a:hover { background: rgba(255,255,255,.07); color: #fff8e7; }
+@media (max-width: 760px) { .site-footer-inner { align-items: start; flex-direction: column; } }

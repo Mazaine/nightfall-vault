@@ -1,0 +1,46 @@
+﻿# Environment files
+.env
+.env.*
+!.env.example
+!backend/.env.example
+!frontend/.env.example
+
+# Dependencies
+node_modules/
+frontend/node_modules/
+backend/.venv/
+.venv/
+
+# Build outputs
+frontend/dist/
+dist/
+build/
+
+# Python cache and test artifacts
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Runtime uploads and imports
+backend/uploads/*
+!backend/uploads/.gitkeep
+!backend/uploads/products/
+backend/uploads/products/*
+!backend/uploads/products/.gitkeep
+backend/imports/
+database/imports/
+
+# Logs and OS/editor files
+*.log
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Local Docker/database artifacts
+*.sqlite
+*.db

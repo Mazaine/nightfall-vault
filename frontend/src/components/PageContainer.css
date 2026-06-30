@@ -1,0 +1,21 @@
+.page-container {
+  display: grid;
+  gap: 1.5rem;
+}
+
+.page-container__header {
+  border: 1px solid rgba(216, 173, 74, 0.22);
+  background:
+    radial-gradient(circle at top right, rgba(116, 71, 170, 0.18), transparent 34%),
+    linear-gradient(135deg, rgba(32, 27, 22, 0.96), rgba(10, 10, 10, 0.98));
+  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.35);
+  padding: clamp(1.5rem, 4vw, 3rem);
+}
+
+.page-container__header h1 {
+  margin: 0;
+  color: #fff8e5;
+  font-size: clamp(2.2rem, 7vw, 4.5rem);
+  line-height: 0.95;
+  text-shadow: 0 4px 18px rgba(0, 0, 0, 0.8);
+}

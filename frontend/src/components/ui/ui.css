@@ -1,0 +1,27 @@
+﻿.ui-button,
+.ui-input,
+.ui-card,
+.ui-badge,
+.ui-state { font: inherit; }
+.ui-button { min-height: 2.75rem; border-radius: 8px; border: 1px solid transparent; padding: 0.75rem 1.05rem; cursor: pointer; font-weight: 800; transition: transform .16s ease, border-color .16s ease, background .16s ease; }
+.ui-button:hover { transform: translateY(-1px); }
+.ui-button-primary { background: linear-gradient(135deg, #f6c75f, #b98728); color: #150f08; box-shadow: 0 14px 30px rgba(246,199,95,.18); }
+.ui-button-secondary { background: rgba(139,92,246,.16); color: #f4ebff; border-color: rgba(167,139,250,.38); }
+.ui-button-ghost { background: transparent; color: #f6c75f; border-color: rgba(246,199,95,.25); }
+.ui-card { border: 1px solid rgba(255,255,255,.09); background: linear-gradient(180deg, rgba(24,22,32,.92), rgba(13,12,18,.94)); border-radius: 8px; box-shadow: 0 18px 50px rgba(0,0,0,.24); }
+.ui-badge { display: inline-flex; align-items: center; min-height: 1.6rem; border-radius: 999px; padding: .2rem .65rem; font-size: .76rem; font-weight: 800; }
+.ui-badge-gold { background: rgba(246,199,95,.14); color: #f6d98b; border: 1px solid rgba(246,199,95,.25); }
+.ui-badge-violet { background: rgba(139,92,246,.16); color: #ddd0ff; border: 1px solid rgba(167,139,250,.26); }
+.ui-badge-muted { background: rgba(255,255,255,.08); color: #cfc7db; }
+.ui-badge-danger { background: rgba(248,113,113,.14); color: #fecaca; border: 1px solid rgba(248,113,113,.26); }
+.ui-input { width: 100%; min-height: 2.9rem; border: 1px solid rgba(255,255,255,.12); border-radius: 8px; background: rgba(255,255,255,.055); color: #fff8e7; padding: .75rem .9rem; outline: none; }
+.ui-input:focus { border-color: rgba(246,199,95,.62); box-shadow: 0 0 0 3px rgba(246,199,95,.12); }
+.ui-state { display: grid; gap: .45rem; border: 1px solid rgba(255,255,255,.09); border-radius: 8px; background: rgba(255,255,255,.055); color: #d8d0e2; padding: 1rem; }
+.ui-state strong { color: #fff8e7; }
+.ui-state-error { border-color: rgba(248,113,113,.32); }
+.ui-state-loading { display: flex; align-items: center; }
+.ui-spinner { width: 1rem; height: 1rem; border-radius: 999px; border: 2px solid rgba(246,199,95,.25); border-top-color: #f6c75f; animation: spin 1s linear infinite; }
+.page-header { display: grid; gap: 1rem; margin: 0 auto 2rem; width: min(100%, 1180px); }
+.page-header h1 { max-width: 760px; }
+.page-header-actions { display: flex; flex-wrap: wrap; gap: .75rem; }
+@keyframes spin { to { transform: rotate(360deg); } }
