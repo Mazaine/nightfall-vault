@@ -1,97 +1,158 @@
-﻿# Webshop Template
+﻿# 🌑 Nightfall Vault
 
-Reusable full-stack webshop engine built with FastAPI, React, PostgreSQL, Redis and Docker.
+> **Modern, teljes értékű aukciós platform React, FastAPI és Docker technológiákkal.**
 
-## Included Features
+A **Nightfall Vault** egy hosszú távú full-stack fejlesztési projekt, amelynek célja egy modern, biztonságos és skálázható aukciós platform létrehozása.
 
-- Authentication and user accounts
-- Product and category catalog
-- Cart and checkout
-- Order management
-- Admin dashboard and admin product/order/user management
-- Newsletter and transactional email foundation
-- Shipping methods and pickup point support
-- PostgreSQL database
-- Redis-backed rate limiting option
-- Security headers and audit logging
-- Cloudflare Turnstile-ready captcha integration
-- FastAPI OpenAPI documentation at `/docs`
-- Backend tests
-- Frontend production build
-- Lightweight HU/EN frontend translations
+A projekt egyszerre szolgál:
 
-## Quick Start
+* tanulási projektként,
+* szakmai portfólióként,
+* valamint egy később akár éles környezetben is használható webalkalmazás alapjaként.
 
-1. Copy `.env.example` files to `.env` for local development.
-2. Replace all placeholder secrets, SMTP settings, bank transfer details and captcha keys.
-3. Start the stack:
+A fejlesztés sprintenként, részletes dokumentációval és professzionális szoftverfejlesztési szemlélettel történik.
 
-```bash
-docker compose up --build
+---
+
+# 🎯 Célkitűzés
+
+A Nightfall Vault célja egy olyan aukciós rendszer elkészítése, amely:
+
+* modern felhasználói élményt nyújt,
+* biztonságos,
+* könnyen bővíthető,
+* mobilbarát,
+* többnyelvű (magyar / angol),
+* Docker-alapú fejlesztési környezetet használ.
+
+---
+
+# 🛠 Technológiai stack
+
+## Frontend
+
+* React
+* TypeScript
+* Vite
+* React Router
+
+## Backend
+
+* FastAPI
+* SQLAlchemy
+* PostgreSQL
+* Alembic
+* JWT hitelesítés
+
+## Infrastruktúra
+
+* Docker
+* Docker Compose
+
+---
+
+# 📁 Projekt felépítése
+
+```text
+Nightfall-Vault/
+│
+├── frontend/
+├── backend/
+├── docs/
+├── .github/
+├── docker-compose.yml
+├── .env.example
+├── README.md
+└── README_EN.md
 ```
 
-4. Open the frontend at `http://localhost:5173` and the API docs at `http://localhost:8000/docs`.
+---
 
-## Development Admin User
+# 🚧 Projekt állapota
 
-There is no separate admin login route. Admin users sign in through `/login` or `/auth`, then open `/admin`.
+## Sprint 0 – Projekt előkészítés
 
-For local development only, create or refresh the default admin with:
+Jelenlegi célok:
 
-```bash
-docker compose exec -T backend python -m app.scripts.seed_dev_admin
-```
+* projektstruktúra kialakítása
+* dokumentáció elkészítése
+* architektúra megtervezése
+* felhasználói felület megtervezése
+* fejlesztési folyamat előkészítése
 
-Development credentials:
+Ebben a sprintben még **nem készül aukciós funkció**.
 
-- Email: `admin@example.com`
+---
 
-The script refuses to run when `ENVIRONMENT=production`, so it must not be used as a production provisioning mechanism.
+# 📋 Tervezett funkciók
 
-## Frontend Translations
+## Felhasználók
 
-The frontend uses a small built-in translation helper, without a heavy i18n dependency.
+* Regisztráció
+* Bejelentkezés
+* Jelszó-visszaállítás
+* E-mail megerősítés
+* Jogosultsági rendszer
 
-Translation files live here:
+## Aukció
 
-- `frontend/src/i18n/hu.ts`
-- `frontend/src/i18n/en.ts`
-- `frontend/src/i18n/index.tsx`
+* Aukció létrehozása
+* Licitálás
+* Automatikus lezárás
+* Licittörténet
+* Minimum ár
+* Azonnali vásárlás lehetősége
 
-The default language is Hungarian. The header language switch stores the selected language in `localStorage` under `webshop-template.language`, so the choice survives page refreshes.
+## Felhasználói funkciók
 
-To add a new language:
+* Profil
+* Kedvencek
+* Figyelőlista
+* Értesítések
+* Vásárlási előzmények
 
-1. Create a new dictionary file next to `hu.ts` and `en.ts`.
-2. Extend the `Language` union and `dictionaries` object in `frontend/src/i18n/index.tsx`.
-3. Add the language button to `frontend/src/components/SiteHeader.tsx`.
-4. Keep translation key names aligned with the existing HU/EN dictionaries.
+## Admin felület
 
-## Local Checks
+* Irányítópult
+* Felhasználókezelés
+* Aukciók kezelése
+* Riportok
+* Rendszerbeállítások
 
-Backend:
+---
 
-```bash
-cd backend
-python -m pip install -r requirements.txt
-python -m pytest
-```
+# 📚 Dokumentáció
 
-Frontend:
+A projekt részletes dokumentációja a `docs` mappában található.
 
-```bash
-cd frontend
-npm install
-npm run build
-```
+Tervezett dokumentumok:
 
-Docker checks used by the template workflow:
+* Architektúra
+* API dokumentáció
+* Adatbázis
+* UI Design System
+* Fejlesztői útmutató
+* Roadmap
 
-```bash
-docker compose exec -T frontend npm run build
-docker compose exec -T backend pytest
-```
+---
 
-## Template Notes
+# 💡 Fejlesztési alapelvek
 
-This repository intentionally contains no project-specific branding, demo imports, VIP/reward systems, tournament modules, WordPress/WooCommerce migration scripts, legal PDFs, logos or production secrets. Use it as a neutral base for new webshop projects.
+A projekt fejlesztése során kiemelt szempont:
+
+* tiszta architektúra,
+* kis lépésekben történő fejlesztés,
+* jól olvasható kód,
+* újrafelhasználható komponensek,
+* biztonságközpontú szemlélet,
+* Mobile First megközelítés,
+* akadálymentesség,
+* folyamatos dokumentáció.
+
+---
+
+# 📄 Licenc
+
+A projekt jelenleg aktív fejlesztés alatt áll.
+
+A licenc az első nyilvános kiadás előtt kerül meghatározásra.
