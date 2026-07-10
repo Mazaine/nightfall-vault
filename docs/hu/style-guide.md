@@ -1,273 +1,134 @@
-# 🎨 Nightfall Vault – Style Guide
+# Nightfall Vault Style Guide
 
-## Cél
+## Cel
 
-A Style Guide célja, hogy a Nightfall Vault teljes felülete egységes megjelenésű legyen.
+Ez a dokumentum a Nightfall Vault frontend vizualis es CSS-architekturajanak alapja. Sprint 1-ben a cel nem aukcios uzleti logika, hanem egy tartos, konzisztens, premium dark fantasy feluleti rendszer.
 
-Minden új oldal, komponens és funkció ennek a dokumentumnak megfelelően készül.
+## Design filozofia
 
----
+A Nightfall Vault legyen:
 
-# Design filozófia
+- dark fantasy
+- modern
+- elegans
+- letisztult
+- professzionalis
+- gyorsan attekintheto
 
-A Nightfall Vault megjelenése:
+Nem cel a gamer vagy neon hatas. A referencia inkabb premium aukcios haz, mint jatekfelulet.
 
-* Dark Fantasy
-* Modern
-* Letisztult
-* Elegáns
-* Professzionális
-* Gyorsan átlátható
+## CSS architektura
 
-Nem cél a túlzsúfolt felület.
+Az aktiv CSS belepesi pont:
 
-A dizájn mindig támogassa a használhatóságot.
+```text
+frontend/src/styles/index.css
+```
 
----
+Struktura:
 
-# Színpaletta
+- `tokens/`: nyers design tokenek.
+- `themes/`: szemantikus tema aliasok.
+- `base/`: reset, globalis szabalyok, animaciok.
+- `utilities/`: ujrahasznalhato segedosztalyok.
+- `components/`: komponenshez kotott CSS importok az `index.css` vegen.
 
-## Elsődleges színek
+## Szinek
 
-| Név            | Hex     |
-| -------------- | ------- |
-| Primary        | #7C3AED |
-| Primary Hover  | #8B5CF6 |
-| Primary Active | #6D28D9 |
+Fo szemantikus tokenek:
 
----
+- `--color-background`
+- `--color-background-soft`
+- `--color-surface`
+- `--color-surface-elevated`
+- `--color-surface-strong`
+- `--color-border`
+- `--color-divider`
+- `--color-text-primary`
+- `--color-text-secondary`
+- `--color-text-muted`
+- `--color-primary`
+- `--color-primary-hover`
+- `--color-primary-active`
+- `--color-accent`
+- `--color-success`
+- `--color-warning`
+- `--color-danger`
+- `--color-info`
+- `--color-overlay`
+- `--color-backdrop`
+- `--color-focus`
 
-## Háttérszínek
+## Tipografia
 
-| Név           | Hex     |
-| ------------- | ------- |
-| Background    | #0B0B0F |
-| Surface       | #15151C |
-| Surface Light | #1E1E28 |
+Display es hero szovegek:
 
----
+- `--font-family-display`
+- `--font-size-display`
+- `--font-size-h1`
+- `--font-size-h2`
+- `--font-size-h3`
 
-## Szövegszínek
+Altalanos UI szovegek:
 
-| Név            | Hex     |
-| -------------- | ------- |
-| Primary Text   | #FFFFFF |
-| Secondary Text | #B3B3C2 |
-| Muted          | #7A7A8A |
+- `--font-family-body`
+- `--font-size-body-lg`
+- `--font-size-body`
+- `--font-size-body-sm`
+- `--font-size-caption`
+- `--font-size-button`
+- `--font-size-label`
 
----
+## Spacing
 
-## Állapotszínek
+A rendszer 8 pontos logikat kovet:
 
-| Állapot | Hex     |
-| ------- | ------- |
-| Success | #22C55E |
-| Warning | #F59E0B |
-| Error   | #EF4444 |
-| Info    | #3B82F6 |
+- `--space-1`: 4 px
+- `--space-2`: 8 px
+- `--space-4`: 16 px
+- `--space-6`: 24 px
+- `--space-8`: 32 px
+- `--space-12`: 48 px
+- `--space-16`: 64 px
 
----
+## Lekerekitesek
 
-# Betűtípusok
+Kartyak, gombok es panelek alapertelmezetten visszafogott, 8 px koruli radiusokat hasznalnak. A cel a premium, nem a jatekos megjelenes.
 
-## Címsorok
+## Arnyekok
 
-Cinzel
+Tokenek:
 
-Használat:
+- `--shadow-xs`
+- `--shadow-sm`
+- `--shadow-md`
+- `--shadow-lg`
+- `--shadow-xl`
+- `--shadow-2xl`
+- `--shadow-focus`
 
-* Logo
-* Oldalcímek
-* Hero szekció
-* Aukció címek
+## Animaciok
 
----
+Az animaciok finomak, 150-250 ms kozotti idotartammal. A `prefers-reduced-motion` tiszteletben tartasa kotelezo.
 
-## Szövegek
+## Akadalymentesseg
 
-Inter
+Kovetelmenyek:
 
-Használat:
+- lathato `:focus-visible`
+- megfelelo kontraszt
+- billentyuzettel elerheto interakciok
+- ertelmes `aria-label` ikon gombokon
+- dekorativ elemek `aria-hidden="true"` jelolessel
 
-* Leírások
-* Űrlapok
-* Menü
-* Táblázatok
+## Sprint 1 szabaly
 
----
+Aktiv frontendben nem lehet:
 
-# Térközök
+- kosar logika
+- checkout logika
+- valos licitalasi logika
+- admin uzleti workflow
+- backend modositas
 
-8 pontos rendszer.
-
-| Méret | Pixel |
-| ----- | ----- |
-| XS    | 4 px  |
-| SM    | 8 px  |
-| MD    | 16 px |
-| LG    | 24 px |
-| XL    | 32 px |
-| XXL   | 48 px |
-| XXXL  | 64 px |
-
----
-
-# Lekerekítések
-
-| Elem   | Méret |
-| ------ | ----- |
-| Gomb   | 10 px |
-| Kártya | 16 px |
-| Input  | 10 px |
-| Modal  | 20 px |
-
----
-
-# Árnyékok
-
-## Kártya
-
-Finom árnyék.
-
-## Modal
-
-Erősebb árnyék.
-
-## Hover
-
-Enyhe lila fény.
-
----
-
-# Gombok
-
-## Primary
-
-* Lila háttér
-* Fehér szöveg
-
-## Secondary
-
-* Átlátszó
-* Lila keret
-
-## Danger
-
-* Piros háttér
-
-## Ghost
-
-* Háttér nélkül
-
----
-
-# Űrlapok
-
-Minden input:
-
-* egységes magasság
-* jól látható fókusz állapot
-* hibajelzés pirossal
-* siker zölddel
-
----
-
-# Kártyák
-
-Minden kártya:
-
-* lekerekített
-* árnyékos
-* hover animáció
-* reszponzív
-
----
-
-# Ikonok
-
-Használt ikoncsomag:
-
-* Lucide Icons
-
-Ikonok mindig:
-
-* egyszerűek
-* egységes méretűek
-* jól olvashatóak
-
----
-
-# Animációk
-
-Maximum 200–300 ms.
-
-Kerülendő:
-
-* villogás
-* túl sok animáció
-* hosszú átmenetek
-
----
-
-# Reszponzív töréspontok
-
-| Eszköz  | Méret        |
-| ------- | ------------ |
-| Mobil   | < 640 px     |
-| Tablet  | 640–1023 px  |
-| Laptop  | 1024–1439 px |
-| Desktop | ≥ 1440 px    |
-
-A fejlesztés Mobile First szemléletben történik.
-
----
-
-# Képek
-
-Minden kép:
-
-* optimalizált
-* lazy loading
-* megfelelő képarány
-* modern formátum (WebP vagy AVIF, ahol lehetséges)
-
----
-
-# Akadálymentesség
-
-A projekt célja megfelelni a WCAG ajánlásainak.
-
-Alapelvek:
-
-* megfelelő kontraszt
-* billentyűzetes navigáció
-* fókuszjelölés
-* ARIA attribútumok használata
-* képek alt szöveggel
-
----
-
-# Komponens alapelvek
-
-Minden komponens:
-
-* egyetlen feladatot lásson el
-* újrafelhasználható legyen
-* jól dokumentált legyen
-* könnyen tesztelhető legyen
-
----
-
-# Kódolási szabály
-
-A dizájnnal kapcsolatos értékek (színek, térközök, betűméretek, árnyékok) ne legyenek szétszórva a komponensekben.
-
-Lehetőleg központi helyen (például CSS változók vagy design tokenek formájában) legyenek definiálva, hogy a teljes alkalmazás egységes maradjon.
-
----
-
-# Vizuális cél
-
-A Nightfall Vault hangulata olyan legyen, mintha egy ősi, mágikus ereklyéket őrző páncélterembe vagy kincstárba lépnénk be.
-
-A felület legyen elegáns és modern, ugyanakkor könnyen használható és gyors, hogy a látvány soha ne menjen a felhasználói élmény rovására.
+Ezek a webshop-sablonbol szarmazo reszek `frontend/src/_legacy/` alatt maradnak kesobbi referencia celra.

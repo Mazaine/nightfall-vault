@@ -1,18 +1,23 @@
-﻿import { Link } from "react-router-dom";
-import { useI18n } from "../i18n";
-import "./SiteFooter.css";
+import { Link } from "react-router-dom";
 
 export function SiteFooter() {
-  const { t } = useI18n();
   return (
     <footer className="site-footer">
       <div className="site-footer-inner">
-        <div className="footer-brand"><span className="brand-mark">WT</span><div><strong>{t("brand.name")}</strong><p>{t("footer.text")}</p></div></div>
-        <nav aria-label={t("footer.legal")}>
-          <Link to="/terms">{t("footer.terms")}</Link>
-          <Link to="/privacy">{t("footer.privacy")}</Link>
-          <Link to="/shipping-info">{t("footer.shipping")}</Link>
-          <Link to="/payment-info">{t("footer.payment")}</Link>
+        <Link className="footer-brand" to="/" aria-label="Nightfall Vault kezdőlap">
+          <img
+            className="footer-logo"
+            src="/assets/nightfall-vault-logo-transparent.png"
+            alt="Nightfall Vault Auction House"
+          />
+        </Link>
+
+        <nav aria-label="Jogi és információs linkek">
+          <Link to="/account">Fiók</Link>
+          <Link to="/admin">Admin</Link>
+          <Link to="/terms">Felhasználási feltételek</Link>
+          <Link to="/privacy">Adatvédelem</Link>
+          <Link to="/support">Támogatás</Link>
         </nav>
       </div>
     </footer>

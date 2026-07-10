@@ -1,9 +1,78 @@
-﻿.site-footer { margin-top: 3rem; border-top: 1px solid rgba(255,255,255,.09); background: rgba(4,4,8,.72); }
-.site-footer-inner { width: min(100% - 2rem, 1180px); margin: 0 auto; padding: 2rem 0; display: flex; align-items: center; justify-content: space-between; gap: 1.5rem; }
-.footer-brand { display: flex; gap: .8rem; align-items: center; }
-.footer-brand strong { color: #fff8e7; }
-.footer-brand p { margin: .25rem 0 0; color: #aaa0b8; }
-.site-footer nav { display: flex; flex-wrap: wrap; gap: .5rem; }
-.site-footer nav a { color: #d8d0e2; border-radius: 8px; padding: .5rem .7rem; }
-.site-footer nav a:hover { background: rgba(255,255,255,.07); color: #fff8e7; }
-@media (max-width: 760px) { .site-footer-inner { align-items: start; flex-direction: column; } }
+﻿.site-footer {
+  margin-top: var(--space-16);
+  border-top: 1px solid var(--color-divider);
+  background: linear-gradient(90deg, rgb(15 14 19 / 0.96), rgb(21 18 28 / 0.96) 42%, rgb(14 13 18 / 0.96));
+}
+
+.site-footer-inner {
+  display: flex;
+  gap: var(--space-6);
+  align-items: center;
+  justify-content: space-between;
+  width: min(100% - 2rem, var(--container-page));
+  margin-inline: auto;
+  padding: var(--space-8) 0;
+}
+
+.footer-brand {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+}
+
+.footer-logo {
+  display: block;
+  width: clamp(16rem, 28vw, 24rem);
+  height: 5.8rem;
+  object-fit: contain;
+  object-position: left center;
+  filter: drop-shadow(0 12px 24px rgb(139 92 246 / 0.24));
+}
+
+.footer-brand strong {
+  color: var(--color-text-primary);
+  font-family: var(--font-family-display);
+}
+
+.footer-brand p {
+  margin: var(--space-1) 0 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-body-sm);
+}
+
+.site-footer nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  justify-content: flex-end;
+}
+
+.site-footer nav a {
+  border-radius: var(--radius-sm);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-body-sm);
+  padding: var(--space-2) var(--space-3);
+}
+
+.site-footer nav a:hover {
+  background: rgb(255 255 255 / 0.055);
+  color: var(--color-text-primary);
+}
+
+@media (max-width: 760px) {
+  .site-footer-inner {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .site-footer nav {
+    justify-content: flex-start;
+  }
+
+  .footer-logo {
+    width: 16rem;
+    height: 4.8rem;
+  }
+}
+
+

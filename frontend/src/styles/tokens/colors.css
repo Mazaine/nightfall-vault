@@ -1,0 +1,23 @@
+:root {
+  /* Semantic color aliases are consumed by components; raw scales stay private here. */
+  --color-obsidian-950: #050509;
+  --color-obsidian-900: #090910;
+  --color-obsidian-850: #0d0c14;
+  --color-obsidian-800: #12111a;
+  --color-obsidian-700: #1b1925;
+  --color-violet-700: #5b21b6;
+  --color-violet-600: #6d28d9;
+  --color-violet-500: #7c3aed;
+  --color-violet-400: #a855f7;
+  --color-violet-300: #c084fc;
+  --color-moon-100: #fffaf0;
+  --color-moon-200: #f3ead7;
+  --color-moon-400: #bdb2c7;
+  --color-moon-500: #91869f;
+  --color-gold-300: #f1d58a;
+  --color-gold-500: #b98a34;
+  --color-ruby-500: #dc2626;
+  --color-emerald-500: #22c55e;
+  --color-amber-500: #f59e0b;
+  --color-blue-500: #3b82f6;
+}
