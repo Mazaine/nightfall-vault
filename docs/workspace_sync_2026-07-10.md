@@ -1,16 +1,16 @@
-# Nightfall Vault - clean workspace synchronization report
+# Nightfall Vault - tiszta munkamappa szinkron riport
 
 Dátum: 2026-07-10
 
 ## Kiinduló állapot
 
-Aktív régi projektmappa:
+Az eredeti aktív projektmappa:
 
 ```text
 C:\Users\Eszti\Desktop\nightfall-vault
 ```
 
-A régi aktív mappa `main` ágon állt, de eltért a megtisztított GitHub `main` ágtól. A Git státusz merge folyamatot és feloldatlan konfliktusokat jelzett.
+A régi aktív mappa a `main` ágon állt, de eltért a megtisztított GitHub `main` ágtól. A Git státusz merge folyamatot és feloldatlan konfliktusokat jelzett.
 
 Régi lokális HEAD:
 
@@ -24,7 +24,7 @@ Ellenőrzött tisztított remote HEAD a munka megkezdésekor:
 73ee20419cee7cd9329cc615cdb029d904895f17
 ```
 
-## Backup
+## Biztonsági mentések
 
 Teljes biztonsági mentés készült a régi aktív mappáról, `.git` könyvtárral és konfliktusos állapottal együtt:
 
@@ -38,7 +38,7 @@ Külön helyi módosításmentés is készült redaktált patch fájlokkal és u
 C:\Users\Eszti\Desktop\nightfall-vault-local-changes-20260710-1326
 ```
 
-A külön patch mentésekből a korábbi ismert secret és személyes adat minták redaktálva lettek. A teljes backup változatlanul az eredeti állapot megőrzésére szolgál, nem kerülhet verziókezelésbe.
+A külön patch mentésekből a korábbi ismert secret és személyes adat minták redaktálva lettek. A teljes backup változatlanul az eredeti állapot megőrzésére szolgál, és nem kerülhet verziókezelésbe.
 
 ## Clean clone
 
@@ -64,6 +64,34 @@ A clean klón technikai ellenőrzésekor több backend indulási és tesztkompat
 - `backend/app/main.py`: az `uploads` könyvtár indulás előtt automatikusan létrejön.
 - `backend/app/api/health.py`: a health endpoint a `settings.project_name` értéket adja vissza service névként.
 - `backend/tests/test_core_flows.py`: a projekt név elvárás `Nightfall Vault API` értékre frissült.
+
+## Végleges mappacsere
+
+A tiszta klón visszakerült a felhasználó által kért aktív Desktop útvonalra:
+
+```text
+C:\Users\Eszti\Desktop\nightfall-vault
+```
+
+A korábbi konfliktusos aktív mappa archiválva lett:
+
+```text
+C:\Users\Eszti\Desktop\nightfall-vault-old-20260710-1814
+```
+
+A sikertelen első mappacsere után visszamaradt részleges szülőmappa külön, nem destruktív archive mappába került:
+
+```text
+C:\Users\Eszti\Desktop\nightfall-vault-partial-20260710-181711
+```
+
+Az aktív mappa ellenőrzött HEAD-je a mappacsere után:
+
+```text
+06d8408f7f8b8e36616a9aefadbc3c4a325c704d
+```
+
+A munkafa tiszta volt a mappacsere után.
 
 ## Ellenőrzések
 
@@ -105,7 +133,7 @@ service: Nightfall Vault API
 
 ## Secret ellenőrzés
 
-A clean klónban futtatott ellenőrzés nem talált korábbi ismert jelszó, admin e-mail, REDACTED default, MythicalMarkets, WITHDRAWAL_* vagy személyes banki adat mintát.
+A clean klónban futtatott ellenőrzés nem talált korábbi ismert jelszó, admin e-mail, alapértelmezett jelszó, MythicalMarkets, `WITHDRAWAL_*` vagy személyes banki adat mintát.
 
 Verziókezelésben csak az alábbi env példafájlok vannak:
 
@@ -119,14 +147,15 @@ A lokális `.env` fájl generált fejlesztői értékekkel készült, nem commit
 
 ## Dokumentációs ellenőrzés
 
-A Markdown dokumentációkban nem maradt hibás literal `` `r`n `` karakter.
+A Markdown dokumentációkban nem maradt hibás sortörés-escape karakterlánc.
 
 ## Visszaemelt helyi módosítások
 
-Automatikus, teljes helyi módosítás-visszaemelés nem történt. Csak azok a célzott javítások kerültek be, amelyek a tiszta klón build/test/backend indulásához szükségesek voltak.
+Automatikus, teljes helyi módosítás-visszaemelés nem történt. Csak azok a célzott javítások kerültek be, amelyek a tiszta klón build, teszt és backend indulásához szükségesek voltak.
 
 ## Fennmaradó manuális teendők
 
 - Az npm audit által jelzett 1 high severity sérülékenységet külön dependency audit során kell kezelni.
 - A régi backup mappát meg kell őrizni, amíg minden szükséges helyi módosításról eldől, hogy vissza kell-e emelni.
 - A régi konfliktusos mappa nem törölhető automatikusan.
+- A teljes backup tartalmazhat régi állapotból származó érzékeny adatokat, ezért nem kerülhet Gitbe, felhőbe vagy megosztott tárhelyre.

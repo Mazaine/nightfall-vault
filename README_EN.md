@@ -1,161 +1,184 @@
-﻿# đźŚ‘ Nightfall Vault
+# Nightfall Vault
 
 > **A modern full-stack auction platform built with React, FastAPI and Docker.**
 
-Nightfall Vault is a modern auction platform developed as a long-term portfolio and learning project. The goal is not only to build a fully featured auction website, but also to create a clean, scalable, production-ready architecture following professional software development practices.
+Nightfall Vault is a modern auction platform developed as a long-term portfolio and learning project. The goal is not only to build a fully featured auction website, but also to keep a clean, scalable and production-oriented architecture.
 
-The project is developed step by step, with every feature documented and every architectural decision carefully considered.
+The project is developed step by step. Security-sensitive values must stay outside Git, and every major operational change should be documented.
 
 ---
 
-# Vision
+## Vision
 
-Nightfall Vault combines a dark fantasy visual identity with a modern, secure auction engine.
+Nightfall Vault combines a dark premium visual identity with a secure auction platform foundation.
 
 The long-term goal is to provide:
 
-* Secure user authentication
-* Real-time auction system
-* Bidding engine
-* User profiles
-* Admin dashboard
-* Image uploads
-* Notifications
-* Responsive interface
-* Multilingual support (Hungarian / English)
-* Docker-based development
-* Cloud deployment
+* secure user authentication,
+* auction listing and auction detail pages,
+* bidding and auction lifecycle features,
+* user profiles,
+* admin dashboard,
+* image uploads,
+* notifications,
+* responsive frontend,
+* multilingual support,
+* Docker-based local development,
+* cloud deployment readiness.
 
 ---
 
-# Technology Stack
+## Technology Stack
 
-## Frontend
+### Frontend
 
 * React
 * TypeScript
 * Vite
 * React Router
-* CSS Modules (or future UI library)
 
-## Backend
+### Backend
 
 * FastAPI
 * SQLAlchemy
 * PostgreSQL
 * Alembic
-* JWT Authentication
+* JWT authentication
+* Redis-backed infrastructure support
+* Email service integration
+* Cloudflare Turnstile support
+* Rate limiting and security middleware
 
-## Infrastructure
+### Infrastructure
 
 * Docker
 * Docker Compose
+* PostgreSQL
+* Redis
 
 ---
 
-# Project Structure
+## Project Structure
 
 ```text
 Nightfall-Vault/
-â”‚
-â”śâ”€â”€ frontend/
-â”śâ”€â”€ backend/
-â”śâ”€â”€ docs/
-â”śâ”€â”€ .github/
-â”śâ”€â”€ docker-compose.yml
-â”śâ”€â”€ .env.example
-â””â”€â”€ README.md
+|
+|-- frontend/
+|-- backend/
+|-- docs/
+|-- docker-compose.yml
+|-- .env.example
+|-- README.md
+`-- README_EN.md
 ```
 
 ---
 
-# Project Status
+## Project Status
 
-Current Phase:
+Current phase:
 
-**Sprint 0 â€” Project Preparation**
+**Clean local development baseline**
 
 Current objectives:
 
-* Project structure
-* Documentation
-* Architecture planning
-* UI planning
-* Development workflow
+* stable Docker-based local development,
+* secure secret handling,
+* documented synchronization and audit workflow,
+* auction-focused frontend direction,
+* backend stabilization for authentication, users, orders, admin, email and infrastructure services.
 
-No auction functionality is implemented during Sprint 0.
-
----
-
-# Planned Features
-
-## Authentication
-
-* Login
-* Registration
-* Password reset
-* Email verification
-* Role-based permissions
-
-## Auction System
-
-* Auction creation
-* Live bidding
-* Automatic closing
-* Bid history
-* Reserve price
-* Buy Now option
-
-## User Features
-
-* User profile
-* Favorites
-* Watchlist
-* Notifications
-* Purchase history
-
-## Administration
-
-* Dashboard
-* User management
-* Auction moderation
-* Reports
-* Site settings
+The current codebase is usable as a development baseline, but the auction domain still needs further backend implementation before production use.
 
 ---
 
-# Documentation
+## Local Development
 
-The complete documentation can be found in the `docs` directory.
+Copy the example environment file and fill local values:
 
-Planned documentation:
+```powershell
+Copy-Item .env.example .env
+```
 
-* Architecture
-* API
-* Database
-* UI Design System
-* Development Guide
-* Roadmap
+Start the stack:
 
----
+```powershell
+docker compose up -d --build
+```
 
-# Development Philosophy
+Frontend:
 
-This project follows several core principles:
+```text
+http://localhost:5173
+```
 
-* Clean Architecture
-* Small incremental sprints
-* Readable code
-* Reusable components
-* Security first
-* Mobile first
-* Accessibility
-* Continuous documentation
+Backend API:
+
+```text
+http://localhost:8000
+```
 
 ---
 
-# License
+## Validation
+
+Frontend build:
+
+```powershell
+cd frontend
+npm run build
+```
+
+Backend tests:
+
+```powershell
+docker compose exec -T backend pytest
+```
+
+Health endpoint:
+
+```powershell
+Invoke-RestMethod http://localhost:8000/api/health
+```
+
+---
+
+## Security Notes
+
+Do not commit real secrets, passwords or API keys.
+
+Only example environment files should be tracked:
+
+```text
+.env.example
+backend/.env.example
+frontend/.env.example
+```
+
+Development admin users must be created with environment variables or a one-time local command. Real credentials must never be written into documentation.
+
+---
+
+## Documentation
+
+The main documentation is in the `docs` directory.
+
+Important documents:
+
+* `docs/security-secrets.md`
+* `docs/security_audit_2026-07-10.md`
+* `docs/workspace_sync_2026-07-10.md`
+
+The Desktop-level current-state document is maintained separately:
+
+```text
+C:\Users\Eszti\Desktop\NIGHTFALL_VAULT_CURRENT_STATE.md
+```
+
+---
+
+## License
 
 This project is currently under active development.
 
-License information will be added before the first public release.
+License information should be finalized before public production release.
