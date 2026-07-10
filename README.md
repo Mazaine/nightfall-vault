@@ -156,3 +156,14 @@ A projekt fejlesztése során kiemelt szempont:
 A projekt jelenleg aktív fejlesztés alatt áll.
 
 A licenc az első nyilvános kiadás előtt kerül meghatározásra.
+
+---
+
+# 🔐 Secret kezelés és local admin
+
+A repository nem tartalmazhat valódi jelszót, API-kulcsot vagy éles secretet. A .env fájlok ignorálva vannak, a .env.example fájlok csak példaértékeket tartalmazhatnak.
+
+Local admin létrehozása kizárólag környezeti változóval történhet. A seed script nem tartalmaz és nem ír ki jelszót.
+
+Részletes útmutató: docs/security-secrets.md.
+

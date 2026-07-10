@@ -1,12 +1,12 @@
-from pydantic import AliasChoices, Field
+﻿from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    project_name: str = "Webshop Template API"
-    database_url: str = "postgresql+psycopg://webshop_template:webshop_template@postgres:5432/webshop_template"
+    project_name: str = "Nightfall Vault API"
+    database_url: str = ""
     backend_cors_origins: list[str] = Field(default_factory=lambda: ["http://localhost:5173"], validation_alias=AliasChoices("BACKEND_CORS_ORIGINS", "CORS_ORIGINS"))
-    secret_key: str = "change-this-secret-key-in-production"
+    secret_key: str = ""
     access_token_algorithm: str = "HS256"
     access_token_expire_minutes: int = 30
     smtp_host: str | None = None
@@ -14,14 +14,14 @@ class Settings(BaseSettings):
     smtp_user: str | None = None
     smtp_password: str | None = None
     smtp_from_email: str | None = None
-    smtp_from_name: str = "Webshop Template"
+    smtp_from_name: str = "Nightfall Vault"
     brevo_api_key: str | None = None
     brevo_sender_email: str | None = None
-    brevo_sender_name: str = "Webshop Template"
+    brevo_sender_name: str = "Nightfall Vault"
     app_frontend_url: str = "http://localhost:5173"
     app_backend_url: str = "http://localhost:8000"
     frontend_base_url: str = "http://localhost:5173"
-    bank_transfer_account_name: str = Field(default="Webshop Template Ltd.", validation_alias=AliasChoices("BANK_TRANSFER_ACCOUNT_NAME", "BANK_TRANSFER_BENEFICIARY_NAME"))
+    bank_transfer_account_name: str = Field(default="Example Company Ltd.", validation_alias=AliasChoices("BANK_TRANSFER_ACCOUNT_NAME", "BANK_TRANSFER_BENEFICIARY_NAME"))
     bank_transfer_account_number: str = "00000000-00000000-00000000"
     bank_transfer_bank_name: str = "Example Bank"
     environment: str = "development"
@@ -41,3 +41,4 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
