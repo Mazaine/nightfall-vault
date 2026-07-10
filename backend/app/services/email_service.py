@@ -31,6 +31,10 @@ def send_email(to_email: str, subject: str, html_content: str) -> bool:
     return True
 
 
+def send_test_email(to_email: str, subject: str, html_content: str) -> bool:
+    return send_email(to_email, subject, html_content)
+
+
 def send_order_created_email(order: Order) -> bool:
     subject, html_content = render_email_template("order_created", {"order": order})
     return send_email(order.customer_email, subject, html_content)

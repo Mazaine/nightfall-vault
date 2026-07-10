@@ -5,7 +5,7 @@ from app.schemas.product import ProductCreate
 
 
 def test_project_name_is_neutral() -> None:
-    assert settings.project_name == "Webshop Template API"
+    assert settings.project_name == "Nightfall Vault API"
 
 
 def test_product_model_has_generic_commerce_fields() -> None:

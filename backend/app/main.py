@@ -1,4 +1,5 @@
 import logging
+from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
@@ -23,8 +24,11 @@ from app.db.session import SessionLocal
 from app.services.security_audit import create_admin_audit_log
 
 logger = logging.getLogger(__name__)
+UPLOADS_DIR = Path("uploads")
+UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
+
 app = FastAPI(title=settings.project_name)
-app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+app.mount("/uploads", StaticFiles(directory=UPLOADS_DIR), name="uploads")
 
 SECURITY_HEADERS = {
     "X-Content-Type-Options": "nosniff",

@@ -1,4 +1,4 @@
-﻿name: nightfall-vault
+name: nightfall-vault
 
 services:
   frontend:
@@ -26,7 +26,7 @@ services:
     environment:
       PROJECT_NAME: ${PROJECT_NAME:-Nightfall Vault API}
       DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in your local .env file}
-      BACKEND_CORS_ORIGINS: ${BACKEND_CORS_ORIGINS:-["http://localhost:5173"]}
+      BACKEND_CORS_ORIGINS: '["http://localhost:5173"]'
       SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY in your local .env file}
       RATE_LIMIT_BACKEND: ${RATE_LIMIT_BACKEND:-redis}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}

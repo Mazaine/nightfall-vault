@@ -53,6 +53,9 @@ class NewsletterSendBulkResponse(BaseModel):
     failed_count: int
 
 
+NewsletterBulkSendResponse = NewsletterSendBulkResponse
+
+
 class NewsletterSubscriberCreate(BaseModel):
     email: EmailStr
     full_name: str | None = Field(default=None, max_length=160)
@@ -94,4 +97,3 @@ class NewsletterMeRead(BaseModel):
 
 class NewsletterMeUpdate(BaseModel):
     is_active: bool
-
