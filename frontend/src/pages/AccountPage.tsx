@@ -35,7 +35,7 @@ function toCardAuction(auction: Auction) {
     id: auction.id,
     title: auction.title,
     type: auction.category,
-    price: formatMoney(auction.starting_price),
+    price: formatMoney(auction.current_price ?? auction.starting_price),
     step: formatMoney(auction.bid_increment),
     time: formatRemainingTime(auction.ends_at, auction.status),
     sellerName: "Te",

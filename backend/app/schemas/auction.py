@@ -115,6 +115,10 @@ class AuctionFinalizeRequest(BaseModel):
     winner_id: int | None = None
 
 
+class BidCreate(BaseModel):
+    amount: Decimal = Field(gt=0, max_digits=12, decimal_places=2)
+
+
 class AuctionMessageCreate(BaseModel):
     message: str = Field(min_length=1, max_length=2000)
 
@@ -148,6 +152,24 @@ class AuctionImageRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class BidRead(BaseModel):
+    id: int
+    auction_id: int
+    amount: Decimal
+    created_at: datetime
+    bidder_label: str
+    is_highest: bool = False
+    reaches_buy_now: bool = False
+
+
+class BidHistoryItem(BaseModel):
+    id: int
+    amount: Decimal
+    created_at: datetime
+    bidder_label: str
+    is_highest: bool = False
+
+
 class AuctionListItem(BaseModel):
     id: int
     seller_id: int
@@ -157,12 +179,14 @@ class AuctionListItem(BaseModel):
     status: AuctionStatus
     starting_price: Decimal
     bid_increment: Decimal
+    current_price: Decimal
     buy_now_enabled: bool
     buy_now_price: Decimal | None
     starts_at: datetime
     ends_at: datetime
     five_minute_rule_enabled: bool
     winner_id: int | None
+    highest_bid_id: int | None
     seller: UserSummary | None = None
     images: list[AuctionImageRead] = []
 
@@ -188,6 +212,8 @@ class AuctionStatusResponse(BaseModel):
     starts_at: datetime
     ends_at: datetime
     winner_id: int | None
+    current_price: Decimal
+    highest_bid_id: int | None
     finalized_at: datetime | None
 
     model_config = ConfigDict(from_attributes=True)

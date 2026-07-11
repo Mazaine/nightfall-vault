@@ -5,7 +5,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
-from app.models.auction import Auction, AuctionImage, AuctionMessage, AuctionReview
+from app.models.auction import Auction, AuctionImage, AuctionMessage, AuctionReview, Bid
 from app.models.user import User
 from app.schemas.auction import AuctionCreate, AuctionUpdate
 
@@ -51,7 +51,16 @@ def sync_auction_status(db: Session, auction: Auction) -> Auction:
     if auction.status == "scheduled" and auction.starts_at <= current_time:
         auction.status = "active"
     if auction.status == "active" and auction.ends_at <= current_time:
-        auction.status = "ended"
+        highest_bid = auction.highest_bid
+        if highest_bid is None and auction.highest_bid_id is not None:
+            highest_bid = db.get(Bid, auction.highest_bid_id)
+        if highest_bid is not None:
+            auction.winner_id = highest_bid.bidder_id
+            auction.status = "sold"
+        else:
+            auction.winner_id = None
+            auction.status = "unsold"
+        auction.finalized_at = current_time
     if auction.status != original_status:
         db.add(auction)
         db.commit()
@@ -63,6 +72,8 @@ def get_auction_statement():
     return select(Auction).options(
         selectinload(Auction.seller),
         selectinload(Auction.winner),
+        selectinload(Auction.highest_bid),
+        selectinload(Auction.bids),
         selectinload(Auction.images),
         selectinload(Auction.messages).selectinload(AuctionMessage.sender),
         selectinload(Auction.reviews).selectinload(AuctionReview.reviewer),
@@ -107,6 +118,7 @@ def create_auction(db: Session, auction_create: AuctionCreate, seller: User) -> 
         status="draft",
         starting_price=normalize_money(auction_create.starting_price),
         bid_increment=normalize_money(auction_create.bid_increment),
+        current_price=normalize_money(auction_create.starting_price),
         buy_now_enabled=auction_create.buy_now_enabled,
         buy_now_price=normalize_money(auction_create.buy_now_price) if auction_create.buy_now_price is not None else None,
         starts_at=normalize_datetime(auction_create.starts_at),

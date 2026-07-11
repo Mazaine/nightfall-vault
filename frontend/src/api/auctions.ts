@@ -31,12 +31,14 @@ export type Auction = {
   status: AuctionStatus;
   starting_price: string;
   bid_increment: string;
+  current_price: string;
   buy_now_enabled: boolean;
   buy_now_price: string | null;
   starts_at: string;
   ends_at: string;
   five_minute_rule_enabled: boolean;
   winner_id: number | null;
+  highest_bid_id: number | null;
   seller?: AuctionUser | null;
   winner?: AuctionUser | null;
   images: AuctionImage[];
@@ -74,6 +76,16 @@ export type AuctionReview = {
   rating: number;
   comment: string | null;
   created_at: string;
+};
+
+export type AuctionBid = {
+  id: number;
+  auction_id?: number;
+  amount: string;
+  created_at: string;
+  bidder_label: string;
+  is_highest: boolean;
+  reaches_buy_now?: boolean;
 };
 
 export function listAuctions() {
@@ -120,6 +132,17 @@ export function activateAuction(auctionId: number) {
 export function cancelAuction(auctionId: number) {
   return apiRequest<{ id: number; status: AuctionStatus }>(`/api/auctions/${auctionId}/cancel`, {
     method: "POST",
+  });
+}
+
+export function listAuctionBids(auctionId: number) {
+  return apiRequest<AuctionBid[]>(`/api/auctions/${auctionId}/bids`, { authenticated: false });
+}
+
+export function placeAuctionBid(auctionId: number, amount: string) {
+  return apiRequest<AuctionBid>(`/api/auctions/${auctionId}/bids`, {
+    method: "POST",
+    body: JSON.stringify({ amount }),
   });
 }
 

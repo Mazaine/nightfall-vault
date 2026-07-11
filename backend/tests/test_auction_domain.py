@@ -6,7 +6,7 @@ from sqlalchemy import delete
 from app.core.security import create_access_token, hash_password
 from app.db.session import SessionLocal
 from app.main import app
-from app.models.auction import Auction, AuctionImage, AuctionMessage, AuctionReview
+from app.models.auction import Auction, AuctionImage, AuctionMessage, AuctionReview, Bid
 from app.models.user import User
 
 
@@ -40,8 +40,11 @@ def create_test_user(email: str, role: str = "user") -> User:
 def cleanup_test_data() -> None:
     db = SessionLocal()
     try:
+        db.query(Auction).update({Auction.highest_bid_id: None})
+        db.commit()
         db.execute(delete(AuctionReview))
         db.execute(delete(AuctionMessage))
+        db.execute(delete(Bid))
         db.execute(delete(AuctionImage))
         db.execute(delete(Auction))
         db.execute(delete(User).where(User.email.like("%@auction-test.local")))
@@ -83,11 +86,21 @@ def create_expired_auction_with_image(seller: User) -> dict:
     now = datetime.now(timezone.utc)
     created = client.post(
         "/api/auctions",
-        json=auction_payload(starts_at=(now - timedelta(days=2)).isoformat(), ends_at=(now - timedelta(days=1)).isoformat()),
+        json=auction_payload(starts_at=(now - timedelta(days=2)).isoformat(), ends_at=(now + timedelta(minutes=5)).isoformat()),
         headers=auth_headers(seller),
     ).json()
     upload_png(created["id"], seller)
     client.post(f"/api/auctions/{created['id']}/activate", headers=auth_headers(seller))
+    db = SessionLocal()
+    try:
+        auction = db.get(Auction, created["id"])
+        assert auction is not None
+        auction.status = "ended"
+        auction.ends_at = now - timedelta(minutes=1)
+        db.add(auction)
+        db.commit()
+    finally:
+        db.close()
     return created
 
 
@@ -219,32 +232,15 @@ def test_sold_auction_chat_and_review_are_participant_only() -> None:
     winner = create_test_user("winner-closed@auction-test.local")
     stranger = create_test_user("stranger-closed@auction-test.local")
     admin = create_test_user("admin-closed@auction-test.local", role="admin")
-    now = datetime.now(timezone.utc)
-    created = client.post(
-        "/api/auctions",
-        json=auction_payload(starts_at=(now - timedelta(days=2)).isoformat(), ends_at=(now - timedelta(days=1)).isoformat()),
-        headers=auth_headers(seller),
-    ).json()
-    client.post(
-        f"/api/auctions/{created['id']}/images",
-        headers=auth_headers(seller),
-        files={"image": ("card.png", b"\x89PNG\r\n\x1a\nimage-bytes", "image/png")},
-    )
-    client.post(f"/api/auctions/{created['id']}/activate", headers=auth_headers(seller))
-    finalized = client.post(
-        f"/api/auctions/{created['id']}/admin/finalize",
-        json={"status": "sold", "winner_id": winner.id},
-        headers=auth_headers(admin),
-    )
+    finalized = create_sold_auction(seller, winner, admin)
 
-    seller_message = client.post(f"/api/auctions/{created['id']}/messages", json={"message": "Kapcsolatfelvétel."}, headers=auth_headers(seller))
-    stranger_messages = client.get(f"/api/auctions/{created['id']}/messages", headers=auth_headers(stranger))
-    winner_review = client.post(f"/api/auctions/{created['id']}/reviews", json={"rating": 5, "comment": "Korrekt eladó."}, headers=auth_headers(winner))
-    duplicate_review = client.post(f"/api/auctions/{created['id']}/reviews", json={"rating": 4}, headers=auth_headers(winner))
-    stranger_review = client.post(f"/api/auctions/{created['id']}/reviews", json={"rating": 5}, headers=auth_headers(stranger))
+    seller_message = client.post(f"/api/auctions/{finalized['id']}/messages", json={"message": "Kapcsolatfelvétel."}, headers=auth_headers(seller))
+    stranger_messages = client.get(f"/api/auctions/{finalized['id']}/messages", headers=auth_headers(stranger))
+    winner_review = client.post(f"/api/auctions/{finalized['id']}/reviews", json={"rating": 5, "comment": "Korrekt eladó."}, headers=auth_headers(winner))
+    duplicate_review = client.post(f"/api/auctions/{finalized['id']}/reviews", json={"rating": 4}, headers=auth_headers(winner))
+    stranger_review = client.post(f"/api/auctions/{finalized['id']}/reviews", json={"rating": 5}, headers=auth_headers(stranger))
 
-    assert finalized.status_code == 200
-    assert finalized.json()["status"] == "sold"
+    assert finalized["status"] == "sold"
     assert seller_message.status_code == 201
     assert stranger_messages.status_code == 403
     assert winner_review.status_code == 201

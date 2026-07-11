@@ -36,12 +36,14 @@ class Auction(Base):
     status: Mapped[str] = mapped_column(String(30), nullable=False, default="draft", index=True)
     starting_price: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     bid_increment: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
+    current_price: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     buy_now_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     buy_now_price: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
     starts_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
     ends_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
     five_minute_rule_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     winner_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
+    highest_bid_id: Mapped[int | None] = mapped_column(ForeignKey("bids.id", ondelete="SET NULL"), nullable=True, index=True)
     seller_declaration_accepted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     seller_declaration_version: Mapped[str] = mapped_column(String(20), nullable=False, default="2026-07-11")
     finalized_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -50,6 +52,8 @@ class Auction(Base):
 
     seller = relationship("User", foreign_keys=[seller_id])
     winner = relationship("User", foreign_keys=[winner_id])
+    highest_bid = relationship("Bid", foreign_keys=[highest_bid_id], post_update=True)
+    bids = relationship("Bid", back_populates="auction", cascade="all, delete-orphan", foreign_keys="Bid.auction_id", order_by="Bid.created_at")
     images = relationship("AuctionImage", back_populates="auction", cascade="all, delete-orphan", order_by="AuctionImage.position")
     messages = relationship("AuctionMessage", back_populates="auction", cascade="all, delete-orphan", order_by="AuctionMessage.created_at")
     reviews = relationship("AuctionReview", back_populates="auction", cascade="all, delete-orphan")
@@ -76,6 +80,24 @@ class AuctionImage(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
     auction = relationship("Auction", back_populates="images")
+
+
+class Bid(Base):
+    __tablename__ = "bids"
+    __table_args__ = (
+        CheckConstraint("amount > 0", name="ck_bids_amount_positive"),
+        Index("ix_bids_auction_amount", "auction_id", "amount"),
+        Index("ix_bids_auction_created", "auction_id", "created_at"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    auction_id: Mapped[int] = mapped_column(ForeignKey("auctions.id", ondelete="CASCADE"), nullable=False, index=True)
+    bidder_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+    auction = relationship("Auction", back_populates="bids", foreign_keys=[auction_id])
+    bidder = relationship("User")
 
 
 class AuctionMessage(Base):

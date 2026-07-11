@@ -6,9 +6,10 @@ from app.db.session import get_db
 from app.dependencies.auth import get_optional_current_user, require_active_user, require_admin
 from app.models.auction import Auction, AuctionMessage, AuctionReview
 from app.models.user import User
-from app.schemas.auction import AuctionCreate, AuctionFinalizeRequest, AuctionImageRead, AuctionListItem, AuctionMessageCreate, AuctionMessageRead, AuctionResponse, AuctionReviewCreate, AuctionReviewRead, AuctionStatusResponse, AuctionUpdate
+from app.schemas.auction import AuctionCreate, AuctionFinalizeRequest, AuctionImageRead, AuctionListItem, AuctionMessageCreate, AuctionMessageRead, AuctionResponse, AuctionReviewCreate, AuctionReviewRead, AuctionStatusResponse, AuctionUpdate, BidCreate, BidHistoryItem, BidRead
 from app.services.auction_images import add_auction_image, delete_auction_image, set_cover_image
 from app.services.auction_lifecycle import PUBLIC_AUCTION_STATUSES, activate_auction, can_access_post_auction_features, cancel_auction, create_auction, create_message, create_review, finalize_auction, get_auction_or_404, get_auction_statement, require_can_view_auction, require_post_auction_participant, sync_auction_status, update_auction
+from app.services.bidding import bid_to_history_item, bid_to_read, list_bid_history, place_bid
 
 router = APIRouter(prefix="/api/auctions", tags=["auctions"])
 
@@ -103,6 +104,28 @@ def get_auction_status(
     auction = get_auction_or_404(db, auction_id)
     require_can_view_auction(auction, current_user)
     return AuctionStatusResponse.model_validate(auction)
+
+
+@router.get("/{auction_id}/bids", response_model=list[BidHistoryItem])
+def list_auction_bids(
+    auction_id: int,
+    current_user: User | None = Depends(get_optional_current_user),
+    db: Session = Depends(get_db),
+) -> list[BidHistoryItem]:
+    auction = get_auction_or_404(db, auction_id)
+    bids = list_bid_history(db=db, auction=auction, user=current_user)
+    return [BidHistoryItem.model_validate(bid_to_history_item(bid, auction)) for bid in bids]
+
+
+@router.post("/{auction_id}/bids", response_model=BidRead, status_code=status.HTTP_201_CREATED)
+def place_auction_bid(
+    auction_id: int,
+    bid_create: BidCreate,
+    current_user: User = Depends(require_active_user),
+    db: Session = Depends(get_db),
+) -> BidRead:
+    bid, auction = place_bid(db=db, auction_id=auction_id, bidder=current_user, amount=bid_create.amount)
+    return BidRead.model_validate(bid_to_read(bid, auction))
 
 
 @router.post("/{auction_id}/admin/finalize", response_model=AuctionStatusResponse)
