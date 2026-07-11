@@ -1,6 +1,6 @@
 import { ChangeEvent, FormEvent, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { activateAuction, createAuction, listMyAuctions, uploadAuctionImage, type Auction, type AuctionCondition } from "../api/auctions";
+import { activateAuction, cancelAuction, createAuction, listMyAuctions, updateAuction, uploadAuctionImage, type Auction, type AuctionCondition } from "../api/auctions";
 import { AuctionCard } from "../components/AuctionCard";
 import { categories, conditionOptions } from "../data/content";
 import { formatMoney, formatRemainingTime } from "../utils/format";
@@ -61,6 +61,11 @@ export function AccountPage() {
   const [imageMessage, setImageMessage] = useState("");
   const [formMessage, setFormMessage] = useState("");
 
+  const refreshMyAuctions = async () => {
+    const refreshedAuctions = await listMyAuctions();
+    setMyAuctions(refreshedAuctions);
+  };
+
   useEffect(() => {
     listMyAuctions()
       .then(setMyAuctions)
@@ -113,14 +118,43 @@ export function AccountPage() {
       }
 
       await activateAuction(auction.id);
-      const refreshedAuctions = await listMyAuctions();
-      setMyAuctions(refreshedAuctions);
+      await refreshMyAuctions();
       setAuctionImages([]);
       setImageMessage("");
       setFormMessage("Az aukció létrejött, a képek feltöltődtek, és az aktiválás/időzítés sikeres.");
       event.currentTarget.reset();
     } catch (error) {
       setFormMessage(error instanceof Error ? error.message : "Az aukció létrehozása nem sikerült.");
+    }
+  };
+
+  const handleEditDescription = async (auction: Auction) => {
+    const nextDescription = window.prompt(
+      "Módosítható: leírás, kép, lejárati dátum, 5 perces szabály, villámár kapcsoló. Nem módosítható: kezdőár, licitlépcső, már megadott villámár összege.",
+      auction.description ?? "",
+    );
+    if (nextDescription === null) {
+      return;
+    }
+    try {
+      await updateAuction(auction.id, { description: nextDescription });
+      await refreshMyAuctions();
+      setFormMessage("Az aukció leírása frissült.");
+    } catch (error) {
+      setFormMessage(error instanceof Error ? error.message : "A módosítás nem sikerült.");
+    }
+  };
+
+  const handleCancelAuction = async (auction: Auction) => {
+    if (!window.confirm("Biztosan megszakítod ezt az aukciót?")) {
+      return;
+    }
+    try {
+      await cancelAuction(auction.id);
+      await refreshMyAuctions();
+      setFormMessage("Az aukció megszakítva.");
+    } catch (error) {
+      setFormMessage(error instanceof Error ? error.message : "Az aukció megszakítása nem sikerült.");
     }
   };
 
@@ -173,8 +207,8 @@ export function AccountPage() {
                 showBidActions={false}
               />
               <div className="owner-actions">
-                <button className="button button-secondary" type="button">Módosítás</button>
-                <button className="button button-danger" type="button">Törlés</button>
+                <button className="button button-secondary" type="button" onClick={() => handleEditDescription(auction)}>Módosítás</button>
+                <button className="button button-danger" type="button" onClick={() => handleCancelAuction(auction)}>Törlés</button>
               </div>
             </div>
           ))}

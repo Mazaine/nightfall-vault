@@ -95,6 +95,13 @@ export function createAuction(payload: AuctionCreatePayload) {
   });
 }
 
+export function updateAuction(auctionId: number, payload: Partial<AuctionCreatePayload>) {
+  return apiRequest<Auction>(`/api/auctions/${auctionId}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
 export async function uploadAuctionImage(auctionId: number, file: File, isCover: boolean) {
   const formData = new FormData();
   formData.append("image", file);
@@ -106,6 +113,12 @@ export async function uploadAuctionImage(auctionId: number, file: File, isCover:
 
 export function activateAuction(auctionId: number) {
   return apiRequest<{ id: number; status: AuctionStatus }>(`/api/auctions/${auctionId}/activate`, {
+    method: "POST",
+  });
+}
+
+export function cancelAuction(auctionId: number) {
+  return apiRequest<{ id: number; status: AuctionStatus }>(`/api/auctions/${auctionId}/cancel`, {
     method: "POST",
   });
 }
