@@ -70,17 +70,13 @@ Nightfall-Vault/
 
 # 🚧 Projekt állapota
 
-## Sprint 0 – Projekt előkészítés
+A projekt aktív aukciós platformként fejlődik. A jelenlegi fókusz:
 
-Jelenlegi célok:
-
-* projektstruktúra kialakítása
-* dokumentáció elkészítése
-* architektúra megtervezése
-* felhasználói felület megtervezése
-* fejlesztési folyamat előkészítése
-
-Ebben a sprintben még **nem készül aukciós funkció**.
+* felhasználói aukciók létrehozása,
+* licitek követése,
+* admin felület,
+* biztonságos local/dev környezet,
+* mobil- és tabletbarát frontend.
 
 ---
 
@@ -123,16 +119,11 @@ Ebben a sprintben még **nem készül aukciós funkció**.
 
 # 📚 Dokumentáció
 
-A projekt részletes dokumentációja a `docs` mappában található.
+A projekt dokumentációja legfeljebb három aktív dokumentumba van rendezve:
 
-Tervezett dokumentumok:
-
-* Architektúra
-* API dokumentáció
-* Adatbázis
-* UI Design System
-* Fejlesztői útmutató
-* Roadmap
+* `docs/PROJECT_STATUS.md` – aktuális projektállapot és funkciók
+* `docs/SECURITY_AND_OPERATIONS.md` – secret kezelés, Docker, local/dev admin, üzemeltetés
+* `docs/SPRINT_1_REPORT.md` – Sprint 1 részletes zárójelentés
 
 ---
 
@@ -165,5 +156,4 @@ A repository nem tartalmazhat valódi jelszót, API-kulcsot vagy éles secretet.
 
 Local admin létrehozása kizárólag környezeti változóval történhet. A seed script nem tartalmaz és nem ír ki jelszót.
 
-Részletes útmutató: docs/security-secrets.md.
-
+Részletes útmutató: `docs/SECURITY_AND_OPERATIONS.md`.
