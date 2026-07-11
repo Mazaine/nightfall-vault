@@ -6,7 +6,7 @@ Datum: 2026-07-11
 
 A Sprint 2 celja egy onallo Auction domain kialakitasa volt, amely nem a Product oroksegre epul. A backend domain, migracio, API, kepfeltoltes, aukcio-eletciklus, lezart aukciohoz kotott chat es ertekeles alapjai elkeszultek.
 
-Statusz: reszben kesz. A backend es az alap frontend bekotes mukodik, a tesztek es build sikeresek. A teljes licitmotor, Bid domain, licittortenet, automatikus nyertes-meghatarozas, WebSocket chat es admin moderacios UI tovabbi sprintekre marad.
+Statusz: elkészült, technikai adóssággal. A backend es az alap frontend bekotes mukodik, a tesztek es build sikeresek. A teljes licitmotor, Bid domain, licittortenet, automatikus nyertes-meghatarozas, WebSocket chat es admin moderacios UI a Sprint 2 scope-on kivuli, kesobbi fejlesztesi terulet.
 
 ## 2. Elkeszult modellek
 
@@ -118,7 +118,7 @@ Ellenorzes:
 - downgrade utan `alembic current`: `0001_initial_template`
 - visszaallitas `head` allapotra sikeres
 
-Tiszta adatbazis ellenorzes: a migracio az SQLAlchemy metadata alapjan tiszta local/dev adatbazison is letrehozza az uj tablakat.
+Tiszta adatbazis ellenorzes: kulon, ures adatbazison nem futott. A migracio a jelenlegi local/dev adatbazison upgrade, downgrade es vissza-upgrade folyamatban ellenorzott.
 
 ## 5. API-vegpontok
 
@@ -233,7 +233,7 @@ Ellenorzott vedelmek:
 - reviewer spoofing tiltott
 - reviewed user manipulacio tiltott
 - IDOR vedett ownership ellenorzessel
-- XSS kockazat csokkentve React escapinggel
+- XSS kockazat csokkentve: a chat uzenetek es ertekelesi kommentek egyszeru szovegkent tarolodnak, a frontend React escapinggel jeleniti meg oket, `dangerouslySetInnerHTML` nelkul
 - fajlfeltoltes MIME es magic byte ellenorzessel
 - statuszmanipulacio service logikan keresztul tiltott
 - jogosulatlan muveleteknel `401`, `403`, `404`, `409`, `422` valaszok
@@ -254,9 +254,22 @@ Lefedett fo esetek:
 - ownership modositas
 - kepfeltoltes es boritokep
 - kep nelkuli aktivalas tiltott
+- hatodik kep feltoltese tiltott
+- tobb boritokep megakadalyozasa
+- boritokep nelkuli aktivalas tiltott
+- aktiv aukcio utolso kepenek torlese tiltott
+- tiltott statuszatmenetek
+- nyertes nelkuli `sold` allapot tiltott
+- nyertessel rendelkezo `unsold` allapot tiltott
 - aktiv aukcio kritikus mezoi zaroltak
 - sold aukcio chat jogosultsag
+- seller es winner kozotti chat
+- idegen felhasznalo chat olvasasa tiltott
 - ertekeles jogosultsag es duplikacio tiltasa
+- rating also es felso hatara
+- onertekeles vedelme
+- reviewed user manipulacio vedelme
+- nem resztvevo ertekelesi kiserlete tiltott
 
 Futtatott parancs:
 
@@ -266,8 +279,8 @@ docker compose exec -T backend pytest
 
 Eredmeny:
 
-- 15 teszt osszesen
-- 15 sikeres
+- 20 teszt osszesen
+- 20 sikeres
 - 0 sikertelen
 - 0 kihagyott
 
@@ -320,9 +333,9 @@ Sprint 2 commitok:
 - `17c310b` - `feat(frontend): connect auction ownership flows`
 - `3373fa1` - `docs(frontend): update auction flow guidance`
 - `7222825` - `feat(frontend): add auction owner actions`
-- dokumentacios zaro commit: `docs: add sprint 2 report and operations updates`
+- `fd29378` - `docs: add sprint 2 report and operations updates`
 
-## 17. Mi maradt hatra
+## 17. Kovetkezo sprintekre tervezett fejlesztesek
 
 - teljes licitmotor
 - Bid modell
@@ -383,7 +396,7 @@ Teljesult:
 - frontend build sikeres
 - migracio upgrade es downgrade ellenorzott
 
-Reszben teljesult vagy kovetkezo sprintre maradt:
+Sprint 2 scope-on kivuli, kovetkezo sprintre tervezett teruletek:
 
 - teljes licitmotor
 - automatikus otperces hosszabbitas

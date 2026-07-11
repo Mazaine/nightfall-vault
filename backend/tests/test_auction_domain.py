@@ -70,6 +70,38 @@ def auction_payload(**overrides):
     return payload
 
 
+def upload_png(auction_id: int, user: User, name: str = "card.png", is_cover: bool | None = None):
+    suffix = "" if is_cover is None else f"?is_cover={'true' if is_cover else 'false'}"
+    return client.post(
+        f"/api/auctions/{auction_id}/images{suffix}",
+        headers=auth_headers(user),
+        files={"image": (name, b"\x89PNG\r\n\x1a\nimage-bytes", "image/png")},
+    )
+
+
+def create_expired_auction_with_image(seller: User) -> dict:
+    now = datetime.now(timezone.utc)
+    created = client.post(
+        "/api/auctions",
+        json=auction_payload(starts_at=(now - timedelta(days=2)).isoformat(), ends_at=(now - timedelta(days=1)).isoformat()),
+        headers=auth_headers(seller),
+    ).json()
+    upload_png(created["id"], seller)
+    client.post(f"/api/auctions/{created['id']}/activate", headers=auth_headers(seller))
+    return created
+
+
+def create_sold_auction(seller: User, winner: User, admin: User) -> dict:
+    created = create_expired_auction_with_image(seller)
+    finalized = client.post(
+        f"/api/auctions/{created['id']}/admin/finalize",
+        json={"status": "sold", "winner_id": winner.id},
+        headers=auth_headers(admin),
+    )
+    assert finalized.status_code == 200
+    return finalized.json()
+
+
 def test_authenticated_user_can_create_auction_and_seller_is_current_user() -> None:
     cleanup_test_data()
     seller = create_test_user("seller-create@auction-test.local")
@@ -219,3 +251,112 @@ def test_sold_auction_chat_and_review_are_participant_only() -> None:
     assert winner_review.json()["reviewed_user_id"] == seller.id
     assert duplicate_review.status_code == 409
     assert stranger_review.status_code == 403
+
+
+def test_image_limit_cover_integrity_and_activation_without_cover() -> None:
+    cleanup_test_data()
+    seller = create_test_user("seller-image-rules@auction-test.local")
+    created = client.post("/api/auctions", json=auction_payload(), headers=auth_headers(seller)).json()
+
+    uploads = [upload_png(created["id"], seller, name=f"card-{index}.png", is_cover=(index == 1)) for index in range(1, 6)]
+    sixth_upload = upload_png(created["id"], seller, name="card-6.png")
+
+    db = SessionLocal()
+    try:
+        images = db.query(AuctionImage).filter(AuctionImage.auction_id == created["id"]).all()
+        cover_count = sum(1 for image in images if image.is_cover)
+        for image in images:
+            image.is_cover = False
+            db.add(image)
+        db.commit()
+    finally:
+        db.close()
+
+    activation_without_cover = client.post(f"/api/auctions/{created['id']}/activate", headers=auth_headers(seller))
+
+    assert [response.status_code for response in uploads] == [201, 201, 201, 201, 201]
+    assert sixth_upload.status_code == 409
+    assert cover_count == 1
+    assert activation_without_cover.status_code == 422
+
+
+def test_active_auction_last_image_delete_and_forbidden_status_transition() -> None:
+    cleanup_test_data()
+    seller = create_test_user("seller-status-rules@auction-test.local")
+    now = datetime.now(timezone.utc)
+    created = client.post(
+        "/api/auctions",
+        json=auction_payload(starts_at=(now - timedelta(minutes=1)).isoformat(), ends_at=(now + timedelta(days=1)).isoformat()),
+        headers=auth_headers(seller),
+    ).json()
+    image = upload_png(created["id"], seller).json()
+    activated = client.post(f"/api/auctions/{created['id']}/activate", headers=auth_headers(seller))
+    delete_last_image = client.delete(f"/api/auctions/{created['id']}/images/{image['id']}", headers=auth_headers(seller))
+    cancelled = client.post(f"/api/auctions/{created['id']}/cancel", headers=auth_headers(seller))
+    reactivate_cancelled = client.post(f"/api/auctions/{created['id']}/activate", headers=auth_headers(seller))
+
+    assert activated.status_code == 200
+    assert activated.json()["status"] == "active"
+    assert delete_last_image.status_code == 409
+    assert cancelled.status_code == 200
+    assert reactivate_cancelled.status_code == 409
+
+
+def test_finalize_rejects_sold_without_winner_and_unsold_with_winner() -> None:
+    cleanup_test_data()
+    seller = create_test_user("seller-finalize-rules@auction-test.local")
+    winner = create_test_user("winner-finalize-rules@auction-test.local")
+    admin = create_test_user("admin-finalize-rules@auction-test.local", role="admin")
+
+    sold_candidate = create_expired_auction_with_image(seller)
+    unsold_candidate = create_expired_auction_with_image(seller)
+    sold_without_winner = client.post(
+        f"/api/auctions/{sold_candidate['id']}/admin/finalize",
+        json={"status": "sold"},
+        headers=auth_headers(admin),
+    )
+    unsold_with_winner = client.post(
+        f"/api/auctions/{unsold_candidate['id']}/admin/finalize",
+        json={"status": "unsold", "winner_id": winner.id},
+        headers=auth_headers(admin),
+    )
+
+    assert sold_without_winner.status_code == 422
+    assert unsold_with_winner.status_code == 422
+
+
+def test_chat_between_seller_and_winner_and_review_rating_boundaries() -> None:
+    cleanup_test_data()
+    seller = create_test_user("seller-chat-rules@auction-test.local")
+    winner = create_test_user("winner-chat-rules@auction-test.local")
+    admin = create_test_user("admin-chat-rules@auction-test.local", role="admin")
+    sold = create_sold_auction(seller, winner, admin)
+
+    seller_message = client.post(f"/api/auctions/{sold['id']}/messages", json={"message": "Sikeres aukció után."}, headers=auth_headers(seller))
+    winner_reads = client.get(f"/api/auctions/{sold['id']}/messages", headers=auth_headers(winner))
+    low_rating = client.post(f"/api/auctions/{sold['id']}/reviews", json={"rating": 0}, headers=auth_headers(winner))
+    high_rating = client.post(f"/api/auctions/{sold['id']}/reviews", json={"rating": 6}, headers=auth_headers(winner))
+
+    assert seller_message.status_code == 201
+    assert winner_reads.status_code == 200
+    assert winner_reads.json()[0]["message"] == "Sikeres aukció után."
+    assert low_rating.status_code == 422
+    assert high_rating.status_code == 422
+
+
+def test_reviewed_user_spoofing_is_ignored_and_self_review_is_not_possible() -> None:
+    cleanup_test_data()
+    seller = create_test_user("seller-review-spoof@auction-test.local")
+    winner = create_test_user("winner-review-spoof@auction-test.local")
+    admin = create_test_user("admin-review-spoof@auction-test.local", role="admin")
+    sold = create_sold_auction(seller, winner, admin)
+
+    spoofed_review = client.post(
+        f"/api/auctions/{sold['id']}/reviews",
+        json={"rating": 5, "reviewed_user_id": winner.id, "comment": "A reviewed user mezőt a backend figyelmen kívül hagyja."},
+        headers=auth_headers(winner),
+    )
+
+    assert spoofed_review.status_code == 201
+    assert spoofed_review.json()["reviewer_id"] == winner.id
+    assert spoofed_review.json()["reviewed_user_id"] == seller.id
