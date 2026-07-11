@@ -1,7 +1,9 @@
-import { ChangeEvent, FormEvent, useState } from "react";
+import { ChangeEvent, FormEvent, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { activateAuction, createAuction, listMyAuctions, uploadAuctionImage, type Auction, type AuctionCondition } from "../api/auctions";
 import { AuctionCard } from "../components/AuctionCard";
-import { categories, conditionOptions, ownAuctions, watchedAuctions } from "../data/content";
+import { categories, conditionOptions } from "../data/content";
+import { formatMoney, formatRemainingTime } from "../utils/format";
 
 const MAX_AUCTION_IMAGES = 5;
 
@@ -19,10 +21,52 @@ const lockedFields = [
   "már megadott villámár összege",
 ];
 
+const conditionMap: Record<string, AuctionCondition> = {
+  "Frissen Bontott": "fresh",
+  "Újszerű": "like_new",
+  "Játszott": "played",
+  "Sérült": "damaged",
+  "Kopott": "worn",
+  "Nyomdahibás": "misprint",
+};
+
+function toCardAuction(auction: Auction) {
+  return {
+    id: auction.id,
+    title: auction.title,
+    type: auction.category,
+    price: formatMoney(auction.starting_price),
+    step: formatMoney(auction.bid_increment),
+    time: formatRemainingTime(auction.ends_at, auction.status),
+    sellerName: "Te",
+    sellerRating: "Értékelés később",
+    buyNowPrice: auction.buy_now_enabled ? auction.buy_now_price : null,
+    isClosed: ["ended", "sold", "unsold", "cancelled", "suspended"].includes(auction.status),
+  };
+}
+
+function localDateTimeToIso(value: FormDataEntryValue | null) {
+  const textValue = String(value ?? "");
+  if (!textValue) {
+    throw new Error("A kezdési és zárási idő megadása kötelező.");
+  }
+  return new Date(textValue).toISOString();
+}
+
 export function AccountPage() {
+  const [myAuctions, setMyAuctions] = useState<Auction[]>([]);
+  const [isLoadingMyAuctions, setIsLoadingMyAuctions] = useState(true);
   const [auctionImages, setAuctionImages] = useState<File[]>([]);
   const [coverImageIndex, setCoverImageIndex] = useState(0);
   const [imageMessage, setImageMessage] = useState("");
+  const [formMessage, setFormMessage] = useState("");
+
+  useEffect(() => {
+    listMyAuctions()
+      .then(setMyAuctions)
+      .catch(() => setMyAuctions([]))
+      .finally(() => setIsLoadingMyAuctions(false));
+  }, []);
 
   const handleImageChange = (event: ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = Array.from(event.target.files ?? []);
@@ -37,15 +81,47 @@ export function AccountPage() {
     );
   };
 
-  const handleCreateAuction = (event: FormEvent<HTMLFormElement>) => {
+  const handleCreateAuction = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    setFormMessage("");
 
     if (auctionImages.length === 0) {
       setImageMessage("Legalább 1 képet kötelező feltölteni az aukcióhoz.");
       return;
     }
 
-    setImageMessage("A képfeltöltési adatok rendben vannak. A bekötés a backend aukció API elkészülésekor történik.");
+    const formData = new FormData(event.currentTarget);
+
+    try {
+      const auction = await createAuction({
+        title: String(formData.get("title") ?? ""),
+        description: String(formData.get("description") ?? ""),
+        category: String(formData.get("category") ?? categories[0]),
+        condition: conditionMap[String(formData.get("condition") ?? conditionOptions[0])],
+        starting_price: String(formData.get("starting_price") ?? "0"),
+        bid_increment: String(formData.get("bid_increment") ?? "0"),
+        buy_now_enabled: formData.get("buy_now_enabled") === "on",
+        buy_now_price: formData.get("buy_now_enabled") === "on" ? String(formData.get("buy_now_price") ?? "") : null,
+        starts_at: localDateTimeToIso(formData.get("starts_at")),
+        ends_at: localDateTimeToIso(formData.get("ends_at")),
+        five_minute_rule_enabled: formData.get("five_minute_rule_enabled") === "on",
+        seller_declaration_accepted: formData.get("seller_declaration_accepted") === "on",
+      });
+
+      for (const [index, file] of auctionImages.entries()) {
+        await uploadAuctionImage(auction.id, file, index === coverImageIndex);
+      }
+
+      await activateAuction(auction.id);
+      const refreshedAuctions = await listMyAuctions();
+      setMyAuctions(refreshedAuctions);
+      setAuctionImages([]);
+      setImageMessage("");
+      setFormMessage("Az aukció létrejött, a képek feltöltődtek, és az aktiválás/időzítés sikeres.");
+      event.currentTarget.reset();
+    } catch (error) {
+      setFormMessage(error instanceof Error ? error.message : "Az aukció létrehozása nem sikerült.");
+    }
   };
 
   return (
@@ -71,16 +147,8 @@ export function AccountPage() {
           <p className="section-note">A lezárt aukciók 24 óráig elszürkítve látszanak, utána eltűnnek.</p>
         </div>
 
-        <div className="auction-grid page-grid">
-          {watchedAuctions.map((auction, index) => (
-            <AuctionCard
-              item={auction}
-              index={index}
-              detailPath={`/auctions/${auction.id}`}
-              actionLabel="Részletek"
-              key={auction.id}
-            />
-          ))}
+        <div className="side-panel">
+          A teljes licitmotor Sprint 3-ra marad, ezért a licitált aukciók listája akkor fog backend adatból feltöltődni.
         </div>
       </section>
 
@@ -94,13 +162,14 @@ export function AccountPage() {
         </div>
 
         <div className="auction-grid page-grid">
-          {ownAuctions.map((auction, index) => (
+          {isLoadingMyAuctions ? <div className="side-panel">Saját aukciók betöltése...</div> : null}
+          {!isLoadingMyAuctions && myAuctions.length === 0 ? <div className="side-panel">Még nincs saját aukciód.</div> : null}
+          {myAuctions.map((auction, index) => (
             <div className="own-auction-card" key={auction.id}>
               <AuctionCard
-                item={auction}
+                item={toCardAuction(auction)}
                 index={index}
                 detailPath={`/auctions/${auction.id}`}
-                actionLabel="Részletezés"
                 showBidActions={false}
               />
               <div className="owner-actions">
@@ -142,7 +211,7 @@ export function AccountPage() {
         <form className="side-panel auction-create-form" onSubmit={handleCreateAuction}>
           <label>
             Név
-            <input type="text" placeholder="Aukció címe" />
+            <input name="title" type="text" placeholder="Aukció címe" required />
           </label>
           <div className="form-wide image-upload-field">
             <label>
@@ -173,47 +242,56 @@ export function AccountPage() {
           </div>
           <label className="form-wide">
             Leírás
-            <textarea rows={5} placeholder="Állapot, kiadás, különleges tudnivalók..." />
+            <textarea name="description" rows={5} placeholder="Állapot, kiadás, különleges tudnivalók..." required />
           </label>
           <label>
             Kategória
-            <select>
+            <select name="category">
               {categories.map((category) => <option key={category}>{category}</option>)}
             </select>
           </label>
           <label>
             Állapot
-            <select>
+            <select name="condition">
               {conditionOptions.map((condition) => <option key={condition}>{condition}</option>)}
             </select>
           </label>
           <label>
             Kezdőár
-            <input type="number" min="0" placeholder="0" />
+            <input name="starting_price" type="number" min="1" placeholder="0" required />
             <small>Ezt később nem módosíthatod.</small>
           </label>
           <label>
             Licitlépcső
-            <input type="number" min="0" placeholder="500" />
+            <input name="bid_increment" type="number" min="1" placeholder="500" required />
             <small>Ezt később nem módosíthatod.</small>
           </label>
           <label>
             Villámár
-            <input type="number" min="0" placeholder="Opcionális" />
+            <input name="buy_now_price" type="number" min="1" placeholder="Opcionális" />
             <small>Az összeget később nem módosíthatod.</small>
           </label>
           <label>
+            Kezdési dátum
+            <input name="starts_at" type="datetime-local" required />
+          </label>
+          <label>
             Lejárati dátum
-            <input type="datetime-local" />
+            <input name="ends_at" type="datetime-local" required />
           </label>
           <label className="toggle-row">
-            <input type="checkbox" />
+            <input name="five_minute_rule_enabled" type="checkbox" defaultChecked />
             5 perces szabály bekapcsolása
           </label>
           <label className="toggle-row">
-            <input type="checkbox" />
+            <input name="buy_now_enabled" type="checkbox" />
             Villámár bekapcsolása
           </label>
+          <label className="toggle-row form-wide">
+            <input name="seller_declaration_accepted" type="checkbox" required />
+            Elfogadom, hogy jogosult vagyok a termék értékesítésére és a képek használatára, az adásvétel pedig köztem és a nyertes vevő között jön létre.
+          </label>
+          {formMessage ? <p className="form-message form-wide">{formMessage}</p> : null}
           <button className="button button-primary form-wide" type="submit">
             Aukció létrehozása
           </button>

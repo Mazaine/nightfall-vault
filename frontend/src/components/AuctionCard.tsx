@@ -1,11 +1,21 @@
 import { Link } from "react-router-dom";
-import type { FeaturedAuction } from "../data/content";
 
 type AuctionCardProps = {
-  item: FeaturedAuction;
+  item: {
+    id: string | number;
+    title: string;
+    type: string;
+    price: string;
+    step: string;
+    time: string;
+    sellerName: string;
+    sellerRating: string;
+    buyNowPrice?: string | null;
+    isClosed?: boolean;
+    userIsOutbid?: boolean;
+  };
   index: number;
   detailPath: string;
-  actionLabel?: string;
   priceLabel?: string;
   showTimer?: boolean;
   showBidActions?: boolean;
@@ -15,7 +25,6 @@ export function AuctionCard({
   item,
   index,
   detailPath,
-  actionLabel = "Részletek",
   priceLabel = "Jelenlegi licit",
   showTimer = true,
   showBidActions = true,
@@ -27,7 +36,11 @@ export function AuctionCard({
       {item.userIsOutbid && <div className="auction-alert">Rád licitáltak</div>}
 
       <div className="auction-content">
-        <h3>{item.title}</h3>
+        <h3>
+          <Link className="auction-title-link" to={detailPath}>
+            {item.title}
+          </Link>
+        </h3>
         <p>{item.type}</p>
         <div className="seller-meta">
           <span>Eladó: {item.sellerName}</span>
@@ -38,9 +51,6 @@ export function AuctionCard({
         <small>Licitlépcső: {item.step}</small>
 
         <div className="auction-actions">
-          <Link className="button button-secondary" to={detailPath}>
-            {actionLabel}
-          </Link>
           {showBidActions && !item.isClosed ? (
             <>
               <button className="button button-secondary" type="button">Licitálok</button>
