@@ -4,9 +4,9 @@ Utolso frissites: 2026-07-11
 
 ## Project Version
 
-v0.2.0-dev
+v0.3.0-dev
 
-Sprint 2 backend domain completed, frontend integration partially completed
+Sprint 3 bid domain and transaction-safe bidding completed
 
 ## Aktiv projektmappa
 
@@ -148,6 +148,7 @@ Letrejott modellek:
 - `AuctionImage`
 - `AuctionMessage`
 - `AuctionReview`
+- `Bid`
 
 ## Aukcioallapotok es eletciklus
 
@@ -178,6 +179,29 @@ Az aukcios penzugyi mezok `Numeric` / `Decimal` alapuak, nem float tipusuak. Val
 
 Aktivalas utan normal elado nem modosithat kritikus ar- es indulasi mezoket.
 
+## Bid Domain es licitmotor
+
+Sprint 3-ban letrejott az onallo `Bid` domain. A licit nem a `Product` oroksegre epul, hanem kozvetlenul az `Auction` domainhez kapcsolodik.
+
+Meglevo licitmotor funkciok:
+
+- hitelesitett felhasznalo licitalhat aktiv aukcion,
+- sajat aukciora licit tiltott,
+- draft, scheduled, ended, sold, unsold, cancelled es suspended aukcion licit tiltott,
+- minimum licit: `current_price + bid_increment`,
+- `current_price` es `highest_bid_id` backend oldalon frissul,
+- licittortenet publikus, anonimizalt licitalo cimkevel,
+- lejart aktiv aukcio licit mellett automatikusan `sold`, licit nelkul `unsold`,
+- nyertes a legmagasabb licit licitaloja,
+- otperces hosszabbitas alapja bekerult: utolso 5 percben erkezo licit meghosszabbitja a zarast.
+
+Tranzakciobiztonsag:
+
+- a licit elhelyezese adatbazis tranzakcioban tortenik,
+- az aukcio sorara row lock kerul (`SELECT ... FOR UPDATE`),
+- a minimum licit ellenorzese es a highest bid frissitese egy tranzakcion belul tortenik,
+- parhuzamos azonos osszegu liciteknel csak az egyik valhat ervenyes aktualis legmagasabb licitte.
+
 ## Kepek es boritokep
 
 Egy aukciohoz legfeljebb 5 kep toltheto fel. Aktiv vagy idozitett aukciohoz legalabb 1 kep es pontosan 1 boritokep szukseges. A backend ellenorzi a MIME-type erteket, a fajl magic byte tartalmat, a fajlmeretet es az ownership szabalyokat.
@@ -207,6 +231,8 @@ Elkeszult:
 - aukcio letrehozas backend API-val
 - kepfeltoltes es boritokep kuldes
 - aukcio aktivalas/idotizes
+- aktiv aukcion licit elhelyezese backend API-val
+- aktuális licit es licittortenet megjelenitese backend adatbol
 - cim alapu aukcio navigacio
 - chat es ertekeles megjelenites backend jogosultsagi flag alapjan
 - login/register API bekotes az aktiv frontendben
@@ -215,13 +241,14 @@ Elkeszult:
 
 - A frontend admin vedelem localStorage-alapu UX kapu; a valodi jogosultsagot tovabbra is a backend admin endpointjai ervenyesitik.
 - A `Product` domain meg oroksegkent jelen van a backendben es a legacy frontend kodban.
-- A teljes licitmotor, Bid modell es licittortenet meg nem keszult el.
-- A nyertes automatikus meghatarozasa es otperces hosszabbitas tenyleges vegrehajtasa Sprint 3-ra maradt.
+- A licitmotor alapja elkeszult, de nincs WebSocket vagy push alapu valos ideju frissites.
+- Az otperces hosszabbitas service-szinten mukodik licit elhelyezesekor, de kulon scheduler nincs.
+- A buy now jelenleg elokeszitett jelzes, teljes azonnali zarasi folyamat kesobbi sprintre maradt.
 - A frontend session kezeles meg nem teljes auth provider alapu alkalmazasarchitektura.
 - Az admin aukcio moderacios UI meg nem teljes.
 
 ## Next Planned Sprint
 
-A kovetkezo sprint celja a licitmotor es Bid domain kialakitasa: licitalasi tranzakciok, licittortenet, konkurenciakezeles, automatikus lezaras es nyertes-meghatarozas. Ez a Sprint 2-ben letrehozott Auction eletciklusra epuljon.
+A kovetkezo sprint celja a licitmotor felhasznaloi elmenyenek es operacios folyamatanak erositese: sajat licitek listaja, licitertesitesek, admin aukcio moderacio, buy now vegleges folyamat es idozitett lezaro job.
 
-Sprint 3-ban kulon figyelmet kell kapnia annak, hogy a licitalas tranzakciobiztos legyen, ne alakuljon ki versenyhelyzetbol adatinkonzisztencia, es az automatikus nyertes-meghatarozas ne legyen frontendrol manipulalhato.
+Sprint 4-ben kulon figyelmet kell kapnia annak, hogy a frontend session kezeles es az aukcio-frissitesek ne localStorage es kezi frissites alapu UX-re epuljenek hosszu tavon.

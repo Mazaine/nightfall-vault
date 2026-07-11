@@ -142,6 +142,25 @@ Vedett manipulacios pontok:
 
 Draft aukcio idegen felhasznalonak nem szivarog ki: jogosulatlan lekeresnel `404` valasz jar.
 
+## Bid Security
+
+A Bid domain kritikus azonositokat backend oldalon szarmaztat vagy ellenoriz.
+
+Vedett manipulacios pontok:
+
+- bidder spoofing: `bidder_id` az aktualis hitelesitett userbol jon
+- seller spoofing: sajat aukciora licit backend oldalon tiltott
+- winner spoofing: lejart aukcio nyertese a legmagasabb licitbol szarmazik
+- IDOR: nem publikus aukcio licittortenete nem kerdezheto le jogosulatlanul
+- armanipulacio: `current_price` es `highest_bid_id` nem frontendrol jon
+- float penzkezeles tiltasa: licitosszegek `Numeric` / `Decimal` alapuak
+
+A licit elhelyezese adatbazis tranzakcioban fut. A backend az aukcio sort row lockinggal zarolja, majd ugyanabban a tranzakcioban ellenorzi a minimum licitet es frissiti az aktualis arat, valamint a legmagasabb licit hivatkozasat.
+
+Konkurens licitek eseten a masodik tranzakcio a frissitett `current_price` alapjan validal, igy nem alakulhat ki elveszett vagy felulirt highest bid allapot.
+
+Az otperces hosszabbitas alapja service-szinten mukodik: ha aktiv aukcion, a zaras elotti utolso ot percben erkezik licit, az `ends_at` meghosszabbodik. Kulon scheduler vagy background worker jelenleg nincs.
+
 ## Aukciokep biztonsag
 
 Tamogatott MIME tipusok:

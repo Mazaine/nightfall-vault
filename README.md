@@ -99,8 +99,9 @@ A projekt aktív aukciós platformként fejlődik. A jelenlegi fókusz:
 * Eladói nyilatkozat
 * Sikeresen lezárt aukcióhoz kötött chat
 * Eladó és nyertes közötti értékelés
-* Licitálás
-* Automatikus lezárás
+* Licitálás önálló Bid domainnel
+* Tranzakcióbiztos licitmotor
+* Automatikus lezárás licit alapján
 * Licittörténet
 * Minimum ár
 * Azonnali vásárlás lehetősége
@@ -125,11 +126,13 @@ A projekt aktív aukciós platformként fejlődik. A jelenlegi fókusz:
 
 # 📚 Dokumentáció
 
-A projekt dokumentációja legfeljebb három aktív dokumentumba van rendezve:
+A projekt dokumentációja aktív állapot- és sprintdokumentumokba van rendezve:
 
 * `docs/PROJECT_STATUS.md` – aktuális projektállapot és funkciók
 * `docs/SECURITY_AND_OPERATIONS.md` – secret kezelés, Docker, local/dev admin, üzemeltetés
 * `docs/SPRINT_1_REPORT.md` – Sprint 1 részletes zárójelentés
+* `docs/SPRINT_2_REPORT.md` – Auction domain zárójelentés
+* `docs/SPRINT_3_REPORT.md` – Bid domain és licitmotor zárójelentés
 
 ---
 
@@ -195,6 +198,27 @@ docker compose ps
 ## Képtárolás
 
 Az aukcióképek local/dev környezetben az alkalmazás `uploads/auctions` könyvtárába kerülnek, biztonságosan generált storage kulccsal. Egy aukcióhoz maximum 5 kép tartozhat, aktiváláskor pontosan 1 borítókép szükséges.
+
+## Bid domain és licitmotor
+
+Sprint 3-tól az aktív aukciókra valós backend licit helyezhető el.
+
+Fő szabályok:
+
+* csak bejelentkezett felhasználó licitálhat;
+* saját aukcióra nem lehet licitálni;
+* licit csak `active` aukción fogadható;
+* a minimum licit `current_price + bid_increment`;
+* a `current_price`, `highest_bid` és nyertes meghatározása backend oldalon történik;
+* a licittörténet publikus, de a licitáló anonim címkével jelenik meg;
+* a licitmotor adatbázis tranzakciót és row lockingot használ.
+
+Kapcsolódó endpointok:
+
+```text
+POST /api/auctions/{auction_id}/bids
+GET  /api/auctions/{auction_id}/bids
+```
 
 ## Fontos konfigurációs változónevek
 
