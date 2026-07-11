@@ -704,9 +704,70 @@ h3 {
   padding: var(--space-3);
 }
 
+.auction-create-form select {
+  color-scheme: dark;
+}
+
+.auction-create-form select option {
+  background-color: #17131c;
+  color: #f5f1fa;
+}
+
+.auction-create-form select option:checked {
+  background-color: #7c3aed;
+  color: #ffffff;
+}
+
+.auction-create-form select option:hover {
+  background-color: #5b21b6;
+  color: #ffffff;
+}
+
 .auction-create-form small {
   color: #fef3c7;
   font-size: var(--font-size-caption);
+}
+
+.image-upload-field {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.cover-image-list {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.cover-image-option {
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
+  align-items: center;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: rgb(255 255 255 / 0.045);
+  padding: var(--space-3);
+}
+
+.cover-image-option input {
+  width: auto;
+}
+
+.cover-image-option strong {
+  overflow: hidden;
+  color: var(--color-text-primary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cover-image-option em {
+  color: #facc15;
+  font-size: var(--font-size-caption);
+  font-style: normal;
+}
+
+.form-message {
+  margin: 0;
+  color: #fef3c7;
+  font-size: var(--font-size-body-sm);
 }
 
 .form-wide {

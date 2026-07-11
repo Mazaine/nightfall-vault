@@ -1,4 +1,4 @@
-import { Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes } from "react-router-dom";
 import { SiteFooter } from "./components/SiteFooter";
 import { SiteHeader } from "./components/SiteHeader";
 import { AboutPage } from "./pages/AboutPage";
@@ -20,6 +20,28 @@ import { HowItWorksPage } from "./pages/HowItWorksPage";
 import { InfoPage } from "./pages/InfoPages";
 import { OrdersPage } from "./pages/OrdersPage";
 
+function hasAdminSession() {
+  if (typeof window === "undefined") {
+    return false;
+  }
+
+  const rawUser = window.localStorage.getItem("nightfall_user");
+  if (!rawUser) {
+    return false;
+  }
+
+  try {
+    const user = JSON.parse(rawUser) as { role?: string; isAdmin?: boolean };
+    return user.role === "admin" || user.isAdmin === true;
+  } catch {
+    return false;
+  }
+}
+
+function AdminRoute() {
+  return hasAdminSession() ? <AdminLayout /> : <Navigate to="/" replace />;
+}
+
 function App() {
   return (
     <div className="app-shell">
@@ -39,7 +61,7 @@ function App() {
           <Route path="/contact" element={<ContactPage />} />
           <Route path="/login" element={<AuthPage mode="login" />} />
           <Route path="/register" element={<AuthPage mode="register" />} />
-          <Route path="/admin" element={<AdminLayout />}>
+          <Route path="/admin" element={<AdminRoute />}>
             <Route index element={<AdminDashboardPage />} />
             <Route path="auctions" element={<AdminAuctionsPage />} />
             <Route path="orders" element={<AdminOrdersPage />} />

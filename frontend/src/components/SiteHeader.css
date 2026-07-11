@@ -61,6 +61,30 @@
   color: var(--color-text-primary);
 }
 
+.menu-toggle {
+  display: none;
+  width: 2.7rem;
+  height: 2.7rem;
+  border: 1px solid rgb(255 255 255 / 0.14);
+  border-radius: var(--radius-md);
+  background: rgb(255 255 255 / 0.04);
+  color: var(--color-text-primary);
+  place-items: center;
+  padding: 0.62rem;
+}
+
+.menu-toggle span {
+  display: block;
+  width: 1.18rem;
+  height: 2px;
+  border-radius: var(--radius-full);
+  background: currentColor;
+}
+
+.menu-toggle span + span {
+  margin-top: 0.28rem;
+}
+
 .header-actions {
   display: flex;
   gap: var(--space-2);
@@ -130,20 +154,41 @@
 
 @media (max-width: 1180px) {
   .site-header-inner {
-    grid-template-columns: 1fr auto;
+    position: relative;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+  }
+
+  .menu-toggle {
+    display: grid;
   }
 
   .site-nav {
+    position: absolute;
+    top: calc(100% + 0.65rem);
+    right: 0;
     grid-column: 1 / -1;
     order: 3;
-    overflow-x: auto;
-    justify-content: flex-start;
-    padding-bottom: var(--space-2);
-    scrollbar-width: none;
+    display: none;
+    width: min(28rem, calc(100vw - 2rem));
+    max-height: calc(100vh - 7rem);
+    overflow-y: auto;
+    border: 1px solid var(--color-divider);
+    border-radius: var(--radius-lg);
+    background: #05040b;
+    box-shadow: 0 24px 70px rgb(0 0 0 / 0.55);
+    padding: var(--space-3);
+    white-space: normal;
   }
 
-  .site-nav::-webkit-scrollbar {
-    display: none;
+  .site-nav.is-open {
+    display: grid;
+    gap: var(--space-1);
+  }
+
+  .site-nav a {
+    width: 100%;
+    padding: var(--space-3);
+    font-size: var(--font-size-body-sm);
   }
 }
 
@@ -156,6 +201,12 @@
   .brand-logo {
     width: clamp(11rem, 52vw, 16rem);
     height: 5rem;
+  }
+
+  .site-nav {
+    left: 0;
+    right: 0;
+    width: 100%;
   }
 
   .login-button,

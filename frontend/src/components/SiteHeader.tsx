@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Link, NavLink } from "react-router-dom";
 
 const navItems = [
@@ -40,8 +41,10 @@ function getStoredUser() {
 }
 
 export function SiteHeader() {
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
   const user = getStoredUser();
   const brandTarget = user.isAdmin ? "/admin" : "/";
+  const closeMenu = () => setIsMenuOpen(false);
 
   return (
     <header className="site-header">
@@ -54,9 +57,26 @@ export function SiteHeader() {
           />
         </Link>
 
-        <nav className="site-nav" aria-label="Elsődleges navigáció">
+        <button
+          className="menu-toggle"
+          type="button"
+          aria-label={isMenuOpen ? "Menü bezárása" : "Menü megnyitása"}
+          aria-expanded={isMenuOpen}
+          aria-controls="primary-navigation"
+          onClick={() => setIsMenuOpen((value) => !value)}
+        >
+          <span />
+          <span />
+          <span />
+        </button>
+
+        <nav
+          className={isMenuOpen ? "site-nav is-open" : "site-nav"}
+          id="primary-navigation"
+          aria-label="Elsődleges navigáció"
+        >
           {navItems.map((item) => (
-            <NavLink to={item.to} key={item.to} end={item.to === "/"}>
+            <NavLink to={item.to} key={item.to} end={item.to === "/"} onClick={closeMenu}>
               {item.label}
             </NavLink>
           ))}

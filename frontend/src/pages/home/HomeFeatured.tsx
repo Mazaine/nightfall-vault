@@ -9,7 +9,6 @@ export function HomeFeatured() {
       <div className="main-column">
         <div className="section-heading">
           <div>
-            <p className="eyebrow">Kurált válogatás</p>
             <h2>Kiemelt aukciók</h2>
           </div>
           <Link className="text-link" to="/auctions">Összes aukció</Link>
