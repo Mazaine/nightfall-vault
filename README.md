@@ -93,6 +93,12 @@ A projekt aktív aukciós platformként fejlődik. A jelenlegi fókusz:
 ## Aukció
 
 * Aukció létrehozása
+* Önálló Auction domain
+* Aukcióállapot-életciklus
+* Képfeltöltés és borítókép
+* Eladói nyilatkozat
+* Sikeresen lezárt aukcióhoz kötött chat
+* Eladó és nyertes közötti értékelés
 * Licitálás
 * Automatikus lezárás
 * Licittörténet
@@ -157,3 +163,51 @@ A repository nem tartalmazhat valódi jelszót, API-kulcsot vagy éles secretet.
 Local admin létrehozása kizárólag környezeti változóval történhet. A seed script nem tartalmaz és nem ír ki jelszót.
 
 Részletes útmutató: `docs/SECURITY_AND_OPERATIONS.md`.
+
+---
+
+# 🧩 Auction domain fejlesztői parancsok
+
+Migráció futtatása:
+
+```powershell
+docker compose exec -T backend alembic upgrade head
+```
+
+Backend tesztek:
+
+```powershell
+docker compose exec -T backend pytest
+```
+
+Frontend build:
+
+```powershell
+docker compose exec -T frontend npm run build
+```
+
+Docker állapot:
+
+```powershell
+docker compose ps
+```
+
+## Képtárolás
+
+Az aukcióképek local/dev környezetben az alkalmazás `uploads/auctions` könyvtárába kerülnek, biztonságosan generált storage kulccsal. Egy aukcióhoz maximum 5 kép tartozhat, aktiváláskor pontosan 1 borítókép szükséges.
+
+## Fontos konfigurációs változónevek
+
+Az értékeket `.env` fájlban kell megadni, de valódi secret nem kerülhet verziókezelésbe.
+
+```text
+DATABASE_URL
+SECRET_KEY
+REDIS_URL
+CAPTCHA_ENABLED
+TURNSTILE_SECRET_KEY
+BREVO_API_KEY
+DEV_ADMIN_EMAIL
+DEV_ADMIN_PASSWORD
+VITE_API_BASE_URL
+```

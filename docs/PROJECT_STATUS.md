@@ -4,9 +4,9 @@ Utolso frissites: 2026-07-11
 
 ## Project Version
 
-v0.1.0-dev
+v0.2.0-dev
 
-Sprint 1 completed
+Sprint 2 backend domain completed, frontend integration partially completed
 
 ## Aktiv projektmappa
 
@@ -138,18 +138,90 @@ Meglevo backend alapok:
 - email szolgaltatas
 - pytest tesztek
 
+## Auction Domain
+
+Sprint 2-ben letrejott az onallo Auction domain. Az aukcio nem a `Product` modellre epul, nincs kotelezo webshopos termek kapcsolata, es minden aukcio egy regisztralt eladohoz tartozik.
+
+Letrejott modellek:
+
+- `Auction`
+- `AuctionImage`
+- `AuctionMessage`
+- `AuctionReview`
+
+## Aukcioallapotok es eletciklus
+
+Kozpontilag kezelt allapotok:
+
+- `draft`
+- `scheduled`
+- `active`
+- `ended`
+- `sold`
+- `unsold`
+- `cancelled`
+- `suspended`
+
+Az allapotvaltas backend service logikan keresztul tortenik. Tiltott a tetszoleges frontend statuszfeluliras, a `sold` allapot nyertes nelkul, es az `unsold` allapot nyertessel.
+
+## Idozites
+
+A backend idozonatudatos datetime ertekeket var es UTC-re normalizal. Az idoszinkronizalas idempotens service logikaval tortenik lista-, reszlet- es statuszlekeresek soran, valamint aktivalasi es admin finalize muveleteknel.
+
+## Arkezeles
+
+Az aukcios penzugyi mezok `Numeric` / `Decimal` alapuak, nem float tipusuak. Validalt mezok:
+
+- kezdoar
+- licitlepcso
+- opcionalis villamar
+
+Aktivalas utan normal elado nem modosithat kritikus ar- es indulasi mezoket.
+
+## Kepek es boritokep
+
+Egy aukciohoz legfeljebb 5 kep toltheto fel. Aktiv vagy idozitett aukciohoz legalabb 1 kep es pontosan 1 boritokep szukseges. A backend ellenorzi a MIME-type erteket, a fajl magic byte tartalmat, a fajlmeretet es az ownership szabalyokat.
+
+## Seller Ownership es eladoi nyilatkozat
+
+Az elado mindig az aktualis hitelesitett userbol szarmazik, `seller_id` normal create requestbol nem allithato. Aukcio letrehozashoz kotelezo az eladoi nyilatkozat elfogadasa, amelynek idopontja es verzioja tarolodik.
+
+## Lezart aukcio, chat es ertekeles
+
+Sikeresen lezart aukcio feltetele:
+
+- `status == sold`
+- van elado
+- van nyertes
+- az elado es nyertes kulon felhasznalo
+- van veglegesitesi idopont
+
+A chat es ertekeles csak sikeresen lezart aukcio utan erheto el, kizarolag az elado es a nyertes kozott. A sender, reviewer es reviewed user backend oldalon szarmaztatott.
+
+## Frontend bekotesek
+
+Elkeszult:
+
+- aukciolista backendrol
+- aukcio reszlet backendrol
+- aukcio letrehozas backend API-val
+- kepfeltoltes es boritokep kuldes
+- aukcio aktivalas/idotizes
+- cim alapu aukcio navigacio
+- chat es ertekeles megjelenites backend jogosultsagi flag alapjan
+- login/register API bekotes az aktiv frontendben
+
 ## Current Technical Debt
 
-- Az aukcio letrehozo frontend form jelenleg UI szintu, a vegleges aukcio API bekotes kesobb szukseges.
 - A frontend admin vedelem localStorage-alapu UX kapu; a valodi jogosultsagot tovabbra is a backend admin endpointjai ervenyesitik.
-- Az Alembic jelenleg egy kezdeti migraciot tartalmaz.
 - A `Product` domain meg oroksegkent jelen van a backendben es a legacy frontend kodban.
-- Az aukcio backend domain, adatmodell, kepfeltoltes es licitlogika meg nem teljesen bekotott.
-- A kepfeltoltes jelenleg frontend UI allapot, nem perzisztalt backend workflow.
+- A teljes licitmotor, Bid modell es licittortenet meg nem keszult el.
+- A nyertes automatikus meghatarozasa es otperces hosszabbitas tenyleges vegrehajtasa Sprint 3-ra maradt.
 - A frontend session kezeles meg nem teljes auth provider alapu alkalmazasarchitektura.
+- Az admin aukcio moderacios UI meg nem teljes.
 
 ## Next Planned Sprint
 
-A kovetkezo sprint celja az aukcios domain backend oldali megalapozasa: adatmodell, API szerzodesek, aukcio letrehozas, kepfeltoltes, boritokep kezeles es jogosultsagi szabalyok. A fejlesztesnek a marketplace iranyt kell erositenie, a megmaradt webshop/product orokseg tovabbi terjedese nelkul.
+A kovetkezo sprint celja a licitmotor es Bid domain kialakitasa: licitalasi tranzakciok, licittortenet, konkurenciakezeles, automatikus lezaras es nyertes-meghatarozas. Ez a Sprint 2-ben letrehozott Auction eletciklusra epuljon.
 
-Sprint 2-ben kulon figyelmet kell kapnia a felhasznaloi tulajdonjognak, a licitalasi szabalyoknak, a lezart aukciok 24 oras lathatosaganak, valamint annak, hogy az admin funkciok backend jogosultsaggal vedettek maradjanak.
+Sprint 3-ban kulon figyelmet kell kapnia annak, hogy a licitalas tranzakciobiztos legyen, ne alakuljon ki versenyhelyzetbol adatinkonzisztencia, es az automatikus nyertes-meghatarozas ne legyen frontendrol manipulalhato.

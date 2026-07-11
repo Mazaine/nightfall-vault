@@ -126,3 +126,85 @@ Redis leallas eseten a backendnek degradalt modban kell kezelnie a rate limiting
 Backend indulasi hiba eseten a Docker logokat, kornyezeti valtozokat, adatbazis kapcsolatot es Alembic allapotot kell ellenorizni. Tipikus helyreallitasi sorrend: `.env` validalas, PostgreSQL/Redis health, `alembic current`, majd backend ujrainditas.
 
 Frontend build hiba eseten a TypeScript hibakat, Vite build kimenetet es dependency valtozasokat kell ellenorizni. A javitas utan production buildet kell futtatni, es csak sikeres build utan szabad deployt kesziteni.
+
+## Auction Security
+
+Az Auction domain minden kritikus azonositot backend oldalon szarmaztat vagy ellenoriz.
+
+Vedett manipulacios pontok:
+
+- seller spoofing: `seller_id` az aktualis hitelesitett userbol jon
+- winner spoofing: `winner_id` csak admin finalize folyamatban allithato
+- sender spoofing: chat `sender_id` az aktualis userbol jon
+- reviewer spoofing: ertekeles `reviewer_id` az aktualis userbol jon
+- reviewed user manipulacio: a masik fel backend oldalon szarmaztatott
+- IDOR: sajat aukcio modositasahoz ownership vagy admin jog kell
+
+Draft aukcio idegen felhasznalonak nem szivarog ki: jogosulatlan lekeresnel `404` valasz jar.
+
+## Aukciokep biztonsag
+
+Tamogatott MIME tipusok:
+
+- `image/jpeg`
+- `image/png`
+- `image/webp`
+- `image/gif`
+
+Fajlmeret-korlat:
+
+- 5 MB / kep
+
+A backend ellenorzi:
+
+- deklaralt MIME-type
+- magic byte alapjan detektalt fajltartalom
+- maximum 5 kep / aukcio
+- ownership feltoltes elott
+- aukcio statusz modositasi jogosultsag
+- boritokep integritas
+
+A storage kulcs biztonsagosan generalt, az eredeti fajlnev nem hasznalhato tarolasi kulcskent.
+
+Szukseges local storage konfiguracio:
+
+- `uploads/auctions` konyvtar irhato legyen a backend kontenerben
+- `uploads` statikus mount elerheto legyen a FastAPI alkalmazasbol
+
+## Chat jogosultsag
+
+Az aukciohoz kotott chat nem altalanos privat uzenetkuldo rendszer. Csak sikeresen lezart, `sold` statuszu, nyertessel rendelkezo aukcional erheto el.
+
+Hozzaferhet:
+
+- elado
+- nyertes
+
+Tiltott:
+
+- draft, scheduled, active, ended, unsold, cancelled vagy suspended aukcio
+- nyertes nelkuli aukcio
+- idegen felhasznalo
+- frontend altal kuldott sender ID
+
+## Ertekeles jogosultsag
+
+Ertekeles csak sikeresen lezart aukcio utan hozhato letre. Az elado csak a nyertest, a nyertes csak az eladot ertekelheti. Onertekeles, nem resztvevo ertekelese es ugyanazon paros duplikalt ertekelese tiltott.
+
+Adatbazis vedelmek:
+
+- rating check constraint: 1-5
+- reviewer es reviewed user nem lehet azonos
+- unique constraint aukcion beluli reviewer/reviewed parra
+
+## XSS kezeles
+
+Chat uzenetek es ertekeles kommentek sima szovegkent tarolodnak es frontend oldalon React escapinggel jelennek meg. HTML rendereles vagy nyers `dangerouslySetInnerHTML` nem hasznalhato ezekhez a mezokhoz.
+
+## Statusz es idozona
+
+A statuszvaltas kozponti backend service-en keresztul tortenik. Az idopontok idozonatudatosak, a backend UTC-re normalizal. Az idempotens statuszfrissites lista-, reszlet-, statusz-, aktivalasi es finalize muveleteknel fut.
+
+## Moderacios szempontok
+
+Admin moderaciohoz a backend admin jogosultsagi dependency szukseges. Adminisztrativ folyamatban lehet majd felfuggeszteni aukciot, illetve lezart aukciot veglegesiteni. A teljes admin moderacios UI Sprint 2-ben meg nem teljes.
