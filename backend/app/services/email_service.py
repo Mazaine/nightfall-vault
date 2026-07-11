@@ -52,14 +52,16 @@ def send_order_completed_email(order: Order) -> bool:
     return send_email(order.customer_email, subject, html_content)
 
 
-def send_password_reset_email(user: User, reset_url: str) -> bool:
+def send_password_reset_email(user: User | str, reset_url: str) -> bool:
+    email = user.email if isinstance(user, User) else user
     subject, html_content = render_email_template("password_reset", {"user": user, "reset_url": reset_url})
-    return send_email(user.email, subject, html_content)
+    return send_email(email, subject, html_content)
 
 
-def send_email_verification_email(user: User, verification_url: str) -> bool:
+def send_email_verification_email(user: User | str, verification_url: str) -> bool:
+    email = user.email if isinstance(user, User) else user
     subject, html_content = render_email_template("email_verification", {"user": user, "verification_url": verification_url})
-    return send_email(user.email, subject, html_content)
+    return send_email(email, subject, html_content)
 
 
 def send_newsletter_email(to_email: str, subject: str, content_html: str) -> bool:

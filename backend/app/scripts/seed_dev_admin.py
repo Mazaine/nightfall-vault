@@ -59,7 +59,7 @@ def seed_dev_admin() -> None:
             user.deleted_at = None
             db.add(user)
         db.commit()
-        print(f"Development admin ready: {admin_email}")
+        print("Development admin ready.")
     finally:
         db.close()
 
