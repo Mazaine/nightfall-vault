@@ -101,7 +101,16 @@ Frontend dependency telepítés:
 npm ci: sikeres
 ```
 
-Megjegyzés: az npm audit 1 high severity sérülékenységet jelzett. Automatikus `npm audit fix` nem futott, mert dependency változtatást okozhatna.
+Az eredeti szinkron során az npm audit 1 high severity sérülékenységet jelzett. Ez 2026-07-11-én célzott dependency javítással megoldódott:
+
+- `axios`: `^1.7.9` -> `^1.18.1`
+- transitive `form-data`: `4.0.5` -> `4.0.6`
+
+Utólagos ellenőrzés:
+
+```text
+npm audit: 0 vulnerabilities
+```
 
 Frontend build:
 
@@ -155,7 +164,6 @@ Automatikus, teljes helyi módosítás-visszaemelés nem történt. Csak azok a 
 
 ## Fennmaradó manuális teendők
 
-- Az npm audit által jelzett 1 high severity sérülékenységet külön dependency audit során kell kezelni.
 - A régi backup mappát meg kell őrizni, amíg minden szükséges helyi módosításról eldől, hogy vissza kell-e emelni.
 - A régi konfliktusos mappa nem törölhető automatikusan.
 - A teljes backup tartalmazhat régi állapotból származó érzékeny adatokat, ezért nem kerülhet Gitbe, felhőbe vagy megosztott tárhelyre.
