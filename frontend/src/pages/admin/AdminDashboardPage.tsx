@@ -7,8 +7,8 @@ export function AdminDashboardPage() {
       <div className="info-grid">
         <AdminStatCard
           value="12"
-          title="Aktív termék"
-          text="Katalógus áttekintés."
+          title="Aktív aukció"
+          text="Aukciós kínálat áttekintése."
         />
         <AdminStatCard
           value="4"

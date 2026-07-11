@@ -6,8 +6,8 @@ import { AccountPage } from "./pages/AccountPage";
 import { AdminDashboardPage } from "./pages/admin/AdminDashboardPage";
 import { AdminLayout } from "./pages/admin/AdminLayout";
 import { AdminOrdersPage } from "./pages/admin/AdminOrdersPage";
-import { AdminProductsPage } from "./pages/admin/AdminProductsPage";
 import { AdminUsersPage } from "./pages/admin/AdminUsersPage";
+import { AdminAuctionsPage } from "./pages/admin/AdminAuctionsPage";
 import { AuctionDetailPage } from "./pages/AuctionDetailPage";
 import { AuctionsPage } from "./pages/AuctionsPage";
 import { AuthPage } from "./pages/AuthPages";
@@ -19,8 +19,6 @@ import { HomePage } from "./pages/HomePage";
 import { HowItWorksPage } from "./pages/HowItWorksPage";
 import { InfoPage } from "./pages/InfoPages";
 import { OrdersPage } from "./pages/OrdersPage";
-import { ProductDetailsPage } from "./pages/ProductDetailsPage";
-import { ProductsPage } from "./pages/ProductsPage";
 
 function App() {
   return (
@@ -29,8 +27,6 @@ function App() {
       <main>
         <Routes>
           <Route path="/" element={<HomePage />} />
-          <Route path="/products" element={<ProductsPage />} />
-          <Route path="/products/:productId" element={<ProductDetailsPage />} />
           <Route path="/auctions" element={<AuctionsPage />} />
           <Route path="/auctions/:auctionId" element={<AuctionDetailPage />} />
           <Route path="/categories" element={<CategoriesPage />} />
@@ -45,7 +41,7 @@ function App() {
           <Route path="/register" element={<AuthPage mode="register" />} />
           <Route path="/admin" element={<AdminLayout />}>
             <Route index element={<AdminDashboardPage />} />
-            <Route path="products" element={<AdminProductsPage />} />
+            <Route path="auctions" element={<AdminAuctionsPage />} />
             <Route path="orders" element={<AdminOrdersPage />} />
             <Route path="users" element={<AdminUsersPage />} />
           </Route>

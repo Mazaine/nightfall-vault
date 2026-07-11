@@ -139,17 +139,18 @@ h3 {
   background:
     linear-gradient(90deg, rgb(5 5 9 / 0.88) 0%, rgb(5 5 9 / 0.42) 38%, rgb(5 5 9 / 0.78) 100%),
     linear-gradient(180deg, rgb(5 5 9 / 0.02), rgb(5 5 9 / 0.78)),
-    url("/assets/nightfall-hero.png") center / cover;
+    url("/assets/nightfall-castle-background.png") center / cover;
 }
 
 .hero-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(18rem, 26rem);
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-8);
   align-items: start;
 }
 
 .hero-copy {
+  max-width: 48rem;
   padding-top: clamp(1.5rem, 4vw, 3.75rem);
 }
 

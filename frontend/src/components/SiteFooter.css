@@ -1,7 +1,7 @@
 ﻿.site-footer {
   margin-top: var(--space-16);
   border-top: 1px solid var(--color-divider);
-  background: linear-gradient(90deg, rgb(15 14 19 / 0.96), rgb(21 18 28 / 0.96) 42%, rgb(14 13 18 / 0.96));
+  background: #05040b;
 }
 
 .site-footer-inner {
@@ -74,5 +74,4 @@
     height: 4.8rem;
   }
 }
-
 

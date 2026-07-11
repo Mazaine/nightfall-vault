@@ -4,6 +4,24 @@
 !.env.example
 !backend/.env.example
 !frontend/.env.example
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+*.secret
+*.secrets
+*.credential
+*.credentials
+secret.*
+secrets.*
+credential.*
+credentials.*
+.secrets/
+secrets/
+credentials/
+*.bak
+*.backup
 
 # Dependencies
 node_modules/

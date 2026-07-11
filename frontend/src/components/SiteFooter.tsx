@@ -14,7 +14,6 @@ export function SiteFooter() {
 
         <nav aria-label="Jogi és információs linkek">
           <Link to="/account">Fiók</Link>
-          <Link to="/admin">Admin</Link>
           <Link to="/terms">Felhasználási feltételek</Link>
           <Link to="/privacy">Adatvédelem</Link>
           <Link to="/support">Támogatás</Link>

@@ -1,23 +1,16 @@
-﻿.site-header {
+.site-header {
   position: sticky;
   top: 0;
   z-index: var(--z-sticky);
   border-bottom: 1px solid var(--color-divider);
-  background:
-    linear-gradient(
-      90deg,
-      rgb(16 15 20 / 0.96),
-      rgb(22 19 29 / 0.96) 34%,
-      rgb(18 17 22 / 0.96) 68%,
-      rgb(12 11 15 / 0.96)
-    );
+  background: #05040b;
   box-shadow: 0 18px 50px rgb(0 0 0 / 0.32);
 }
 
 .site-header-inner {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  gap: var(--space-6);
+  grid-template-columns: minmax(12rem, auto) minmax(0, 1fr) auto;
+  gap: clamp(0.75rem, 1.4vw, var(--space-5));
   align-items: center;
   width: min(100% - 2rem, var(--container-page));
   min-height: 5rem;
@@ -33,50 +26,28 @@
 
 .brand-logo {
   display: block;
-  width: clamp(18rem, 31vw, 30rem);
+  width: clamp(14rem, 21vw, 24rem);
   height: 6.6rem;
   object-fit: contain;
   object-position: left center;
   filter: drop-shadow(0 12px 26px rgb(139 92 246 / 0.28));
 }
 
-.brand-sigil {
-  width: 1.15rem;
-  height: 1.15rem;
-}
-
-.brand strong {
-  display: block;
-  color: var(--color-text-primary);
-  font-family: var(--font-family-display);
-  font-size: clamp(1.3rem, 2vw, 2rem);
-  line-height: 0.95;
-  text-transform: uppercase;
-}
-
-.brand small {
-  display: block;
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-caption);
-  font-weight: var(--font-weight-semibold);
-  letter-spacing: 0.12em;
-  line-height: 1.2;
-  text-transform: uppercase;
-}
-
 .site-nav {
   display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
+  flex-wrap: nowrap;
+  gap: clamp(0.15rem, 0.45vw, var(--space-2));
   justify-content: center;
+  min-width: 0;
+  white-space: nowrap;
 }
 
 .site-nav a {
   border-radius: var(--radius-sm);
   color: var(--color-text-muted);
-  font-size: var(--font-size-body-sm);
+  font-size: clamp(0.76rem, 0.78vw, var(--font-size-body-sm));
   font-weight: var(--font-weight-medium);
-  padding: var(--space-2) var(--space-3);
+  padding: var(--space-2) clamp(0.42rem, 0.68vw, var(--space-3));
   transition: color var(--transition-ui), background var(--transition-ui);
 }
 
@@ -95,6 +66,7 @@
   gap: var(--space-2);
   align-items: center;
   justify-content: flex-end;
+  min-width: max-content;
 }
 
 .icon-button {
@@ -109,55 +81,68 @@
   color: var(--color-text-primary);
 }
 
-.icon-button::before,
-.icon-button::after {
+.icon-button-search::before,
+.icon-button-search::after,
+.icon-button-profile::before,
+.icon-button-profile::after {
   content: "";
   position: absolute;
   display: block;
 }
 
-.icon-button::before {
+.icon-button-search::before {
   width: 0.85rem;
   height: 0.85rem;
   border: 2px solid currentColor;
   border-radius: var(--radius-full);
 }
 
-.icon-button::after {
+.icon-button-search::after {
   width: 0.45rem;
   height: 2px;
   background: currentColor;
   transform: translate(0.52rem, 0.52rem) rotate(45deg);
 }
 
-.icon-button-bag::before {
-  width: 0.9rem;
-  height: 0.8rem;
-  border-radius: var(--radius-xs);
-  transform: translateY(0.12rem);
+.icon-button-profile::before {
+  width: 0.82rem;
+  height: 0.82rem;
+  border: 2px solid currentColor;
+  border-radius: var(--radius-full);
+  transform: translateY(-0.42rem);
 }
 
-.icon-button-bag::after {
-  width: 0.62rem;
-  height: 0.42rem;
+.icon-button-profile::after {
+  width: 1.22rem;
+  height: 0.64rem;
   border: 2px solid currentColor;
-  border-bottom: 0;
+  border-top: 0;
   border-radius: var(--radius-full) var(--radius-full) 0 0;
   background: transparent;
-  transform: translateY(-0.45rem);
+  transform: translateY(0.48rem) rotate(180deg);
 }
 
 .login-button,
-.register-button {
+.register-button,
+.user-button {
   min-height: 2.55rem;
 }
 
-@media (max-width: 1040px) {
+@media (max-width: 1180px) {
   .site-header-inner {
     grid-template-columns: 1fr auto;
   }
 
   .site-nav {
+    grid-column: 1 / -1;
+    order: 3;
+    overflow-x: auto;
+    justify-content: flex-start;
+    padding-bottom: var(--space-2);
+    scrollbar-width: none;
+  }
+
+  .site-nav::-webkit-scrollbar {
     display: none;
   }
 }
@@ -169,18 +154,25 @@
   }
 
   .brand-logo {
-    width: clamp(13rem, 70vw, 18rem);
+    width: clamp(11rem, 52vw, 16rem);
     height: 5rem;
   }
 
-  .brand small,
-  .login-button {
+  .login-button,
+  .user-button {
     display: none;
   }
 
   .register-button {
     padding-inline: var(--space-3);
   }
+
+  .header-actions {
+    gap: 0.25rem;
+  }
+
+  .icon-button {
+    width: 2.35rem;
+    height: 2.35rem;
+  }
 }
-
-
