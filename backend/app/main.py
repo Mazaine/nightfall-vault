@@ -9,6 +9,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.api.admin import router as admin_router
+from app.api.auctions import router as auctions_router
 from app.api.auth import router as auth_router
 from app.api.categories import router as categories_router
 from app.api.checkout import router as checkout_router
@@ -130,6 +131,7 @@ app.add_middleware(
 app.include_router(health_router)
 app.include_router(auth_router)
 app.include_router(admin_router)
+app.include_router(auctions_router)
 app.include_router(categories_router)
 app.include_router(checkout_router)
 app.include_router(newsletter_router)

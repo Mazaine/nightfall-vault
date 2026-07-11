@@ -1,4 +1,5 @@
 from app.models.category import Category
+from app.models.auction import Auction, AuctionImage, AuctionMessage, AuctionReview
 from app.models.email_verification_token import EmailVerificationToken
 from app.models.newsletter import NewsletterCampaign, NewsletterSubscriber
 from app.models.order import Order, OrderItem
@@ -13,6 +14,10 @@ from app.models.user import User
 
 __all__ = [
     "Category",
+    "Auction",
+    "AuctionImage",
+    "AuctionMessage",
+    "AuctionReview",
     "EmailVerificationToken",
     "NewsletterCampaign",
     "NewsletterSubscriber",
