@@ -2,6 +2,12 @@
 
 Utolso frissites: 2026-07-11
 
+## Project Version
+
+v0.1.0-dev
+
+Sprint 1 completed
+
 ## Aktiv projektmappa
 
 Az aktiv fejlesztesi mappa:
@@ -9,6 +15,43 @@ Az aktiv fejlesztesi mappa:
 `C:\Users\Eszti\Desktop\nightfall-vault`
 
 A Documents alatti regi masolatok nem tekintendok aktiv munkateruletnek.
+
+## Architecture
+
+Frontend:
+
+- React
+- TypeScript
+- Vite
+
+Backend:
+
+- FastAPI
+- SQLAlchemy
+- Alembic
+
+Infrastructure:
+
+- Docker Compose
+- PostgreSQL
+- Redis
+
+Authentication:
+
+- JWT
+
+## Architecture Principles
+
+A Nightfall Vault marketplace-only aukcios platform.
+
+Alapelvek:
+
+- A platform nem ad el sajat termekeket.
+- A tranzakciok elado es vevo kozott tortennek.
+- Klasszikus webshop logika nem vezetendo be uj fejleszteskent.
+- A `Product` domain atmeneti orokseg, nem celarchitektura.
+- Uj fejleszteseknek az `Auction` domaint kell celozniuk.
+- A felhasznaloi aukcio, licit, eladoi profil es admin moderacio a kiemelt domain.
 
 ## Jelenlegi termekirany
 
@@ -95,8 +138,18 @@ Meglevo backend alapok:
 - email szolgaltatas
 - pytest tesztek
 
-## Ismert hianyossagok
+## Current Technical Debt
 
 - Az aukcio letrehozo frontend form jelenleg UI szintu, a vegleges aukcio API bekotes kesobb szukseges.
 - A frontend admin vedelem localStorage-alapu UX kapu; a valodi jogosultsagot tovabbra is a backend admin endpointjai ervenyesitik.
 - Az Alembic jelenleg egy kezdeti migraciot tartalmaz.
+- A `Product` domain meg oroksegkent jelen van a backendben es a legacy frontend kodban.
+- Az aukcio backend domain, adatmodell, kepfeltoltes es licitlogika meg nem teljesen bekotott.
+- A kepfeltoltes jelenleg frontend UI allapot, nem perzisztalt backend workflow.
+- A frontend session kezeles meg nem teljes auth provider alapu alkalmazasarchitektura.
+
+## Next Planned Sprint
+
+A kovetkezo sprint celja az aukcios domain backend oldali megalapozasa: adatmodell, API szerzodesek, aukcio letrehozas, kepfeltoltes, boritokep kezeles es jogosultsagi szabalyok. A fejlesztesnek a marketplace iranyt kell erositenie, a megmaradt webshop/product orokseg tovabbi terjedese nelkul.
+
+Sprint 2-ben kulon figyelmet kell kapnia a felhasznaloi tulajdonjognak, a licitalasi szabalyoknak, a lezart aukciok 24 oras lathatosaganak, valamint annak, hogy az admin funkciok backend jogosultsaggal vedettek maradjanak.

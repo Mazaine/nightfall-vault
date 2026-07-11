@@ -135,3 +135,74 @@ Eredmeny: `8 passed`.
 ## Sprint 1 keszultsegi allapot
 
 A Sprint 1 celjai local/dev szinten teljesultek. A projekt futtathato, a frontend build es backend pytest sikeres, a biztonsagi alapellenorzesek rendben vannak.
+
+## Mi keszult el
+
+- Local/dev infrastruktura ellenorzese Docker Compose alatt.
+- PostgreSQL role, adatbazis es Alembic schema helyreallitasa.
+- DEV admin seed ellenorzese es idempotencia igazolasa.
+- Normal felhasznaloi regisztracio, login es `/api/auth/me` flow tesztelese.
+- Backend admin jogosultsagi hatar ellenorzese.
+- Frontend admin redirect UX retege.
+- Mobil/tablet hamburger menu.
+- Aukcio letrehozo UI 1-5 kep feltoltessel es boritokep valasztassal.
+- Dokumentacio konszolidalasa harom aktiv docs fajlba.
+
+## Mit kellett javitani
+
+- A local/dev adatbazisban hianyzott a `users` tabla, ezert az admin seed kezdetben nem tudott lefutni.
+- Az Alembic `upgrade head` futtatasa utan a schema helyreallt.
+- A dev admin seed kimenete semlegesitve lett, hogy ne irjon ki admin emailt.
+- Az email helper kompatibilisse valt string es `User` objektum bemenettel is.
+- A `docker-compose.yml` backend build beallitasa rendezve lett, a `Dockerfile` explicit hivatkozasa visszakerult.
+- A header mobil/tablet nezetben hamburger menut kapott, hogy ne alakuljon ki vizszintes navigacios tores vagy zsufoltsag.
+
+## Mi maradt hatra
+
+- Aukcio backend domain es API megtervezese es implementalasa.
+- Aukcio letrehozas bekotese valos backend vegpontra.
+- Kepfeltoltes perzisztalasa es boritokep tarolasa.
+- Licitalasi workflow es licitlepcso backend validacio.
+- Lezart aukciok 24 oras lathatosaganak backend oldali kezelese.
+- Product orokseg fokozatos kivezetese az uj Auction domain javara.
+
+## Technikai adossag
+
+- A `Product` domain meg jelen van oroksegkent.
+- Az aukcio letrehozo form jelenleg frontend UI szintu.
+- A frontend auth UX localStorage alapu, nem teljes alkalmazasszintu auth provider.
+- Az Alembic migracios tortenet jelenleg egy initial migrationre epul.
+- A kepfeltolteshez nincs vegleges backend tarolas es validacios workflow.
+
+## Uj TODO-k
+
+- Auction adatmodell veglegesitese seller, status, condition, bid increment, buy-now es five-minute-rule mezokkel.
+- Auction image modell vagy tarolasi szerzodes kidolgozasa maximum 5 kepre es egy boritokepre.
+- Bid API es jogosultsagi szabalyok megtervezese.
+- Sajat aukcio modositas szabalyainak backend validacioja.
+- Frontend auth/session provider kialakitasa.
+- Admin aukcio moderacios flow pontos definicioja.
+
+## Git commitok
+
+Sprint 1 logikus commitjai:
+
+- `4b17a24` - `fix(devops): harden dev admin and local compose setup`
+- `a06b7ab` - `feat(frontend): add responsive navigation and auction image UI`
+- `52b09f7` - `docs: consolidate sprint 1 documentation`
+
+## Docker allapot
+
+Ellenorzott local/dev allapot:
+
+- postgres healthy
+- redis healthy
+- backend running
+- frontend running
+- compose successful
+
+## Kovetkezo Sprint
+
+Sprint 2 celja az aukcios platform valodi backend domainjenek kialakitasa. A fejlesztes kozeppontjaban az aukcio letrehozas, kepkezeles, boritokep, licitalas, jogosultsagi szabalyok es lezart aukciok eletciklusa all.
+
+A kovetkezo sprintnek a marketplace-only iranyt kell erositenie: az uj funkcioknak az `Auction` domainre kell epulniuk, a klasszikus webshop vagy sajat termek ertekesitesi logika boviteset kerulni kell.

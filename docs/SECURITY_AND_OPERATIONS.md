@@ -100,3 +100,29 @@ docker compose exec -T backend alembic current
 - Eles kornyezethez kulon secret keszlet kell.
 - Eles admin felhasznalot ne seed script hozzon letre.
 - Deploy elott kulon secret scan es dependency audit javasolt.
+
+## Production Checklist
+
+Elesites elott az alabbi pontokat kotelezo ellenorizni:
+
+- Production secret keszlet letrehozasa es kulonvalasztasa a local/dev ertekektol.
+- HTTPS es biztonsagos cookie/CORS konfiguracio ellenorzese.
+- PostgreSQL backup strategia es visszaallitasi proba.
+- Redis konfiguracio es adatvesztesi kockazat dokumentalasa.
+- Dependency audit frontend es backend oldalon.
+- Teljes repository secret scan.
+- Turnstile production site key es secret beallitasa.
+- SMTP/Brevo production kulcsok es sender domainek ellenorzese.
+- Monitoring es error logging bekotese.
+- Rate limiting eles kornyezetre szabasa.
+- Admin letrehozasi folyamat ellenorzese seed jelszo nelkul.
+
+## Incident Recovery
+
+Adatbazis serules eseten az alkalmazast irasi muveletekre le kell allitani, a legutolso ismert jo PostgreSQL backupot kell visszaallitani, majd Alembic revision es adatkonzisztencia ellenorzest kell futtatni. Visszaallitas utan a felhasznaloi aukciok, licitek es admin jogosultsagok mintavetelezett ellenorzese szukseges.
+
+Redis leallas eseten a backendnek degradalt modban kell kezelnie a rate limiting es ideiglenes cache funkciokat. Elso lepes a Redis kontener/szolgaltatas ujrainditasa, majd a backend logok ellenorzese. Ha Redis tartosabban nem elerheto, a rate limiting backend konfiguraciot es a kapcsolodo kockazatot kulon kell kezelni.
+
+Backend indulasi hiba eseten a Docker logokat, kornyezeti valtozokat, adatbazis kapcsolatot es Alembic allapotot kell ellenorizni. Tipikus helyreallitasi sorrend: `.env` validalas, PostgreSQL/Redis health, `alembic current`, majd backend ujrainditas.
+
+Frontend build hiba eseten a TypeScript hibakat, Vite build kimenetet es dependency valtozasokat kell ellenorizni. A javitas utan production buildet kell futtatni, es csak sikeres build utan szabad deployt kesziteni.
