@@ -4,9 +4,9 @@ Utolso frissites: 2026-07-12
 
 ## Project Version
 
-v0.4.0-dev
+v0.5.0-dev
 
-Sprint 4 realtime bidding workflow, Buy Now close, notifications and scheduler completed
+Sprint 5 production readiness, notification center, watchlist and moderation completed
 
 ## Aktiv projektmappa
 
@@ -218,8 +218,23 @@ Uj backend endpointok:
 Uj modell:
 
 - `Notification`
+- `WatchlistItem`
+- AuditLog bovites aukcio kapcsolattal
 
 A scheduler in-process FastAPI hatterfeladatkent fut local/dev kornyezetben. Az aktiv, lejart aukciokat adatbazis row lock mellett dolgozza fel, licittel `sold`, licit nelkul `unsold` statuszra.
+
+## Production Readiness
+
+Sprint 5-ben elkeszult:
+
+- Notification Center API es frontend oldal
+- olvasatlan ertesites szamlalo
+- notification mark read es mark all read
+- Watchlist domain es frontend figyelolista
+- admin aukcio moderacio: suspend, restore, soft delete
+- audit log domain esemenyekhez
+- FastAPI lifespan handler a scheduler inditasahoz
+- frontend 401 session-expired kezeles
 
 ## Kepek es boritokep
 
@@ -266,12 +281,12 @@ Elkeszult:
 - A `Product` domain meg oroksegkent jelen van a backendben es a legacy frontend kodban.
 - Az SSE stream alap frissitest ad, de nincs teljes notification center vagy WebSocket presence.
 - A scheduler in-process fut; tobb production backend replika eseten kulon worker vagy leader valasztas javasolt.
-- Az outbid ertesites csak backend rekord es frontend API alap; email/push ertesites nincs.
-- Az admin aukcio moderacios UI meg nem teljes.
-- FastAPI startup/shutdown `on_event` hasznalat deprecation warningot ad; kesobb lifespan handlerre erdemes valtani.
+- Az ertesitesi rendszer frontend Notification Centerrel mukodik, de email/push csatorna meg nincs.
+- Az admin aukcio moderacios UI alapmuveleteket kezel; reszletes audit felulet meg nincs.
+- A FastAPI `on_event` technikai adossag Sprint 5-ben megszunt, a scheduler lifespan handlerrel indul.
 
 ## Next Planned Sprint
 
-A kovetkezo sprint celja az aukcios felhasznaloi elmeny termelesi minosegu kiterjesztese: teljes ertesitesi kozpont, admin aukcio moderacio, session lejart kezeles, frontend hiballapotok es mobil UX finomitas.
+A kovetkezo sprint celja a production uzemeltetes tovabbi erositese: monitoring, storage strategia, kepoptimalizalas, email/push ertesitesek es reszletes admin audit felulet.
 
-Sprint 5-ben erdemes kulon kezelni a production uzemeltetesi kerdeseket is: scheduler/worker architektura, monitoring, audit logok es email/push ertesitesi csatornak.
+Sprint 6-ban erdemes a kulso szolgaltatasok es eles deploy kockazatait kezelni: backup visszaallitas proba, dependency audit, kep tarolas es riasztasi folyamatok.

@@ -134,6 +134,7 @@ A projekt dokumentációja aktív állapot- és sprintdokumentumokba van rendezv
 * `docs/SPRINT_2_REPORT.md` – Auction domain zárójelentés
 * `docs/SPRINT_3_REPORT.md` – Bid domain és licitmotor zárójelentés
 * `docs/SPRINT_4_REPORT.md` – valós idejű licitfrissítés, értesítések és Buy Now zárójelentés
+* `docs/SPRINT_5_REPORT.md` – production readiness, notification center, watchlist és moderáció zárójelentés
 
 ---
 
@@ -227,11 +228,19 @@ GET  /api/auctions/{auction_id}/bids
 GET  /api/auctions/{auction_id}/stream
 GET  /api/auctions/my-bids
 GET  /api/auctions/notifications
+GET  /api/notifications
+GET  /api/watchlist
+GET  /api/admin/auctions
 ```
 
 ## Session es frontend auth
 
 Sprint 4-tol a frontend token- es felhasznaloi allapotkezeles kozponti AuthProvideren keresztul tortenik. A localStorage hasznalata egy helyre lett szukitve, a route vedelem es navbar allapot innen olvas.
+Sprint 5-tol a frontend API kliens 401 valasznal session-expired esemenyt kuld, az AuthProvider pedig automatikusan torli a local sessiont.
+
+## Production readiness
+
+Sprint 5-ben bekerult a Notification Center, Watchlist, admin aukcio moderacio, soft delete, domain audit log alap, FastAPI lifespan handler es production-ready scheduler szervezes.
 
 ## Fontos konfigurációs változónevek
 

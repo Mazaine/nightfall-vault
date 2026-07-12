@@ -178,6 +178,20 @@ Az SSE stream publikus aukciokhoz publikus olvasasi csatorna. Privat/draft aukci
 
 Local/dev kornyezetben a scheduler a FastAPI alkalmazason beluli hatterfeladat. Production kornyezetben egyetlen backend replika mellett hasznalhato, de tobb replika eseten kulon worker, leader election vagy dedikalt job runner javasolt. A row lock csokkenti a duplikalt feldolgozas kockazatat, de nem helyettesiti a teljes production job orchestrationt.
 
+## Sprint 5 production hardening
+
+Ellenorzott vedelmek:
+
+- Notification IDOR: sajat ertesites listazas/olvasas, idegen notification `404`.
+- Watchlist IDOR: privat/draft aukcio idegen felhasznalonak nem adhato figyelolistara.
+- Moderacio jogosultsag: suspend, restore es soft delete csak admin dependency mogott erheto el.
+- AuditLog manipulacio: domain audit backend service-bol jon letre, nincs publikus irasi API.
+- Session spoofing: backend tovabbra is JWT-bol szarmaztatja az aktualis usert.
+- Soft delete: torolt aukcio normal publikus es sajat API-ban nem jelenik meg.
+- Lifespan: a scheduler startup/shutdown FastAPI lifespan handlerben fut, `on_event` warning megszunt.
+
+Production kockazat: az in-process scheduler tovabbra is csak local/dev es single-instance production setupban idealis. Tobbreplikas deployhoz kulon worker vagy leader election kell.
+
 ## Aukciokep biztonsag
 
 Tamogatott MIME tipusok:
