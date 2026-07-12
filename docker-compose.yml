@@ -1,4 +1,4 @@
-name: nightfall-vault
+﻿name: nightfall-vault
 
 services:
   frontend:

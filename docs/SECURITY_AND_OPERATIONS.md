@@ -1,4 +1,4 @@
-# Nightfall Vault - Biztonsag es uzemeltetes
+﻿# Nightfall Vault - Biztonsag es uzemeltetes
 
 Utolso frissites: 2026-07-12
 
@@ -258,3 +258,36 @@ A statuszvaltas kozponti backend service-en keresztul tortenik. Az idopontok ido
 ## Moderacios szempontok
 
 Admin moderaciohoz a backend admin jogosultsagi dependency szukseges. Adminisztrativ folyamatban lehet majd felfuggeszteni aukciot, illetve lezart aukciot veglegesiteni. A teljes admin moderacios UI Sprint 2-ben meg nem teljes.
+
+## Sprint 6 operations
+
+Health endpointok:
+
+- `GET /health/live` - folyamat eletjel;
+- `GET /health/ready` - Postgres, Alembic, Redis es storage readiness;
+- `GET /health` es `GET /api/health` - kompatibilis alap health valasz.
+
+A readiness valasz nem tartalmaz adatbazis URL-t, API kulcsot vagy mas secret erteket.
+
+Email es Brevo:
+
+- `BREVO_API_KEY` local `.env` fajlban tarolhato, de nem verziozhato.
+- `EMAIL_DELIVERY_ENABLED=false` mellett sem Brevo, sem SMTP transport nem kuld emailt.
+- `NOTIFICATION_EMAIL_ENABLED=false` mellett notification email nem indul.
+- Productionben mindket kapcsolot tudatosan kell engedelyezni, es kulon sender/domain ellenorzes szukseges.
+
+Backup/restore:
+
+- Backup: `scripts/backup_database.ps1`
+- Restore: `scripts/restore_database.ps1`
+- A backup kimenet `backups/` ala kerul, amely gitignore alatt van.
+- Restore validacio kulon adatbazisba tortenjen, nem az aktiv fejlesztoi adatbazisra.
+- A jelenlegi local role nem rendelkezik `CREATEDB` jogosultsaggal, ezert a kulon restore DB proba blokkolt.
+
+Audit eredmenyek 2026-07-12:
+
+- Backend pytest: 45 passed.
+- Frontend build: sikeres.
+- Frontend npm audit: 0 vulnerabilities.
+- Tracked-file secret scan: csak `.env.example` placeholder talalatok.
+- Backend pip-audit: nem futott, mert `pip_audit` nincs telepitve az image-ben.

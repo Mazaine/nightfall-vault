@@ -135,6 +135,7 @@ A projekt dokumentációja aktív állapot- és sprintdokumentumokba van rendezv
 * `docs/SPRINT_3_REPORT.md` – Bid domain és licitmotor zárójelentés
 * `docs/SPRINT_4_REPORT.md` – valós idejű licitfrissítés, értesítések és Buy Now zárójelentés
 * `docs/SPRINT_5_REPORT.md` – production readiness, notification center, watchlist és moderáció zárójelentés
+* `docs/SPRINT_6_REPORT.md` – üzemeltetési felkészítés, monitoring, média és email zárójelentés
 
 ---
 
@@ -242,6 +243,35 @@ Sprint 5-tol a frontend API kliens 401 valasznal session-expired esemenyt kuld, 
 
 Sprint 5-ben bekerult a Notification Center, Watchlist, admin aukcio moderacio, soft delete, domain audit log alap, FastAPI lifespan handler es production-ready scheduler szervezes.
 
+
+## Sprint 6 operational readiness
+
+Sprint 6-ban bekerült a request ID alapú hibakövetés, a health/readiness/liveness endpoint készlet, az admin Audit Log API és frontend oldal, a felhasználói értesítési beállítások, a képfeldolgozási variánsok és a jelszómentes backup/restore script alap.
+
+Email küldés biztonságosan két kapcsolóval működik:
+
+```text
+EMAIL_DELIVERY_ENABLED=false
+NOTIFICATION_EMAIL_ENABLED=false
+BREVO_API_KEY=
+BREVO_SENDER_EMAIL=
+```
+
+A Brevo API kulcs önmagában nem indít email küldést. Local/dev környezetben az email delivery alapértelmezetten tiltott, élesítés előtt külön kell engedélyezni és ellenőrizni.
+
+Backup készítés:
+
+```powershell
+.\scripts\backup_database.ps1
+```
+
+Restore próba külön adatbázisba:
+
+```powershell
+.\scripts\restore_database.ps1 -BackupFile "backups\nightfall-vault-YYYYMMDD-HHMMSS.dump" -TargetDatabase nightfall_vault_restore_test -ConfirmRestore
+```
+
+A külön restore adatbázis létrehozásához olyan PostgreSQL role szükséges, amely rendelkezik `CREATEDB` jogosultsággal.
 ## Fontos konfigurációs változónevek
 
 Az értékeket `.env` fájlban kell megadni, de valódi secret nem kerülhet verziókezelésbe.

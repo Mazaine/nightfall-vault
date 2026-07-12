@@ -1,10 +1,11 @@
-import { Link, Outlet } from "react-router-dom";
+﻿import { Link, Outlet } from "react-router-dom";
 
 const adminLinks = [
   { label: "Dashboard", to: "/admin" },
-  { label: "Aukciók", to: "/admin/auctions" },
-  { label: "Rendelések", to: "/admin/orders" },
-  { label: "Felhasználók", to: "/admin/users" },
+  { label: "Aukciok", to: "/admin/auctions" },
+  { label: "Rendelesek", to: "/admin/orders" },
+  { label: "Felhasznalok", to: "/admin/users" },
+  { label: "Audit naplo", to: "/admin/audit-logs" },
 ];
 
 export function AdminLayout() {

@@ -1,4 +1,4 @@
-import logging
+﻿import logging
 from email.message import EmailMessage
 import smtplib
 
@@ -17,11 +17,15 @@ def _sender() -> dict[str, str]:
 
 
 def send_email(to_email: str, subject: str, html_content: str) -> bool:
+    safe_subject = subject.replace("\r", "").replace("\n", " ")[:180]
+    if not settings.email_delivery_enabled:
+        logger.info("Email delivery disabled subject=%s", safe_subject)
+        return False
     if settings.brevo_api_key and settings.brevo_sender_email:
         payload = {
             "sender": _sender(),
             "to": [{"email": to_email}],
-            "subject": subject.replace("\r", "").replace("\n", " ")[:180],
+            "subject": safe_subject,
             "htmlContent": html_content,
         }
         try:
@@ -32,17 +36,17 @@ def send_email(to_email: str, subject: str, html_content: str) -> bool:
                 timeout=10,
             )
             if response.status_code >= 400:
-                logger.error("Brevo email failed with status=%s subject=%s", response.status_code, subject)
+                logger.error("Brevo email failed with status=%s subject=%s", response.status_code, safe_subject)
                 return False
             return True
         except Exception:
-            logger.exception("Brevo email send failed subject=%s", subject)
+            logger.exception("Brevo email send failed subject=%s", safe_subject)
             return False
     if not settings.smtp_host or not settings.smtp_from_email:
-        logger.info("Email skipped because SMTP is not configured: %s", subject)
+        logger.info("Email skipped because SMTP is not configured subject=%s", safe_subject)
         return False
     message = EmailMessage()
-    message["Subject"] = subject
+    message["Subject"] = safe_subject
     message["From"] = f"{settings.smtp_from_name} <{settings.smtp_from_email}>"
     message["To"] = to_email
     message.set_content(html_content, subtype="html")

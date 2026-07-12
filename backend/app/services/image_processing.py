@@ -1,4 +1,4 @@
-from io import BytesIO
+﻿from io import BytesIO
 
 from fastapi import HTTPException
 from PIL import Image, ImageOps, UnidentifiedImageError
@@ -17,7 +17,7 @@ def optimize_image_variants(content: bytes, content_type: str) -> tuple[int, int
         image = Image.open(BytesIO(content))
         image.verify()
         image = Image.open(BytesIO(content))
-    except (UnidentifiedImageError, OSError):
+    except (UnidentifiedImageError, OSError, SyntaxError):
         raise HTTPException(status_code=400, detail="Serult vagy nem tamogatott kepfajl.")
 
     image = ImageOps.exif_transpose(image)

@@ -1,4 +1,4 @@
-import { Navigate, Route, Routes } from "react-router-dom";
+﻿import { Navigate, Route, Routes } from "react-router-dom";
 import { SiteFooter } from "./components/SiteFooter";
 import { SiteHeader } from "./components/SiteHeader";
 import { useAuth } from "./AuthContext";
@@ -9,6 +9,7 @@ import { AdminLayout } from "./pages/admin/AdminLayout";
 import { AdminOrdersPage } from "./pages/admin/AdminOrdersPage";
 import { AdminUsersPage } from "./pages/admin/AdminUsersPage";
 import { AdminAuctionsPage } from "./pages/admin/AdminAuctionsPage";
+import { AdminAuditLogsPage } from "./pages/admin/AdminAuditLogsPage";
 import { AuctionDetailPage } from "./pages/AuctionDetailPage";
 import { AuctionsPage } from "./pages/AuctionsPage";
 import { AuthPage } from "./pages/AuthPages";
@@ -54,11 +55,12 @@ function App() {
             <Route path="auctions" element={<AdminAuctionsPage />} />
             <Route path="orders" element={<AdminOrdersPage />} />
             <Route path="users" element={<AdminUsersPage />} />
+            <Route path="audit-logs" element={<AdminAuditLogsPage />} />
           </Route>
-          <Route path="/terms" element={<InfoPage eyebrow="Jogi információk" title="Felhasználási feltételek" />} />
-          <Route path="/privacy" element={<InfoPage eyebrow="Adatvédelem" title="Adatvédelmi tájékoztató" />} />
-          <Route path="/support" element={<InfoPage eyebrow="Támogatás" title="Ügyfélszolgálat" />} />
-          <Route path="*" element={<InfoPage eyebrow="404" title="Az oldal nem található" />} />
+          <Route path="/terms" element={<InfoPage eyebrow="Jogi informĂˇciĂłk" title="FelhasznĂˇlĂˇsi feltĂ©telek" />} />
+          <Route path="/privacy" element={<InfoPage eyebrow="AdatvĂ©delem" title="AdatvĂ©delmi tĂˇjĂ©koztatĂł" />} />
+          <Route path="/support" element={<InfoPage eyebrow="TĂˇmogatĂˇs" title="ĂśgyfĂ©lszolgĂˇlat" />} />
+          <Route path="*" element={<InfoPage eyebrow="404" title="Az oldal nem talĂˇlhatĂł" />} />
         </Routes>
       </main>
       <SiteFooter />

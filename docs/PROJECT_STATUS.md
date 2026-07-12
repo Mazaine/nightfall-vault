@@ -1,12 +1,12 @@
-# Nightfall Vault - Projektallapot
+﻿# Nightfall Vault - Projektallapot
 
 Utolso frissites: 2026-07-12
 
 ## Project Version
 
-v0.5.0-dev
+v0.6.0-dev
 
-Sprint 5 production readiness, notification center, watchlist and moderation completed
+Sprint 6 operational readiness, monitoring basics, media processing and email channel implemented with restore validation blocker
 
 ## Aktiv projektmappa
 
@@ -78,6 +78,7 @@ Meglevo fo oldalak:
 - Admin aukciok
 - Admin rendelesek
 - Admin felhasznalok
+- Admin audit naplo
 - 404/info oldal
 
 ## Navigacio
@@ -266,7 +267,7 @@ Elkeszult:
 - kepfeltoltes es boritokep kuldes
 - aukcio aktivalas/idotizes
 - aktiv aukcion licit elhelyezese backend API-val
-- aktuális licit es licittortenet megjelenitese backend adatbol
+- aktuĂˇlis licit es licittortenet megjelenitese backend adatbol
 - cim alapu aukcio navigacio
 - chat es ertekeles megjelenites backend jogosultsagi flag alapjan
 - login/register API bekotes az aktiv frontendben
@@ -275,18 +276,34 @@ Elkeszult:
 - Buy Now / villamar gomb az aukcio reszletoldalon
 - "Licitjeim" backend adatforras a felhasznalo licitalt aukcioira
 
+
+## Sprint 6 operational readiness
+
+Elkeszult elemek:
+
+- request ID middleware es `X-Request-ID` valasz header;
+- `/health/live`, `/health/ready`, `/health` es `/api/health` endpointok;
+- strukturalt logging konfiguracios alap (`LOG_LEVEL`, `LOG_FORMAT`);
+- admin Audit Log API es frontend oldal;
+- felhasznaloi notification preferences API es Account oldali UI;
+- Brevo/API email transport explicit delivery kapcsoloval;
+- local image processing Pillow alapon thumbnail/list/detail variansokkal;
+- backup es restore PowerShell script alap;
+- frontend npm audit es tracked-file secret scan lefuttatva.
+
+Fennmarado operational blocker: a kulon restore teszt adatbazis letrehozasa a jelenlegi local PostgreSQL role-lal nem engedelyezett. A restore script most mar helyesen hibaval all meg, ha nincs `CREATEDB` jogosultsag.
 ## Current Technical Debt
 
 - A frontend auth allapot kozponti providerbe kerult, de a backend token refresh es session lejarti UX meg nem teljes.
 - A `Product` domain meg oroksegkent jelen van a backendben es a legacy frontend kodban.
 - Az SSE stream alap frissitest ad, de nincs teljes notification center vagy WebSocket presence.
 - A scheduler in-process fut; tobb production backend replika eseten kulon worker vagy leader valasztas javasolt.
-- Az ertesitesi rendszer frontend Notification Centerrel mukodik, de email/push csatorna meg nincs.
-- Az admin aukcio moderacios UI alapmuveleteket kezel; reszletes audit felulet meg nincs.
+- Az email notification csatorna Brevo/API vagy SMTP transporttal konfigurálható, de production engedélyezéshez külön EMAIL_DELIVERY_ENABLED és NOTIFICATION_EMAIL_ENABLED szükséges.
+- Az admin Audit Log API és alap frontend oldal elkészült; később részletesebb szűrés/export javasolt.
 - A FastAPI `on_event` technikai adossag Sprint 5-ben megszunt, a scheduler lifespan handlerrel indul.
 
 ## Next Planned Sprint
 
-A kovetkezo sprint celja a production uzemeltetes tovabbi erositese: monitoring, storage strategia, kepoptimalizalas, email/push ertesitesek es reszletes admin audit felulet.
+A kovetkezo sprint celja a restore jogosultsagi modell rendezese, a production storage strategia veglegesitese, valamint a monitoring/alerting melyitese.
 
 Sprint 6-ban erdemes a kulso szolgaltatasok es eles deploy kockazatait kezelni: backup visszaallitas proba, dependency audit, kep tarolas es riasztasi folyamatok.

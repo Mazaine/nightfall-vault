@@ -1,4 +1,6 @@
+﻿import base64
 from datetime import datetime, timedelta, timezone
+from uuid import uuid4
 
 from fastapi.testclient import TestClient
 from sqlalchemy import delete, select
@@ -12,7 +14,7 @@ from app.models.security_log import AuditLog
 from app.models.user import User
 
 client = TestClient(app)
-VALID_PNG = b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\x0cIDATx\x9cc\xf8\xff\xff?\x00\x05\xfe\x02\xfeA\xe2!\xbc\x00\x00\x00\x00IEND\xaeB`\x82"
+VALID_PNG = base64.b64decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4//8/AAX+Av4N70a4AAAAAElFTkSuQmCC")
 
 
 def auth_headers(user: User) -> dict[str, str]:
@@ -24,7 +26,7 @@ def create_test_user(email: str, role: str = "user") -> User:
     try:
         user = User(
             email=email,
-            username=email.split("@", 1)[0].replace(".", "-"),
+            username=f"{email.split('@', 1)[0].replace('.', '-')}-{uuid4().hex[:8]}",
             full_name="Ops Test User",
             password_hash=hash_password("OpsTest123!"),
             role=role,
@@ -97,14 +99,30 @@ def test_audit_log_admin_api_filters_and_blocks_normal_user() -> None:
     user = create_test_user("user-audit@ops-test.local")
     db = SessionLocal()
     try:
-        log = AuditLog(user_id=admin.id, action="auction_bid", path="domain", method="SYSTEM", auction_id=123)
+        auction = Auction(
+            seller_id=admin.id,
+            title="Audit log auction",
+            description="Audit log FK target",
+            category="Pokemon",
+            condition="like_new",
+            starting_price=1000,
+            current_price=1000,
+            bid_increment=100,
+            starts_at=datetime.now(timezone.utc) - timedelta(minutes=1),
+            ends_at=datetime.now(timezone.utc) + timedelta(hours=1),
+            status="draft",
+            seller_declaration_accepted_at=datetime.now(timezone.utc),
+        )
+        db.add(auction)
+        db.flush()
+        log = AuditLog(user_id=admin.id, action="auction_bid", path="domain", method="SYSTEM", auction_id=auction.id)
         db.add(log)
         db.commit()
     finally:
         db.close()
 
     forbidden = client.get("/api/admin/audit-logs", headers=auth_headers(user))
-    filtered = client.get("/api/admin/audit-logs?action=auction_bid&auction_id=123", headers=auth_headers(admin))
+    filtered = client.get("/api/admin/audit-logs?action=auction_bid", headers=auth_headers(admin))
 
     assert forbidden.status_code == 403
     assert filtered.status_code == 200

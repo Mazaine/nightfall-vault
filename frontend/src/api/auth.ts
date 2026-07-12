@@ -1,4 +1,4 @@
-import { apiRequest } from "./client";
+﻿import { apiRequest } from "./client";
 
 export type AuthUser = {
   id: number;
@@ -38,5 +38,23 @@ export async function register(fullName: string, email: string, password: string
       subscribed_newsletter: false,
     }),
     authenticated: false,
+  });
+}
+
+export type NotificationPreferences = {
+  notify_in_app: boolean;
+  notify_email_outbid: boolean;
+  notify_email_auction_result: boolean;
+  notify_email_moderation: boolean;
+};
+
+export async function getNotificationPreferences() {
+  return apiRequest<NotificationPreferences>("/api/auth/me/notification-preferences");
+}
+
+export async function updateNotificationPreferences(payload: NotificationPreferences) {
+  return apiRequest<NotificationPreferences>("/api/auth/me/notification-preferences", {
+    method: "PUT",
+    body: JSON.stringify(payload),
   });
 }

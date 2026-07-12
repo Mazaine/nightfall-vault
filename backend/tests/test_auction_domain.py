@@ -1,4 +1,6 @@
+﻿import base64
 from datetime import datetime, timedelta, timezone
+from uuid import uuid4
 
 from fastapi.testclient import TestClient
 from sqlalchemy import delete
@@ -13,7 +15,7 @@ from app.models.user import User
 
 
 client = TestClient(app)
-VALID_PNG = b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\x0cIDATx\x9cc\xf8\xff\xff?\x00\x05\xfe\x02\xfeA\xe2!\xbc\x00\x00\x00\x00IEND\xaeB`\x82"
+VALID_PNG = base64.b64decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4//8/AAX+Av4N70a4AAAAAElFTkSuQmCC")
 
 
 def auth_headers(user: User) -> dict[str, str]:
@@ -25,7 +27,7 @@ def create_test_user(email: str, role: str = "user") -> User:
     try:
         user = User(
             email=email,
-            username=email.split("@", 1)[0].replace(".", "-"),
+            username=f"{email.split('@', 1)[0].replace('.', '-')}-{uuid4().hex[:8]}",
             full_name="Auction Test User",
             password_hash=hash_password("AuctionTest123!"),
             role=role,
@@ -62,8 +64,8 @@ def cleanup_test_data() -> None:
 def auction_payload(**overrides):
     now = datetime.now(timezone.utc)
     payload = {
-        "title": "Teszt aukció",
-        "description": "Részletes, valós teszt aukció leírás.",
+        "title": "Teszt aukciĂł",
+        "description": "RĂ©szletes, valĂłs teszt aukciĂł leĂ­rĂˇs.",
         "category": "Pokemon",
         "condition": "like_new",
         "starting_price": "1000.00",
@@ -171,12 +173,12 @@ def test_draft_visibility_and_ownership_update_rules() -> None:
     public_response = client.get(f"/api/auctions/{created['id']}")
     stranger_update = client.patch(
         f"/api/auctions/{created['id']}",
-        json={"description": "Idegen felhasználó próbálja módosítani."},
+        json={"description": "Idegen felhasznĂˇlĂł prĂłbĂˇlja mĂłdosĂ­tani."},
         headers=auth_headers(stranger),
     )
     owner_update = client.patch(
         f"/api/auctions/{created['id']}",
-        json={"description": "Saját draft aukció módosított leírása."},
+        json={"description": "SajĂˇt draft aukciĂł mĂłdosĂ­tott leĂ­rĂˇsa."},
         headers=auth_headers(seller),
     )
 
@@ -240,9 +242,9 @@ def test_sold_auction_chat_and_review_are_participant_only() -> None:
     admin = create_test_user("admin-closed@auction-test.local", role="admin")
     finalized = create_sold_auction(seller, winner, admin)
 
-    seller_message = client.post(f"/api/auctions/{finalized['id']}/messages", json={"message": "Kapcsolatfelvétel."}, headers=auth_headers(seller))
+    seller_message = client.post(f"/api/auctions/{finalized['id']}/messages", json={"message": "KapcsolatfelvĂ©tel."}, headers=auth_headers(seller))
     stranger_messages = client.get(f"/api/auctions/{finalized['id']}/messages", headers=auth_headers(stranger))
-    winner_review = client.post(f"/api/auctions/{finalized['id']}/reviews", json={"rating": 5, "comment": "Korrekt eladó."}, headers=auth_headers(winner))
+    winner_review = client.post(f"/api/auctions/{finalized['id']}/reviews", json={"rating": 5, "comment": "Korrekt eladĂł."}, headers=auth_headers(winner))
     duplicate_review = client.post(f"/api/auctions/{finalized['id']}/reviews", json={"rating": 4}, headers=auth_headers(winner))
     stranger_review = client.post(f"/api/auctions/{finalized['id']}/reviews", json={"rating": 5}, headers=auth_headers(stranger))
 
@@ -334,14 +336,14 @@ def test_chat_between_seller_and_winner_and_review_rating_boundaries() -> None:
     admin = create_test_user("admin-chat-rules@auction-test.local", role="admin")
     sold = create_sold_auction(seller, winner, admin)
 
-    seller_message = client.post(f"/api/auctions/{sold['id']}/messages", json={"message": "Sikeres aukció után."}, headers=auth_headers(seller))
+    seller_message = client.post(f"/api/auctions/{sold['id']}/messages", json={"message": "Sikeres aukciĂł utĂˇn."}, headers=auth_headers(seller))
     winner_reads = client.get(f"/api/auctions/{sold['id']}/messages", headers=auth_headers(winner))
     low_rating = client.post(f"/api/auctions/{sold['id']}/reviews", json={"rating": 0}, headers=auth_headers(winner))
     high_rating = client.post(f"/api/auctions/{sold['id']}/reviews", json={"rating": 6}, headers=auth_headers(winner))
 
     assert seller_message.status_code == 201
     assert winner_reads.status_code == 200
-    assert winner_reads.json()[0]["message"] == "Sikeres aukció után."
+    assert winner_reads.json()[0]["message"] == "Sikeres aukciĂł utĂˇn."
     assert low_rating.status_code == 422
     assert high_rating.status_code == 422
 
@@ -355,7 +357,7 @@ def test_reviewed_user_spoofing_is_ignored_and_self_review_is_not_possible() -> 
 
     spoofed_review = client.post(
         f"/api/auctions/{sold['id']}/reviews",
-        json={"rating": 5, "reviewed_user_id": winner.id, "comment": "A reviewed user mezőt a backend figyelmen kívül hagyja."},
+        json={"rating": 5, "reviewed_user_id": winner.id, "comment": "A reviewed user mezĹ‘t a backend figyelmen kĂ­vĂĽl hagyja."},
         headers=auth_headers(winner),
     )
 

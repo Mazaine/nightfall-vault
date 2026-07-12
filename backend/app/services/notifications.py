@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+﻿from datetime import datetime, timezone
 
 from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
@@ -32,7 +32,7 @@ def create_notification(
     db.add(notification)
     db.flush()
     user = db.get(User, user_id)
-    if user is not None and user.notify_in_app:
+    if user is not None:
         send_notification_email(user, notification)
     return notification
 

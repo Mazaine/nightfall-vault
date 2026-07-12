@@ -1,4 +1,6 @@
+﻿import base64
 from datetime import datetime, timedelta, timezone
+from uuid import uuid4
 
 from fastapi.testclient import TestClient
 from sqlalchemy import delete, select
@@ -14,7 +16,7 @@ from app.services.auction_scheduler import close_expired_auctions
 
 
 client = TestClient(app)
-VALID_PNG = b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\x0cIDATx\x9cc\xf8\xff\xff?\x00\x05\xfe\x02\xfeA\xe2!\xbc\x00\x00\x00\x00IEND\xaeB`\x82"
+VALID_PNG = base64.b64decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4//8/AAX+Av4N70a4AAAAAElFTkSuQmCC")
 
 
 def auth_headers(user: User) -> dict[str, str]:
@@ -26,7 +28,7 @@ def create_test_user(email: str, role: str = "user") -> User:
     try:
         user = User(
             email=email,
-            username=email.split("@", 1)[0].replace(".", "-"),
+            username=f"{email.split('@', 1)[0].replace('.', '-')}-{uuid4().hex[:8]}",
             full_name="Production Test User",
             password_hash=hash_password("ProductionTest123!"),
             role=role,

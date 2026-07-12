@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     brevo_api_key: str | None = None
     brevo_sender_email: str | None = None
     brevo_sender_name: str = "Nightfall Vault"
+    email_delivery_enabled: bool = False
     app_frontend_url: str = "http://localhost:5173"
     app_backend_url: str = "http://localhost:8000"
     frontend_base_url: str = "http://localhost:5173"
