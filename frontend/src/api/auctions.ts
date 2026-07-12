@@ -1,4 +1,4 @@
-import { apiRequest } from "./client";
+import { API_BASE_URL, apiRequest } from "./client";
 
 export type AuctionStatus = "draft" | "scheduled" | "active" | "ended" | "sold" | "unsold" | "cancelled" | "suspended";
 export type AuctionCondition = "fresh" | "like_new" | "played" | "damaged" | "worn" | "misprint";
@@ -88,6 +88,35 @@ export type AuctionBid = {
   reaches_buy_now?: boolean;
 };
 
+export type AuctionRealtimeSnapshot = {
+  auction_id: number;
+  status: AuctionStatus;
+  current_price: string;
+  highest_bid_id: number | null;
+  bid_count: number;
+  winner_id: number | null;
+  ends_at: string;
+  bids: AuctionBid[];
+};
+
+export type MyBidAuction = {
+  auction: Auction;
+  my_highest_bid: string;
+  is_leading: boolean;
+  has_won: boolean;
+  is_outbid: boolean;
+};
+
+export type NotificationItem = {
+  id: number;
+  auction_id: number | null;
+  type: string;
+  title: string;
+  message: string;
+  is_read: boolean;
+  created_at: string;
+};
+
 export function listAuctions() {
   return apiRequest<Auction[]>("/api/auctions", { authenticated: false });
 }
@@ -98,6 +127,14 @@ export function getAuction(auctionId: string | number) {
 
 export function listMyAuctions() {
   return apiRequest<Auction[]>("/api/auctions/me");
+}
+
+export function listMyBidAuctions() {
+  return apiRequest<MyBidAuction[]>("/api/auctions/my-bids");
+}
+
+export function listMyNotifications() {
+  return apiRequest<NotificationItem[]>("/api/auctions/notifications");
 }
 
 export function createAuction(payload: AuctionCreatePayload) {
@@ -144,6 +181,10 @@ export function placeAuctionBid(auctionId: number, amount: string) {
     method: "POST",
     body: JSON.stringify({ amount }),
   });
+}
+
+export function auctionStreamUrl(auctionId: number | string) {
+  return `${API_BASE_URL}/api/auctions/${auctionId}/stream`;
 }
 
 export function listAuctionMessages(auctionId: number) {

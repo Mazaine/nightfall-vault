@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from pathlib import Path
 
@@ -23,6 +24,7 @@ from app.api.test_email import router as test_email_router
 from app.core.config import settings
 from app.db.session import SessionLocal
 from app.services.security_audit import create_admin_audit_log
+from app.services.auction_scheduler import scheduler_loop
 
 logger = logging.getLogger(__name__)
 UPLOADS_DIR = Path("uploads")
@@ -30,6 +32,8 @@ UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 
 app = FastAPI(title=settings.project_name)
 app.mount("/uploads", StaticFiles(directory=UPLOADS_DIR), name="uploads")
+_scheduler_stop_event: asyncio.Event | None = None
+_scheduler_task: asyncio.Task | None = None
 
 SECURITY_HEADERS = {
     "X-Content-Type-Options": "nosniff",
@@ -140,3 +144,23 @@ app.include_router(pickup_points_router)
 app.include_router(products_router)
 app.include_router(shipping_router)
 app.include_router(test_email_router)
+
+
+@app.on_event("startup")
+async def start_auction_scheduler() -> None:
+    global _scheduler_stop_event, _scheduler_task
+    _scheduler_stop_event = asyncio.Event()
+    _scheduler_task = asyncio.create_task(scheduler_loop(_scheduler_stop_event))
+
+
+@app.on_event("shutdown")
+async def stop_auction_scheduler() -> None:
+    global _scheduler_stop_event, _scheduler_task
+    if _scheduler_stop_event is not None:
+        _scheduler_stop_event.set()
+    if _scheduler_task is not None:
+        _scheduler_task.cancel()
+        try:
+            await _scheduler_task
+        except asyncio.CancelledError:
+            pass

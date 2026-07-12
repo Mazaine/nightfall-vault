@@ -170,6 +170,29 @@ class BidHistoryItem(BaseModel):
     is_highest: bool = False
 
 
+class AuctionRealtimeSnapshot(BaseModel):
+    auction_id: int
+    status: AuctionStatus
+    current_price: Decimal
+    highest_bid_id: int | None
+    bid_count: int
+    winner_id: int | None
+    ends_at: datetime
+    bids: list[BidHistoryItem]
+
+
+class NotificationRead(BaseModel):
+    id: int
+    auction_id: int | None
+    type: str
+    title: str
+    message: str
+    is_read: bool
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class AuctionListItem(BaseModel):
     id: int
     seller_id: int
@@ -191,6 +214,14 @@ class AuctionListItem(BaseModel):
     images: list[AuctionImageRead] = []
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class MyBidAuctionItem(BaseModel):
+    auction: AuctionListItem
+    my_highest_bid: Decimal
+    is_leading: bool
+    has_won: bool
+    is_outbid: bool
 
 
 class AuctionResponse(AuctionListItem):

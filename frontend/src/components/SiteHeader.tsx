@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link, NavLink } from "react-router-dom";
+import { useAuth } from "../AuthContext";
 
 const navItems = [
   { label: "Kezdőlap", to: "/" },
@@ -11,45 +12,17 @@ const navItems = [
   { label: "Kapcsolat", to: "/contact" },
 ];
 
-type StoredUser = {
-  name?: string;
-  fullName?: string;
-  email?: string;
-  role?: string;
-  isAdmin?: boolean;
-};
-
-function getStoredUser() {
-  if (typeof window === "undefined") {
-    return { name: "", isAdmin: false };
-  }
-
-  const rawUser = window.localStorage.getItem("nightfall_user");
-  if (!rawUser) {
-    return { name: "", isAdmin: false };
-  }
-
-  try {
-    const user = JSON.parse(rawUser) as StoredUser;
-    return {
-      name: user.name || user.fullName || user.email || "",
-      isAdmin: user.role === "admin" || user.isAdmin === true,
-    };
-  } catch {
-    return { name: "", isAdmin: false };
-  }
-}
-
 export function SiteHeader() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const user = getStoredUser();
-  const brandTarget = user.isAdmin ? "/admin" : "/";
+  const { user, isAdmin } = useAuth();
+  const userName = user?.full_name || user?.username || user?.email || "";
+  const brandTarget = isAdmin ? "/admin" : "/";
   const closeMenu = () => setIsMenuOpen(false);
 
   return (
     <header className="site-header">
       <div className="site-header-inner">
-        <Link className="brand" to={brandTarget} aria-label={user.isAdmin ? "Admin felület" : "Nightfall Vault kezdőlap"}>
+        <Link className="brand" to={brandTarget} aria-label={isAdmin ? "Admin felület" : "Nightfall Vault kezdőlap"}>
           <img
             className="brand-logo"
             src="/assets/nightfall-vault-logo-transparent.png"
@@ -85,8 +58,8 @@ export function SiteHeader() {
         <div className="header-actions" aria-label="Fiók műveletek">
           <button className="icon-button icon-button-search" type="button" aria-label="Keresés" />
           <Link className="icon-button icon-button-profile" to="/account" aria-label="Profil" />
-          {user.name ? (
-            <Link className="button button-ghost user-button" to="/account">{user.name}</Link>
+          {userName ? (
+            <Link className="button button-ghost user-button" to="/account">{userName}</Link>
           ) : (
             <>
               <Link className="button button-ghost login-button" to="/login">Belépés</Link>

@@ -1,6 +1,7 @@
 import { FormEvent, useState } from "react";
 import { Link } from "react-router-dom";
-import { login, register } from "../api/auth";
+import { register } from "../api/auth";
+import { useAuth } from "../AuthContext";
 
 type AuthPageProps = {
   mode: "login" | "register";
@@ -8,6 +9,7 @@ type AuthPageProps = {
 
 export function AuthPage({ mode }: AuthPageProps) {
   const isLogin = mode === "login";
+  const auth = useAuth();
   const [message, setMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -23,7 +25,7 @@ export function AuthPage({ mode }: AuthPageProps) {
 
     try {
       if (isLogin) {
-        const user = await login(email, password);
+        const user = await auth.login(email, password);
         setMessage(`Sikeres belépés: ${user.full_name || user.email}`);
         window.location.href = "/account";
       } else {

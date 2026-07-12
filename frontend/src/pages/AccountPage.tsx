@@ -1,6 +1,6 @@
 import { ChangeEvent, FormEvent, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { activateAuction, cancelAuction, createAuction, listMyAuctions, updateAuction, uploadAuctionImage, type Auction, type AuctionCondition } from "../api/auctions";
+import { activateAuction, cancelAuction, createAuction, listMyAuctions, listMyBidAuctions, updateAuction, uploadAuctionImage, type Auction, type AuctionCondition, type MyBidAuction } from "../api/auctions";
 import { AuctionCard } from "../components/AuctionCard";
 import { categories, conditionOptions } from "../data/content";
 import { formatMoney, formatRemainingTime } from "../utils/format";
@@ -55,7 +55,9 @@ function localDateTimeToIso(value: FormDataEntryValue | null) {
 
 export function AccountPage() {
   const [myAuctions, setMyAuctions] = useState<Auction[]>([]);
+  const [myBidAuctions, setMyBidAuctions] = useState<MyBidAuction[]>([]);
   const [isLoadingMyAuctions, setIsLoadingMyAuctions] = useState(true);
+  const [isLoadingMyBids, setIsLoadingMyBids] = useState(true);
   const [auctionImages, setAuctionImages] = useState<File[]>([]);
   const [coverImageIndex, setCoverImageIndex] = useState(0);
   const [imageMessage, setImageMessage] = useState("");
@@ -66,11 +68,20 @@ export function AccountPage() {
     setMyAuctions(refreshedAuctions);
   };
 
+  const refreshMyBids = async () => {
+    const refreshedBids = await listMyBidAuctions();
+    setMyBidAuctions(refreshedBids);
+  };
+
   useEffect(() => {
     listMyAuctions()
       .then(setMyAuctions)
       .catch(() => setMyAuctions([]))
       .finally(() => setIsLoadingMyAuctions(false));
+    listMyBidAuctions()
+      .then(setMyBidAuctions)
+      .catch(() => setMyBidAuctions([]))
+      .finally(() => setIsLoadingMyBids(false));
   }, []);
 
   const handleImageChange = (event: ChangeEvent<HTMLInputElement>) => {
@@ -119,6 +130,7 @@ export function AccountPage() {
 
       await activateAuction(auction.id);
       await refreshMyAuctions();
+      await refreshMyBids();
       setAuctionImages([]);
       setImageMessage("");
       setFormMessage("Az aukció létrejött, a képek feltöltődtek, és az aktiválás/időzítés sikeres.");
@@ -182,7 +194,20 @@ export function AccountPage() {
         </div>
 
         <div className="side-panel">
-          A teljes licitmotor Sprint 3-ra marad, ezért a licitált aukciók listája akkor fog backend adatból feltöltődni.
+          {isLoadingMyBids ? "Licitált aukciók betöltése..." : null}
+          {!isLoadingMyBids && myBidAuctions.length === 0 ? "Még nincs olyan aukció, amelyre licitáltál." : null}
+          {!isLoadingMyBids && myBidAuctions.length > 0 ? (
+            <div className="my-bids-list">
+              {myBidAuctions.map((item) => (
+                <Link className="my-bid-row" to={`/auctions/${item.auction.id}`} key={item.auction.id}>
+                  <strong>{item.auction.title}</strong>
+                  <span>Aktuális licit: {formatMoney(item.auction.current_price)}</span>
+                  <span>Saját legmagasabb licit: {formatMoney(item.my_highest_bid)}</span>
+                  {item.has_won ? <em>Megnyerted</em> : item.is_leading ? <em>Te vezetsz</em> : item.is_outbid ? <em>Rád licitáltak</em> : <em>Figyelés alatt</em>}
+                </Link>
+              ))}
+            </div>
+          ) : null}
         </div>
       </section>
 

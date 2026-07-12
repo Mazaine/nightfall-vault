@@ -68,6 +68,23 @@ def sync_auction_status(db: Session, auction: Auction) -> Auction:
     return auction
 
 
+def close_ended_active_auction(db: Session, auction: Auction) -> Auction:
+    if auction.status != "active" or auction.ends_at > now_utc():
+        return auction
+    highest_bid = auction.highest_bid
+    if highest_bid is None and auction.highest_bid_id is not None:
+        highest_bid = db.get(Bid, auction.highest_bid_id)
+    if highest_bid is not None:
+        auction.winner_id = highest_bid.bidder_id
+        auction.status = "sold"
+    else:
+        auction.winner_id = None
+        auction.status = "unsold"
+    auction.finalized_at = now_utc()
+    db.add(auction)
+    return auction
+
+
 def get_auction_statement():
     return select(Auction).options(
         selectinload(Auction.seller),

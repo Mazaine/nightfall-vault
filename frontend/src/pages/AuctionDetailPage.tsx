@@ -1,7 +1,7 @@
 ﻿import { FormEvent, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { apiAssetUrl } from "../api/client";
-import { createAuctionMessage, createAuctionReview, getAuction, listAuctionBids, listAuctionMessages, placeAuctionBid, type Auction, type AuctionBid, type AuctionMessage } from "../api/auctions";
+import { auctionStreamUrl, createAuctionMessage, createAuctionReview, getAuction, listAuctionBids, listAuctionMessages, placeAuctionBid, type Auction, type AuctionBid, type AuctionMessage, type AuctionRealtimeSnapshot } from "../api/auctions";
 import { formatLocalDateTime, formatMoney, formatRemainingTime } from "../utils/format";
 
 export function AuctionDetailPage() {
@@ -32,6 +32,31 @@ export function AuctionDetailPage() {
       .finally(() => setIsLoading(false));
   }, [auctionId]);
 
+  useEffect(() => {
+    if (!auctionId || typeof EventSource === "undefined") {
+      return;
+    }
+    const source = new EventSource(auctionStreamUrl(auctionId));
+    source.addEventListener("auction_update", (event) => {
+      const snapshot = JSON.parse((event as MessageEvent).data) as AuctionRealtimeSnapshot;
+      setAuction((current) => current && current.id === snapshot.auction_id
+        ? {
+            ...current,
+            status: snapshot.status,
+            current_price: snapshot.current_price,
+            highest_bid_id: snapshot.highest_bid_id,
+            winner_id: snapshot.winner_id,
+            ends_at: snapshot.ends_at,
+          }
+        : current);
+      setBidHistory(snapshot.bids);
+    });
+    source.onerror = () => {
+      source.close();
+    };
+    return () => source.close();
+  }, [auctionId]);
+
   const sendMessage = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!auction || !postAuctionMessage.trim()) {
@@ -42,15 +67,14 @@ export function AuctionDetailPage() {
     setPostAuctionMessage("");
   };
 
-  const submitBid = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!auction || !bidAmount.trim()) {
+  const placeBidAmount = async (amount: string) => {
+    if (!auction || !amount.trim()) {
       return;
     }
     setIsBidSubmitting(true);
     setBidMessage("");
     try {
-      const createdBid = await placeAuctionBid(auction.id, bidAmount);
+      const createdBid = await placeAuctionBid(auction.id, amount);
       const [refreshedAuction, refreshedBids] = await Promise.all([
         getAuction(auction.id),
         listAuctionBids(auction.id),
@@ -64,6 +88,11 @@ export function AuctionDetailPage() {
     } finally {
       setIsBidSubmitting(false);
     }
+  };
+
+  const submitBid = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    await placeBidAmount(bidAmount);
   };
 
   const sendReview = async (rating: number) => {
@@ -123,8 +152,18 @@ export function AuctionDetailPage() {
             <button className="button button-primary" type="submit" disabled={isBidSubmitting}>
               {isBidSubmitting ? "Licit rĂ¶gzĂ­tĂ©se..." : "LicitĂˇlok"}
             </button>
+            {auction.buy_now_enabled && auction.buy_now_price ? (
+              <button className="button button-lightning" type="button" disabled={isBidSubmitting} onClick={() => placeBidAmount(auction.buy_now_price ?? "")}>
+                Villámár: {formatMoney(auction.buy_now_price)}
+              </button>
+            ) : null}
             {bidMessage ? <p className="form-message">{bidMessage}</p> : null}
           </form>
+        ) : null}
+        {auction.status === "sold" && auction.winner_id ? (
+          <div className="side-panel sold-state-panel">
+            Az aukció lezárult. A nyertes státusz és a kapcsolatfelvétel a backend véglegesített állapota alapján érhető el.
+          </div>
         ) : null}
         <div className="hero-actions">
           <Link className="button button-ghost" to="/auctions">Vissza az aukciĂłkhoz</Link>

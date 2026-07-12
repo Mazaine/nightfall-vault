@@ -8,7 +8,9 @@ from app.core.security import create_access_token, hash_password
 from app.db.session import SessionLocal
 from app.main import app
 from app.models.auction import Auction, AuctionImage, AuctionMessage, AuctionReview, Bid
+from app.models.notification import Notification
 from app.models.user import User
+from app.services.auction_scheduler import close_expired_auctions
 
 
 client = TestClient(app)
@@ -43,6 +45,7 @@ def cleanup_test_data() -> None:
     try:
         db.query(Auction).update({Auction.highest_bid_id: None})
         db.commit()
+        db.execute(delete(Notification))
         db.execute(delete(Bid))
         db.execute(delete(AuctionReview))
         db.execute(delete(AuctionMessage))
@@ -254,3 +257,141 @@ def test_buy_now_preparation_flags_reaching_bid_without_frontend_calculation() -
 
     assert response.status_code == 201
     assert response.json()["reaches_buy_now"] is True
+
+
+def test_buy_now_closes_auction_and_enables_winner_features() -> None:
+    cleanup_test_data()
+    seller = create_test_user("seller-buy-now-close@bid-test.local")
+    bidder = create_test_user("bidder-buy-now-close@bid-test.local")
+    auction = create_active_auction(seller, buy_now_enabled=True, buy_now_price="1500.00")
+
+    response = place_bid(auction["id"], bidder, "1500.00")
+    refreshed = client.get(f"/api/auctions/{auction['id']}", headers=auth_headers(bidder))
+    next_bid = place_bid(auction["id"], create_test_user("late-buy-now@bid-test.local"), "1600.00")
+
+    assert response.status_code == 201
+    assert refreshed.json()["status"] == "sold"
+    assert refreshed.json()["winner_id"] == bidder.id
+    assert refreshed.json()["can_chat"] is True
+    assert refreshed.json()["can_review"] is True
+    assert next_bid.status_code == 409
+
+
+def test_double_buy_now_is_transaction_safe() -> None:
+    cleanup_test_data()
+    seller = create_test_user("seller-double-buy-now@bid-test.local")
+    bidder_one = create_test_user("bidder-one-double-buy-now@bid-test.local")
+    bidder_two = create_test_user("bidder-two-double-buy-now@bid-test.local")
+    auction = create_active_auction(seller, buy_now_enabled=True, buy_now_price="1500.00")
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        responses = list(executor.map(lambda user: place_bid(auction["id"], user, "1500.00"), [bidder_one, bidder_two]))
+
+    status_codes = sorted(response.status_code for response in responses)
+    refreshed = client.get(f"/api/auctions/{auction['id']}", headers=auth_headers(seller))
+
+    assert status_codes == [201, 409]
+    assert refreshed.json()["status"] == "sold"
+    assert refreshed.json()["winner_id"] in {bidder_one.id, bidder_two.id}
+
+
+def test_scheduler_closes_expired_active_auction_as_sold() -> None:
+    cleanup_test_data()
+    seller = create_test_user("seller-scheduler-sold@bid-test.local")
+    bidder = create_test_user("bidder-scheduler-sold@bid-test.local")
+    auction = create_active_auction(seller)
+    place_bid(auction["id"], bidder, "1100.00")
+
+    db = SessionLocal()
+    try:
+        auction_row = db.get(Auction, auction["id"])
+        assert auction_row is not None
+        auction_row.ends_at = datetime.now(timezone.utc) - timedelta(seconds=1)
+        db.add(auction_row)
+        db.commit()
+        closed_count = close_expired_auctions(db)
+        db.refresh(auction_row)
+        assert closed_count == 1
+        assert auction_row.status == "sold"
+        assert auction_row.winner_id == bidder.id
+        assert close_expired_auctions(db) == 0
+    finally:
+        db.close()
+
+
+def test_scheduler_closes_expired_active_auction_as_unsold() -> None:
+    cleanup_test_data()
+    seller = create_test_user("seller-scheduler-unsold@bid-test.local")
+    auction = create_active_auction(seller)
+
+    db = SessionLocal()
+    try:
+        auction_row = db.get(Auction, auction["id"])
+        assert auction_row is not None
+        auction_row.ends_at = datetime.now(timezone.utc) - timedelta(seconds=1)
+        db.add(auction_row)
+        db.commit()
+        closed_count = close_expired_auctions(db)
+        db.refresh(auction_row)
+        assert closed_count == 1
+        assert auction_row.status == "unsold"
+        assert auction_row.winner_id is None
+    finally:
+        db.close()
+
+
+def test_five_minute_extension_prevents_scheduler_close() -> None:
+    cleanup_test_data()
+    seller = create_test_user("seller-extension@bid-test.local")
+    bidder = create_test_user("bidder-extension@bid-test.local")
+    auction = create_active_auction(seller, ends_at=(datetime.now(timezone.utc) + timedelta(minutes=1)).isoformat())
+
+    response = place_bid(auction["id"], bidder, "1100.00")
+    db = SessionLocal()
+    try:
+        auction_row = db.get(Auction, auction["id"])
+        assert auction_row is not None
+        closed_count = close_expired_auctions(db)
+        assert response.status_code == 201
+        assert closed_count == 0
+        assert auction_row.status == "active"
+        assert auction_row.ends_at > datetime.now(timezone.utc)
+    finally:
+        db.close()
+
+
+def test_outbid_notification_and_my_bids_endpoint() -> None:
+    cleanup_test_data()
+    seller = create_test_user("seller-notification@bid-test.local")
+    bidder_one = create_test_user("bidder-one-notification@bid-test.local")
+    bidder_two = create_test_user("bidder-two-notification@bid-test.local")
+    auction = create_active_auction(seller)
+    place_bid(auction["id"], bidder_one, "1100.00")
+    place_bid(auction["id"], bidder_two, "1200.00")
+
+    notifications = client.get("/api/auctions/notifications", headers=auth_headers(bidder_one))
+    my_bids = client.get("/api/auctions/my-bids", headers=auth_headers(bidder_one))
+
+    assert notifications.status_code == 200
+    assert notifications.json()[0]["type"] == "outbid"
+    assert notifications.json()[0]["auction_id"] == auction["id"]
+    assert my_bids.status_code == 200
+    assert my_bids.json()[0]["is_leading"] is False
+    assert my_bids.json()[0]["is_outbid"] is True
+    assert my_bids.json()[0]["auction"]["current_price"] == "1200.00"
+
+
+def test_realtime_stream_returns_auction_snapshot() -> None:
+    cleanup_test_data()
+    seller = create_test_user("seller-stream@bid-test.local")
+    bidder = create_test_user("bidder-stream@bid-test.local")
+    auction = create_active_auction(seller)
+    place_bid(auction["id"], bidder, "1100.00")
+
+    with client.stream("GET", f"/api/auctions/{auction['id']}/stream?once=true") as response:
+        lines = list(response.iter_lines())
+
+    assert response.status_code == 200
+    assert lines[0] == "event: auction_update"
+    assert '"current_price": "1100.00"' in lines[1]
+    assert '"bid_count": 1' in lines[1]

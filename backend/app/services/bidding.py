@@ -6,6 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from app.models.auction import Auction, Bid
+from app.models.notification import Notification
 from app.models.user import User
 from app.services.auction_lifecycle import can_view_auction, normalize_money, now_utc, sync_auction_status
 
@@ -30,6 +31,20 @@ def bid_to_read(bid: Bid, auction: Auction) -> dict:
         "bidder_label": bidder_label(bid),
         "is_highest": auction.highest_bid_id == bid.id,
         "reaches_buy_now": reaches_buy_now(auction, bid.amount),
+    }
+
+
+def auction_realtime_snapshot(db: Session, auction: Auction) -> dict:
+    history = list_bid_history(db=db, auction=auction, user=None)
+    return {
+        "auction_id": auction.id,
+        "status": auction.status,
+        "current_price": str(auction.current_price),
+        "highest_bid_id": auction.highest_bid_id,
+        "bid_count": len(history),
+        "winner_id": auction.winner_id,
+        "ends_at": auction.ends_at.isoformat(),
+        "bids": [bid_to_history_item(bid, auction) for bid in history],
     }
 
 
@@ -89,6 +104,12 @@ def place_bid(db: Session, auction_id: int, bidder: User, amount: Decimal) -> tu
     if normalized_amount <= 0:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Bid amount must be positive.")
 
+    previous_highest_bid_id = auction.highest_bid_id
+    previous_highest_bidder_id = auction.highest_bid.bidder_id if auction.highest_bid is not None else None
+    if previous_highest_bidder_id is None and previous_highest_bid_id is not None:
+        previous_highest = db.get(Bid, previous_highest_bid_id)
+        previous_highest_bidder_id = previous_highest.bidder_id if previous_highest is not None else None
+
     current_price = normalize_money(auction.current_price)
     minimum_bid = normalize_money(current_price + auction.bid_increment)
     if normalized_amount < minimum_bid:
@@ -100,8 +121,22 @@ def place_bid(db: Session, auction_id: int, bidder: User, amount: Decimal) -> tu
 
     auction.current_price = normalized_amount
     auction.highest_bid_id = bid.id
-    if auction.five_minute_rule_enabled and auction.ends_at - now_utc() <= FIVE_MINUTE_EXTENSION_WINDOW:
+    if reaches_buy_now(auction, normalized_amount):
+        auction.status = "sold"
+        auction.winner_id = bidder.id
+        auction.finalized_at = now_utc()
+    elif auction.five_minute_rule_enabled and auction.ends_at - now_utc() <= FIVE_MINUTE_EXTENSION_WINDOW:
         auction.ends_at = now_utc() + FIVE_MINUTE_EXTENSION_WINDOW
+    if previous_highest_bidder_id is not None and previous_highest_bidder_id != bidder.id:
+        db.add(
+            Notification(
+                user_id=previous_highest_bidder_id,
+                auction_id=auction.id,
+                type="outbid",
+                title="Túllicitáltak",
+                message=f"Valaki magasabb licitet tett erre az aukcióra: {auction.title}",
+            ),
+        )
     db.add(auction)
     db.commit()
     db.refresh(bid)

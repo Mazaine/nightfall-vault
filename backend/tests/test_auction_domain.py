@@ -7,6 +7,7 @@ from app.core.security import create_access_token, hash_password
 from app.db.session import SessionLocal
 from app.main import app
 from app.models.auction import Auction, AuctionImage, AuctionMessage, AuctionReview, Bid
+from app.models.notification import Notification
 from app.models.user import User
 
 
@@ -42,6 +43,7 @@ def cleanup_test_data() -> None:
     try:
         db.query(Auction).update({Auction.highest_bid_id: None})
         db.commit()
+        db.execute(delete(Notification))
         db.execute(delete(AuctionReview))
         db.execute(delete(AuctionMessage))
         db.execute(delete(Bid))

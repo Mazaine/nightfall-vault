@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import { SiteFooter } from "./components/SiteFooter";
 import { SiteHeader } from "./components/SiteHeader";
+import { useAuth } from "./AuthContext";
 import { AboutPage } from "./pages/AboutPage";
 import { AccountPage } from "./pages/AccountPage";
 import { AdminDashboardPage } from "./pages/admin/AdminDashboardPage";
@@ -20,26 +21,9 @@ import { HowItWorksPage } from "./pages/HowItWorksPage";
 import { InfoPage } from "./pages/InfoPages";
 import { OrdersPage } from "./pages/OrdersPage";
 
-function hasAdminSession() {
-  if (typeof window === "undefined") {
-    return false;
-  }
-
-  const rawUser = window.localStorage.getItem("nightfall_user");
-  if (!rawUser) {
-    return false;
-  }
-
-  try {
-    const user = JSON.parse(rawUser) as { role?: string; isAdmin?: boolean };
-    return user.role === "admin" || user.isAdmin === true;
-  } catch {
-    return false;
-  }
-}
-
 function AdminRoute() {
-  return hasAdminSession() ? <AdminLayout /> : <Navigate to="/" replace />;
+  const { isAdmin } = useAuth();
+  return isAdmin ? <AdminLayout /> : <Navigate to="/" replace />;
 }
 
 function App() {
