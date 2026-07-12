@@ -133,6 +133,7 @@ A projekt dokumentációja aktív állapot- és sprintdokumentumokba van rendezv
 * `docs/SPRINT_1_REPORT.md` – Sprint 1 részletes zárójelentés
 * `docs/SPRINT_2_REPORT.md` – Auction domain zárójelentés
 * `docs/SPRINT_3_REPORT.md` – Bid domain és licitmotor zárójelentés
+* `docs/SPRINT_4_REPORT.md` – valós idejű licitfrissítés, értesítések és Buy Now zárójelentés
 
 ---
 
@@ -202,6 +203,7 @@ Az aukcióképek local/dev környezetben az alkalmazás `uploads/auctions` köny
 ## Bid domain és licitmotor
 
 Sprint 3-tól az aktív aukciókra valós backend licit helyezhető el.
+Sprint 4-től a villámáras licit lezárja az aukciót, a lejárt aktív aukciókat háttérfolyamat zárja, és az aukció részletoldal SSE streamen kap frissítést.
 
 Fő szabályok:
 
@@ -212,13 +214,24 @@ Fő szabályok:
 * a `current_price`, `highest_bid` és nyertes meghatározása backend oldalon történik;
 * a licittörténet publikus, de a licitáló anonim címkével jelenik meg;
 * a licitmotor adatbázis tranzakciót és row lockingot használ.
+* sikeres villámár esetén az aukció `sold` állapotba kerül és a nyertes backend oldalon rögzül;
+* az utolsó 5 percben érkező licit meghosszabbítja az aukciót;
+* a korábbi legmagasabb licitáló outbid értesítést kap;
+* a "Licitjeim" oldal backend endpointból kapja a felhasználó licitált aukcióit.
 
 Kapcsolódó endpointok:
 
 ```text
 POST /api/auctions/{auction_id}/bids
 GET  /api/auctions/{auction_id}/bids
+GET  /api/auctions/{auction_id}/stream
+GET  /api/auctions/my-bids
+GET  /api/auctions/notifications
 ```
+
+## Session es frontend auth
+
+Sprint 4-tol a frontend token- es felhasznaloi allapotkezeles kozponti AuthProvideren keresztul tortenik. A localStorage hasznalata egy helyre lett szukitve, a route vedelem es navbar allapot innen olvas.
 
 ## Fontos konfigurációs változónevek
 

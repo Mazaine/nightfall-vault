@@ -1,6 +1,6 @@
 # Nightfall Vault - Biztonsag es uzemeltetes
 
-Utolso frissites: 2026-07-11
+Utolso frissites: 2026-07-12
 
 ## Secret kezeles
 
@@ -66,7 +66,7 @@ Ellenorzott allapot:
 
 - PostgreSQL kapcsolat rendben
 - Redis `PONG`
-- Alembic revision: `0001_initial_template (head)`
+- Alembic revision: `0004_notifications_and_realtime (head)`
 - `users` tabla letrejott
 
 ## Docker Compose
@@ -159,7 +159,24 @@ A licit elhelyezese adatbazis tranzakcioban fut. A backend az aukcio sort row lo
 
 Konkurens licitek eseten a masodik tranzakcio a frissitett `current_price` alapjan validal, igy nem alakulhat ki elveszett vagy felulirt highest bid allapot.
 
-Az otperces hosszabbitas alapja service-szinten mukodik: ha aktiv aukcion, a zaras elotti utolso ot percben erkezik licit, az `ends_at` meghosszabbodik. Kulon scheduler vagy background worker jelenleg nincs.
+Az otperces hosszabbitas service-szinten mukodik: ha aktiv aukcion, a zaras elotti utolso ot percben erkezik licit, az `ends_at` meghosszabbodik. A lejart aktiv aukciok zarasat Sprint 4-tol in-process scheduler vegzi.
+
+## Sprint 4 realtime es Buy Now biztonsag
+
+Vedett pontok:
+
+- Buy Now: a villamarat elero licit ugyanabban a tranzakcioban `sold` statuszra zarja az aukciot.
+- Double Buy Now: konkurens villamaras licitnel az aukcio row lock miatt csak egy sikeres lezaro licit maradhat.
+- Scheduler: lejart aktiv aukciokat `SELECT ... FOR UPDATE SKIP LOCKED` logikaval dolgoz fel.
+- Outbid notification: ertesites csak backend oldalon, a korabbi highest bidder alapjan jon letre.
+- Licitjeim API: a felhasznalo azonositasa auth tokenbol tortenik, idegen user ID nem kuldheto.
+- SSE stream: a stream elott ugyanaz a lathatosagi ellenorzes fut, mint az aukcio reszletnel.
+
+Az SSE stream publikus aukciokhoz publikus olvasasi csatorna. Privat/draft aukcioknal tovabbra is a backend visibility szabalyai ervenyesek. EventSource kliens miatt Authorization headeres privat stream nincs bevezetve.
+
+## Scheduler uzemeltetesi megjegyzes
+
+Local/dev kornyezetben a scheduler a FastAPI alkalmazason beluli hatterfeladat. Production kornyezetben egyetlen backend replika mellett hasznalhato, de tobb replika eseten kulon worker, leader election vagy dedikalt job runner javasolt. A row lock csokkenti a duplikalt feldolgozas kockazatat, de nem helyettesiti a teljes production job orchestrationt.
 
 ## Aukciokep biztonsag
 

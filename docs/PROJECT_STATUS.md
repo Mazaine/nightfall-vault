@@ -1,12 +1,12 @@
 # Nightfall Vault - Projektallapot
 
-Utolso frissites: 2026-07-11
+Utolso frissites: 2026-07-12
 
 ## Project Version
 
-v0.3.0-dev
+v0.4.0-dev
 
-Sprint 3 bid domain and transaction-safe bidding completed
+Sprint 4 realtime bidding workflow, Buy Now close, notifications and scheduler completed
 
 ## Aktiv projektmappa
 
@@ -193,7 +193,10 @@ Meglevo licitmotor funkciok:
 - licittortenet publikus, anonimizalt licitalo cimkevel,
 - lejart aktiv aukcio licit mellett automatikusan `sold`, licit nelkul `unsold`,
 - nyertes a legmagasabb licit licitaloja,
-- otperces hosszabbitas alapja bekerult: utolso 5 percben erkezo licit meghosszabbitja a zarast.
+- otperces hosszabbitas mukodik: utolso 5 percben erkezo licit meghosszabbitja a zarast,
+- villamarat elero licit az aukciot `sold` allapotba zarja,
+- outbid ertesites jon letre a korabbi legmagasabb licitalonak,
+- background scheduler zarja a lejart aktiv aukciokat.
 
 Tranzakciobiztonsag:
 
@@ -201,6 +204,22 @@ Tranzakciobiztonsag:
 - az aukcio sorara row lock kerul (`SELECT ... FOR UPDATE`),
 - a minimum licit ellenorzese es a highest bid frissitese egy tranzakcion belul tortenik,
 - parhuzamos azonos osszegu liciteknel csak az egyik valhat ervenyes aktualis legmagasabb licitte.
+
+## Realtime, ertesitesek es scheduler
+
+Sprint 4-ben bekerult az aukcio reszletoldali SSE alapu frissites. A stream publikus aukcioknal az aktualis statuszt, aktualis arat, highest bid hivatkozast, nyertest, zarasi idot es licittortenetet kuldi.
+
+Uj backend endpointok:
+
+- `GET /api/auctions/{auction_id}/stream`
+- `GET /api/auctions/my-bids`
+- `GET /api/auctions/notifications`
+
+Uj modell:
+
+- `Notification`
+
+A scheduler in-process FastAPI hatterfeladatkent fut local/dev kornyezetben. Az aktiv, lejart aukciokat adatbazis row lock mellett dolgozza fel, licittel `sold`, licit nelkul `unsold` statuszra.
 
 ## Kepek es boritokep
 
@@ -236,19 +255,23 @@ Elkeszult:
 - cim alapu aukcio navigacio
 - chat es ertekeles megjelenites backend jogosultsagi flag alapjan
 - login/register API bekotes az aktiv frontendben
+- kozponti AuthProvider a token es user allapot kezelesere
+- aukcio reszletoldali SSE frissites
+- Buy Now / villamar gomb az aukcio reszletoldalon
+- "Licitjeim" backend adatforras a felhasznalo licitalt aukcioira
 
 ## Current Technical Debt
 
-- A frontend admin vedelem localStorage-alapu UX kapu; a valodi jogosultsagot tovabbra is a backend admin endpointjai ervenyesitik.
+- A frontend auth allapot kozponti providerbe kerult, de a backend token refresh es session lejarti UX meg nem teljes.
 - A `Product` domain meg oroksegkent jelen van a backendben es a legacy frontend kodban.
-- A licitmotor alapja elkeszult, de nincs WebSocket vagy push alapu valos ideju frissites.
-- Az otperces hosszabbitas service-szinten mukodik licit elhelyezesekor, de kulon scheduler nincs.
-- A buy now jelenleg elokeszitett jelzes, teljes azonnali zarasi folyamat kesobbi sprintre maradt.
-- A frontend session kezeles meg nem teljes auth provider alapu alkalmazasarchitektura.
+- Az SSE stream alap frissitest ad, de nincs teljes notification center vagy WebSocket presence.
+- A scheduler in-process fut; tobb production backend replika eseten kulon worker vagy leader valasztas javasolt.
+- Az outbid ertesites csak backend rekord es frontend API alap; email/push ertesites nincs.
 - Az admin aukcio moderacios UI meg nem teljes.
+- FastAPI startup/shutdown `on_event` hasznalat deprecation warningot ad; kesobb lifespan handlerre erdemes valtani.
 
 ## Next Planned Sprint
 
-A kovetkezo sprint celja a licitmotor felhasznaloi elmenyenek es operacios folyamatanak erositese: sajat licitek listaja, licitertesitesek, admin aukcio moderacio, buy now vegleges folyamat es idozitett lezaro job.
+A kovetkezo sprint celja az aukcios felhasznaloi elmeny termelesi minosegu kiterjesztese: teljes ertesitesi kozpont, admin aukcio moderacio, session lejart kezeles, frontend hiballapotok es mobil UX finomitas.
 
-Sprint 4-ben kulon figyelmet kell kapnia annak, hogy a frontend session kezeles es az aukcio-frissitesek ne localStorage es kezi frissites alapu UX-re epuljenek hosszu tavon.
+Sprint 5-ben erdemes kulon kezelni a production uzemeltetesi kerdeseket is: scheduler/worker architektura, monitoring, audit logok es email/push ertesitesi csatornak.
