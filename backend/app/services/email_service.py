@@ -2,6 +2,8 @@ import logging
 from email.message import EmailMessage
 import smtplib
 
+import httpx
+
 from app.core.config import settings
 from app.models.order import Order
 from app.models.user import User
@@ -15,6 +17,27 @@ def _sender() -> dict[str, str]:
 
 
 def send_email(to_email: str, subject: str, html_content: str) -> bool:
+    if settings.brevo_api_key and settings.brevo_sender_email:
+        payload = {
+            "sender": _sender(),
+            "to": [{"email": to_email}],
+            "subject": subject.replace("\r", "").replace("\n", " ")[:180],
+            "htmlContent": html_content,
+        }
+        try:
+            response = httpx.post(
+                "https://api.brevo.com/v3/smtp/email",
+                headers={"api-key": settings.brevo_api_key, "content-type": "application/json"},
+                json=payload,
+                timeout=10,
+            )
+            if response.status_code >= 400:
+                logger.error("Brevo email failed with status=%s subject=%s", response.status_code, subject)
+                return False
+            return True
+        except Exception:
+            logger.exception("Brevo email send failed subject=%s", subject)
+            return False
     if not settings.smtp_host or not settings.smtp_from_email:
         logger.info("Email skipped because SMTP is not configured: %s", subject)
         return False

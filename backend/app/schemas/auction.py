@@ -154,6 +154,11 @@ class AuctionImageRead(BaseModel):
     original_filename: str
     content_type: str
     file_size: int
+    width: int | None = None
+    height: int | None = None
+    thumbnail_storage_key: str | None = None
+    list_storage_key: str | None = None
+    detail_storage_key: str | None = None
     position: int
     is_cover: bool
     created_at: datetime

@@ -36,9 +36,15 @@ class Settings(BaseSettings):
     forgot_password_rate_limit_per_minute: int = 3
     newsletter_rate_limit_per_minute: int = 5
     order_admin_email: str | None = None
+    log_level: str = "INFO"
+    log_format: str = "text"
+    notification_email_enabled: bool = False
+    storage_backend: str = "local"
+    storage_upload_dir: str = "uploads"
+    max_image_width: int = 2400
+    max_image_height: int = 2400
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 
 settings = Settings()
-

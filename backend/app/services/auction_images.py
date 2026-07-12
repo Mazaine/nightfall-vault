@@ -7,6 +7,8 @@ from sqlalchemy.orm import Session
 from app.models.auction import ALLOWED_AUCTION_IMAGE_TYPES, Auction, AuctionImage
 from app.models.user import User
 from app.services.auction_lifecycle import require_owner_or_admin, sync_auction_status
+from app.services.image_processing import optimize_image_variants
+from app.services.storage import storage
 
 AUCTION_UPLOAD_DIR = Path("uploads/auctions")
 MAX_AUCTION_IMAGES = 5
@@ -60,12 +62,17 @@ async def add_auction_image(db: Session, auction: Auction, upload: UploadFile, u
     if detected_type != upload.content_type:
         raise HTTPException(status_code=400, detail="Image content does not match the declared MIME type.")
 
-    AUCTION_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
     suffix = ALLOWED_IMAGE_SUFFIXES[upload.content_type]
-    storage_key = f"auctions/{auction.id}/{uuid4().hex}{suffix}"
-    file_path = Path("uploads") / storage_key
-    file_path.parent.mkdir(parents=True, exist_ok=True)
-    file_path.write_bytes(content)
+    base_key = uuid4().hex
+    width, height, variants = optimize_image_variants(content, upload.content_type)
+    storage_key = f"auctions/{auction.id}/{base_key}/original{suffix}"
+    thumbnail_key = f"auctions/{auction.id}/{base_key}/thumbnail{suffix}"
+    list_key = f"auctions/{auction.id}/{base_key}/list{suffix}"
+    detail_key = f"auctions/{auction.id}/{base_key}/detail{suffix}"
+    storage.save(storage_key, content)
+    storage.save(thumbnail_key, variants["thumbnail"])
+    storage.save(list_key, variants["list"])
+    storage.save(detail_key, variants["detail"])
 
     should_be_cover = is_cover or len(auction.images) == 0
     if should_be_cover:
@@ -79,6 +86,11 @@ async def add_auction_image(db: Session, auction: Auction, upload: UploadFile, u
         original_filename=Path(upload.filename or "auction-image").name[:255],
         content_type=upload.content_type,
         file_size=len(content),
+        width=width,
+        height=height,
+        thumbnail_storage_key=thumbnail_key,
+        list_storage_key=list_key,
+        detail_storage_key=detail_key,
         position=_next_position(auction),
         is_cover=should_be_cover,
     )
@@ -114,7 +126,7 @@ def delete_auction_image(db: Session, auction: Auction, image_id: int, user: Use
         raise HTTPException(status_code=409, detail="Cannot delete the last image from a non-draft auction.")
     response = image
     was_cover = image.is_cover
-    file_path = Path("uploads") / image.storage_key
+    keys_to_delete = [image.storage_key, image.thumbnail_storage_key, image.list_storage_key, image.detail_storage_key]
     db.delete(image)
     db.flush()
     remaining = [item for item in auction.images if item.id != image_id]
@@ -126,9 +138,9 @@ def delete_auction_image(db: Session, auction: Auction, image_id: int, user: Use
         item.position = position
         db.add(item)
     db.commit()
-    if file_path.exists():
+    for key in keys_to_delete:
         try:
-            file_path.unlink()
+            storage.delete(key)
         except OSError:
             pass
     return response

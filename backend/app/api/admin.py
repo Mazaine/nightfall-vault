@@ -16,6 +16,7 @@ from app.models.newsletter import NewsletterCampaign, NewsletterSubscriber
 from app.models.order import Order
 from app.models.password_reset_token import PasswordResetToken
 from app.models.product import Product
+from app.models.security_log import AuditLog
 from app.models.user import User
 from app.schemas.newsletter import NewsletterBulkSendResponse, NewsletterCampaignCreate, NewsletterCampaignRead, NewsletterCampaignUpdate, NewsletterSendBulkRequest, NewsletterSendTestRequest, NewsletterSubscriberCreate, NewsletterSubscriberRead, NewsletterSubscriberUpdate
 from app.schemas.order import OrderDetailRead, OrderRead, OrderStatusUpdate
@@ -35,6 +36,20 @@ logger = logging.getLogger(__name__)
 ALLOWED_IMAGE_CONTENT_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif"}
 PRODUCT_UPLOAD_DIR = Path("uploads/products")
 COMPLETED_ORDER_STATUSES = {"completed"}
+
+
+def serialize_audit_log(log: AuditLog) -> dict:
+    return {
+        "id": log.id,
+        "user_id": log.user_id,
+        "auction_id": log.auction_id,
+        "action": log.action,
+        "path": log.path,
+        "method": log.method,
+        "status_code": log.status_code,
+        "created_at": log.created_at,
+        "metadata_json": log.metadata_json,
+    }
 
 
 def active_user_statement():
@@ -71,6 +86,41 @@ def get_admin_stats(_current_user: User = Depends(require_admin), db: Session = 
         "total_products": db.scalar(select(func.count()).select_from(Product)) or 0,
         "low_stock_products": db.scalar(select(func.count()).select_from(Product).where(Product.is_active.is_(True), Product.stock_quantity <= 3)) or 0,
     }
+
+
+@router.get("/audit-logs")
+def list_admin_audit_logs(
+    action: str | None = Query(default=None, max_length=120),
+    auction_id: int | None = None,
+    user_id: int | None = None,
+    date_from: datetime | None = None,
+    date_to: datetime | None = None,
+    limit: int = Query(default=50, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    _current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> dict:
+    statement = select(AuditLog).order_by(AuditLog.created_at.desc(), AuditLog.id.desc())
+    if action:
+        statement = statement.where(AuditLog.action == action)
+    if auction_id is not None:
+        statement = statement.where(AuditLog.auction_id == auction_id)
+    if user_id is not None:
+        statement = statement.where(AuditLog.user_id == user_id)
+    if date_from is not None:
+        statement = statement.where(AuditLog.created_at >= date_from)
+    if date_to is not None:
+        statement = statement.where(AuditLog.created_at <= date_to)
+    rows = db.scalars(statement.offset(offset).limit(limit)).all()
+    return {"items": [serialize_audit_log(row) for row in rows], "limit": limit, "offset": offset}
+
+
+@router.get("/audit-logs/{audit_log_id}")
+def get_admin_audit_log(audit_log_id: int, _current_user: User = Depends(require_admin), db: Session = Depends(get_db)) -> dict:
+    log = db.get(AuditLog, audit_log_id)
+    if log is None:
+        raise HTTPException(status_code=404, detail="Audit log not found")
+    return serialize_audit_log(log)
 
 
 @router.get("/auctions", response_model=list[AuctionListItem])

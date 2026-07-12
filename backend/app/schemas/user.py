@@ -72,6 +72,22 @@ class UserMeRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class NotificationPreferencesRead(BaseModel):
+    notify_in_app: bool
+    notify_email_outbid: bool
+    notify_email_auction_result: bool
+    notify_email_moderation: bool
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class NotificationPreferencesUpdate(BaseModel):
+    notify_in_app: bool
+    notify_email_outbid: bool
+    notify_email_auction_result: bool
+    notify_email_moderation: bool
+
+
 class UserProfileUpdate(BaseModel):
     email: EmailStr | None = None
     username: str | None = Field(default=None, min_length=3, max_length=80)

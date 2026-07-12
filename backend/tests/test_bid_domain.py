@@ -15,6 +15,7 @@ from app.services.auction_scheduler import close_expired_auctions
 
 
 client = TestClient(app)
+VALID_PNG = b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\x0cIDATx\x9cc\xf8\xff\xff?\x00\x05\xfe\x02\xfeA\xe2!\xbc\x00\x00\x00\x00IEND\xaeB`\x82"
 
 
 def auth_headers(user: User) -> dict[str, str]:
@@ -84,7 +85,7 @@ def upload_png(auction_id: int, user: User):
     return client.post(
         f"/api/auctions/{auction_id}/images",
         headers=auth_headers(user),
-        files={"image": ("card.png", b"\x89PNG\r\n\x1a\nimage-bytes", "image/png")},
+        files={"image": ("card.png", VALID_PNG, "image/png")},
     )
 
 

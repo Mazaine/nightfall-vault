@@ -5,6 +5,8 @@ from sqlalchemy.orm import Session
 
 from app.models.auction import Auction, Bid
 from app.models.notification import Notification
+from app.models.user import User
+from app.services.notification_email import send_notification_email
 
 
 def now_utc() -> datetime:
@@ -28,6 +30,10 @@ def create_notification(
         message=message,
     )
     db.add(notification)
+    db.flush()
+    user = db.get(User, user_id)
+    if user is not None and user.notify_in_app:
+        send_notification_email(user, notification)
     return notification
 
 

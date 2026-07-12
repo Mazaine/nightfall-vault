@@ -17,7 +17,7 @@ from app.models.newsletter import NewsletterSubscriber
 from app.models.password_reset_token import PasswordResetToken
 from app.models.user import User
 from app.schemas.auth import ForgotPasswordRequest, LoginRequest, MessageResponse, ResetPasswordRequest, TokenResponse
-from app.schemas.user import AccountDeleteRequest, PasswordChangeRequest, UserCreate, UserMeRead, UserProfileUpdate
+from app.schemas.user import AccountDeleteRequest, NotificationPreferencesRead, NotificationPreferencesUpdate, PasswordChangeRequest, UserCreate, UserMeRead, UserProfileUpdate
 from app.services.captcha_service import verify_captcha
 from app.services.email_service import send_email_verification_email, send_password_reset_email
 from app.services.security_audit import create_login_attempt
@@ -267,6 +267,25 @@ def get_me(current_user: User = Depends(require_active_user)) -> UserMeRead:
     return UserMeRead.model_validate(current_user)
 
 
+@router.get("/me/notification-preferences", response_model=NotificationPreferencesRead)
+def get_notification_preferences(current_user: User = Depends(require_active_user)) -> NotificationPreferencesRead:
+    return NotificationPreferencesRead.model_validate(current_user)
+
+
+@router.put("/me/notification-preferences", response_model=NotificationPreferencesRead)
+def update_notification_preferences(
+    preferences: NotificationPreferencesUpdate,
+    current_user: User = Depends(require_active_user),
+    db: Session = Depends(get_db),
+) -> NotificationPreferencesRead:
+    for field_name, value in preferences.model_dump().items():
+        setattr(current_user, field_name, value)
+    db.add(current_user)
+    db.commit()
+    db.refresh(current_user)
+    return NotificationPreferencesRead.model_validate(current_user)
+
+
 @router.patch("/me", response_model=UserMeRead)
 def update_me(
     profile_update: UserProfileUpdate,
@@ -350,4 +369,3 @@ def delete_me(
     db.add(current_user)
     db.commit()
     return MessageResponse(message="A fiókod törlésre került.")
-

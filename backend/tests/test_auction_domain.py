@@ -13,6 +13,7 @@ from app.models.user import User
 
 
 client = TestClient(app)
+VALID_PNG = b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\x0cIDATx\x9cc\xf8\xff\xff?\x00\x05\xfe\x02\xfeA\xe2!\xbc\x00\x00\x00\x00IEND\xaeB`\x82"
 
 
 def auth_headers(user: User) -> dict[str, str]:
@@ -83,7 +84,7 @@ def upload_png(auction_id: int, user: User, name: str = "card.png", is_cover: bo
     return client.post(
         f"/api/auctions/{auction_id}/images{suffix}",
         headers=auth_headers(user),
-        files={"image": (name, b"\x89PNG\r\n\x1a\nimage-bytes", "image/png")},
+        files={"image": (name, VALID_PNG, "image/png")},
     )
 
 
@@ -193,7 +194,7 @@ def test_image_upload_cover_and_activation_rules() -> None:
     image_response = client.post(
         f"/api/auctions/{created['id']}/images",
         headers=auth_headers(seller),
-        files={"image": ("card.png", b"\x89PNG\r\n\x1a\nimage-bytes", "image/png")},
+        files={"image": ("card.png", VALID_PNG, "image/png")},
     )
     activate_with_image = client.post(f"/api/auctions/{created['id']}/activate", headers=auth_headers(seller))
     bad_file = client.post(
@@ -222,7 +223,7 @@ def test_active_auction_locks_critical_fields() -> None:
     client.post(
         f"/api/auctions/{created['id']}/images",
         headers=auth_headers(seller),
-        files={"image": ("card.png", b"\x89PNG\r\n\x1a\nimage-bytes", "image/png")},
+        files={"image": ("card.png", VALID_PNG, "image/png")},
     )
     client.post(f"/api/auctions/{created['id']}/activate", headers=auth_headers(seller))
 

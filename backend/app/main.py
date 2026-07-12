@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from uuid import uuid4
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -25,11 +26,13 @@ from app.api.shipping import router as shipping_router
 from app.api.test_email import router as test_email_router
 from app.api.watchlist import router as watchlist_router
 from app.core.config import settings
+from app.core.logging_config import configure_logging
 from app.db.session import SessionLocal
 from app.services.security_audit import create_admin_audit_log
 from app.services.auction_scheduler import scheduler_loop
 
 logger = logging.getLogger(__name__)
+configure_logging()
 UPLOADS_DIR = Path("uploads")
 UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -41,11 +44,13 @@ _scheduler_task: asyncio.Task | None = None
 async def lifespan(_app: FastAPI):
     global _scheduler_stop_event, _scheduler_task
     _scheduler_stop_event = asyncio.Event()
+    logger.info("Backend startup: scheduler starting")
     _scheduler_task = asyncio.create_task(scheduler_loop(_scheduler_stop_event))
     try:
         yield
     finally:
         if _scheduler_stop_event is not None:
+            logger.info("Backend shutdown: scheduler stopping")
             _scheduler_stop_event.set()
         if _scheduler_task is not None:
             _scheduler_task.cancel()
@@ -99,6 +104,15 @@ def registration_validation_errors(exc: RequestValidationError) -> dict[str, str
 
 
 @app.middleware("http")
+async def request_id_middleware(request: Request, call_next):
+    request_id = request.headers.get("X-Request-ID") or uuid4().hex
+    request.state.request_id = request_id
+    response = await call_next(request)
+    response.headers["X-Request-ID"] = request_id
+    return response
+
+
+@app.middleware("http")
 async def security_headers_middleware(request: Request, call_next):
     response = await call_next(request)
     for header_name, header_value in SECURITY_HEADERS.items():
@@ -143,8 +157,9 @@ async def admin_audit_middleware(request: Request, call_next):
 
 @app.exception_handler(Exception)
 async def generic_exception_handler(request: Request, exc: Exception):
-    logger.exception("Unhandled backend error: %s %s", request.method, request.url.path)
-    return JSONResponse(status_code=500, content={"detail": "Unexpected server error."})
+    request_id = getattr(request.state, "request_id", None)
+    logger.exception("Unhandled backend error: %s %s request_id=%s", request.method, request.url.path, request_id)
+    return JSONResponse(status_code=500, content={"detail": "Unexpected server error.", "request_id": request_id})
 
 
 app.add_middleware(
