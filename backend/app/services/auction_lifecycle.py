@@ -8,6 +8,8 @@ from sqlalchemy.orm import Session, selectinload
 from app.models.auction import Auction, AuctionImage, AuctionMessage, AuctionReview, Bid
 from app.models.user import User
 from app.schemas.auction import AuctionCreate, AuctionUpdate
+from app.services.notifications import notify_auction_closed
+from app.services.security_audit import create_domain_audit_log
 
 SELLER_DECLARATION_VERSION = "2026-07-11"
 PUBLIC_AUCTION_STATUSES = {"scheduled", "active", "ended", "sold", "unsold"}
@@ -63,6 +65,9 @@ def sync_auction_status(db: Session, auction: Auction) -> Auction:
         auction.finalized_at = current_time
     if auction.status != original_status:
         db.add(auction)
+        create_domain_audit_log(db, action="auction_status_changed", auction_id=auction.id, metadata={"from": original_status, "to": auction.status})
+        if auction.status in {"sold", "unsold"}:
+            notify_auction_closed(db, auction)
         db.commit()
         db.refresh(auction)
     return auction
@@ -82,6 +87,8 @@ def close_ended_active_auction(db: Session, auction: Auction) -> Auction:
         auction.status = "unsold"
     auction.finalized_at = now_utc()
     db.add(auction)
+    create_domain_audit_log(db, action="auction_status_changed", auction_id=auction.id, metadata={"from": "active", "to": auction.status, "source": "scheduler"})
+    notify_auction_closed(db, auction)
     return auction
 
 
@@ -99,7 +106,7 @@ def get_auction_statement():
 
 
 def get_auction_or_404(db: Session, auction_id: int) -> Auction:
-    auction = db.scalar(get_auction_statement().where(Auction.id == auction_id))
+    auction = db.scalar(get_auction_statement().where(Auction.id == auction_id, Auction.deleted_at.is_(None)))
     if auction is None:
         raise HTTPException(status_code=404, detail="Auction not found")
     return sync_auction_status(db, auction)
@@ -147,6 +154,8 @@ def create_auction(db: Session, auction_create: AuctionCreate, seller: User) -> 
     db.add(auction)
     db.commit()
     db.refresh(auction)
+    create_domain_audit_log(db, action="auction_created", user_id=seller.id, auction_id=auction.id, metadata={"title": auction.title})
+    db.commit()
     return auction
 
 
@@ -223,6 +232,7 @@ def activate_auction(db: Session, auction: Auction, user: User) -> Auction:
     ensure_transition_allowed(auction.status, next_status)
     auction.status = next_status
     db.add(auction)
+    create_domain_audit_log(db, action="auction_activated", user_id=user.id, auction_id=auction.id, metadata={"status": next_status})
     db.commit()
     db.refresh(auction)
     return auction
@@ -233,6 +243,7 @@ def cancel_auction(db: Session, auction: Auction, user: User) -> Auction:
     ensure_transition_allowed(auction.status, "cancelled")
     auction.status = "cancelled"
     db.add(auction)
+    create_domain_audit_log(db, action="auction_status_changed", user_id=user.id, auction_id=auction.id, metadata={"to": "cancelled"})
     db.commit()
     db.refresh(auction)
     return auction
@@ -261,6 +272,8 @@ def finalize_auction(db: Session, auction: Auction, final_status: str, winner: U
     auction.status = final_status
     auction.finalized_at = now_utc()
     db.add(auction)
+    create_domain_audit_log(db, action="auction_status_changed", user_id=admin_user.id, auction_id=auction.id, metadata={"to": final_status, "source": "admin_finalize"})
+    notify_auction_closed(db, auction)
     db.commit()
     db.refresh(auction)
     return auction

@@ -19,7 +19,9 @@ import { ContactPage } from "./pages/ContactPage";
 import { HomePage } from "./pages/HomePage";
 import { HowItWorksPage } from "./pages/HowItWorksPage";
 import { InfoPage } from "./pages/InfoPages";
+import { NotificationsPage } from "./pages/NotificationsPage";
 import { OrdersPage } from "./pages/OrdersPage";
+import { WatchlistPage } from "./pages/WatchlistPage";
 
 function AdminRoute() {
   const { isAdmin } = useAuth();
@@ -39,6 +41,8 @@ function App() {
           <Route path="/cart" element={<CartPage />} />
           <Route path="/checkout" element={<CheckoutPage />} />
           <Route path="/account" element={<AccountPage />} />
+          <Route path="/notifications" element={<NotificationsPage />} />
+          <Route path="/watchlist" element={<WatchlistPage />} />
           <Route path="/orders" element={<OrdersPage />} />
           <Route path="/how-it-works" element={<HowItWorksPage />} />
           <Route path="/about" element={<AboutPage />} />

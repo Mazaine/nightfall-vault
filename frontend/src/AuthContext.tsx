@@ -1,6 +1,6 @@
-import { createContext, ReactNode, useContext, useMemo, useState } from "react";
+import { createContext, ReactNode, useContext, useEffect, useMemo, useState } from "react";
 import { login as loginRequest, type AuthUser } from "./api/auth";
-import { AUTH_TOKEN_STORAGE_KEY, USER_STORAGE_KEY } from "./api/client";
+import { AUTH_TOKEN_STORAGE_KEY, SESSION_EXPIRED_EVENT, USER_STORAGE_KEY } from "./api/client";
 
 type AuthContextValue = {
   user: AuthUser | null;
@@ -49,6 +49,18 @@ function clearSession() {
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(() => readStoredUser());
+  const [sessionMessage, setSessionMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    const handleExpiredSession = (event: Event) => {
+      const detail = (event as CustomEvent<{ message?: string }>).detail;
+      clearSession();
+      setUser(null);
+      setSessionMessage(detail?.message ?? "A munkamenet lejart. Kerlek jelentkezz be ujra.");
+    };
+    window.addEventListener(SESSION_EXPIRED_EVENT, handleExpiredSession);
+    return () => window.removeEventListener(SESSION_EXPIRED_EVENT, handleExpiredSession);
+  }, []);
 
   const value = useMemo<AuthContextValue>(() => ({
     user,
@@ -58,15 +70,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const response = await loginRequest(email, password);
       storeSession(response.access_token, response.user);
       setUser(response.user);
+      setSessionMessage(null);
       return response.user;
     },
     logout: () => {
       clearSession();
       setUser(null);
+      setSessionMessage(null);
     },
   }), [user]);
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={value}>
+      {sessionMessage ? <div className="session-expired-banner">{sessionMessage}</div> : null}
+      {children}
+    </AuthContext.Provider>
+  );
 }
 
 export function useAuth() {

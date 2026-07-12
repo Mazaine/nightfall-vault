@@ -52,3 +52,26 @@ def create_admin_audit_log(db: Session, request, status_code: int | None) -> Aud
     )
     db.add(log)
     return log
+
+
+def create_domain_audit_log(
+    db: Session,
+    *,
+    action: str,
+    user_id: int | None = None,
+    auction_id: int | None = None,
+    metadata: dict | None = None,
+) -> AuditLog:
+    log = AuditLog(
+        user_id=user_id,
+        auction_id=auction_id,
+        action=action,
+        path="domain",
+        method="SYSTEM",
+        status_code=None,
+        ip_address=None,
+        user_agent=None,
+        metadata_json=metadata,
+    )
+    db.add(log)
+    return log

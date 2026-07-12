@@ -35,7 +35,7 @@ def auction_response(auction: Auction, user: User | None = None) -> AuctionRespo
 
 @router.get("", response_model=list[AuctionListItem])
 def list_public_auctions(db: Session = Depends(get_db)) -> list[AuctionListItem]:
-    statement = get_auction_statement().where(Auction.status.in_(PUBLIC_AUCTION_STATUSES)).order_by(Auction.created_at.desc(), Auction.id.desc())
+    statement = get_auction_statement().where(Auction.status.in_(PUBLIC_AUCTION_STATUSES), Auction.deleted_at.is_(None)).order_by(Auction.created_at.desc(), Auction.id.desc())
     auctions = list(db.scalars(statement).all())
     return [AuctionListItem.model_validate(sync_auction_status(db, auction)) for auction in auctions if auction.status in PUBLIC_AUCTION_STATUSES]
 
@@ -52,7 +52,7 @@ def create_my_auction(
 
 @router.get("/me", response_model=list[AuctionListItem])
 def list_my_auctions(current_user: User = Depends(require_active_user), db: Session = Depends(get_db)) -> list[AuctionListItem]:
-    statement = get_auction_statement().where(Auction.seller_id == current_user.id).order_by(Auction.created_at.desc(), Auction.id.desc())
+    statement = get_auction_statement().where(Auction.seller_id == current_user.id, Auction.deleted_at.is_(None)).order_by(Auction.created_at.desc(), Auction.id.desc())
     return [AuctionListItem.model_validate(sync_auction_status(db, auction)) for auction in db.scalars(statement).all()]
 
 
@@ -62,7 +62,7 @@ def list_my_bid_auctions(current_user: User = Depends(require_active_user), db: 
     auction_ids = [row[0] for row in db.execute(bid_statement).all()]
     if not auction_ids:
         return []
-    statement = get_auction_statement().where(Auction.id.in_(auction_ids)).order_by(Auction.ends_at.asc(), Auction.id.asc())
+    statement = get_auction_statement().where(Auction.id.in_(auction_ids), Auction.deleted_at.is_(None)).order_by(Auction.ends_at.asc(), Auction.id.asc())
     items: list[MyBidAuctionItem] = []
     for auction in db.scalars(statement).all():
         auction = sync_auction_status(db, auction)

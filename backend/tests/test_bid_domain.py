@@ -7,8 +7,9 @@ from sqlalchemy import delete
 from app.core.security import create_access_token, hash_password
 from app.db.session import SessionLocal
 from app.main import app
-from app.models.auction import Auction, AuctionImage, AuctionMessage, AuctionReview, Bid
+from app.models.auction import Auction, AuctionImage, AuctionMessage, AuctionReview, Bid, WatchlistItem
 from app.models.notification import Notification
+from app.models.security_log import AuditLog
 from app.models.user import User
 from app.services.auction_scheduler import close_expired_auctions
 
@@ -45,6 +46,8 @@ def cleanup_test_data() -> None:
     try:
         db.query(Auction).update({Auction.highest_bid_id: None})
         db.commit()
+        db.execute(delete(AuditLog))
+        db.execute(delete(WatchlistItem))
         db.execute(delete(Notification))
         db.execute(delete(Bid))
         db.execute(delete(AuctionReview))

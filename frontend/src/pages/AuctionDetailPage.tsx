@@ -1,7 +1,7 @@
 ﻿import { FormEvent, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { apiAssetUrl } from "../api/client";
-import { auctionStreamUrl, createAuctionMessage, createAuctionReview, getAuction, listAuctionBids, listAuctionMessages, placeAuctionBid, type Auction, type AuctionBid, type AuctionMessage, type AuctionRealtimeSnapshot } from "../api/auctions";
+import { addWatchlistItem, auctionStreamUrl, createAuctionMessage, createAuctionReview, getAuction, listAuctionBids, listAuctionMessages, placeAuctionBid, type Auction, type AuctionBid, type AuctionMessage, type AuctionRealtimeSnapshot } from "../api/auctions";
 import { formatLocalDateTime, formatMoney, formatRemainingTime } from "../utils/format";
 
 export function AuctionDetailPage() {
@@ -14,6 +14,7 @@ export function AuctionDetailPage() {
   const [postAuctionMessage, setPostAuctionMessage] = useState("");
   const [bidAmount, setBidAmount] = useState("");
   const [bidMessage, setBidMessage] = useState("");
+  const [watchlistMessage, setWatchlistMessage] = useState("");
   const [isBidSubmitting, setIsBidSubmitting] = useState(false);
 
   useEffect(() => {
@@ -95,6 +96,16 @@ export function AuctionDetailPage() {
     await placeBidAmount(bidAmount);
   };
 
+  const addToWatchlist = async () => {
+    if (!auction) return;
+    try {
+      await addWatchlistItem(auction.id);
+      setWatchlistMessage("Aukcio figyelolistara teve.");
+    } catch (error) {
+      setWatchlistMessage(error instanceof Error ? error.message : "Nem sikerult figyelolistara tenni.");
+    }
+  };
+
   const sendReview = async (rating: number) => {
     if (!auction) {
       return;
@@ -166,8 +177,10 @@ export function AuctionDetailPage() {
           </div>
         ) : null}
         <div className="hero-actions">
+          <button className="button button-secondary" type="button" onClick={addToWatchlist}>Figyelem</button>
           <Link className="button button-ghost" to="/auctions">Vissza az aukciĂłkhoz</Link>
         </div>
+        {watchlistMessage ? <p className="form-message">{watchlistMessage}</p> : null}
 
         <section className="post-auction-panel">
           <h2>LicittĂ¶rtĂ©net</h2>

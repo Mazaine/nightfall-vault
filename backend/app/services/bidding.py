@@ -9,6 +9,8 @@ from app.models.auction import Auction, Bid
 from app.models.notification import Notification
 from app.models.user import User
 from app.services.auction_lifecycle import can_view_auction, normalize_money, now_utc, sync_auction_status
+from app.services.notifications import notify_auction_closed
+from app.services.security_audit import create_domain_audit_log
 
 
 FIVE_MINUTE_EXTENSION_WINDOW = timedelta(minutes=5)
@@ -68,6 +70,7 @@ def list_bid_history(db: Session, auction: Auction, user: User | None) -> list[B
 
 def _sync_locked_auction_for_bidding(db: Session, auction: Auction) -> Auction:
     current_time = now_utc()
+    original_status = auction.status
     if auction.status == "scheduled" and auction.starts_at <= current_time:
         auction.status = "active"
     if auction.status == "active" and auction.ends_at <= current_time:
@@ -79,6 +82,9 @@ def _sync_locked_auction_for_bidding(db: Session, auction: Auction) -> Auction:
             auction.winner_id = None
             auction.status = "unsold"
         auction.finalized_at = current_time
+    if auction.status != original_status and auction.status in {"sold", "unsold"}:
+        notify_auction_closed(db, auction)
+        create_domain_audit_log(db, action="auction_status_changed", auction_id=auction.id, metadata={"from": original_status, "to": auction.status, "source": "bid_sync"})
     return auction
 
 
@@ -86,7 +92,7 @@ def place_bid(db: Session, auction_id: int, bidder: User, amount: Decimal) -> tu
     normalized_amount = normalize_money(amount)
     locked_statement = (
         select(Auction)
-        .where(Auction.id == auction_id)
+        .where(Auction.id == auction_id, Auction.deleted_at.is_(None))
         .options(selectinload(Auction.highest_bid))
         .with_for_update()
     )
@@ -125,6 +131,8 @@ def place_bid(db: Session, auction_id: int, bidder: User, amount: Decimal) -> tu
         auction.status = "sold"
         auction.winner_id = bidder.id
         auction.finalized_at = now_utc()
+        notify_auction_closed(db, auction)
+        create_domain_audit_log(db, action="auction_buy_now", user_id=bidder.id, auction_id=auction.id, metadata={"amount": str(normalized_amount)})
     elif auction.five_minute_rule_enabled and auction.ends_at - now_utc() <= FIVE_MINUTE_EXTENSION_WINDOW:
         auction.ends_at = now_utc() + FIVE_MINUTE_EXTENSION_WINDOW
     if previous_highest_bidder_id is not None and previous_highest_bidder_id != bidder.id:
@@ -137,6 +145,7 @@ def place_bid(db: Session, auction_id: int, bidder: User, amount: Decimal) -> tu
                 message=f"Valaki magasabb licitet tett erre az aukcióra: {auction.title}",
             ),
         )
+    create_domain_audit_log(db, action="auction_bid", user_id=bidder.id, auction_id=auction.id, metadata={"amount": str(normalized_amount)})
     db.add(auction)
     db.commit()
     db.refresh(bid)

@@ -47,16 +47,23 @@ class Auction(Base):
     seller_declaration_accepted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     seller_declaration_version: Mapped[str] = mapped_column(String(20), nullable=False, default="2026-07-11")
     finalized_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
+    moderated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    moderated_by_admin_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
+    moderation_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    moderation_previous_status: Mapped[str | None] = mapped_column(String(30), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
 
     seller = relationship("User", foreign_keys=[seller_id])
     winner = relationship("User", foreign_keys=[winner_id])
+    moderated_by_admin = relationship("User", foreign_keys=[moderated_by_admin_id])
     highest_bid = relationship("Bid", foreign_keys=[highest_bid_id], post_update=True)
     bids = relationship("Bid", back_populates="auction", cascade="all, delete-orphan", foreign_keys="Bid.auction_id", order_by="Bid.created_at")
     images = relationship("AuctionImage", back_populates="auction", cascade="all, delete-orphan", order_by="AuctionImage.position")
     messages = relationship("AuctionMessage", back_populates="auction", cascade="all, delete-orphan", order_by="AuctionMessage.created_at")
     reviews = relationship("AuctionReview", back_populates="auction", cascade="all, delete-orphan")
+    watchlist_entries = relationship("WatchlistItem", back_populates="auction", cascade="all, delete-orphan")
 
 
 class AuctionImage(Base):
@@ -140,3 +147,19 @@ class AuctionReview(Base):
     auction = relationship("Auction", back_populates="reviews")
     reviewer = relationship("User", foreign_keys=[reviewer_id])
     reviewed_user = relationship("User", foreign_keys=[reviewed_user_id])
+
+
+class WatchlistItem(Base):
+    __tablename__ = "watchlist_items"
+    __table_args__ = (
+        UniqueConstraint("user_id", "auction_id", name="uq_watchlist_user_auction"),
+        Index("ix_watchlist_user_created", "user_id", "created_at"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    auction_id: Mapped[int] = mapped_column(ForeignKey("auctions.id", ondelete="CASCADE"), nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+    user = relationship("User")
+    auction = relationship("Auction", back_populates="watchlist_entries")

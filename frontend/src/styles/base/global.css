@@ -12,6 +12,62 @@ body {
   text-rendering: optimizeLegibility;
 }
 
+.session-expired-banner {
+  background: #3b1f55;
+  color: #fff7d6;
+  padding: 0.75rem 1rem;
+  text-align: center;
+}
+
+.notification-link {
+  align-items: center;
+  color: var(--color-text, #fff);
+  display: inline-flex;
+  gap: 0.35rem;
+  text-decoration: none;
+}
+
+.notification-link strong {
+  background: #f0c96a;
+  border-radius: 999px;
+  color: #16111f;
+  font-size: 0.75rem;
+  min-width: 1.4rem;
+  padding: 0.1rem 0.35rem;
+  text-align: center;
+}
+
+.page-header-row,
+.notification-row,
+.admin-list-row {
+  align-items: center;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+}
+
+.notification-list,
+.admin-list,
+.row-actions {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.notification-row,
+.admin-list-row {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  padding: 1rem;
+}
+
+.notification-row.is-unread {
+  border-color: rgba(240, 201, 106, 0.7);
+}
+
+.empty-state {
+  color: var(--color-muted, #a99ab7);
+}
+
 ::selection {
   background: rgb(168 85 247 / 0.38);
   color: var(--color-text-primary);

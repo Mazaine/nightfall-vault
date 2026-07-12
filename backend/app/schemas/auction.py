@@ -115,6 +115,15 @@ class AuctionFinalizeRequest(BaseModel):
     winner_id: int | None = None
 
 
+class AuctionModerationRequest(BaseModel):
+    reason: str = Field(min_length=3, max_length=1000)
+
+    @field_validator("reason")
+    @classmethod
+    def normalize_reason(cls, value: str) -> str:
+        return _normalize_required_text(value)
+
+
 class BidCreate(BaseModel):
     amount: Decimal = Field(gt=0, max_digits=12, decimal_places=2)
 
@@ -193,6 +202,10 @@ class NotificationRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class NotificationUnreadCount(BaseModel):
+    unread_count: int
+
+
 class AuctionListItem(BaseModel):
     id: int
     seller_id: int
@@ -210,6 +223,10 @@ class AuctionListItem(BaseModel):
     five_minute_rule_enabled: bool
     winner_id: int | None
     highest_bid_id: int | None
+    deleted_at: datetime | None = None
+    moderated_at: datetime | None = None
+    moderated_by_admin_id: int | None = None
+    moderation_reason: str | None = None
     seller: UserSummary | None = None
     images: list[AuctionImageRead] = []
 
@@ -222,6 +239,14 @@ class MyBidAuctionItem(BaseModel):
     is_leading: bool
     has_won: bool
     is_outbid: bool
+
+
+class WatchlistItemRead(BaseModel):
+    id: int
+    auction: AuctionListItem
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 class AuctionResponse(AuctionListItem):

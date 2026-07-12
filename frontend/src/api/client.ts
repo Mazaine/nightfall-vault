@@ -1,6 +1,7 @@
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
 export const AUTH_TOKEN_STORAGE_KEY = "webshop_template_auth_token";
 export const USER_STORAGE_KEY = "nightfall_user";
+export const SESSION_EXPIRED_EVENT = "nightfall-session-expired";
 
 type RequestOptions = RequestInit & {
   authenticated?: boolean;
@@ -38,8 +39,15 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
     const errorBody = await response.json().catch(() => null);
     const message = typeof errorBody?.detail === "string"
       ? errorBody.detail
-      : errorBody?.detail?.message ?? errorBody?.message ?? "A kérés nem sikerült.";
+      : errorBody?.detail?.message ?? errorBody?.message ?? "A keres nem sikerult.";
+    if (response.status === 401 && options.authenticated !== false) {
+      window.dispatchEvent(new CustomEvent(SESSION_EXPIRED_EVENT, { detail: { message } }));
+    }
     throw new Error(message);
+  }
+
+  if (response.status === 204) {
+    return undefined as T;
   }
 
   return response.json() as Promise<T>;

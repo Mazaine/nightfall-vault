@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, Request
@@ -16,11 +17,13 @@ from app.api.categories import router as categories_router
 from app.api.checkout import router as checkout_router
 from app.api.health import router as health_router
 from app.api.newsletter import router as newsletter_router
+from app.api.notifications import router as notifications_router
 from app.api.orders import router as orders_router
 from app.api.pickup_points import router as pickup_points_router
 from app.api.products import router as products_router
 from app.api.shipping import router as shipping_router
 from app.api.test_email import router as test_email_router
+from app.api.watchlist import router as watchlist_router
 from app.core.config import settings
 from app.db.session import SessionLocal
 from app.services.security_audit import create_admin_audit_log
@@ -30,10 +33,30 @@ logger = logging.getLogger(__name__)
 UPLOADS_DIR = Path("uploads")
 UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 
-app = FastAPI(title=settings.project_name)
-app.mount("/uploads", StaticFiles(directory=UPLOADS_DIR), name="uploads")
 _scheduler_stop_event: asyncio.Event | None = None
 _scheduler_task: asyncio.Task | None = None
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    global _scheduler_stop_event, _scheduler_task
+    _scheduler_stop_event = asyncio.Event()
+    _scheduler_task = asyncio.create_task(scheduler_loop(_scheduler_stop_event))
+    try:
+        yield
+    finally:
+        if _scheduler_stop_event is not None:
+            _scheduler_stop_event.set()
+        if _scheduler_task is not None:
+            _scheduler_task.cancel()
+            try:
+                await _scheduler_task
+            except asyncio.CancelledError:
+                pass
+
+
+app = FastAPI(title=settings.project_name, lifespan=lifespan)
+app.mount("/uploads", StaticFiles(directory=UPLOADS_DIR), name="uploads")
 
 SECURITY_HEADERS = {
     "X-Content-Type-Options": "nosniff",
@@ -139,28 +162,10 @@ app.include_router(auctions_router)
 app.include_router(categories_router)
 app.include_router(checkout_router)
 app.include_router(newsletter_router)
+app.include_router(notifications_router)
 app.include_router(orders_router)
 app.include_router(pickup_points_router)
 app.include_router(products_router)
 app.include_router(shipping_router)
 app.include_router(test_email_router)
-
-
-@app.on_event("startup")
-async def start_auction_scheduler() -> None:
-    global _scheduler_stop_event, _scheduler_task
-    _scheduler_stop_event = asyncio.Event()
-    _scheduler_task = asyncio.create_task(scheduler_loop(_scheduler_stop_event))
-
-
-@app.on_event("shutdown")
-async def stop_auction_scheduler() -> None:
-    global _scheduler_stop_event, _scheduler_task
-    if _scheduler_stop_event is not None:
-        _scheduler_stop_event.set()
-    if _scheduler_task is not None:
-        _scheduler_task.cancel()
-        try:
-            await _scheduler_task
-        except asyncio.CancelledError:
-            pass
+app.include_router(watchlist_router)

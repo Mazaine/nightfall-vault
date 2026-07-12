@@ -11,6 +11,7 @@ from app.crud.category import get_active_categories
 from app.crud.product import create_product, deactivate_product, get_admin_products, get_any_product_by_slug, get_product_by_id, update_product
 from app.db.session import get_db
 from app.dependencies.auth import require_admin
+from app.models.auction import Auction
 from app.models.newsletter import NewsletterCampaign, NewsletterSubscriber
 from app.models.order import Order
 from app.models.password_reset_token import PasswordResetToken
@@ -18,11 +19,14 @@ from app.models.product import Product
 from app.models.user import User
 from app.schemas.newsletter import NewsletterBulkSendResponse, NewsletterCampaignCreate, NewsletterCampaignRead, NewsletterCampaignUpdate, NewsletterSendBulkRequest, NewsletterSendTestRequest, NewsletterSubscriberCreate, NewsletterSubscriberRead, NewsletterSubscriberUpdate
 from app.schemas.order import OrderDetailRead, OrderRead, OrderStatusUpdate
+from app.schemas.auction import AuctionListItem, AuctionModerationRequest, AuctionStatusResponse
 from app.schemas.product import ProductAdminRead, ProductCreate, ProductUpdate
 from app.schemas.stock_movement import StockAdjustmentCreate, StockMovementRead
 from app.schemas.user import UserAdminUpdate, UserPublic
 from app.services.email import send_test_newsletter_email
 from app.services.email_service import send_newsletter_email, send_order_completed_email
+from app.services.auction_lifecycle import get_auction_statement, sync_auction_status
+from app.services.auction_moderation import restore_auction, soft_delete_auction, suspend_auction
 from app.services.stock_movements import adjust_product_stock, list_stock_movements, release_order_stock
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
@@ -67,6 +71,51 @@ def get_admin_stats(_current_user: User = Depends(require_admin), db: Session = 
         "total_products": db.scalar(select(func.count()).select_from(Product)) or 0,
         "low_stock_products": db.scalar(select(func.count()).select_from(Product).where(Product.is_active.is_(True), Product.stock_quantity <= 3)) or 0,
     }
+
+
+@router.get("/auctions", response_model=list[AuctionListItem])
+def list_admin_auctions(_current_user: User = Depends(require_admin), db: Session = Depends(get_db)) -> list[AuctionListItem]:
+    statement = get_auction_statement().order_by(Auction.created_at.desc(), Auction.id.desc()).limit(100)
+    return [AuctionListItem.model_validate(sync_auction_status(db, auction)) for auction in db.scalars(statement).all()]
+
+
+@router.post("/auctions/{auction_id}/suspend", response_model=AuctionStatusResponse)
+def suspend_admin_auction(
+    auction_id: int,
+    moderation_request: AuctionModerationRequest,
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> AuctionStatusResponse:
+    auction = db.scalar(get_auction_statement().where(Auction.id == auction_id))
+    if auction is None:
+        raise HTTPException(status_code=404, detail="Auction not found")
+    return AuctionStatusResponse.model_validate(suspend_auction(db, auction, current_user, moderation_request.reason))
+
+
+@router.post("/auctions/{auction_id}/restore", response_model=AuctionStatusResponse)
+def restore_admin_auction(
+    auction_id: int,
+    moderation_request: AuctionModerationRequest,
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> AuctionStatusResponse:
+    auction = db.scalar(get_auction_statement().where(Auction.id == auction_id))
+    if auction is None:
+        raise HTTPException(status_code=404, detail="Auction not found")
+    return AuctionStatusResponse.model_validate(restore_auction(db, auction, current_user, moderation_request.reason))
+
+
+@router.delete("/auctions/{auction_id}", response_model=AuctionStatusResponse)
+def delete_admin_auction(
+    auction_id: int,
+    moderation_request: AuctionModerationRequest,
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> AuctionStatusResponse:
+    auction = db.scalar(get_auction_statement().where(Auction.id == auction_id))
+    if auction is None:
+        raise HTTPException(status_code=404, detail="Auction not found")
+    return AuctionStatusResponse.model_validate(soft_delete_auction(db, auction, current_user, moderation_request.reason))
 
 
 @router.get("/newsletters/campaigns", response_model=list[NewsletterCampaignRead])

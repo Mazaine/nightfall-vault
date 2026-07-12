@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, String, Text, func
+from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, Index, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -8,7 +8,9 @@ from app.db.base import Base
 
 class Notification(Base):
     __tablename__ = "notifications"
+    NOTIFICATION_TYPES = ("outbid", "auction_won", "auction_lost", "auction_sold", "auction_unsold")
     __table_args__ = (
+        CheckConstraint(f"type IN {NOTIFICATION_TYPES}", name="ck_notifications_type"),
         Index("ix_notifications_user_created", "user_id", "created_at"),
         Index("ix_notifications_user_read", "user_id", "read_at"),
     )

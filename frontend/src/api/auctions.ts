@@ -39,6 +39,9 @@ export type Auction = {
   five_minute_rule_enabled: boolean;
   winner_id: number | null;
   highest_bid_id: number | null;
+  deleted_at?: string | null;
+  moderated_at?: string | null;
+  moderation_reason?: string | null;
   seller?: AuctionUser | null;
   winner?: AuctionUser | null;
   images: AuctionImage[];
@@ -117,6 +120,12 @@ export type NotificationItem = {
   created_at: string;
 };
 
+export type WatchlistItem = {
+  id: number;
+  auction: Auction;
+  created_at: string;
+};
+
 export function listAuctions() {
   return apiRequest<Auction[]>("/api/auctions", { authenticated: false });
 }
@@ -134,7 +143,56 @@ export function listMyBidAuctions() {
 }
 
 export function listMyNotifications() {
-  return apiRequest<NotificationItem[]>("/api/auctions/notifications");
+  return apiRequest<NotificationItem[]>("/api/notifications");
+}
+
+export function getUnreadNotificationCount() {
+  return apiRequest<{ unread_count: number }>("/api/notifications/unread-count");
+}
+
+export function markNotificationRead(notificationId: number) {
+  return apiRequest<NotificationItem>(`/api/notifications/${notificationId}/read`, { method: "POST" });
+}
+
+export function markAllNotificationsRead() {
+  return apiRequest<{ updated: number }>("/api/notifications/mark-all-read", { method: "POST" });
+}
+
+export function listWatchlist() {
+  return apiRequest<WatchlistItem[]>("/api/watchlist");
+}
+
+export function addWatchlistItem(auctionId: number) {
+  return apiRequest<WatchlistItem>(`/api/watchlist/${auctionId}`, { method: "POST" });
+}
+
+export function removeWatchlistItem(auctionId: number) {
+  return apiRequest<void>(`/api/watchlist/${auctionId}`, { method: "DELETE" });
+}
+
+export function listAdminAuctions() {
+  return apiRequest<Auction[]>("/api/admin/auctions");
+}
+
+export function suspendAdminAuction(auctionId: number, reason: string) {
+  return apiRequest<{ id: number; status: AuctionStatus }>(`/api/admin/auctions/${auctionId}/suspend`, {
+    method: "POST",
+    body: JSON.stringify({ reason }),
+  });
+}
+
+export function restoreAdminAuction(auctionId: number, reason: string) {
+  return apiRequest<{ id: number; status: AuctionStatus }>(`/api/admin/auctions/${auctionId}/restore`, {
+    method: "POST",
+    body: JSON.stringify({ reason }),
+  });
+}
+
+export function deleteAdminAuction(auctionId: number, reason: string) {
+  return apiRequest<{ id: number; status: AuctionStatus }>(`/api/admin/auctions/${auctionId}`, {
+    method: "DELETE",
+    body: JSON.stringify({ reason }),
+  });
 }
 
 export function createAuction(payload: AuctionCreatePayload) {
