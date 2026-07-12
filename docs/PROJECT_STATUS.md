@@ -267,7 +267,7 @@ Elkeszult:
 - kepfeltoltes es boritokep kuldes
 - aukcio aktivalas/idotizes
 - aktiv aukcion licit elhelyezese backend API-val
-- aktuĂˇlis licit es licittortenet megjelenitese backend adatbol
+- aktuális licit es licittortenet megjelenitese backend adatbol
 - cim alapu aukcio navigacio
 - chat es ertekeles megjelenites backend jogosultsagi flag alapjan
 - login/register API bekotes az aktiv frontendben
@@ -291,7 +291,7 @@ Elkeszult elemek:
 - backup es restore PowerShell script alap;
 - frontend npm audit es tracked-file secret scan lefuttatva.
 
-Fennmarado operational blocker: a kulon restore teszt adatbazis letrehozasa a jelenlegi local PostgreSQL role-lal nem engedelyezett. A restore script most mar helyesen hibaval all meg, ha nincs `CREATEDB` jogosultsag.
+Restore validacio: az aktiv dev adatbazis jogosultsagainak modositasa nelkul, izolalt `postgres_restore` Compose profillal sikeresen lefutott. A visszaallitott teszt DB Alembic revisionje `0006_operations_media_email`, a public tablakszam 23.
 ## Current Technical Debt
 
 - A frontend auth allapot kozponti providerbe kerult, de a backend token refresh es session lejarti UX meg nem teljes.
@@ -304,6 +304,6 @@ Fennmarado operational blocker: a kulon restore teszt adatbazis letrehozasa a je
 
 ## Next Planned Sprint
 
-A kovetkezo sprint celja a restore jogosultsagi modell rendezese, a production storage strategia veglegesitese, valamint a monitoring/alerting melyitese.
+A kovetkezo sprint celja a dependency auditban talalt serulekenysegek frissitesi tervenek vegrehajtasa, a production storage strategia veglegesitese, valamint a monitoring/alerting melyitese.
 
 Sprint 6-ban erdemes a kulso szolgaltatasok es eles deploy kockazatait kezelni: backup visszaallitas proba, dependency audit, kep tarolas es riasztasi folyamatok.

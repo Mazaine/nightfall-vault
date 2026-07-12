@@ -1,7 +1,7 @@
 ﻿# Nightfall Vault - Sprint 6 Report
 
 Datum: 2026-07-12
-Statusz: elkeszult, restore validacios technikai blokkoloval
+Statusz: elkeszult, dependency remediation teendovel
 Verzio: v0.6.0-dev
 
 ## Cel
@@ -66,7 +66,8 @@ Eredmenyek:
 - Health ready: HTTP 200, Postgres/Alembic/Redis/storage ok.
 - API health: HTTP 200.
 - Backup: sikeres dump keszult `backups/` ala.
-- Restore: blokkolt, mert a local PostgreSQL role nem rendelkezik `CREATEDB` jogosultsaggal.
+- Restore: sikeres izolalt `postgres_restore` Compose service-be, `nightfall_vault_restore_test` adatbazisba.
+- Restore ellenorzes: Alembic `0006_operations_media_email`, public tablakszam 23.
 - Secret scan: csak `.env.example` placeholder sorokat talalt; valodi secret nem jelent meg tracked fajlokban.
 
 ## Restore blocker
@@ -88,12 +89,13 @@ Kovetkezo manualis teendo: olyan local/ops DB role biztositasa, amely kontrollal
 
 ## Technikai adossag
 
-- Backend dependency audit teljes pip-audit futasa meg hianyzik, mert `pip_audit` nincs telepitve az image-ben.
-- Restore validaciohoz jogosultsagi/profil dontes szukseges.
+- Backend dependency audit lefutott ideiglenes kontenerben, production dependency hozzaadasa nelkul.
+- Eredmeny: 27 ismert serulekenyseg 6 csomagban: `python-jose`, `python-multipart`, `pytest`, `pillow`, `starlette`, `ecdsa`.
+- Severity mezot a `pip-audit` normal, JSON es CycloneDX kimenete nem adott; igazolt critical nincs, de `starlette`, `pillow`, `python-multipart` es `python-jose` high-priority remediation.
 - Admin Audit Log frontend alap lista; kesobb reszletes szures/export javasolt.
 - Production storage backend tovabbra is local storage alaprol indul; S3/R2 jellegu backend kesobbi sprintben javasolt.
 - Tobb backend replika eseten a schedulerhez tovabbra is kulon worker vagy leader election szukseges.
 
 ## Kovetkezo sprint javaslat
 
-Sprint 7-ben erdemes a restore jogosultsagi modellt es production storage strategiat veglegesiteni, valamint beepiteni egy backend dependency audit eszkozt CI/dev workflowba. Emellett admin audit export, monitoring/alerting es production scheduler worker kialakitas javasolt.
+Sprint 7-ben erdemes a dependency upgrade/remediation tervet vegrehajtani, a production storage strategiat veglegesiteni, valamint beepiteni egy backend dependency audit eszkozt CI/dev workflowba. Emellett admin audit export, monitoring/alerting es production scheduler worker kialakitas javasolt.

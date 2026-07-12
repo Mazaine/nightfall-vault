@@ -268,10 +268,11 @@ Backup készítés:
 Restore próba külön adatbázisba:
 
 ```powershell
-.\scripts\restore_database.ps1 -BackupFile "backups\nightfall-vault-YYYYMMDD-HHMMSS.dump" -TargetDatabase nightfall_vault_restore_test -ConfirmRestore
+docker compose -f docker-compose.yml -f docker-compose.restore.yml --profile restore up -d postgres_restore
+.\scripts\restore_database.ps1 -BackupFile "backups\nightfall-vault-YYYYMMDD-HHMMSS.dump" -TargetDatabase nightfall_vault_restore_test -ComposeService postgres_restore -ComposeFiles docker-compose.yml,docker-compose.restore.yml -ConfirmRestore
 ```
 
-A külön restore adatbázis létrehozásához olyan PostgreSQL role szükséges, amely rendelkezik `CREATEDB` jogosultsággal.
+A javasolt local restore validáció izolált `postgres_restore` service-t használ, így nem kell az aktív dev PostgreSQL role jogosultságait bővíteni.
 ## Fontos konfigurációs változónevek
 
 Az értékeket `.env` fájlban kell megadni, de valódi secret nem kerülhet verziókezelésbe.

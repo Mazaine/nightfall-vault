@@ -1,0 +1,19 @@
+﻿services:
+  postgres_restore:
+    image: postgres:16-alpine
+    profiles:
+      - restore
+    environment:
+      POSTGRES_DB: restore_admin
+      POSTGRES_USER: restore_admin
+      POSTGRES_PASSWORD: ${RESTORE_POSTGRES_PASSWORD:-restore-local-only-change-me}
+    volumes:
+      - postgres_restore_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  postgres_restore_data:

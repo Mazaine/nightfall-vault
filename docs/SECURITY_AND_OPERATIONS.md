@@ -290,4 +290,28 @@ Audit eredmenyek 2026-07-12:
 - Frontend build: sikeres.
 - Frontend npm audit: 0 vulnerabilities.
 - Tracked-file secret scan: csak `.env.example` placeholder talalatok.
-- Backend pip-audit: nem futott, mert `pip_audit` nincs telepitve az image-ben.
+- Backend pip-audit: ideiglenes `docker compose run --rm backend` kontenerben lefutott; production dependency nem kerult az image-be.
+- Eredmeny: 27 ismert serulekenyseg 6 csomagban (`python-jose`, `python-multipart`, `pytest`, `pillow`, `starlette`, `ecdsa`).
+- Severity: a `pip-audit` normal, JSON es CycloneDX kimenete nem tartalmazott megbizhato severity mezot; helyi triage szerint nincs igazolt critical, de `starlette`, `pillow`, `python-multipart` es `python-jose` high-priority frissitest igenyel.
+
+## Backend dependency audit
+
+Sprint 6 zaraskor a backend dependency audit ideiglenes kontenerben futott:
+
+```powershell
+docker compose run --rm backend sh -c "python -m pip install --no-cache-dir pip-audit && pip-audit -r requirements.txt"
+```
+
+Ez nem ad production dependencyt a backend image-hez, mert a `pip-audit` csak az eldobhato audit kontenerben telepul.
+
+Eredmeny:
+
+- osszesen 27 ismert serulekenyseg;
+- erintett csomagok: `python-jose`, `python-multipart`, `pytest`, `pillow`, `starlette`, `ecdsa`;
+- `pip-audit` es CycloneDX kimenet severity mezot nem adott;
+- igazolt critical besorolas nem all rendelkezesre;
+- helyi triage: high-priority frissites szukseges legalabb `starlette`, `pillow`, `python-multipart` es `python-jose` eseteben;
+- `pytest` dev/test dependency kockazat;
+- `ecdsa` transitive crypto dependency, nincs javito verzio jelolve.
+
+Production release elott dependency upgrade sprint szukseges, majd teljes backend pytest, frontend build es uj dependency audit futtatando.
