@@ -92,6 +92,115 @@ body {
   box-shadow: var(--shadow-focus);
 }
 
+/* Shared dark controls: native widgets remain usable while inheriting the vault theme. */
+:where(input, select, textarea) {
+  color-scheme: dark;
+}
+
+:where(
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+  select,
+  textarea
+) {
+  width: 100%;
+  min-height: 2.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background-color: #17131c;
+  color: var(--color-text-primary);
+  caret-color: var(--color-accent);
+  font: inherit;
+  padding: var(--space-3);
+  transition:
+    border-color var(--transition-ui),
+    background-color var(--transition-ui),
+    box-shadow var(--transition-ui);
+}
+
+:where(
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+  select,
+  textarea
+):hover:not(:disabled):not([readonly]) {
+  border-color: var(--color-border-strong);
+  background-color: #1d1824;
+}
+
+:where(
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+  select,
+  textarea
+):focus,
+:where(
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+  select,
+  textarea
+):focus-visible {
+  border-color: var(--color-focus);
+  outline: 0;
+  box-shadow: var(--shadow-focus);
+}
+
+:where(input, textarea)::placeholder {
+  color: var(--color-text-muted);
+  opacity: 1;
+}
+
+select option,
+select optgroup {
+  background-color: #17131c;
+  color: var(--color-text-primary);
+}
+
+select option:checked {
+  background-color: var(--color-primary-active);
+  color: #fff;
+}
+
+:where(input[type="checkbox"], input[type="radio"]) {
+  width: 1.15rem;
+  height: 1.15rem;
+  margin: 0;
+  accent-color: var(--color-primary);
+}
+
+:where(input, select, textarea):disabled {
+  cursor: not-allowed;
+  border-color: rgb(255 255 255 / 0.06);
+  background-color: #100e14;
+  color: var(--color-text-muted);
+  opacity: 0.72;
+}
+
+:where(input, textarea)[readonly] {
+  border-style: dashed;
+  background-color: #121018;
+  color: var(--color-text-secondary);
+}
+
+:where(input, select, textarea)[aria-invalid="true"],
+:where(input, select, textarea).is-invalid {
+  border-color: var(--color-danger);
+  box-shadow: 0 0 0 3px rgb(220 38 38 / 0.2);
+}
+
+:where(input, select, textarea)[aria-invalid="false"].is-valid {
+  border-color: var(--color-success);
+}
+
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus {
+  -webkit-text-fill-color: var(--color-text-primary);
+  box-shadow: 0 0 0 1000px #17131c inset;
+  caret-color: var(--color-accent);
+  transition: background-color 9999s ease-out 0s;
+}
+
+textarea {
+  resize: vertical;
+}
+
 h1,
 h2,
 h3,

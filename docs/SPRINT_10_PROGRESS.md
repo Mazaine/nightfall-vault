@@ -8,7 +8,7 @@ Utolsó frissítés: 2026-07-13
 
 - `IN PROGRESS` 10.1 Kezdő audit: dokumentáció, Git, route-ok, account UX, navbar, auth, formok, teszt/CI/Docker.
 - `DONE` 10.2 Aktív frontend UTF-8 és mojibake audit, tényleges hibák javítása.
-- `TODO` 10.3 Globális sötét form-, select-, autofill-, focus-, disabled- és error-stílus.
+- `DONE` 10.3 Globális sötét form-, select-, autofill-, focus-, disabled- és error-stílus.
 - `TODO` 10.4 Account információs architektúra, védett `/account/*` route-ok és kompatibilis redirectek.
 - `TODO` 10.5 Profilikon, hozzáférhető felhasználói dropdown és adminfeltétel.
 - `TODO` 10.6 Bejelentkezett navbar stabilizálása desktop/tablet/mobil nézetben.
@@ -48,12 +48,13 @@ Utolsó frissítés: 2026-07-13
 
 ## Utoljára befejezett konkrét lépés
 
-Az aktív frontendforrás mojibake-auditja megtörtént. A tényleges találatok az `AccountPage.tsx` fájlban voltak; 73 hibásan dekódolt magyar szövegsor UTF-8 helyreállítása elkészült.
+A globális formkontroll-stílus elkészült: sötét input/select/option/textarea, hover, focus-visible, placeholder, disabled, readonly, validáció, checkbox/radio és Chromium autofill állapotok.
 
 ## Éppen módosított fájlok
 
 - `docs/SPRINT_10_PROGRESS.md`
 - `frontend/src/pages/AccountPage.tsx`
+- `frontend/src/styles/base/global.css`
 
 ## Már lefuttatott ellenőrzések
 
@@ -63,6 +64,7 @@ Az aktív frontendforrás mojibake-auditja megtörtént. A tényleges találatok
 - `git ... log --oneline --decorate -n 20` – HEAD `636520c`.
 - Projektfájl-, route-, package-, Compose-, header-, auth- és account-kód audit – folyamatban, első kör kész.
 - `rg -n --glob '!src/_legacy/**' 'Ã|Å|Ä|Â|�|Ă|Ĺ|â' frontend/src frontend/index.html frontend/public` – a javítás után nincs találat.
+- `docker compose exec -T frontend npm run build` – sikeres, 86 modul transzformálva (UTF-8 javítás után).
 
 ## Hátralévő ellenőrzések
 
@@ -100,4 +102,4 @@ Az aktív frontendforrás mojibake-auditja megtörtént. A tényleges találatok
 
 ## Következő lépés
 
-A frontend build és diff ellenőrzése, majd az UTF-8 javítás commitolása; ezután a globális formstílus rendezése.
+A globális formstílus build/diff ellenőrzése és commitja, majd az account route-ok és újrafelhasználható account navigáció kialakítása.
