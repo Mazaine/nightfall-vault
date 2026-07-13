@@ -7,7 +7,7 @@ Utolsó frissítés: 2026-07-13
 ## Feladatlista
 
 - `IN PROGRESS` 10.1 Kezdő audit: dokumentáció, Git, route-ok, account UX, navbar, auth, formok, teszt/CI/Docker.
-- `TODO` 10.2 Aktív frontend UTF-8 és mojibake audit, tényleges hibák javítása.
+- `DONE` 10.2 Aktív frontend UTF-8 és mojibake audit, tényleges hibák javítása.
 - `TODO` 10.3 Globális sötét form-, select-, autofill-, focus-, disabled- és error-stílus.
 - `TODO` 10.4 Account információs architektúra, védett `/account/*` route-ok és kompatibilis redirectek.
 - `TODO` 10.5 Profilikon, hozzáférhető felhasználói dropdown és adminfeltétel.
@@ -48,11 +48,12 @@ Utolsó frissítés: 2026-07-13
 
 ## Utoljára befejezett konkrét lépés
 
-A kötelező Sprint 1–9 előzmények, az aktív route-ok, account/header/auth alapok, package scriptek és Docker Compose kezdő auditja megtörtént; a progress napló létrejött.
+Az aktív frontendforrás mojibake-auditja megtörtént. A tényleges találatok az `AccountPage.tsx` fájlban voltak; 73 hibásan dekódolt magyar szövegsor UTF-8 helyreállítása elkészült.
 
 ## Éppen módosított fájlok
 
 - `docs/SPRINT_10_PROGRESS.md`
+- `frontend/src/pages/AccountPage.tsx`
 
 ## Már lefuttatott ellenőrzések
 
@@ -61,6 +62,7 @@ A kötelező Sprint 1–9 előzmények, az aktív route-ok, account/header/auth 
 - `git ... diff --cached --stat` – üres.
 - `git ... log --oneline --decorate -n 20` – HEAD `636520c`.
 - Projektfájl-, route-, package-, Compose-, header-, auth- és account-kód audit – folyamatban, első kör kész.
+- `rg -n --glob '!src/_legacy/**' 'Ã|Å|Ä|Â|�|Ă|Ĺ|â' frontend/src frontend/index.html frontend/public` – a javítás után nincs találat.
 
 ## Hátralévő ellenőrzések
 
@@ -77,7 +79,7 @@ A kötelező Sprint 1–9 előzmények, az aktív route-ok, account/header/auth 
 
 - 303 dependency/deprecation warning a Sprint 9 zárásakor.
 - Healthy `postgres_restore` orphan konténer.
-- Aktív frontendben több mojibake/ékezet nélküli magyar szöveg.
+- Aktív frontendben a Sprint 10 előtt több mojibake/ékezet nélküli magyar szöveg volt; a mojibake-rész javítva, az ékezet nélküli copy finomítása a kapcsolódó komponensekkel együtt folytatódik.
 - Account route-ok és privát oldalak egységes guard/navigáció nélkül.
 - Auth session localStorage-alapú; refresh token nincs.
 
@@ -94,8 +96,8 @@ A kötelező Sprint 1–9 előzmények, az aktív route-ok, account/header/auth 
 
 ## Legutóbbi elkészült commit
 
-`636520c` – a Sprint 10 előtti kiinduló commit; Sprint 10 commit még nem készült.
+`a6b1b70` – `docs: initialize sprint 10 progress tracking`.
 
 ## Következő lépés
 
-A teljes aktív frontend UTF-8/mojibake keresés befejezése, a valódi hibák javítása, build és első funkcionális Sprint 10 commit.
+A frontend build és diff ellenőrzése, majd az UTF-8 javítás commitolása; ezután a globális formstílus rendezése.

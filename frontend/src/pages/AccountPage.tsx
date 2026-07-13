@@ -11,26 +11,26 @@ import { formatMoney, formatRemainingTime } from "../utils/format";
 const MAX_AUCTION_IMAGES = 5;
 
 const editableFields = [
-  "kĂ©p",
-  "lejĂˇrati dĂˇtum",
-  "5 perces szabĂˇly ki/be",
-  "villĂˇmĂˇr ki/be",
-  "leĂ­rĂˇs",
+  "kép",
+  "lejárati dátum",
+  "5 perces szabály ki/be",
+  "villámár ki/be",
+  "leírás",
 ];
 
 const lockedFields = [
-  "kezdĹ‘Ăˇr",
-  "licitlĂ©pcsĹ‘",
-  "mĂˇr megadott villĂˇmĂˇr Ă¶sszege",
+  "kezdőár",
+  "licitlépcső",
+  "már megadott villámár összege",
 ];
 
 const conditionMap: Record<string, AuctionCondition> = {
   "Frissen Bontott": "fresh",
-  "ĂšjszerĹ±": "like_new",
-  "JĂˇtszott": "played",
-  "SĂ©rĂĽlt": "damaged",
+  "Újszerű": "like_new",
+  "Játszott": "played",
+  "Sérült": "damaged",
   "Kopott": "worn",
-  "NyomdahibĂˇs": "misprint",
+  "Nyomdahibás": "misprint",
 };
 
 function toCardAuction(auction: Auction) {
@@ -42,7 +42,7 @@ function toCardAuction(auction: Auction) {
     step: formatMoney(auction.bid_increment),
     time: formatRemainingTime(auction.ends_at, auction.status),
     sellerName: "Te",
-    sellerRating: "Ă‰rtĂ©kelĂ©s kĂ©sĹ‘bb",
+    sellerRating: "Értékelés később",
     buyNowPrice: auction.buy_now_enabled ? auction.buy_now_price : null,
     isClosed: ["ended", "sold", "unsold", "cancelled", "suspended"].includes(auction.status),
   };
@@ -51,7 +51,7 @@ function toCardAuction(auction: Auction) {
 function localDateTimeToIso(value: FormDataEntryValue | null) {
   const textValue = String(value ?? "");
   if (!textValue) {
-    throw new Error("A kezdĂ©si Ă©s zĂˇrĂˇsi idĹ‘ megadĂˇsa kĂ¶telezĹ‘.");
+    throw new Error("A kezdési és zárási idő megadása kötelező.");
   }
   return new Date(textValue).toISOString();
 }
@@ -108,7 +108,7 @@ export function AccountPage() {
     setCoverImageIndex(0);
     setImageMessage(
       selectedFiles.length > MAX_AUCTION_IMAGES
-        ? "Legfeljebb 5 kĂ©pet tĂ¶lthetsz fel, ezĂ©rt az elsĹ‘ 5 kĂ©pet tartottuk meg."
+        ? "Legfeljebb 5 képet tölthetsz fel, ezért az első 5 képet tartottuk meg."
         : "",
     );
   };
@@ -118,7 +118,7 @@ export function AccountPage() {
     setFormMessage("");
 
     if (auctionImages.length === 0) {
-      setImageMessage("LegalĂˇbb 1 kĂ©pet kĂ¶telezĹ‘ feltĂ¶lteni az aukciĂłhoz.");
+      setImageMessage("Legalább 1 képet kötelező feltölteni az aukcióhoz.");
       return;
     }
 
@@ -149,16 +149,16 @@ export function AccountPage() {
       await refreshMyBids();
       setAuctionImages([]);
       setImageMessage("");
-      setFormMessage("Az aukciĂł lĂ©trejĂ¶tt, a kĂ©pek feltĂ¶ltĹ‘dtek, Ă©s az aktivĂˇlĂˇs/idĹ‘zĂ­tĂ©s sikeres.");
+      setFormMessage("Az aukció létrejött, a képek feltöltődtek, és az aktiválás/időzítés sikeres.");
       event.currentTarget.reset();
     } catch (error) {
-      setFormMessage(error instanceof Error ? error.message : "Az aukciĂł lĂ©trehozĂˇsa nem sikerĂĽlt.");
+      setFormMessage(error instanceof Error ? error.message : "Az aukció létrehozása nem sikerült.");
     }
   };
 
   const handleEditDescription = async (auction: Auction) => {
     const nextDescription = window.prompt(
-      "MĂłdosĂ­thatĂł: leĂ­rĂˇs, kĂ©p, lejĂˇrati dĂˇtum, 5 perces szabĂˇly, villĂˇmĂˇr kapcsolĂł. Nem mĂłdosĂ­thatĂł: kezdĹ‘Ăˇr, licitlĂ©pcsĹ‘, mĂˇr megadott villĂˇmĂˇr Ă¶sszege.",
+      "Módosítható: leírás, kép, lejárati dátum, 5 perces szabály, villámár kapcsoló. Nem módosítható: kezdőár, licitlépcső, már megadott villámár összege.",
       auction.description ?? "",
     );
     if (nextDescription === null) {
@@ -167,22 +167,22 @@ export function AccountPage() {
     try {
       await updateAuction(auction.id, { description: nextDescription });
       await refreshMyAuctions();
-      setFormMessage("Az aukciĂł leĂ­rĂˇsa frissĂĽlt.");
+      setFormMessage("Az aukció leírása frissült.");
     } catch (error) {
-      setFormMessage(error instanceof Error ? error.message : "A mĂłdosĂ­tĂˇs nem sikerĂĽlt.");
+      setFormMessage(error instanceof Error ? error.message : "A módosítás nem sikerült.");
     }
   };
 
   const handleCancelAuction = async (auction: Auction) => {
-    if (!window.confirm("Biztosan megszakĂ­tod ezt az aukciĂłt?")) {
+    if (!window.confirm("Biztosan megszakítod ezt az aukciót?")) {
       return;
     }
     try {
       await cancelAuction(auction.id);
       await refreshMyAuctions();
-      setFormMessage("Az aukciĂł megszakĂ­tva.");
+      setFormMessage("Az aukció megszakítva.");
     } catch (error) {
-      setFormMessage(error instanceof Error ? error.message : "Az aukciĂł megszakĂ­tĂˇsa nem sikerĂĽlt.");
+      setFormMessage(error instanceof Error ? error.message : "Az aukció megszakítása nem sikerült.");
     }
   };
 
@@ -191,13 +191,13 @@ export function AccountPage() {
       <p className="eyebrow">Licitjeim</p>
       <div className="section-heading page-heading">
         <div>
-          <h1>Licitjeim Ă©s sajĂˇt aukciĂłim</h1>
+          <h1>Licitjeim és saját aukcióim</h1>
           <p className="hero-lead">
-            Itt kĂ¶vetheted azokat az aukciĂłkat, amelyekre licitĂˇltĂˇl, Ă©s innen
-            kezelheted a sajĂˇt feltĂ¶ltĂ©seidet is.
+            Itt követheted azokat az aukciókat, amelyekre licitáltál, és innen
+            kezelheted a saját feltöltéseidet is.
           </p>
         </div>
-        <a className="button button-primary" href="#auction-create">AukciĂł lĂ©trehozĂˇsa</a>
+        <a className="button button-primary" href="#auction-create">Aukció létrehozása</a>
       </div>
 
       <NotificationPreferencesPanel />
@@ -239,23 +239,23 @@ export function AccountPage() {
       <section className="account-section" aria-labelledby="watched-auctions-title">
         <div className="section-heading">
           <div>
-            <p className="eyebrow">KĂ¶vetĂ©s</p>
-            <h2 id="watched-auctions-title">AukciĂłk, amelyekre licitĂˇltĂˇl</h2>
+            <p className="eyebrow">Követés</p>
+            <h2 id="watched-auctions-title">Aukciók, amelyekre licitáltál</h2>
           </div>
-          <p className="section-note">A lezĂˇrt aukciĂłk 24 ĂłrĂˇig elszĂĽrkĂ­tve lĂˇtszanak, utĂˇna eltĹ±nnek.</p>
+          <p className="section-note">A lezárt aukciók 24 óráig elszürkítve látszanak, utána eltűnnek.</p>
         </div>
 
         <div className="side-panel">
-          {isLoadingMyBids ? "LicitĂˇlt aukciĂłk betĂ¶ltĂ©se..." : null}
-          {!isLoadingMyBids && myBidAuctions.length === 0 ? "MĂ©g nincs olyan aukciĂł, amelyre licitĂˇltĂˇl." : null}
+          {isLoadingMyBids ? "Licitált aukciók betöltése..." : null}
+          {!isLoadingMyBids && myBidAuctions.length === 0 ? "Még nincs olyan aukció, amelyre licitáltál." : null}
           {!isLoadingMyBids && myBidAuctions.length > 0 ? (
             <div className="my-bids-list">
               {myBidAuctions.map((item) => (
                 <Link className="my-bid-row" to={`/auctions/${item.auction.id}`} key={item.auction.id}>
                   <strong>{item.auction.title}</strong>
-                  <span>AktuĂˇlis licit: {formatMoney(item.auction.current_price)}</span>
-                  <span>SajĂˇt legmagasabb licit: {formatMoney(item.my_highest_bid)}</span>
-                  {item.has_won ? <em>Megnyerted</em> : item.is_leading ? <em>Te vezetsz</em> : item.is_outbid ? <em>RĂˇd licitĂˇltak</em> : <em>FigyelĂ©s alatt</em>}
+                  <span>Aktuális licit: {formatMoney(item.auction.current_price)}</span>
+                  <span>Saját legmagasabb licit: {formatMoney(item.my_highest_bid)}</span>
+                  {item.has_won ? <em>Megnyerted</em> : item.is_leading ? <em>Te vezetsz</em> : item.is_outbid ? <em>Rád licitáltak</em> : <em>Figyelés alatt</em>}
                 </Link>
               ))}
             </div>
@@ -266,15 +266,15 @@ export function AccountPage() {
       <section className="account-section" aria-labelledby="own-auctions-title">
         <div className="section-heading">
           <div>
-            <p className="eyebrow">FeltĂ¶ltĂ©seim</p>
-            <h2 id="own-auctions-title">SajĂˇt aukciĂłim</h2>
+            <p className="eyebrow">Feltöltéseim</p>
+            <h2 id="own-auctions-title">Saját aukcióim</h2>
           </div>
-          <p className="section-note">A lezĂˇrt sajĂˇt aukciĂłk szintĂ©n 24 ĂłrĂˇig maradnak lĂˇthatĂłk.</p>
+          <p className="section-note">A lezárt saját aukciók szintén 24 óráig maradnak láthatók.</p>
         </div>
 
         <div className="auction-grid page-grid">
-          {isLoadingMyAuctions ? <div className="side-panel">SajĂˇt aukciĂłk betĂ¶ltĂ©se...</div> : null}
-          {!isLoadingMyAuctions && myAuctions.length === 0 ? <div className="side-panel">MĂ©g nincs sajĂˇt aukciĂłd.</div> : null}
+          {isLoadingMyAuctions ? <div className="side-panel">Saját aukciók betöltése...</div> : null}
+          {!isLoadingMyAuctions && myAuctions.length === 0 ? <div className="side-panel">Még nincs saját aukciód.</div> : null}
           {myAuctions.map((auction, index) => (
             <div className="own-auction-card" key={auction.id}>
               <AuctionCard
@@ -284,24 +284,24 @@ export function AccountPage() {
                 showBidActions={false}
               />
               <div className="owner-actions">
-                <button className="button button-secondary" type="button" onClick={() => handleEditDescription(auction)}>MĂłdosĂ­tĂˇs</button>
-                <button className="button button-danger" type="button" onClick={() => handleCancelAuction(auction)}>TĂ¶rlĂ©s</button>
+                <button className="button button-secondary" type="button" onClick={() => handleEditDescription(auction)}>Módosítás</button>
+                <button className="button button-danger" type="button" onClick={() => handleCancelAuction(auction)}>Törlés</button>
               </div>
             </div>
           ))}
         </div>
 
         <div className="side-panel edit-rules-panel">
-          <h3>Mit mĂłdosĂ­thatsz egy sajĂˇt aukciĂłn?</h3>
+          <h3>Mit módosíthatsz egy saját aukción?</h3>
           <div className="rules-grid">
             <div>
-              <h4>MĂłdosĂ­thatĂł</h4>
+              <h4>Módosítható</h4>
               <ul>
                 {editableFields.map((field) => <li key={field}>{field}</li>)}
               </ul>
             </div>
             <div>
-              <h4>Nem mĂłdosĂ­thatĂł</h4>
+              <h4>Nem módosítható</h4>
               <ul>
                 {lockedFields.map((field) => <li key={field}>{field}</li>)}
               </ul>
@@ -313,27 +313,27 @@ export function AccountPage() {
       <section className="account-section" id="auction-create" aria-labelledby="auction-create-title">
         <div className="section-heading">
           <div>
-            <p className="eyebrow">Ăšj feltĂ¶ltĂ©s</p>
-            <h2 id="auction-create-title">AukciĂł lĂ©trehozĂˇsa</h2>
+            <p className="eyebrow">Új feltöltés</p>
+            <h2 id="auction-create-title">Aukció létrehozása</h2>
           </div>
-          <Link className="text-link" to="/how-it-works">SzabĂˇlyok rĂ©szletesen</Link>
+          <Link className="text-link" to="/how-it-works">Szabályok részletesen</Link>
         </div>
 
         <form className="side-panel auction-create-form" onSubmit={handleCreateAuction}>
           <label>
-            NĂ©v
-            <input name="title" type="text" placeholder="AukciĂł cĂ­me" required />
+            Név
+            <input name="title" type="text" placeholder="Aukció címe" required />
           </label>
           <div className="form-wide image-upload-field">
             <label>
-              KĂ©pek
+              Képek
               <input type="file" accept="image/*" multiple onChange={handleImageChange} />
             </label>
             <small>
-              Minimum 1, maximum 5 kĂ©p tĂ¶lthetĹ‘ fel. VĂˇlaszd ki, melyik legyen a borĂ­tĂłkĂ©p.
+              Minimum 1, maximum 5 kép tölthető fel. Válaszd ki, melyik legyen a borítókép.
             </small>
             {auctionImages.length > 0 ? (
-              <div className="cover-image-list" aria-label="BorĂ­tĂłkĂ©p kivĂˇlasztĂˇsa">
+              <div className="cover-image-list" aria-label="Borítókép kiválasztása">
                 {auctionImages.map((file, index) => (
                   <label className="cover-image-option" key={`${file.name}-${file.lastModified}`}>
                     <input
@@ -342,9 +342,9 @@ export function AccountPage() {
                       checked={coverImageIndex === index}
                       onChange={() => setCoverImageIndex(index)}
                     />
-                    <span>{index + 1}. kĂ©p</span>
+                    <span>{index + 1}. kép</span>
                     <strong>{file.name}</strong>
-                    {coverImageIndex === index ? <em>BorĂ­tĂłkĂ©p</em> : null}
+                    {coverImageIndex === index ? <em>Borítókép</em> : null}
                   </label>
                 ))}
               </div>
@@ -352,59 +352,59 @@ export function AccountPage() {
             {imageMessage ? <p className="form-message">{imageMessage}</p> : null}
           </div>
           <label className="form-wide">
-            LeĂ­rĂˇs
-            <textarea name="description" rows={5} placeholder="Ăllapot, kiadĂˇs, kĂĽlĂ¶nleges tudnivalĂłk..." required />
+            Leírás
+            <textarea name="description" rows={5} placeholder="Állapot, kiadás, különleges tudnivalók..." required />
           </label>
           <label>
-            KategĂłria
+            Kategória
             <select name="category">
               {categories.map((category) => <option key={category}>{category}</option>)}
             </select>
           </label>
           <label>
-            Ăllapot
+            Állapot
             <select name="condition">
               {conditionOptions.map((condition) => <option key={condition}>{condition}</option>)}
             </select>
           </label>
           <label>
-            KezdĹ‘Ăˇr
+            Kezdőár
             <input name="starting_price" type="number" min="1" placeholder="0" required />
-            <small>Ezt kĂ©sĹ‘bb nem mĂłdosĂ­thatod.</small>
+            <small>Ezt később nem módosíthatod.</small>
           </label>
           <label>
-            LicitlĂ©pcsĹ‘
+            Licitlépcső
             <input name="bid_increment" type="number" min="1" placeholder="500" required />
-            <small>Ezt kĂ©sĹ‘bb nem mĂłdosĂ­thatod.</small>
+            <small>Ezt később nem módosíthatod.</small>
           </label>
           <label>
-            VillĂˇmĂˇr
-            <input name="buy_now_price" type="number" min="1" placeholder="OpcionĂˇlis" />
-            <small>Az Ă¶sszeget kĂ©sĹ‘bb nem mĂłdosĂ­thatod.</small>
+            Villámár
+            <input name="buy_now_price" type="number" min="1" placeholder="Opcionális" />
+            <small>Az összeget később nem módosíthatod.</small>
           </label>
           <label>
-            KezdĂ©si dĂˇtum
+            Kezdési dátum
             <input name="starts_at" type="datetime-local" required />
           </label>
           <label>
-            LejĂˇrati dĂˇtum
+            Lejárati dátum
             <input name="ends_at" type="datetime-local" required />
           </label>
           <label className="toggle-row">
             <input name="five_minute_rule_enabled" type="checkbox" defaultChecked />
-            5 perces szabĂˇly bekapcsolĂˇsa
+            5 perces szabály bekapcsolása
           </label>
           <label className="toggle-row">
             <input name="buy_now_enabled" type="checkbox" />
-            VillĂˇmĂˇr bekapcsolĂˇsa
+            Villámár bekapcsolása
           </label>
           <label className="toggle-row form-wide">
             <input name="seller_declaration_accepted" type="checkbox" required />
-            Elfogadom, hogy jogosult vagyok a termĂ©k Ă©rtĂ©kesĂ­tĂ©sĂ©re Ă©s a kĂ©pek hasznĂˇlatĂˇra, az adĂˇsvĂ©tel pedig kĂ¶ztem Ă©s a nyertes vevĹ‘ kĂ¶zĂ¶tt jĂ¶n lĂ©tre.
+            Elfogadom, hogy jogosult vagyok a termék értékesítésére és a képek használatára, az adásvétel pedig köztem és a nyertes vevő között jön létre.
           </label>
           {formMessage ? <p className="form-message form-wide">{formMessage}</p> : null}
           <button className="button button-primary form-wide" type="submit">
-            AukciĂł lĂ©trehozĂˇsa
+            Aukció létrehozása
           </button>
         </form>
       </section>
