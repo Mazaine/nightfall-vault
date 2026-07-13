@@ -167,6 +167,11 @@ class PublicUserStats(BaseModel):
     sold_auctions: int
     won_auctions: int
     total_bids: int
+    successful_bids: int
+    lost_bids: int
+    success_rate: float
+    follower_count: int
+    following_count: int
 
 
 class PublicUserProfile(BaseModel):

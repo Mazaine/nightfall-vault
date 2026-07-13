@@ -77,6 +77,11 @@ def build_public_profile(db: Session, user: User, current_user: User | None = No
     sold_count = int(db.scalar(select(func.count()).select_from(Auction).where(Auction.seller_id == user.id, Auction.deleted_at.is_(None), Auction.status == "sold")) or 0)
     won_count = int(db.scalar(select(func.count()).select_from(Auction).where(Auction.winner_id == user.id, Auction.status == "sold", Auction.deleted_at.is_(None))) or 0)
     total_bids = int(db.scalar(select(func.count()).select_from(Bid).where(Bid.bidder_id == user.id)) or 0)
+    participated_auctions = select(Bid.auction_id).where(Bid.bidder_id == user.id).distinct().subquery()
+    lost_count = int(db.scalar(select(func.count()).select_from(Auction).where(Auction.id.in_(select(participated_auctions.c.auction_id)), Auction.status == "sold", Auction.winner_id != user.id, Auction.deleted_at.is_(None))) or 0)
+    completed_bid_auctions = won_count + lost_count
+    follower_count = int(db.scalar(select(func.count()).select_from(SellerFollow).where(SellerFollow.seller_id == user.id)) or 0)
+    following_count = int(db.scalar(select(func.count()).select_from(SellerFollow).where(SellerFollow.follower_id == user.id)) or 0)
 
     active_auctions = db.scalars(select(Auction).where(Auction.seller_id == user.id, Auction.deleted_at.is_(None), Auction.status.in_(ACTIVE_STATUSES)).order_by(Auction.ends_at.asc(), Auction.id.asc()).limit(12)).all()
     closed_auctions = db.scalars(select(Auction).where(Auction.seller_id == user.id, Auction.deleted_at.is_(None), Auction.status.in_(CLOSED_STATUSES)).order_by(Auction.ends_at.desc(), Auction.id.desc()).limit(12)).all()
@@ -103,6 +108,11 @@ def build_public_profile(db: Session, user: User, current_user: User | None = No
             sold_auctions=sold_count,
             won_auctions=won_count,
             total_bids=total_bids,
+            successful_bids=won_count,
+            lost_bids=lost_count,
+            success_rate=round(won_count * 100 / completed_bid_auctions, 2) if completed_bid_auctions else 0.0,
+            follower_count=follower_count,
+            following_count=following_count,
         ),
         active_auctions=[_auction_summary(db, auction) for auction in active_auctions],
         closed_auctions=[_auction_summary(db, auction) for auction in closed_auctions],

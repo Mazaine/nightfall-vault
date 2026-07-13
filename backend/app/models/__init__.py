@@ -12,7 +12,7 @@ from app.models.product_variant import ProductVariant
 from app.models.shipping import ShippingMethod
 from app.models.stock_movement import StockMovement
 from app.models.security_log import AuditLog, LoginAttempt
-from app.models.user import User
+from app.models.user import SavedSearch, SellerFollow, User
 
 __all__ = [
     "Category",
@@ -39,4 +39,6 @@ __all__ = [
     "AuditLog",
     "LoginAttempt",
     "User",
+    "SellerFollow",
+    "SavedSearch",
 ]

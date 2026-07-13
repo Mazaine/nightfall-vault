@@ -26,6 +26,7 @@ from app.api.pickup_points import router as pickup_points_router
 from app.api.reports import router as reports_router
 from app.api.products import router as products_router
 from app.api.shipping import router as shipping_router
+from app.api.searches import router as searches_router
 from app.api.test_email import router as test_email_router
 from app.api.users import router as users_router
 from app.api.watchlist import router as watchlist_router
@@ -189,6 +190,7 @@ app.include_router(pickup_points_router)
 app.include_router(reports_router)
 app.include_router(products_router)
 app.include_router(shipping_router)
+app.include_router(searches_router)
 app.include_router(test_email_router)
 app.include_router(users_router)
 app.include_router(watchlist_router)

@@ -4,8 +4,8 @@ from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile, status
 from fastapi.responses import StreamingResponse
-from sqlalchemy import func, select
-from sqlalchemy.orm import Session
+from sqlalchemy import func, or_, select
+from sqlalchemy.orm import Session, selectinload
 
 from app.db.session import SessionLocal
 from app.db.session import get_db
@@ -18,6 +18,8 @@ from app.services.auction_images import add_auction_image, delete_auction_image,
 from app.services.auction_lifecycle import PUBLIC_AUCTION_STATUSES, activate_auction, can_access_post_auction_features, cancel_auction, create_auction, create_message, create_review, finalize_auction, get_auction_or_404, get_auction_statement, require_can_view_auction, require_post_auction_participant, sync_auction_status, update_auction
 from app.services.bidding import auction_realtime_snapshot, bid_to_history_item, bid_to_read, list_bid_history, place_bid
 from app.services.notifications import notify_followers_new_auction
+from app.services.recommendations import related_auctions, seller_other_auctions
+from app.services.saved_searches import notify_saved_search_matches
 
 router = APIRouter(prefix="/api/auctions", tags=["auctions"])
 
@@ -30,9 +32,23 @@ def auction_list_item(auction: Auction, bid_count: int | None = None) -> Auction
     return AuctionListItem.model_validate(auction).model_copy(update={"bid_count": count})
 
 
-def _apply_auction_filters(query, *, category, condition, status_filter, min_price, max_price, min_bids, max_bids, buy_now, soon_ending, new_only):
+def _escaped_contains(value: str) -> str:
+    return f"%{value.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')}%"
+
+
+def _apply_auction_filters(query, *, query_text, title, description, seller, category, condition, status_filter, min_price, max_price, min_bids, max_bids, buy_now, soon_ending, new_only):
     now = datetime.now(timezone.utc)
     query = query.filter(Auction.status.in_(PUBLIC_AUCTION_STATUSES), Auction.deleted_at.is_(None))
+    if query_text:
+        pattern = _escaped_contains(query_text)
+        query = query.filter(or_(Auction.title.ilike(pattern, escape="\\"), Auction.description.ilike(pattern, escape="\\"), User.username.ilike(pattern, escape="\\"), User.full_name.ilike(pattern, escape="\\")))
+    if title:
+        query = query.filter(Auction.title.ilike(_escaped_contains(title), escape="\\"))
+    if description:
+        query = query.filter(Auction.description.ilike(_escaped_contains(description), escape="\\"))
+    if seller:
+        pattern = _escaped_contains(seller)
+        query = query.filter(or_(User.username.ilike(pattern, escape="\\"), User.full_name.ilike(pattern, escape="\\")))
     if category:
         query = query.filter(Auction.category == category)
     if condition:
@@ -92,6 +108,10 @@ def auction_response(auction: Auction, user: User | None = None) -> AuctionRespo
 
 @router.get("", response_model=AuctionListPage)
 def list_public_auctions(
+    query_text: str | None = Query(default=None, alias="q", max_length=180),
+    title: str | None = Query(default=None, max_length=180),
+    description: str | None = Query(default=None, max_length=180),
+    seller: str | None = Query(default=None, max_length=80),
     category: str | None = None,
     condition: str | None = None,
     status_filter: str | None = Query(default=None, alias="status"),
@@ -109,9 +129,13 @@ def list_public_auctions(
 ) -> AuctionListPage:
     if sort not in AUCTION_SORTS:
         raise HTTPException(status_code=422, detail="Ervenytelen rendezes.")
-    base_query = db.query(Auction.id, func.count(Bid.id).label("bid_count")).outerjoin(Bid, Bid.auction_id == Auction.id).group_by(Auction.id)
+    base_query = db.query(Auction.id, func.count(Bid.id).label("bid_count")).join(User, User.id == Auction.seller_id).outerjoin(Bid, Bid.auction_id == Auction.id).group_by(Auction.id)
     filtered_query = _apply_auction_filters(
         base_query,
+        query_text=query_text,
+        title=title,
+        description=description,
+        seller=seller,
         category=category,
         condition=condition,
         status_filter=status_filter,
@@ -129,7 +153,8 @@ def list_public_auctions(
     bid_counts = {row.id: int(row.bid_count or 0) for row in rows}
     if not auction_ids:
         return AuctionListPage(items=[], total=total, limit=limit, offset=offset)
-    auctions_by_id = {auction.id: auction for auction in db.scalars(get_auction_statement().where(Auction.id.in_(auction_ids))).all()}
+    list_statement = select(Auction).options(selectinload(Auction.seller), selectinload(Auction.images)).where(Auction.id.in_(auction_ids))
+    auctions_by_id = {auction.id: auction for auction in db.scalars(list_statement).all()}
     items: list[AuctionListItem] = []
     for auction_id in auction_ids:
         auction = auctions_by_id.get(auction_id)
@@ -223,8 +248,23 @@ def activate_my_auction(
     activated = activate_auction(db=db, auction=auction, user=current_user)
     if activated.status in {"scheduled", "active"}:
         notify_followers_new_auction(db, activated)
+        notify_saved_search_matches(db, activated)
         db.commit()
     return AuctionStatusResponse.model_validate(activated)
+
+
+@router.get("/{auction_id}/related", response_model=list[AuctionListItem])
+def list_related_auctions(auction_id: int, current_user: User | None = Depends(get_optional_current_user), db: Session = Depends(get_db)) -> list[AuctionListItem]:
+    auction = get_auction_or_404(db, auction_id)
+    require_can_view_auction(auction, current_user)
+    return [auction_list_item(item, len(item.bids)) for item in related_auctions(db, auction)]
+
+
+@router.get("/{auction_id}/seller-auctions", response_model=list[AuctionListItem])
+def list_seller_other_auctions(auction_id: int, current_user: User | None = Depends(get_optional_current_user), db: Session = Depends(get_db)) -> list[AuctionListItem]:
+    auction = get_auction_or_404(db, auction_id)
+    require_can_view_auction(auction, current_user)
+    return [auction_list_item(item, len(item.bids)) for item in seller_other_auctions(db, auction, limit=6)]
 
 
 @router.post("/{auction_id}/cancel", response_model=AuctionStatusResponse)

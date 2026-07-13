@@ -21,6 +21,7 @@ def create_notification(
     title: str,
     message: str,
     auction_id: int | None = None,
+    send_email: bool = True,
 ) -> Notification:
     notification = Notification(
         user_id=user_id,
@@ -32,7 +33,7 @@ def create_notification(
     db.add(notification)
     db.flush()
     user = db.get(User, user_id)
-    if user is not None:
+    if user is not None and send_email:
         send_notification_email(user, notification)
     return notification
 

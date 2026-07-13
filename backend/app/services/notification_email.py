@@ -9,6 +9,8 @@ logger = logging.getLogger(__name__)
 
 
 def should_email(user: User, notification_type: str) -> bool:
+    if notification_type == "saved_search_match":
+        return False
     if not settings.notification_email_enabled:
         return False
     if notification_type == "outbid":
