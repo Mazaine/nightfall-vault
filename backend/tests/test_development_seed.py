@@ -7,7 +7,7 @@ from app.models.auction import Auction, AuctionImage, AuctionMessage, AuctionRev
 from app.models.moderation import Report, UserBlock
 from app.models.notification import Notification
 from app.models.user import SavedSearch, SellerFollow, User
-from app.scripts.seed_development import DEMO_DOMAIN, seed_development
+from app.scripts.seed_development import DEMO_DOMAIN, _clear_previous_demo_graph, seed_development
 
 
 def _count(db, model, *criteria) -> int:
@@ -55,18 +55,24 @@ def test_development_seed_is_idempotent_and_preserves_non_demo_user(monkeypatch,
             db.commit()
         sentinel_id = sentinel.id
 
-    seed_development()
-    with SessionLocal() as db:
-        first_counts = _demo_counts(db)
-    seed_development()
-    with SessionLocal() as db:
-        second_counts = _demo_counts(db)
-        preserved = db.get(User, sentinel_id)
+    try:
+        seed_development()
+        with SessionLocal() as db:
+            first_counts = _demo_counts(db)
+        seed_development()
+        with SessionLocal() as db:
+            second_counts = _demo_counts(db)
+            preserved = db.get(User, sentinel_id)
 
-    assert first_counts == (8, 16, 16, 16, 2, 4, 3, 2, 4, 2, 2, 1)
-    assert second_counts == first_counts
-    assert preserved is not None
-    assert preserved.email == "sentinel@preserve.local"
+        assert first_counts == (8, 16, 16, 16, 2, 4, 3, 2, 4, 2, 2, 1)
+        assert second_counts == first_counts
+        assert preserved is not None
+        assert preserved.email == "sentinel@preserve.local"
+    finally:
+        with SessionLocal() as db:
+            demo_users = list(db.scalars(select(User).where(User.email.like(f"%@{DEMO_DOMAIN}"))))
+            _clear_previous_demo_graph(db, {user.username: user for user in demo_users})
+            db.commit()
 
 
 def test_development_seed_refuses_production(monkeypatch) -> None:
