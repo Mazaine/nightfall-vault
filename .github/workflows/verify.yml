@@ -17,6 +17,7 @@ jobs:
         run: |
           cp .env.example .env
           printf '\nDATABASE_URL=postgresql+psycopg://nightfall_vault_dev:replace-with-generated-development-password@postgres:5432/nightfall_vault_dev\n' >> .env
+          printf '\nTEST_DATABASE_URL=postgresql+psycopg://nightfall_vault_dev:replace-with-generated-development-password@postgres-test:5432/nightfall_vault_test\n' >> .env
       - name: Build and start services
         run: docker compose up -d --build
       - name: Apply migrations

@@ -36,6 +36,7 @@ services:
     environment:
       PROJECT_NAME: ${PROJECT_NAME:-Nightfall Vault API}
       DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in your local .env file}
+      TEST_DATABASE_URL: ${TEST_DATABASE_URL:?Set TEST_DATABASE_URL in your local .env file}
       BACKEND_CORS_ORIGINS: '["http://localhost:5173"]'
       SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY in your local .env file}
       RATE_LIMIT_BACKEND: ${RATE_LIMIT_BACKEND:-redis}
@@ -48,6 +49,8 @@ services:
       ORDER_ADMIN_EMAIL: ${ORDER_ADMIN_EMAIL:-}
     depends_on:
       postgres:
+        condition: service_healthy
+      postgres-test:
         condition: service_healthy
       redis:
         condition: service_healthy
@@ -72,6 +75,20 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+
+  postgres-test:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_TEST_DB:-nightfall_vault_test}
+      POSTGRES_USER: ${POSTGRES_USER:?Set POSTGRES_USER in your local .env file}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in your local .env file}
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 3s
+      timeout: 5s
+      retries: 15
 
   redis:
     image: redis:7-alpine
