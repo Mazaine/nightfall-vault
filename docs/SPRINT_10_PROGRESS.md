@@ -109,8 +109,8 @@ Az account felület védett `/account/*` struktúrára váltott közös reszponz
 
 ## Legutóbbi elkészült commit
 
-`6496017` – `fix: unify dark theme form controls`.
+`cb06e1a` – `feat(frontend): organize account navigation and UX`.
 
 ## Következő lépés
 
-Az account/navigáció/teszt módosítások diff-auditja és logikus commitjai; ezután performance, cache, security, CI/Docker/monitoring és üzemeltetési dokumentáció auditja.
+A frontend tesztalap commitja; ezután performance, cache, security, CI/Docker/monitoring és üzemeltetési dokumentáció auditja.
