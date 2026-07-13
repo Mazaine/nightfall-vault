@@ -1395,3 +1395,60 @@ h3 {
     flex-direction: column;
   }
 }
+
+/* Sprint 10 account architecture and shared async states */
+.visually-hidden { position: absolute !important; width: 1px !important; height: 1px !important; overflow: hidden !important; clip: rect(0 0 0 0) !important; clip-path: inset(50%) !important; white-space: nowrap !important; }
+.skip-link { position: fixed; top: var(--space-3); left: var(--space-3); z-index: calc(var(--z-sticky) + 10); transform: translateY(-180%); border-radius: var(--radius-md); background: var(--color-primary); color: #fff; padding: var(--space-3) var(--space-4); }
+.skip-link:focus { transform: translateY(0); }
+.account-shell { display: grid; grid-template-columns: minmax(13rem, 16rem) minmax(0, 1fr); gap: clamp(var(--space-5), 4vw, var(--space-8)); align-items: start; }
+.account-sidebar { position: sticky; top: 6.5rem; border: 1px solid var(--color-divider); border-radius: var(--radius-lg); background: var(--color-surface); padding: var(--space-4); }
+.account-nav { display: grid; gap: var(--space-1); }
+.account-nav a { min-height: 2.75rem; border-radius: var(--radius-sm); color: var(--color-text-muted); padding: var(--space-3); }
+.account-nav a:hover { background: rgb(255 255 255 / 0.05); color: var(--color-text-primary); }
+.account-nav a.active { background: rgb(168 85 247 / 0.16); color: var(--color-text-primary); box-shadow: inset 3px 0 var(--color-primary); }
+.account-content { min-width: 0; }
+.compact-page-heading { min-height: 0; margin-bottom: var(--space-6); }
+.compact-page-heading h1,
+.state-panel h2 { max-width: none; }
+.state-panel { display: grid; justify-items: start; gap: var(--space-3); margin-block: var(--space-4); }
+.error-state { border-color: rgb(220 38 38 / 0.5); }
+.compact-skeleton-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.compact-skeleton-grid .skeleton-card { min-height: 10rem; }
+.profile-settings-card,
+.profile-data-list { display: grid; gap: var(--space-4); }
+.profile-data-list > div { display: grid; grid-template-columns: minmax(9rem, 0.5fr) minmax(0, 1fr); gap: var(--space-3); border-bottom: 1px solid var(--color-divider); padding-bottom: var(--space-3); }
+.profile-data-list dt { color: var(--color-text-muted); }
+.profile-data-list dd { margin: 0; overflow-wrap: anywhere; }
+
+@media (max-width: 980px) {
+  .account-shell { grid-template-columns: 1fr; }
+  .account-sidebar { position: static; }
+  .account-nav { display: flex; overflow-x: auto; padding-bottom: var(--space-2); scroll-snap-type: x proximity; }
+  .account-nav a { flex: 0 0 auto; scroll-snap-align: start; }
+}
+
+@media (max-width: 640px) {
+  .account-sidebar { margin-inline: calc(var(--space-2) * -1); padding: var(--space-3); }
+  .compact-skeleton-grid { grid-template-columns: 1fr; }
+  .profile-data-list > div { grid-template-columns: 1fr; }
+}
+
+.bid-status-sections,
+.auction-status-sections { display: grid; gap: var(--space-6); }
+.bid-status-group { display: grid; gap: var(--space-4); }
+.bid-status-group h3 span,
+.auction-status-sections h3 span { color: var(--color-text-muted); font-family: var(--font-family-body); font-size: var(--font-size-body-sm); }
+.account-bid-row { display: grid; grid-template-columns: 6rem minmax(0, 1fr); align-items: stretch; gap: var(--space-4); }
+.account-bid-row > img,
+.bid-image-placeholder { width: 6rem; height: 6rem; border-radius: var(--radius-md); background: linear-gradient(135deg, #21152f, #090910); object-fit: cover; }
+.bid-row-copy { display: grid; min-width: 0; gap: var(--space-1); }
+.bid-row-copy strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.auction-status-sections > section { display: grid; gap: var(--space-4); }
+.auction-image img { width: 100%; height: 100%; object-fit: cover; }
+.status-badge { align-self: start; width: fit-content; border: 1px solid var(--color-border-strong); border-radius: var(--radius-full); background: rgb(124 58 237 / 0.12); color: var(--color-text-secondary); font-size: var(--font-size-caption); padding: 0.25rem 0.55rem; }
+
+@media (max-width: 520px) {
+  .account-bid-row { grid-template-columns: 4.5rem minmax(0, 1fr); gap: var(--space-3); }
+  .account-bid-row > img,
+  .bid-image-placeholder { width: 4.5rem; height: 4.5rem; }
+}

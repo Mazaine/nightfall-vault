@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { deleteSavedSearch, listSavedSearches, type SavedSearch } from "../api/searches";
+import { EmptyState, ErrorState, LoadingState } from "../components/AsyncStates";
 
 function searchPath(item: SavedSearch) {
   const params = new URLSearchParams();
@@ -30,15 +31,15 @@ export function SavedSearchesPage() {
   };
 
   return (
-    <section className="container page-shell">
+    <>
       <p className="eyebrow">Fiók</p>
       <div className="section-heading page-heading"><div><h1>Mentett keresések</h1><p className="section-note">A találatokról kizárólag alkalmazáson belüli értesítés készül.</p></div><Link className="button button-primary" to="/auctions">Új keresés</Link></div>
-      {isLoading ? <div className="skeleton-grid">{Array.from({ length: 3 }).map((_, index) => <div className="skeleton-card" key={index} />)}</div> : null}
-      {error ? <div className="side-panel form-message" role="alert">{error}</div> : null}
-      {!isLoading && !error && items.length === 0 ? <div className="side-panel empty-state">Még nincs mentett keresésed.</div> : null}
+      {isLoading ? <LoadingState label="Mentett keresések betöltése" /> : null}
+      {error ? <ErrorState message={error} /> : null}
+      {!isLoading && !error && items.length === 0 ? <EmptyState title="Még nincs mentett keresésed" action={<Link className="button button-primary" to="/auctions">Új keresés</Link>} /> : null}
       <div className="list-panel">
         {items.map((item) => <article className="side-panel saved-search-row" key={item.id}><div><h2>{item.name}</h2><p>{item.query || item.title || item.category || "Összetett aukciókeresés"}</p></div><div className="auction-actions"><Link className="button button-secondary" to={searchPath(item)}>Találatok</Link><button className="button button-danger" type="button" onClick={() => remove(item.id)}>Törlés</button></div></article>)}
       </div>
-    </section>
+    </>
   );
 }

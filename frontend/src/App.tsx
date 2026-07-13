@@ -1,9 +1,14 @@
-import { Navigate, Route, Routes } from "react-router-dom";
+import { Navigate, Outlet, Route, Routes } from "react-router-dom";
+import { AccountLayout } from "./components/AccountLayout";
 import { SiteFooter } from "./components/SiteFooter";
 import { SiteHeader } from "./components/SiteHeader";
+import { RouteMetadata } from "./components/RouteMetadata";
 import { useAuth } from "./AuthContext";
 import { AboutPage } from "./pages/AboutPage";
 import { AccountPage } from "./pages/AccountPage";
+import { AccountBlockedUsersPage } from "./pages/AccountBlockedUsersPage";
+import { AccountProfilePage } from "./pages/AccountProfilePage";
+import { AccountReportsPage } from "./pages/AccountReportsPage";
 import { AdminDashboardPage } from "./pages/admin/AdminDashboardPage";
 import { AdminLayout } from "./pages/admin/AdminLayout";
 import { AdminOrdersPage } from "./pages/admin/AdminOrdersPage";
@@ -32,11 +37,18 @@ function AdminRoute() {
   return isAdmin ? <AdminLayout /> : <Navigate to="/" replace />;
 }
 
+function ProtectedRoute() {
+  const { isAuthenticated } = useAuth();
+  return isAuthenticated ? <Outlet /> : <Navigate to="/login" replace />;
+}
+
 function App() {
   return (
     <div className="app-shell">
+      <RouteMetadata />
+      <a className="skip-link" href="#main-content">Ugrás a fő tartalomhoz</a>
       <SiteHeader />
-      <main>
+      <main id="main-content" tabIndex={-1}>
         <Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/auctions" element={<AuctionsPage />} />
@@ -45,10 +57,22 @@ function App() {
           <Route path="/categories" element={<CategoriesPage />} />
           <Route path="/cart" element={<CartPage />} />
           <Route path="/checkout" element={<CheckoutPage />} />
-          <Route path="/account" element={<AccountPage />} />
-          <Route path="/notifications" element={<NotificationsPage />} />
-          <Route path="/watchlist" element={<WatchlistPage />} />
-          <Route path="/saved-searches" element={<SavedSearchesPage />} />
+          <Route element={<ProtectedRoute />}>
+            <Route path="/account" element={<AccountLayout />}>
+              <Route index element={<Navigate to="profile" replace />} />
+              <Route path="profile" element={<AccountProfilePage />} />
+              <Route path="bids" element={<AccountPage section="bids" />} />
+              <Route path="auctions" element={<AccountPage section="auctions" />} />
+              <Route path="notifications" element={<NotificationsPage />} />
+              <Route path="saved-searches" element={<SavedSearchesPage />} />
+              <Route path="watchlist" element={<WatchlistPage />} />
+              <Route path="reports" element={<AccountReportsPage />} />
+              <Route path="blocked-users" element={<AccountBlockedUsersPage />} />
+            </Route>
+            <Route path="/notifications" element={<Navigate to="/account/notifications" replace />} />
+            <Route path="/watchlist" element={<Navigate to="/account/watchlist" replace />} />
+            <Route path="/saved-searches" element={<Navigate to="/account/saved-searches" replace />} />
+          </Route>
           <Route path="/orders" element={<OrdersPage />} />
           <Route path="/how-it-works" element={<HowItWorksPage />} />
           <Route path="/about" element={<AboutPage />} />

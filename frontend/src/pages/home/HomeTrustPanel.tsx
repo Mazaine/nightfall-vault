@@ -20,7 +20,7 @@ export function HomeTrustPanel() {
           <li>
             <span>3</span>
             <strong>Nyerd meg</strong>
-            <p>Fizesd ki és vedd át a megnyert tárgyat.</p>
+            <p>Egyeztess az eladóval, és zárjátok le egymás között az adásvételt.</p>
           </li>
         </ol>
       </section>
@@ -29,7 +29,7 @@ export function HomeTrustPanel() {
         <h2>Biztonság és megbízhatóság</h2>
         <ul>
           <li>Ellenőrzött eladók</li>
-          <li>Biztonságos fizetés</li>
+          <li>Átlátható licitálás</li>
           <li>Gyors ügyfélszolgálat</li>
         </ul>
       </section>

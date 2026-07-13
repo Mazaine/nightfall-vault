@@ -85,6 +85,8 @@
   margin-top: 0.28rem;
 }
 
+.menu-backdrop { display: none; }
+
 .header-actions {
   display: flex;
   gap: var(--space-2);
@@ -92,6 +94,50 @@
   justify-content: flex-end;
   min-width: max-content;
 }
+
+.account-menu-wrap { position: relative; }
+
+.account-menu-trigger {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  max-width: 13rem;
+  min-height: 2.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: rgb(255 255 255 / 0.04);
+  color: var(--color-text-primary);
+  padding: 0.15rem var(--space-2) 0.15rem 0;
+}
+
+.account-menu-trigger:hover,
+.account-menu-trigger[aria-expanded="true"] { border-color: var(--color-border-strong); background: rgb(168 85 247 / 0.12); }
+
+.account-user-name { min-width: 0; overflow: hidden; font-size: var(--font-size-body-sm); text-overflow: ellipsis; white-space: nowrap; }
+
+.account-menu {
+  position: absolute;
+  top: calc(100% + 0.55rem);
+  right: 0;
+  z-index: var(--z-overlay);
+  display: grid;
+  width: min(19rem, calc(100vw - 1rem));
+  max-height: min(34rem, calc(100vh - 6.5rem));
+  overflow-y: auto;
+  border: 1px solid var(--color-divider);
+  border-radius: var(--radius-lg);
+  background: #0d0b12;
+  box-shadow: 0 24px 70px rgb(0 0 0 / 0.6);
+  padding: var(--space-2);
+}
+
+.account-menu a,
+.account-menu button { width: 100%; min-height: 2.75rem; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--color-text-secondary); padding: var(--space-3); text-align: left; }
+
+.account-menu a:hover,
+.account-menu button:hover,
+.account-menu a:focus-visible,
+.account-menu button:focus-visible { background: rgb(168 85 247 / 0.14); color: var(--color-text-primary); }
 
 .icon-button {
   position: relative;
@@ -146,13 +192,17 @@
   transform: translateY(0.48rem) rotate(180deg);
 }
 
+.notification-link::before { content: ""; width: 0.9rem; height: 1rem; border: 2px solid currentColor; border-radius: 0.55rem 0.55rem 0.3rem 0.3rem; }
+
+.notification-link strong { position: absolute; top: -0.25rem; right: -0.25rem; min-width: 1.25rem; border-radius: var(--radius-full); background: var(--color-accent); color: #16111f; font-size: 0.68rem; line-height: 1.25rem; text-align: center; }
+
 .login-button,
 .register-button,
 .user-button {
   min-height: 2.55rem;
 }
 
-@media (max-width: 1180px) {
+@media (max-width: 1320px) {
   .site-header-inner {
     position: relative;
     grid-template-columns: minmax(0, 1fr) auto auto;
@@ -180,6 +230,15 @@
     white-space: normal;
   }
 
+  .menu-backdrop {
+    position: fixed;
+    inset: 5rem 0 0;
+    z-index: -1;
+    display: block;
+    border: 0;
+    background: rgb(2 2 5 / 0.72);
+  }
+
   .site-nav.is-open {
     display: grid;
     gap: var(--space-1);
@@ -199,8 +258,8 @@
   }
 
   .brand-logo {
-    width: clamp(11rem, 52vw, 16rem);
-    height: 5rem;
+    width: clamp(8.25rem, 39vw, 11rem);
+    height: 4.5rem;
   }
 
   .site-nav {
@@ -210,7 +269,7 @@
   }
 
   .login-button,
-  .user-button {
+  .account-user-name {
     display: none;
   }
 
@@ -226,4 +285,12 @@
     width: 2.35rem;
     height: 2.35rem;
   }
+
+  .account-menu-trigger { width: 2.55rem; padding: 0; }
+  .account-menu-trigger > .icon-button { width: 100%; }
+}
+
+@media (max-width: 440px) {
+  .icon-button-search { display: none; }
+  .site-header-inner { grid-template-columns: minmax(0, 1fr) auto auto; }
 }

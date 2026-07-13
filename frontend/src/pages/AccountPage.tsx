@@ -1,10 +1,9 @@
 ﻿import { ChangeEvent, FormEvent, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { activateAuction, cancelAuction, createAuction, listMyAuctions, listMyBidAuctions, updateAuction, uploadAuctionImage, type Auction, type AuctionCondition, type MyBidAuction } from "../api/auctions";
-import { listBlocks, unblockUser, type BlockRead } from "../api/blocks";
-import { listMyReports, type ReportRead } from "../api/reports";
+import { apiAssetUrl } from "../api/client";
 import { AuctionCard } from "../components/AuctionCard";
-import { NotificationPreferencesPanel } from "../components/NotificationPreferencesPanel";
+import { EmptyState, ErrorState, LoadingState } from "../components/AsyncStates";
 import { categories, conditionOptions } from "../data/content";
 import { formatMoney, formatRemainingTime } from "../utils/format";
 
@@ -34,6 +33,7 @@ const conditionMap: Record<string, AuctionCondition> = {
 };
 
 function toCardAuction(auction: Auction) {
+  const coverImage = auction.images.find((image) => image.is_cover) ?? auction.images[0];
   return {
     id: auction.id,
     title: auction.title,
@@ -45,6 +45,9 @@ function toCardAuction(auction: Auction) {
     sellerRating: "Értékelés később",
     buyNowPrice: auction.buy_now_enabled ? auction.buy_now_price : null,
     isClosed: ["ended", "sold", "unsold", "cancelled", "suspended"].includes(auction.status),
+    imageUrl: coverImage ? apiAssetUrl(coverImage.storage_key) : undefined,
+    statusLabel: auction.status,
+    bidCount: auction.bid_count ?? 0,
   };
 }
 
@@ -56,49 +59,38 @@ function localDateTimeToIso(value: FormDataEntryValue | null) {
   return new Date(textValue).toISOString();
 }
 
-export function AccountPage() {
+export function AccountPage({ section }: { section: "bids" | "auctions" }) {
   const [myAuctions, setMyAuctions] = useState<Auction[]>([]);
   const [myBidAuctions, setMyBidAuctions] = useState<MyBidAuction[]>([]);
   const [isLoadingMyAuctions, setIsLoadingMyAuctions] = useState(true);
   const [isLoadingMyBids, setIsLoadingMyBids] = useState(true);
+  const [myAuctionsError, setMyAuctionsError] = useState("");
+  const [myBidsError, setMyBidsError] = useState("");
   const [auctionImages, setAuctionImages] = useState<File[]>([]);
   const [coverImageIndex, setCoverImageIndex] = useState(0);
   const [imageMessage, setImageMessage] = useState("");
   const [formMessage, setFormMessage] = useState("");
-  const [myReports, setMyReports] = useState<ReportRead[]>([]);
-  const [blocks, setBlocks] = useState<BlockRead[]>([]);
-  const [isLoadingTrustSafety, setIsLoadingTrustSafety] = useState(true);
 
   const refreshMyAuctions = async () => {
-    const refreshedAuctions = await listMyAuctions();
-    setMyAuctions(refreshedAuctions);
+    setIsLoadingMyAuctions(true);
+    setMyAuctionsError("");
+    try { setMyAuctions(await listMyAuctions()); }
+    catch (reason) { setMyAuctionsError(reason instanceof Error ? reason.message : "A saját aukciók betöltése nem sikerült."); }
+    finally { setIsLoadingMyAuctions(false); }
   };
 
   const refreshMyBids = async () => {
-    const refreshedBids = await listMyBidAuctions();
-    setMyBidAuctions(refreshedBids);
+    setIsLoadingMyBids(true);
+    setMyBidsError("");
+    try { setMyBidAuctions(await listMyBidAuctions()); }
+    catch (reason) { setMyBidsError(reason instanceof Error ? reason.message : "A licitek betöltése nem sikerült."); }
+    finally { setIsLoadingMyBids(false); }
   };
 
   useEffect(() => {
-    listMyAuctions()
-      .then(setMyAuctions)
-      .catch(() => setMyAuctions([]))
-      .finally(() => setIsLoadingMyAuctions(false));
-    listMyBidAuctions()
-      .then(setMyBidAuctions)
-      .catch(() => setMyBidAuctions([]))
-      .finally(() => setIsLoadingMyBids(false));
-    Promise.all([listMyReports({ limit: 20 }), listBlocks()])
-      .then(([reportPage, blockList]) => {
-        setMyReports(reportPage.items);
-        setBlocks(blockList);
-      })
-      .catch(() => {
-        setMyReports([]);
-        setBlocks([]);
-      })
-      .finally(() => setIsLoadingTrustSafety(false));
-  }, []);
+    if (section === "bids") void refreshMyBids();
+    if (section === "auctions") void refreshMyAuctions();
+  }, [section]);
 
   const handleImageChange = (event: ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = Array.from(event.target.files ?? []);
@@ -186,57 +178,32 @@ export function AccountPage() {
     }
   };
 
+  const bidGroups = [
+    { title: "Aktív licitjeim", items: myBidAuctions.filter((item) => !["ended", "sold", "unsold", "cancelled", "suspended"].includes(item.auction.status)) },
+    { title: "Megnyert aukciók", items: myBidAuctions.filter((item) => item.has_won) },
+    { title: "Elvesztett aukciók", items: myBidAuctions.filter((item) => ["ended", "sold", "unsold", "cancelled", "suspended"].includes(item.auction.status) && !item.has_won) },
+  ];
+
+  const auctionGroups = [
+    { title: "Saját aktív aukcióim", items: myAuctions.filter((auction) => auction.status === "active") },
+    { title: "Piszkozatok és időzített aukciók", items: myAuctions.filter((auction) => ["draft", "scheduled"].includes(auction.status)) },
+    { title: "Lezárt saját aukcióim", items: myAuctions.filter((auction) => !["active", "draft", "scheduled"].includes(auction.status)) },
+  ];
+
   return (
-    <section className="container page-shell account-auctions-page">
-      <p className="eyebrow">Licitjeim</p>
+    <>
       <div className="section-heading page-heading">
         <div>
-          <h1>Licitjeim és saját aukcióim</h1>
+          <p className="eyebrow">{section === "bids" ? "Licitjeim" : "Eladói fiók"}</p>
+          <h1>{section === "bids" ? "Licitjeim" : "Saját aukcióim"}</h1>
           <p className="hero-lead">
-            Itt követheted azokat az aukciókat, amelyekre licitáltál, és innen
-            kezelheted a saját feltöltéseidet is.
+            {section === "bids" ? "Kövesd az aktív, megnyert és elvesztett aukcióidat." : "Kezeld az aktív, időzített, piszkozat és lezárt aukcióidat."}
           </p>
         </div>
-        <a className="button button-primary" href="#auction-create">Aukció létrehozása</a>
+        {section === "auctions" ? <a className="button button-primary" href="#auction-create">Új aukció</a> : <Link className="button button-primary" to="/auctions">Aukciók böngészése</Link>}
       </div>
 
-      <NotificationPreferencesPanel />
-
-      <section className="account-section" aria-labelledby="trust-safety-title">
-        <div className="section-heading">
-          <div>
-            <p className="eyebrow">Trust & Safety</p>
-            <h2 id="trust-safety-title">Jelenteseim es blokkolasok</h2>
-          </div>
-        </div>
-        <div className="trust-safety-grid">
-          <div className="side-panel">
-            <h3>Sajat jelenteseim</h3>
-            {isLoadingTrustSafety ? <p>Jelentesek betoltese...</p> : null}
-            {!isLoadingTrustSafety && myReports.length === 0 ? <p className="empty-state">Meg nincs bekuldott jelentesed.</p> : null}
-            {myReports.map((report) => (
-              <article className="report-summary" key={report.id}>
-                <strong>#{report.id} {report.target_type === "auction" ? report.auction_title ?? "Aukcio" : report.reported_username}</strong>
-                <span>{report.reason} / {report.status}</span>
-                {report.public_resolution ? <p>{report.public_resolution}</p> : null}
-              </article>
-            ))}
-          </div>
-          <div className="side-panel">
-            <h3>Blokkolt felhasznalok</h3>
-            {isLoadingTrustSafety ? <p>Blokkolasok betoltese...</p> : null}
-            {!isLoadingTrustSafety && blocks.length === 0 ? <p className="empty-state">Nincs blokkolt felhasznalo.</p> : null}
-            {blocks.map((block) => (
-              <article className="report-summary" key={block.id}>
-                <Link className="text-link" to={`/users/${block.blocked_username}`}>{block.blocked_full_name || block.blocked_username}</Link>
-                <button className="button button-secondary" type="button" onClick={() => unblockUser(block.blocked_username).then(() => setBlocks((items) => items.filter((item) => item.id !== block.id)))}>Feloldas</button>
-              </article>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section className="account-section" aria-labelledby="watched-auctions-title">
+      {section === "bids" ? <section className="account-section" aria-labelledby="watched-auctions-title">
         <div className="section-heading">
           <div>
             <p className="eyebrow">Követés</p>
@@ -245,25 +212,15 @@ export function AccountPage() {
           <p className="section-note">A lezárt aukciók 24 óráig elszürkítve látszanak, utána eltűnnek.</p>
         </div>
 
-        <div className="side-panel">
-          {isLoadingMyBids ? "Licitált aukciók betöltése..." : null}
-          {!isLoadingMyBids && myBidAuctions.length === 0 ? "Még nincs olyan aukció, amelyre licitáltál." : null}
-          {!isLoadingMyBids && myBidAuctions.length > 0 ? (
-            <div className="my-bids-list">
-              {myBidAuctions.map((item) => (
-                <Link className="my-bid-row" to={`/auctions/${item.auction.id}`} key={item.auction.id}>
-                  <strong>{item.auction.title}</strong>
-                  <span>Aktuális licit: {formatMoney(item.auction.current_price)}</span>
-                  <span>Saját legmagasabb licit: {formatMoney(item.my_highest_bid)}</span>
-                  {item.has_won ? <em>Megnyerted</em> : item.is_leading ? <em>Te vezetsz</em> : item.is_outbid ? <em>Rád licitáltak</em> : <em>Figyelés alatt</em>}
-                </Link>
-              ))}
-            </div>
-          ) : null}
+        <div>
+          {isLoadingMyBids ? <LoadingState label="Licitált aukciók betöltése" /> : null}
+          {myBidsError ? <ErrorState message={myBidsError} onRetry={() => void refreshMyBids()} /> : null}
+          {!isLoadingMyBids && !myBidsError && myBidAuctions.length === 0 ? <EmptyState title="Még nincs licited" action={<Link className="button button-primary" to="/auctions">Aukciók böngészése</Link>} /> : null}
+          {!isLoadingMyBids && !myBidsError && myBidAuctions.length > 0 ? <div className="bid-status-sections">{bidGroups.map((group, groupIndex) => <section className="side-panel bid-status-group" aria-labelledby={`bid-group-${groupIndex}`} key={group.title}><h3 id={`bid-group-${groupIndex}`}>{group.title} <span>({group.items.length})</span></h3>{group.items.length === 0 ? <p className="empty-state">Ebben a csoportban nincs aukció.</p> : <div className="my-bids-list">{group.items.map((item) => { const cover = item.auction.images.find((image) => image.is_cover) ?? item.auction.images[0]; return <Link className="my-bid-row account-bid-row" to={`/auctions/${item.auction.id}`} key={item.auction.id}>{cover ? <img src={apiAssetUrl(cover.storage_key)} alt="" loading="lazy" /> : <span className="bid-image-placeholder" aria-hidden="true" />}<span className="bid-row-copy"><strong>{item.auction.title}</strong><span>Aktuális licit: {formatMoney(item.auction.current_price)}</span><span>Saját legmagasabb licit: {formatMoney(item.my_highest_bid)}</span><span>{item.auction.bid_count ?? 0} licit · zárás: {formatRemainingTime(item.auction.ends_at, item.auction.status)}</span><em>{item.has_won ? "Megnyerted" : item.is_leading ? "Te vezetsz" : item.is_outbid ? "Rád licitáltak" : "Figyelés alatt"}</em></span></Link>; })}</div>}</section>)}</div> : null}
         </div>
-      </section>
+      </section> : null}
 
-      <section className="account-section" aria-labelledby="own-auctions-title">
+      {section === "auctions" ? <section className="account-section" aria-labelledby="own-auctions-title">
         <div className="section-heading">
           <div>
             <p className="eyebrow">Feltöltéseim</p>
@@ -272,23 +229,11 @@ export function AccountPage() {
           <p className="section-note">A lezárt saját aukciók szintén 24 óráig maradnak láthatók.</p>
         </div>
 
-        <div className="auction-grid page-grid">
-          {isLoadingMyAuctions ? <div className="side-panel">Saját aukciók betöltése...</div> : null}
-          {!isLoadingMyAuctions && myAuctions.length === 0 ? <div className="side-panel">Még nincs saját aukciód.</div> : null}
-          {myAuctions.map((auction, index) => (
-            <div className="own-auction-card" key={auction.id}>
-              <AuctionCard
-                item={toCardAuction(auction)}
-                index={index}
-                detailPath={`/auctions/${auction.id}`}
-                showBidActions={false}
-              />
-              <div className="owner-actions">
-                <button className="button button-secondary" type="button" onClick={() => handleEditDescription(auction)}>Módosítás</button>
-                <button className="button button-danger" type="button" onClick={() => handleCancelAuction(auction)}>Törlés</button>
-              </div>
-            </div>
-          ))}
+        <div>
+          {isLoadingMyAuctions ? <LoadingState label="Saját aukciók betöltése" /> : null}
+          {myAuctionsError ? <ErrorState message={myAuctionsError} onRetry={() => void refreshMyAuctions()} /> : null}
+          {!isLoadingMyAuctions && !myAuctionsError && myAuctions.length === 0 ? <EmptyState title="Még nincs saját aukciód" action={<a className="button button-primary" href="#auction-create">Első aukció létrehozása</a>} /> : null}
+          {!isLoadingMyAuctions && !myAuctionsError && myAuctions.length > 0 ? <div className="auction-status-sections">{auctionGroups.map((group, groupIndex) => <section aria-labelledby={`auction-group-${groupIndex}`} key={group.title}><h3 id={`auction-group-${groupIndex}`}>{group.title} <span>({group.items.length})</span></h3>{group.items.length === 0 ? <p className="side-panel empty-state">Ebben a csoportban nincs aukció.</p> : <div className="auction-grid page-grid">{group.items.map((auction, index) => <div className="own-auction-card" key={auction.id}><AuctionCard item={toCardAuction(auction)} index={index} detailPath={`/auctions/${auction.id}`} showBidActions={false} /><div className="owner-actions"><button className="button button-secondary" type="button" onClick={() => handleEditDescription(auction)}>Módosítás</button>{["draft", "scheduled", "active"].includes(auction.status) ? <button className="button button-danger" type="button" onClick={() => handleCancelAuction(auction)}>Megszakítás</button> : null}</div></div>)}</div>}</section>)}</div> : null}
         </div>
 
         <div className="side-panel edit-rules-panel">
@@ -308,9 +253,9 @@ export function AccountPage() {
             </div>
           </div>
         </div>
-      </section>
+      </section> : null}
 
-      <section className="account-section" id="auction-create" aria-labelledby="auction-create-title">
+      {section === "auctions" ? <section className="account-section" id="auction-create" aria-labelledby="auction-create-title">
         <div className="section-heading">
           <div>
             <p className="eyebrow">Új feltöltés</p>
@@ -407,7 +352,7 @@ export function AccountPage() {
             Aukció létrehozása
           </button>
         </form>
-      </section>
-    </section>
+      </section> : null}
+    </>
   );
 }
