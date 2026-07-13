@@ -148,6 +148,9 @@ def test_notification_preferences_are_self_scoped() -> None:
     assert before.status_code == 200
     assert update.status_code == 200
     assert update.json()["notify_email_outbid"] is False
+    assert before.headers["Cache-Control"] == "no-store, private"
+    assert before.headers["Pragma"] == "no-cache"
+    assert "Authorization" in before.headers["Vary"]
 
 
 def test_image_variants_are_created_and_corrupt_file_is_rejected() -> None:

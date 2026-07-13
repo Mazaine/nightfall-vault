@@ -15,7 +15,7 @@ export function NotificationsPage() {
       setItems(await listMyNotifications());
       setError("");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Nem sikerult betolteni az ertesiteseket.");
+      setError(err instanceof Error ? err.message : "Nem sikerült betölteni az értesítéseket.");
     } finally { setIsLoading(false); }
   }, []);
 

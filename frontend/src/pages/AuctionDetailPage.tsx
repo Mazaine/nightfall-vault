@@ -112,9 +112,9 @@ export function AuctionDetailPage() {
     if (!auction) return;
     try {
       await addWatchlistItem(auction.id);
-      setWatchlistMessage("Aukcio figyelolistara teve.");
+      setWatchlistMessage("Aukció figyelőlistára téve.");
     } catch (error) {
-      setWatchlistMessage(error instanceof Error ? error.message : "Nem sikerult figyelolistara tenni.");
+      setWatchlistMessage(error instanceof Error ? error.message : "Nem sikerült figyelőlistára tenni.");
     }
   };
 
@@ -191,7 +191,7 @@ export function AuctionDetailPage() {
         ) : null}
         <div className="hero-actions">
           <button className="button button-secondary" type="button" onClick={addToWatchlist}>Figyelem</button>
-          {isAuthenticated && !auction.is_owner ? <button className="button button-ghost" type="button" onClick={() => setShowReportDialog(true)}>Aukcio jelentese</button> : null}
+          {isAuthenticated && !auction.is_owner ? <button className="button button-ghost" type="button" onClick={() => setShowReportDialog(true)}>Aukció jelentése</button> : null}
           <Link className="button button-ghost" to="/auctions">Vissza az aukciókhoz</Link>
         </div>
         {watchlistMessage ? <p className="form-message">{watchlistMessage}</p> : null}
@@ -258,12 +258,12 @@ export function AuctionDetailPage() {
         ) : null}
         {showReportDialog ? (
           <ReportDialog
-            title="Aukcio jelentese"
+            title="Aukció jelentése"
             targetLabel={auction.title}
             reasons={auctionReportReasons}
             onClose={() => setShowReportDialog(false)}
             onSubmit={(reason, details) => createAuctionReport(auction.id, reason, details).then(() => {
-              setReportMessage("A jelentes rogzitve.");
+              setReportMessage("A jelentés rögzítve.");
               setShowReportDialog(false);
             })}
           />

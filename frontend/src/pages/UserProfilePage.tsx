@@ -9,12 +9,12 @@ import { formatLocalDateTime, formatMoney, formatRemainingTime } from "../utils/
 
 function Stars({ value }: { value: number | null }) {
   const rounded = value ? Math.round(value) : 0;
-  return <span className="star-rating" aria-label={value ? `${value} csillag` : "Nincs ertekeles"}>{Array.from({ length: 5 }).map((_, index) => <span key={index}>{index < rounded ? "★" : "☆"}</span>)}</span>;
+  return <span className="star-rating" aria-label={value ? `${value} csillag` : "Nincs értékelés"}>{Array.from({ length: 5 }).map((_, index) => <span key={index}>{index < rounded ? "★" : "☆"}</span>)}</span>;
 }
 
 function ReviewList({ reviews }: { reviews: PublicReview[] }) {
   if (reviews.length === 0) {
-    return <p className="empty-state">Meg nincs publikus ertekeles.</p>;
+    return <p className="empty-state">Még nincs publikus értékelés.</p>;
   }
   return (
     <div className="review-list">
@@ -26,7 +26,7 @@ function ReviewList({ reviews }: { reviews: PublicReview[] }) {
           </div>
           <Stars value={review.rating} />
           <Link className="text-link" to={`/auctions/${review.auction_id}`}>{review.auction_title}</Link>
-          {review.comment ? <p>{review.comment}</p> : <p className="empty-state">Szoveges ertekeles nelkul.</p>}
+          {review.comment ? <p>{review.comment}</p> : <p className="empty-state">Szöveges értékelés nélkül.</p>}
         </article>
       ))}
     </div>
@@ -67,10 +67,10 @@ export function UserProfilePage() {
       } else {
         await followSeller(profile.username);
         setProfile({ ...profile, is_followed: true });
-        setActionMessage("Elado kovetve.");
+        setActionMessage("Eladó követve.");
       }
     } catch (err) {
-      setActionMessage(err instanceof Error ? err.message : "A kovetes modositasa nem sikerult.");
+      setActionMessage(err instanceof Error ? err.message : "A követés módosítása nem sikerült.");
     }
   };
 
@@ -80,14 +80,14 @@ export function UserProfilePage() {
       if (profile.is_blocked) {
         await unblockUser(profile.username);
         setProfile({ ...profile, is_blocked: false });
-        setActionMessage("Blokkolas feloldva.");
+        setActionMessage("Blokkolás feloldva.");
       } else {
         await blockUser(profile.username);
         setProfile({ ...profile, is_blocked: true, is_followed: false });
-        setActionMessage("Felhasznalo blokkolva. A kommunikacio es kovetes tiltva.");
+        setActionMessage("Felhasználó blokkolva. A kommunikáció és követés tiltva.");
       }
     } catch (err) {
-      setActionMessage(err instanceof Error ? err.message : "A blokkolas modositasa nem sikerult.");
+      setActionMessage(err instanceof Error ? err.message : "A blokkolás módosítása nem sikerült.");
     }
   };
 
@@ -96,7 +96,7 @@ export function UserProfilePage() {
   }
 
   if (error || !profile) {
-    return <section className="container page-shell"><div className="side-panel form-message">{error || "A profil nem talalhato."}</div></section>;
+    return <section className="container page-shell"><div className="side-panel form-message">{error || "A profil nem található."}</div></section>;
   }
 
   const stats = profile.stats;
@@ -107,21 +107,21 @@ export function UserProfilePage() {
     <section className="container page-shell profile-page">
       <div className="profile-header side-panel">
         <div>
-          <p className="eyebrow">Eladoi profil</p>
+          <p className="eyebrow">Eladói profil</p>
           <h1>{profile.full_name}</h1>
-          <p className="section-note">@{profile.username} · regisztralt: {formatLocalDateTime(profile.created_at)}</p>
+          <p className="section-note">@{profile.username} · regisztrált: {formatLocalDateTime(profile.created_at)}</p>
           <div className="profile-rating"><Stars value={stats.average_rating} /><strong>{stats.average_rating ?? "Nincs"}</strong></div>
         </div>
         {canUseTrustActions ? (
           <div className="profile-actions">
-            <button className="button button-primary" type="button" onClick={toggleFollow} disabled={profile.is_blocked || profile.is_blocked_by_user}>{profile.is_followed ? "Kovetes leallitasa" : "Elado kovetese"}</button>
-            <button className="button button-secondary" type="button" onClick={toggleBlock}>{profile.is_blocked ? "Blokkolas feloldasa" : "Felhasznalo blokkolasa"}</button>
-            <button className="button button-ghost" type="button" onClick={() => setShowReportDialog(true)}>Profil jelentese</button>
+            <button className="button button-primary" type="button" onClick={toggleFollow} disabled={profile.is_blocked || profile.is_blocked_by_user}>{profile.is_followed ? "Követés leállítása" : "Eladó követése"}</button>
+            <button className="button button-secondary" type="button" onClick={toggleBlock}>{profile.is_blocked ? "Blokkolás feloldása" : "Felhasználó blokkolása"}</button>
+            <button className="button button-ghost" type="button" onClick={() => setShowReportDialog(true)}>Profil jelentése</button>
           </div>
         ) : null}
       </div>
-      {profile.is_blocked ? <p className="form-message">Blokkoltad ezt a felhasznalot. Uj uzenet es kovetes nem indithato.</p> : null}
-      {profile.is_blocked_by_user ? <p className="form-message">Ez a felhasznalo blokkolt teged.</p> : null}
+      {profile.is_blocked ? <p className="form-message">Blokkoltad ezt a felhasználót. Új üzenet és követés nem indítható.</p> : null}
+      {profile.is_blocked_by_user ? <p className="form-message">Ez a felhasználó blokkolt téged.</p> : null}
       {actionMessage ? <p className="form-message">{actionMessage}</p> : null}
 
       <div className="stats-grid">
@@ -131,7 +131,7 @@ export function UserProfilePage() {
         <div className="side-panel"><span>Lezart aukciok</span><strong>{stats.closed_auctions}</strong></div>
         <div className="side-panel"><span>Sikeres eladasok</span><strong>{stats.successful_sales}</strong></div>
         <div className="side-panel"><span>Nyert aukciok</span><strong>{stats.won_auctions}</strong></div>
-        <div className="side-panel"><span>Osszes licit</span><strong>{stats.total_bids}</strong></div>
+        <div className="side-panel"><span>Összes licit</span><strong>{stats.total_bids}</strong></div>
         <div className="side-panel"><span>Sikeres licitek</span><strong>{stats.successful_bids}</strong></div>
         <div className="side-panel"><span>Elvesztett licitek</span><strong>{stats.lost_bids}</strong></div>
         <div className="side-panel"><span>Sikerességi arány</span><strong>{stats.success_rate}%</strong></div>
@@ -140,7 +140,7 @@ export function UserProfilePage() {
 
       <section className="account-section">
         <div className="section-heading"><h2>Aktiv aukciok</h2></div>
-        {profile.active_auctions.length === 0 ? <div className="side-panel empty-state">Nincs aktiv aukcio.</div> : (
+        {profile.active_auctions.length === 0 ? <div className="side-panel empty-state">Nincs aktív aukció.</div> : (
           <div className="compact-auction-list">
             {profile.active_auctions.map((auction) => (
               <Link className="compact-auction-row" to={`/auctions/${auction.id}`} key={auction.id}>
@@ -156,7 +156,7 @@ export function UserProfilePage() {
 
       <section className="account-section">
         <div className="section-heading"><h2>Lezart aukciok</h2></div>
-        {profile.closed_auctions.length === 0 ? <div className="side-panel empty-state">Nincs lezart aukcio.</div> : (
+        {profile.closed_auctions.length === 0 ? <div className="side-panel empty-state">Nincs lezárt aukció.</div> : (
           <div className="compact-auction-list">
             {profile.closed_auctions.map((auction) => (
               <Link className="compact-auction-row is-closed" to={`/auctions/${auction.id}`} key={auction.id}>
@@ -176,8 +176,8 @@ export function UserProfilePage() {
           <select className="compact-select" value={reviewSort} onChange={(event) => setReviewSort(event.target.value)}>
             <option value="newest">Legujabb</option>
             <option value="oldest">Legregebbi</option>
-            <option value="rating_high">Legjobb ertekelesek</option>
-            <option value="rating_low">Legalacsonyabb ertekelesek</option>
+            <option value="rating_high">Legjobb értékelések</option>
+            <option value="rating_low">Legalacsonyabb értékelések</option>
           </select>
         </div>
         <ReviewList reviews={reviews} />
@@ -185,7 +185,7 @@ export function UserProfilePage() {
 
       {showReportDialog ? (
         <ReportDialog
-          title="Profil jelentese"
+          title="Profil jelentése"
           targetLabel={profile.username}
           reasons={userReportReasons}
           onClose={() => setShowReportDialog(false)}

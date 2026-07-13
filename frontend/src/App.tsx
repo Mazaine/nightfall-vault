@@ -1,21 +1,11 @@
+import { lazy, Suspense } from "react";
 import { Navigate, Outlet, Route, Routes } from "react-router-dom";
-import { AccountLayout } from "./components/AccountLayout";
+import { LoadingState } from "./components/AsyncStates";
 import { SiteFooter } from "./components/SiteFooter";
 import { SiteHeader } from "./components/SiteHeader";
 import { RouteMetadata } from "./components/RouteMetadata";
 import { useAuth } from "./AuthContext";
 import { AboutPage } from "./pages/AboutPage";
-import { AccountPage } from "./pages/AccountPage";
-import { AccountBlockedUsersPage } from "./pages/AccountBlockedUsersPage";
-import { AccountProfilePage } from "./pages/AccountProfilePage";
-import { AccountReportsPage } from "./pages/AccountReportsPage";
-import { AdminDashboardPage } from "./pages/admin/AdminDashboardPage";
-import { AdminLayout } from "./pages/admin/AdminLayout";
-import { AdminOrdersPage } from "./pages/admin/AdminOrdersPage";
-import { AdminUsersPage } from "./pages/admin/AdminUsersPage";
-import { AdminAuctionsPage } from "./pages/admin/AdminAuctionsPage";
-import { AdminAuditLogsPage } from "./pages/admin/AdminAuditLogsPage";
-import { AdminReportsPage } from "./pages/admin/AdminReportsPage";
 import { AuctionDetailPage } from "./pages/AuctionDetailPage";
 import { AuctionsPage } from "./pages/AuctionsPage";
 import { AuthPage } from "./pages/AuthPages";
@@ -26,11 +16,24 @@ import { ContactPage } from "./pages/ContactPage";
 import { HomePage } from "./pages/HomePage";
 import { HowItWorksPage } from "./pages/HowItWorksPage";
 import { InfoPage } from "./pages/InfoPages";
-import { NotificationsPage } from "./pages/NotificationsPage";
 import { OrdersPage } from "./pages/OrdersPage";
 import { UserProfilePage } from "./pages/UserProfilePage";
-import { WatchlistPage } from "./pages/WatchlistPage";
-import { SavedSearchesPage } from "./pages/SavedSearchesPage";
+
+const AccountLayout = lazy(() => import("./components/AccountLayout").then((module) => ({ default: module.AccountLayout })));
+const AccountPage = lazy(() => import("./pages/AccountPage").then((module) => ({ default: module.AccountPage })));
+const AccountBlockedUsersPage = lazy(() => import("./pages/AccountBlockedUsersPage").then((module) => ({ default: module.AccountBlockedUsersPage })));
+const AccountProfilePage = lazy(() => import("./pages/AccountProfilePage").then((module) => ({ default: module.AccountProfilePage })));
+const AccountReportsPage = lazy(() => import("./pages/AccountReportsPage").then((module) => ({ default: module.AccountReportsPage })));
+const NotificationsPage = lazy(() => import("./pages/NotificationsPage").then((module) => ({ default: module.NotificationsPage })));
+const SavedSearchesPage = lazy(() => import("./pages/SavedSearchesPage").then((module) => ({ default: module.SavedSearchesPage })));
+const WatchlistPage = lazy(() => import("./pages/WatchlistPage").then((module) => ({ default: module.WatchlistPage })));
+const AdminLayout = lazy(() => import("./pages/admin/AdminLayout").then((module) => ({ default: module.AdminLayout })));
+const AdminDashboardPage = lazy(() => import("./pages/admin/AdminDashboardPage").then((module) => ({ default: module.AdminDashboardPage })));
+const AdminOrdersPage = lazy(() => import("./pages/admin/AdminOrdersPage").then((module) => ({ default: module.AdminOrdersPage })));
+const AdminUsersPage = lazy(() => import("./pages/admin/AdminUsersPage").then((module) => ({ default: module.AdminUsersPage })));
+const AdminAuctionsPage = lazy(() => import("./pages/admin/AdminAuctionsPage").then((module) => ({ default: module.AdminAuctionsPage })));
+const AdminAuditLogsPage = lazy(() => import("./pages/admin/AdminAuditLogsPage").then((module) => ({ default: module.AdminAuditLogsPage })));
+const AdminReportsPage = lazy(() => import("./pages/admin/AdminReportsPage").then((module) => ({ default: module.AdminReportsPage })));
 
 function AdminRoute() {
   const { isAdmin } = useAuth();
@@ -49,6 +52,7 @@ function App() {
       <a className="skip-link" href="#main-content">Ugrás a fő tartalomhoz</a>
       <SiteHeader />
       <main id="main-content" tabIndex={-1}>
+        <Suspense fallback={<section className="container page-shell"><LoadingState label="Oldal betöltése" /></section>}>
         <Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/auctions" element={<AuctionsPage />} />
@@ -92,6 +96,7 @@ function App() {
           <Route path="/support" element={<InfoPage eyebrow="Támogatás" title="Ügyfélszolgálat" />} />
           <Route path="*" element={<InfoPage eyebrow="404" title="Az oldal nem található" />} />
         </Routes>
+        </Suspense>
       </main>
       <SiteFooter />
     </div>

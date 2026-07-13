@@ -22,9 +22,9 @@ export function ReportDialog({ title, targetLabel, reasons, onSubmit, onClose }:
     setMessage("");
     try {
       await onSubmit(reason, details.trim());
-      setMessage("A jelentes rogzitve. A moderatorok atnezik az ugyet.");
+      setMessage("A jelentés rögzítve. A moderátorok átnézik az ügyet.");
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "A jelentes bekuldese nem sikerult.");
+      setMessage(error instanceof Error ? error.message : "A jelentés beküldése nem sikerült.");
     } finally {
       setIsSubmitting(false);
     }
@@ -37,7 +37,7 @@ export function ReportDialog({ title, targetLabel, reasons, onSubmit, onClose }:
           <div>
             <p className="eyebrow">Trust & Safety</p>
             <h2>{title}</h2>
-            <p className="section-note">Cel: {targetLabel}</p>
+            <p className="section-note">Cél: {targetLabel}</p>
           </div>
           <button className="button button-ghost" type="button" onClick={onClose}>Bezaras</button>
         </div>

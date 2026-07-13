@@ -10,7 +10,7 @@ export function AdminAuctionsPage() {
       setItems(await listAdminAuctions());
       setError("");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Nem sikerult betolteni az aukciokat.");
+      setError(err instanceof Error ? err.message : "Nem sikerült betölteni az aukciókat.");
     }
   }
 
@@ -21,7 +21,7 @@ export function AdminAuctionsPage() {
       await action();
       await load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "A moderacios muvelet nem sikerult.");
+      setError(err instanceof Error ? err.message : "A moderációs művelet nem sikerült.");
     }
   }
 
@@ -31,7 +31,7 @@ export function AdminAuctionsPage() {
         <div>
           <span className="eyebrow">Admin</span>
           <h1>Admin aukciok</h1>
-          <p>Aukciok felfuggesztese, visszaallitasa es soft delete moderacios indokkal.</p>
+          <p>Aukciók felfüggesztése, visszaállítása és soft delete moderációs indokkal.</p>
         </div>
       </div>
       {error ? <p className="form-error">{error}</p> : null}
@@ -46,7 +46,7 @@ export function AdminAuctionsPage() {
             <div className="row-actions">
               <button className="button button-ghost" type="button" onClick={() => run(() => suspendAdminAuction(auction.id, "Admin moderation"))}>Felfuggesztes</button>
               <button className="button button-secondary" type="button" onClick={() => run(() => restoreAdminAuction(auction.id, "Admin restore"))}>Visszaallitas</button>
-              <button className="button button-ghost" type="button" onClick={() => run(() => deleteAdminAuction(auction.id, "Admin soft delete"))}>Torles</button>
+              <button className="button button-ghost" type="button" onClick={() => run(() => deleteAdminAuction(auction.id, "Admin soft delete"))}>Törlés</button>
             </div>
           </article>
         ))}

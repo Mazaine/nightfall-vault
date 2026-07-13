@@ -41,24 +41,24 @@ export type AdminReportPage = {
 };
 
 export const auctionReportReasons = [
-  { value: "counterfeit", label: "Hamis vagy hamisitvanygyanus tetel" },
-  { value: "prohibited_item", label: "Tiltott tetel" },
-  { value: "misleading_description", label: "Felrevezeto leiras" },
-  { value: "copyright_content", label: "Jogsertonek tuno tartalom" },
+  { value: "counterfeit", label: "Hamis vagy hamisítványgyanús tétel" },
+  { value: "prohibited_item", label: "Tiltott tétel" },
+  { value: "misleading_description", label: "Félrevezető leírás" },
+  { value: "copyright_content", label: "Jogsértőnek tűnő tartalom" },
   { value: "spam", label: "Spam" },
-  { value: "offensive_content", label: "Serto tartalom" },
-  { value: "suspicious_seller", label: "Gyanus elado" },
-  { value: "other", label: "Egyeb" },
+  { value: "offensive_content", label: "Sértő tartalom" },
+  { value: "suspicious_seller", label: "Gyanús eladó" },
+  { value: "other", label: "Egyéb" },
 ];
 
 export const userReportReasons = [
-  { value: "harassment", label: "Zaklatas" },
-  { value: "suspected_fraud", label: "Csalasgyanus viselkedes" },
+  { value: "harassment", label: "Zaklatás" },
+  { value: "suspected_fraud", label: "Csalásgyanús viselkedés" },
   { value: "spam", label: "Spam" },
-  { value: "offensive_behavior", label: "Serto viselkedes" },
-  { value: "auction_policy_violation", label: "Aukcios szabalysertes" },
-  { value: "impersonation", label: "Megszemelyesites" },
-  { value: "other", label: "Egyeb" },
+  { value: "offensive_behavior", label: "Sértő viselkedés" },
+  { value: "auction_policy_violation", label: "Aukciós szabálysértés" },
+  { value: "impersonation", label: "Megszemélyesítés" },
+  { value: "other", label: "Egyéb" },
 ];
 
 function query(params: Record<string, string | number | undefined>) {

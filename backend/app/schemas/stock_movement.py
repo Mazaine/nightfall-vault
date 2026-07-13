@@ -20,8 +20,15 @@ class StockMovementRead(BaseModel):
 
 
 class StockAdjustmentCreate(BaseModel):
-    quantity_change: int = Field(ne=0)
+    quantity_change: int
     note: str | None = Field(default=None, max_length=500)
+
+    @field_validator("quantity_change")
+    @classmethod
+    def validate_quantity_change(cls, value: int) -> int:
+        if value == 0:
+            raise ValueError("quantity_change must not be zero")
+        return value
 
     @field_validator("note")
     @classmethod

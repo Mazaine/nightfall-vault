@@ -9,7 +9,7 @@ export function AdminAuditLogsPage() {
   useEffect(() => {
     listAuditLogs()
       .then(setLogs)
-      .catch((err) => setError(err instanceof Error ? err.message : "Az audit naplo betoltese nem sikerult."))
+      .catch((err) => setError(err instanceof Error ? err.message : "Az auditnapló betöltése nem sikerült."))
       .finally(() => setIsLoading(false));
   }, []);
 
@@ -17,9 +17,9 @@ export function AdminAuditLogsPage() {
     <div>
       <p className="eyebrow">Admin</p>
       <h1>Audit naplo</h1>
-      {isLoading ? <div className="side-panel">Audit naplo betoltese...</div> : null}
+      {isLoading ? <div className="side-panel">Auditnapló betöltése…</div> : null}
       {error ? <div className="side-panel form-message">{error}</div> : null}
-      {!isLoading && !error && logs.length === 0 ? <div className="side-panel">Meg nincs audit bejegyzes.</div> : null}
+      {!isLoading && !error && logs.length === 0 ? <div className="side-panel">Még nincs auditbejegyzés.</div> : null}
       {logs.length > 0 ? (
         <div className="side-panel admin-table-panel">
           <table className="admin-table">
@@ -27,8 +27,8 @@ export function AdminAuditLogsPage() {
               <tr>
                 <th>Idopont</th>
                 <th>Muvelet</th>
-                <th>Felhasznalo</th>
-                <th>Aukcio</th>
+                <th>Felhasználó</th>
+                <th>Aukció</th>
               </tr>
             </thead>
             <tbody>

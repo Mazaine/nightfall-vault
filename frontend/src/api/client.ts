@@ -33,13 +33,14 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...options,
     headers,
+    cache: options.authenticated === false ? options.cache : "no-store",
   });
 
   if (!response.ok) {
     const errorBody = await response.json().catch(() => null);
     const message = typeof errorBody?.detail === "string"
       ? errorBody.detail
-      : errorBody?.detail?.message ?? errorBody?.message ?? "A keres nem sikerult.";
+      : errorBody?.detail?.message ?? errorBody?.message ?? "A kérés nem sikerült.";
     if (response.status === 401 && options.authenticated !== false) {
       window.dispatchEvent(new CustomEvent(SESSION_EXPIRED_EVENT, { detail: { message } }));
     }

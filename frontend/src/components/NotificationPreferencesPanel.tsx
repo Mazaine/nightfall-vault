@@ -7,7 +7,7 @@ import {
 
 const preferenceLabels: [keyof NotificationPreferences, string][] = [
   ["notify_in_app", "Alkalmazason beluli ertesitesek"],
-  ["notify_email_outbid", "Email, ha rad licitalnak"],
+  ["notify_email_outbid", "E-mail, ha rád licitálnak"],
   ["notify_email_auction_result", "Email aukcio eredmenyrol"],
   ["notify_email_moderation", "Email moderacios esemenyrol"],
 ];
@@ -19,7 +19,7 @@ export function NotificationPreferencesPanel() {
   useEffect(() => {
     getNotificationPreferences()
       .then(setPreferences)
-      .catch(() => setMessage("Az ertesitesi beallitasok betoltese nem sikerult."));
+      .catch(() => setMessage("Az értesítési beállítások betöltése nem sikerült."));
   }, []);
 
   const changePreference = async (key: keyof NotificationPreferences, checked: boolean) => {
@@ -33,10 +33,10 @@ export function NotificationPreferencesPanel() {
     try {
       const saved = await updateNotificationPreferences(nextPreferences);
       setPreferences(saved);
-      setMessage("Ertesitesi beallitasok mentve.");
+      setMessage("Értesítési beállítások mentve.");
     } catch (error) {
       setPreferences(previousPreferences);
-      setMessage(error instanceof Error ? error.message : "Az ertesitesi beallitasok mentese nem sikerult.");
+      setMessage(error instanceof Error ? error.message : "Az értesítési beállítások mentése nem sikerült.");
     }
   };
 
@@ -44,13 +44,13 @@ export function NotificationPreferencesPanel() {
     <section className="account-section" aria-labelledby="notification-preferences-title">
       <div className="section-heading">
         <div>
-          <p className="eyebrow">Ertesitesek</p>
-          <h2 id="notification-preferences-title">Ertesitesi beallitasok</h2>
+          <p className="eyebrow">Értesítések</p>
+          <h2 id="notification-preferences-title">Értesítési beállítások</h2>
         </div>
         <p className="section-note">Az email kuldes kulon uzemeltetoi engedelyezest igenyel.</p>
       </div>
       <div className="side-panel notification-preferences-panel">
-        {!preferences && !message ? <p>Beallitasok betoltese...</p> : null}
+        {!preferences && !message ? <p>Beállítások betöltése…</p> : null}
         {preferences ? (
           <div className="rules-grid">
             {preferenceLabels.map(([key, label]) => (

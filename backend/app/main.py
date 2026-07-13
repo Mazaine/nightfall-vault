@@ -75,6 +75,16 @@ SECURITY_HEADERS = {
     "Permissions-Policy": "camera=(), microphone=(), geolocation=(), payment=()",
 }
 
+PRIVATE_API_PREFIXES = (
+    "/api/admin",
+    "/api/auth/me",
+    "/api/blocks",
+    "/api/notifications",
+    "/api/reports",
+    "/api/searches",
+    "/api/watchlist",
+)
+
 FIELD_LABELS = {
     "email": "email",
     "password": "password",
@@ -122,6 +132,12 @@ async def security_headers_middleware(request: Request, call_next):
     response = await call_next(request)
     for header_name, header_value in SECURITY_HEADERS.items():
         response.headers.setdefault(header_name, header_value)
+    if request.headers.get("authorization") or request.url.path.startswith(PRIVATE_API_PREFIXES):
+        response.headers["Cache-Control"] = "no-store, private"
+        response.headers["Pragma"] = "no-cache"
+        vary = {item.strip() for item in response.headers.get("Vary", "").split(",") if item.strip()}
+        vary.add("Authorization")
+        response.headers["Vary"] = ", ".join(sorted(vary))
     return response
 
 
