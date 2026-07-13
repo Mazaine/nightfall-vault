@@ -28,8 +28,8 @@ Utolsó frissítés: 2026-07-13
 - `DONE` 10.20 Monitoring/health/logging audit.
 - `DONE` 10.21 Dependency warning audit és kategorizálás.
 - `DONE` 10.22 Alembic döntés dokumentálása; migráció csak valós adatmodell-változásnál.
-- `TODO` 10.23 README, projektállapot, biztonsági dokumentáció és Sprint 10 riport.
-- `TODO` 10.24 Teljes záró Docker, Redis, Alembic, pytest, frontend build és Git ellenőrzés.
+- `DONE` 10.23 README, projektállapot, biztonsági dokumentáció és Sprint 10 riport.
+- `DONE` 10.24 Teljes záró Docker, Redis, Alembic, pytest, frontend build és Git ellenőrzés.
 
 ## Kezdő audit – eddigi megállapítások
 
@@ -48,21 +48,15 @@ Utolsó frissítés: 2026-07-13
 
 ## Utoljára befejezett konkrét lépés
 
-Az operational/security audit és az indokolt hardening elkészült: privát cache-headerek, route code splitting, dependency remediation, CI workflow, Docker healthcheckek, `.dockerignore`, backup script ellenőrzés és backup/restore dokumentáció.
+A teljes Sprint 10 implementáció, dokumentáció és záró ellenőrzés elkészült. A core konténerek healthy állapotúak, Redis `PONG`, Alembic head `0009_saved_searches`, a backend 55, a frontend 9 sikeres teszttel zárt.
 
 ## Éppen módosított fájlok
 
+- `README.md`
+- `docs/PROJECT_STATUS.md`
+- `docs/SECURITY_AND_OPERATIONS.md`
 - `docs/SPRINT_10_PROGRESS.md`
-- `frontend/src/pages/AccountPage.tsx`
-- `frontend/src/styles/base/global.css`
-- `frontend/src/App.tsx`, `frontend/src/components/AccountLayout.tsx`, `frontend/src/components/AsyncStates.tsx`
-- `frontend/src/components/SiteHeader.tsx`, `frontend/src/components/SiteHeader.css`, `frontend/src/components/AuctionCard.tsx`
-- `frontend/src/pages/Account*.tsx`, `NotificationsPage.tsx`, `SavedSearchesPage.tsx`, `WatchlistPage.tsx`
-- `frontend/package.json`, `frontend/package-lock.json`, `frontend/vitest.config.ts`, `frontend/src/test/setup.ts`
-- `frontend/index.html`, `frontend/public/robots.txt`, `frontend/public/sitemap.xml`
-- `backend/app/main.py`, `backend/app/schemas/stock_movement.py`, `backend/tests/test_operations_readiness.py`, `backend/requirements.txt`
-- `.github/workflows/verify.yml`, `docker-compose.yml`, `backend/.dockerignore`, `frontend/.dockerignore`, `frontend/Dockerfile`
-- `scripts/backup_database.ps1`, `docs/BACKUP_AND_RESTORE.md`
+- `docs/SPRINT_10_REPORT.md`
 
 ## Már lefuttatott ellenőrzések
 
@@ -85,24 +79,28 @@ Az operational/security audit és az indokolt hardening elkészült: privát cac
 - `docker compose config --quiet` – sikeres.
 - Kezdő pip-audit: 32 találat/6 csomag; ismételt audit: 11 találat/4 csomag.
 - `npm audit --audit-level=high` – 0 vulnerability.
+- `docker compose build frontend` – sikeres, determinisztikus `npm ci`, 0 vulnerability.
+- `docker compose up -d --wait` és `docker compose ps` – PostgreSQL, Redis, backend és frontend healthy.
+- `docker compose exec -T redis redis-cli ping` – `PONG`.
+- `docker compose exec -T backend alembic upgrade head` és `alembic current` – `0009_saved_searches (head)`.
+- Záró backend pytest – 55 passed, 1 warning, 42,03 másodperc.
+- Záró frontend teszt – 2 fájl, 9 passed.
+- Záró frontend build – 93 modul, fő JS 293,48 kB, gzip 90,70 kB.
+- `git diff --cached --check` és `git diff --check` – hiba nélkül.
 
 ## Hátralévő ellenőrzések
 
-- Minden jelentős frontend változtatás után frontend build, `git diff --check`, státusz.
-- Elérhető frontend tesztek, ha fenntartható tesztalap készül.
-- Teljes backend pytest és warning-számlálás.
-- Docker Compose, Redis PONG, Alembic upgrade/current.
-- Végső diff, staged diff és Git log ellenőrzés.
-- Tényleges böngészős/reszponzív ellenőrzés, ha a környezetben elérhető; egyébként manuális checklist.
+- A dokumentációs commit után végső tiszta munkafa- és Git log ellenőrzés.
+- Külön későbbi feladatként valódi bejelentkezett kézi böngészősession, teljes böngészőmátrix és izolált restore-próba.
 
 ## Ismert hibák
 
 ### Sprint 10 előtt már létező
 
-- 303 dependency/deprecation warning a Sprint 9 zárásakor.
+- 303 dependency/deprecation warning a Sprint 9 zárásakor; Sprint 10 végére 1 külső passlib warning maradt.
 - Healthy `postgres_restore` orphan konténer.
-- Aktív frontendben a Sprint 10 előtt több mojibake/ékezet nélküli magyar szöveg volt; a mojibake-rész javítva, az ékezet nélküli copy finomítása a kapcsolódó komponensekkel együtt folytatódik.
-- Account route-ok és privát oldalak egységes guard/navigáció nélkül.
+- Aktív frontendben a Sprint 10 előtt több mojibake/ékezet nélküli magyar szöveg volt; az aktív, auditált forrás javítva.
+- Account route-ok és privát oldalak egységes guard/navigáció nélkül; Sprint 10-ben javítva.
 - Auth session localStorage-alapú; refresh token nincs.
 
 ### Sprint 10 alatt talált
@@ -110,7 +108,7 @@ Az operational/security audit és az indokolt hardening elkészült: privát cac
 - Profilikon hibás célroute-ja.
 - Header account műveleteinek zsúfolt szerkezete és hiányos mobil/fókusz viselkedése.
 - Az account oldal hibáknál több helyen üres listára esik vissza, így nincs valódi error/retry állapot.
-- Frontend lint és tesztinfrastruktúra nincs.
+- Frontend lint nincs; a tesztinfrastruktúra Sprint 10-ben elkészült.
 
 ### Sprint 10 által okozott regressziók
 
@@ -118,8 +116,8 @@ Az operational/security audit és az indokolt hardening elkészült: privát cac
 
 ## Legutóbbi elkészült commit
 
-`efcdd5f` – `perf(frontend): split account routes and protect private cache`.
+`ecd039b` – `chore(ops): harden dependencies ci and backups`.
 
 ## Következő lépés
 
-Az operational/security módosítások ellenőrzése és commitja, majd a teljes záró parancskészlet és a Sprint 10 riport véglegesítése.
+A záró dokumentáció commitja, majd a tiszta munkafa és a commitlista végső ellenőrzése. Push nem történik.

@@ -4,9 +4,9 @@ Utolso frissites: 2026-07-13
 
 ## Project Version
 
-v0.9.0-dev
+v0.10.0-dev
 
-Sprint 9 Marketplace UX, saved searches and rule-based recommendations implemented
+Sprint 10 account UX, navigation, accessibility and production hardening implemented
 
 ## Aktiv projektmappa
 
@@ -352,4 +352,23 @@ Elkeszult elemek:
 
 ## Next Planned Sprint
 
-A kovetkezo sprint celja a Trust & Safety folyamatok tovabbfejlesztese: moderator UX finomitas, report SLA/riporting, moderation action osszekotes es dependency frissitesi terv vegrehajtasa production release elott.
+A kovetkezo sprint celja a fennmarado production dependency adossag kompatibilis FastAPI/Starlette es JWT stack frissitesi terve, a scheduler kulon workerre szervezese, valamint a moderator UX es report SLA/riporting tovabbfejlesztese.
+
+## Sprint 10 account UX és frontend stabilitás
+
+Elkészült:
+
+- védett, közös account layout és reszponzív fióknavigáció;
+- külön profil, licitek, saját aukciók, értesítések, mentett keresések, figyelőlista, jelentések és blokkolások route;
+- aktív, megnyert és elvesztett licitek, valamint aktív/piszkozat-időzített/lezárt saját aukciók elkülönítése;
+- hozzáférhető profil dropdown, adminfeltétel, Escape, külső kattintás és fókusz-visszaadás;
+- stabil hamburger menü, backdrop és body scroll lock;
+- egységes loading, skeleton, empty, error és retry állapotok;
+- globális sötét formkontroll-stílus és aktív frontend UTF-8 audit;
+- route title és privát route noindex kezelés;
+- route-level code splitting és lusta aukciókép-betöltés;
+- frontend Vitest/Testing Library alap 9 regressziós teszttel;
+- privát API-válaszok `Cache-Control: no-store, private` védelme;
+- CI workflow, Docker healthcheckek és `.dockerignore` fájlok.
+
+Sprint 10-ben nem volt adatmodell-változás, ezért új Alembic migráció nem készült; a head továbbra is `0009_saved_searches`.

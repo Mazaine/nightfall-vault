@@ -139,6 +139,8 @@ A projekt dokumentációja aktív állapot- és sprintdokumentumokba van rendezv
 * `docs/SPRINT_7_REPORT.md` – publikus profilok, követések és aukciókeresés zárójelentés
 * `docs/SPRINT_8_REPORT.md` – Trust & Safety, jelentések és blokkolás zárójelentés
 * `docs/SPRINT_9_REPORT.md` – marketplace UX, mentett keresések és ajánlások zárójelentés
+* `docs/SPRINT_10_REPORT.md` – account UX, navigáció és production hardening zárójelentés
+* `docs/BACKUP_AND_RESTORE.md` – mentési és izolált visszaállítási eljárás
 
 ---
 
@@ -335,3 +337,28 @@ GET    /api/auctions/{auction_id}/seller-auctions
 ```
 
 A kapcsolódó aukciók szabályalapú pontozása a kategóriát, a cím közös szavait, az eladót és az árközelséget használja. Nem AI-alapú ajánlórendszer.
+
+## Sprint 10 account UX
+
+A védett fiókfelület egységes `/account/*` struktúrát használ:
+
+```text
+/account/profile
+/account/bids
+/account/auctions
+/account/notifications
+/account/saved-searches
+/account/watchlist
+/account/reports
+/account/blocked-users
+```
+
+A korábbi `/account`, `/notifications`, `/watchlist` és `/saved-searches` URL-ek kompatibilis átirányítást kaptak. A profilmenü billentyűzettel kezelhető, az admin menüpont csak admin felhasználónak jelenik meg, a valódi jogosultságot továbbra is a backend ellenőrzi.
+
+Frontend regressziós tesztek:
+
+```powershell
+docker compose exec -T frontend npm run test
+```
+
+A CI workflow backend pytestet, frontend tesztet és frontend production buildet futtat Docker Compose környezetben.

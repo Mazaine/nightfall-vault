@@ -387,3 +387,32 @@ Performance audit:
 - a kapcsolódó aukciók jelöltlistája 200 rekordra, válasza 12 rekordra korlátozott;
 - az eladó további aukcióinak válasza legfeljebb 6 rekord;
 - a `saved_searches(user_id, created_at)` index támogatja a felhasználói listázást.
+
+## Sprint 10 account, cache és dependency hardening
+
+- Minden `/account/*` route közös frontend auth guard mögött van; ez UX-védelem, a backend ownership és admin dependency változatlanul kötelező.
+- A profil dropdown adminpontja csak admin sessionnél látható, de nem helyettesíti a `/api/admin/*` backend jogosultságot.
+- Authorization headert tartalmazó és ismert privát API-válaszok `Cache-Control: no-store, private`, `Pragma: no-cache` és `Vary: Authorization` headert kapnak.
+- Logout és session-expired esemény törli a token- és user-state-et; külön kliensoldali account cache nincs.
+- Account, admin, auth, checkout és order route-ok dinamikus `noindex, nofollow` metaértéket kapnak, a robots fájl pedig tiltja a privát route-családokat.
+- Aktív frontendkódban nincs `dangerouslySetInnerHTML`; a felhasználói tartalom React text escapinggel jelenik meg.
+
+Dependency audit 2026-07-13:
+
+- kezdő pip-audit: 32 ismert találat 6 csomagban;
+- frissítve és teljes pytesttel ellenőrizve: `python-jose 3.4.0`, `python-multipart 0.0.31`, `Pillow 12.3.0`;
+- ismételt pip-audit: 11 ismert találat 4 csomagban (`pytest`, `pyasn1`, `starlette`, `ecdsa`);
+- `starlette` javító verziói nem kompatibilisek a jelenlegi `fastapi==0.115.6` korlátozásával;
+- `pyasn1` javító verziója ütközik a jelenlegi python-jose függőségi korláttal;
+- `ecdsa` találathoz az audit nem jelölt javító verziót;
+- `pytest` csak dev/test függőség, a 9.x major frissítés külön kompatibilitási lépés;
+- frontend `npm audit`: 0 ismert vulnerability.
+
+A teljes backend teszt eredménye a frissítés után: `55 passed, 1 warning`. Az egyetlen warning külső passlib/Python `crypt` deprecation; a korábbi saját Pydantic warning és a python-jose `utcnow` warning megszűnt.
+
+Docker/monitoring:
+
+- backend és frontend Compose healthcheck készült;
+- a liveness és readiness fogalma külön maradt;
+- request ID, strukturált production log és érzékeny részletektől mentes 500 válasz továbbra is aktív;
+- teljes metrics/alerting platform nem készült; productionre uptime monitor, error tracking és metrikaexport javasolt.
