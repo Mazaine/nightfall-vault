@@ -47,6 +47,7 @@ services:
       TURNSTILE_SECRET_KEY: ${TURNSTILE_SECRET_KEY:-}
       BREVO_API_KEY: ${BREVO_API_KEY:-}
       ORDER_ADMIN_EMAIL: ${ORDER_ADMIN_EMAIL:-}
+      AUCTION_SCHEDULER_MODE: external
     depends_on:
       postgres:
         condition: service_healthy
@@ -56,6 +57,36 @@ services:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/live', timeout=2)"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  auction-scheduler:
+    init: true
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    volumes:
+      - ./backend:/app
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in your local .env file}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      LOG_FORMAT: ${LOG_FORMAT:-text}
+      AUCTION_SCHEDULER_MODE: worker
+      AUCTION_SCHEDULER_INTERVAL_SECONDS: ${AUCTION_SCHEDULER_INTERVAL_SECONDS:-10}
+      AUCTION_SCHEDULER_HEARTBEAT_TTL_SECONDS: ${AUCTION_SCHEDULER_HEARTBEAT_TTL_SECONDS:-30}
+    command: ["python", "-m", "app.workers.auction_scheduler"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-m", "app.workers.healthcheck"]
       interval: 10s
       timeout: 5s
       retries: 10

@@ -48,14 +48,18 @@ _scheduler_task: asyncio.Task | None = None
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     global _scheduler_stop_event, _scheduler_task
-    _scheduler_stop_event = asyncio.Event()
-    logger.info("Backend startup: scheduler starting")
-    _scheduler_task = asyncio.create_task(scheduler_loop(_scheduler_stop_event))
+    embedded_scheduler = settings.auction_scheduler_mode.lower() == "embedded"
+    if embedded_scheduler:
+        _scheduler_stop_event = asyncio.Event()
+        logger.info("Backend startup: embedded scheduler starting")
+        _scheduler_task = asyncio.create_task(scheduler_loop(_scheduler_stop_event))
+    else:
+        logger.info("Backend startup: external scheduler mode")
     try:
         yield
     finally:
-        if _scheduler_stop_event is not None:
-            logger.info("Backend shutdown: scheduler stopping")
+        if embedded_scheduler and _scheduler_stop_event is not None:
+            logger.info("Backend shutdown: embedded scheduler stopping")
             _scheduler_stop_event.set()
         if _scheduler_task is not None:
             _scheduler_task.cancel()

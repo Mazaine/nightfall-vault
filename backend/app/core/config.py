@@ -44,6 +44,10 @@ class Settings(BaseSettings):
     storage_upload_dir: str = "uploads"
     max_image_width: int = 2400
     max_image_height: int = 2400
+    auction_scheduler_mode: str = "embedded"
+    auction_scheduler_interval_seconds: int = 10
+    auction_scheduler_lock_key: int = 8711042
+    auction_scheduler_heartbeat_ttl_seconds: int = 30
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

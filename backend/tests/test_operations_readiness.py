@@ -6,6 +6,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import delete, select
 
 from app.core.security import create_access_token, hash_password
+from app.core.config import settings
 from app.db.session import SessionLocal
 from app.main import app
 from app.models.auction import Auction, AuctionImage, AuctionMessage, AuctionReview, Bid, WatchlistItem
@@ -84,13 +85,20 @@ def test_health_endpoints_and_request_id() -> None:
     live = client.get("/health/live", headers={"X-Request-ID": "ops-test-request"})
     ready = client.get("/health/ready")
     health = client.get("/health")
+    metrics = client.get("/health/metrics")
 
     assert live.status_code == 200
     assert live.headers["X-Request-ID"] == "ops-test-request"
     assert ready.status_code == 200
-    assert set(ready.json()["checks"]) == {"postgres", "alembic", "redis", "storage"}
+    expected_checks = {"postgres", "alembic", "redis", "storage"}
+    if settings.auction_scheduler_mode.lower() == "external":
+        expected_checks.add("scheduler")
+    assert set(ready.json()["checks"]) == expected_checks
     assert "database_url" not in str(ready.json()).lower()
     assert health.status_code == 200
+    assert metrics.status_code == 200
+    assert "nightfall_process_up 1" in metrics.text
+    assert "nightfall_scheduler_heartbeat_up" in metrics.text
 
 
 def test_audit_log_admin_api_filters_and_blocks_normal_user() -> None:
