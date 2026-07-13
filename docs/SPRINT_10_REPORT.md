@@ -178,8 +178,9 @@ Eredmények:
 - `ceccd25` – `test(frontend): cover account navigation states`;
 - `efcdd5f` – `perf(frontend): split account routes and protect private cache`;
 - `ecd039b` – `chore(ops): harden dependencies ci and backups`.
+- `b60e89f` – `docs: finalize sprint 10 account UX`.
 
-A záró dokumentációt tartalmazó commit a riporttal együtt készül; push nem történik.
+A commitlista végső rögzítése külön, dokumentációs metadata commitban készül; push nem történik.
 
 ## Ismert technikai adósság
 

@@ -52,9 +52,6 @@ A teljes Sprint 10 implementáció, dokumentáció és záró ellenőrzés elké
 
 ## Éppen módosított fájlok
 
-- `README.md`
-- `docs/PROJECT_STATUS.md`
-- `docs/SECURITY_AND_OPERATIONS.md`
 - `docs/SPRINT_10_PROGRESS.md`
 - `docs/SPRINT_10_REPORT.md`
 
@@ -116,8 +113,8 @@ A teljes Sprint 10 implementáció, dokumentáció és záró ellenőrzés elké
 
 ## Legutóbbi elkészült commit
 
-`ecd039b` – `chore(ops): harden dependencies ci and backups`.
+`b60e89f` – `docs: finalize sprint 10 account UX`.
 
 ## Következő lépés
 
-A záró dokumentáció commitja, majd a tiszta munkafa és a commitlista végső ellenőrzése. Push nem történik.
+A commitlista metadata-frissítése, majd a tiszta munkafa és a Git log végső ellenőrzése. Push nem történik.
