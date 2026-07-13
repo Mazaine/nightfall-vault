@@ -136,6 +136,9 @@ A projekt dokumentációja aktív állapot- és sprintdokumentumokba van rendezv
 * `docs/SPRINT_4_REPORT.md` – valós idejű licitfrissítés, értesítések és Buy Now zárójelentés
 * `docs/SPRINT_5_REPORT.md` – production readiness, notification center, watchlist és moderáció zárójelentés
 * `docs/SPRINT_6_REPORT.md` – üzemeltetési felkészítés, monitoring, média és email zárójelentés
+* `docs/SPRINT_7_REPORT.md` – publikus profilok, követések és aukciókeresés zárójelentés
+* `docs/SPRINT_8_REPORT.md` – Trust & Safety, jelentések és blokkolás zárójelentés
+* `docs/SPRINT_9_REPORT.md` – marketplace UX, mentett keresések és ajánlások zárójelentés
 
 ---
 
@@ -316,3 +319,19 @@ Sprint 8-ban bekerult a marketplace biztonsagi es moderacios retege:
 - frontend profil jelentese/blokkolasa, aukcio jelentese, sajat jelenteseim, blokkolt felhasznalok es admin jelentessor.
 
 A felhasznalo nem allithat report prioritasitast, nem jelentheti sajat aukciojat vagy sajat profiljat, es ugyanarra a celra nem kuldhet duplikalt nyitott jelentest.
+
+## Sprint 9 Marketplace UX
+
+Sprint 9-ben kibővült a backend oldalon lapozott aukciókeresés cím-, leírás- és eladókereséssel. A bejelentkezett felhasználó mentett kereséseket hozhat létre, listázhat és törölhet; az új találatokról csak alkalmazáson belüli értesítés készül.
+
+Új API-k:
+
+```text
+POST   /api/searches
+GET    /api/searches
+DELETE /api/searches/{id}
+GET    /api/auctions/{auction_id}/related
+GET    /api/auctions/{auction_id}/seller-auctions
+```
+
+A kapcsolódó aukciók szabályalapú pontozása a kategóriát, a cím közös szavait, az eladót és az árközelséget használja. Nem AI-alapú ajánlórendszer.

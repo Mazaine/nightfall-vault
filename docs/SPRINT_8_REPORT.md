@@ -72,7 +72,9 @@ Automatizalt TestClient API tesztek fedik:
 
 ## Futtatott ellenorzesek
 
-- `docker compose up -d` -> szolgaltatasok futnak, postgres es redis healthy; orphan `postgres_restore` figyelmeztetes megjelent, torles nem tortent`r`n- `docker compose exec -T backend alembic upgrade head` -> sikeres, uj migracio nem volt hatra`r`n- `docker compose exec -T backend alembic current` -> `0008_reports_and_user_blocks (head)`
+- `docker compose up -d` -> szolgaltatasok futnak, postgres es redis healthy; orphan `postgres_restore` figyelmeztetes megjelent, torles nem tortent
+- `docker compose exec -T backend alembic upgrade head` -> sikeres, uj migracio nem volt hatra
+- `docker compose exec -T backend alembic current` -> `0008_reports_and_user_blocks (head)`
 - `docker compose exec -T redis redis-cli ping` -> `PONG`
 - `docker compose ps` -> backend, frontend, postgres, redis fut; postgres es redis healthy
 - `docker compose exec -T backend pytest` -> 52 passed, 280 warnings

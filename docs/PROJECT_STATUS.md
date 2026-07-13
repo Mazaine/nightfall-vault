@@ -4,9 +4,9 @@ Utolso frissites: 2026-07-13
 
 ## Project Version
 
-v0.8.0-dev
+v0.9.0-dev
 
-Sprint 8 Trust & Safety, reports and user blocking implemented
+Sprint 9 Marketplace UX, saved searches and rule-based recommendations implemented
 
 ## Aktiv projektmappa
 
@@ -78,7 +78,9 @@ Meglevo fo oldalak:
 - Admin aukciok
 - Admin rendelesek
 - Admin felhasznalok
-- Admin audit naplo`r`n- Admin jelentessor
+- Admin audit naplo
+- Admin jelentessor
+- Mentett keresések
 - 404/info oldal
 
 ## Navigacio
@@ -267,7 +269,7 @@ Elkeszult:
 - kepfeltoltes es boritokep kuldes
 - aukcio aktivalas/idotizes
 - aktiv aukcion licit elhelyezese backend API-val
-- aktuĂˇlis licit es licittortenet megjelenitese backend adatbol
+- aktualis licit es licittortenet megjelenitese backend adatbol
 - cim alapu aukcio navigacio
 - chat es ertekeles megjelenites backend jogosultsagi flag alapjan
 - login/register API bekotes az aktiv frontendben
@@ -332,8 +334,20 @@ Privacy szabaly: admin note, prioritas es belso azonositok nem jelennek meg norm
 - A `Product` domain meg oroksegkent jelen van a backendben es a legacy frontend kodban.
 - Az SSE stream alap frissitest ad, de nincs teljes notification center vagy WebSocket presence.
 - A scheduler in-process fut; tobb production backend replika eseten kulon worker vagy leader valasztas javasolt.
-- Az email notification csatorna Brevo/API vagy SMTP transporttal konfigurĂˇlhatĂł, de production engedĂ©lyezĂ©shez kĂĽlĂ¶n EMAIL_DELIVERY_ENABLED Ă©s NOTIFICATION_EMAIL_ENABLED szĂĽksĂ©ges.
-- Az admin Audit Log API Ă©s alap frontend oldal elkĂ©szĂĽlt; kĂ©sĹ‘bb rĂ©szletesebb szĹ±rĂ©s/export javasolt.
+- Az email notification csatorna Brevo/API vagy SMTP transporttal konfigurálható, de production engedélyezéshez külön `EMAIL_DELIVERY_ENABLED` és `NOTIFICATION_EMAIL_ENABLED` szükséges.
+- Az admin Audit Log API és alap frontend oldal elkészült; később részletesebb szűrés/export javasolt.
+
+## Sprint 9 marketplace UX
+
+Elkeszult elemek:
+
+- cím-, leírás-, eladó-, kategória-, állapot-, licitszám-, Buy Now-, lejárat- és újdonságkeresés backend lapozással;
+- felhasználóhoz kötött mentett keresések CRUD API-ja;
+- mentett keresés új találatáról kizárólag in-app értesítés;
+- szabályalapú kapcsolódó aukciók kategória, cím, eladó és ár alapján;
+- az eladó legfeljebb 6 további publikus aukciója, az aktuális aukció kizárásával;
+- publikus követő/követett-eladó számok, valamint licit-, nyerési-, vesztési-, eladási- és sikerességi statisztikák;
+- mentett keresések oldal, részletoldali ajánlási blokkok és reszponzív loading/empty/error állapotok.
 - A FastAPI `on_event` technikai adossag Sprint 5-ben megszunt, a scheduler lifespan handlerrel indul.
 
 ## Next Planned Sprint

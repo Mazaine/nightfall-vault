@@ -368,3 +368,22 @@ User blocking:
 XSS:
 
 Report details, public resolution, chat uzenetek es review kommentek sima szovegkent tarolodnak es React escapinggel jelennek meg. `dangerouslySetInnerHTML` hasznalata ezekhez a mezokhoz tiltott.
+
+## Sprint 9 keresés, ajánlás és mentett keresés biztonság
+
+- A szöveges keresés SQLAlchemy paraméterezett lekérdezést használ; a `%`, `_` és `\\` wildcard karakterek escape-eltek.
+- A lapozás backend oldali, a `limit` legfeljebb 100.
+- Mentett keresést csak hitelesített felhasználó hozhat létre és listázhat.
+- Törléskor a backend a JWT-ből származó tulajdonost ellenőrzi; idegen azonosító `404` választ ad.
+- A related és seller-auctions endpoint a forrásaukció láthatóságát ellenőrzi, önmagát és törölt/nem publikus aukciókat nem ad vissza.
+- A seller lookup backend oldali user-kapcsolaton alapul, frontend ownership adatot nem fogad el.
+- A mentett keresés találati értesítése backend oldalon származtatott user- és auction-azonosítóval készül, és explicit módon nem indít emailt.
+- A publikus profil nem tartalmaz report- vagy block-számlálót.
+
+Performance audit:
+
+- az aukciólista a kártyákhoz csak az eladót és képeket tölti elő, chatet és review-kat nem;
+- a licitszám aggregált lekérdezésből érkezik;
+- a kapcsolódó aukciók jelöltlistája 200 rekordra, válasza 12 rekordra korlátozott;
+- az eladó további aukcióinak válasza legfeljebb 6 rekord;
+- a `saved_searches(user_id, created_at)` index támogatja a felhasználói listázást.
