@@ -131,6 +131,10 @@ export type WatchlistItem = {
 };
 
 export type AuctionListParams = {
+  q?: string;
+  title?: string;
+  description?: string;
+  seller?: string;
   category?: string;
   condition?: string;
   status?: string;
@@ -176,6 +180,14 @@ export function listAuctions(params: AuctionListParams = {}) {
 
 export function getAuction(auctionId: string | number) {
   return apiRequest<Auction>(`/api/auctions/${auctionId}`, { authenticated: false });
+}
+
+export function listRelatedAuctions(auctionId: string | number) {
+  return apiRequest<Auction[]>(`/api/auctions/${auctionId}/related`, { authenticated: false });
+}
+
+export function listSellerOtherAuctions(auctionId: string | number) {
+  return apiRequest<Auction[]>(`/api/auctions/${auctionId}/seller-auctions`, { authenticated: false });
 }
 
 export function listMyAuctions() {

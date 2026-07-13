@@ -36,6 +36,11 @@ export type PublicUserProfile = {
     sold_auctions: number;
     won_auctions: number;
     total_bids: number;
+    successful_bids: number;
+    lost_bids: number;
+    success_rate: number;
+    follower_count: number;
+    following_count: number;
   };
   active_auctions: PublicAuctionSummary[];
   closed_auctions: PublicAuctionSummary[];

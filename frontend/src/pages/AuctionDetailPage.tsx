@@ -4,7 +4,7 @@ import { apiAssetUrl } from "../api/client";
 import { auctionReportReasons, createAuctionReport } from "../api/reports";
 import { useAuth } from "../AuthContext";
 import { ReportDialog } from "../components/ReportDialog";
-import { addWatchlistItem, auctionStreamUrl, createAuctionMessage, createAuctionReview, getAuction, listAuctionBids, listAuctionMessages, placeAuctionBid, listAuctionReviews, type Auction, type AuctionBid, type AuctionMessage, type AuctionRealtimeSnapshot, type AuctionReview } from "../api/auctions";
+import { addWatchlistItem, auctionStreamUrl, createAuctionMessage, createAuctionReview, getAuction, listAuctionBids, listAuctionMessages, listRelatedAuctions, listSellerOtherAuctions, placeAuctionBid, listAuctionReviews, type Auction, type AuctionBid, type AuctionMessage, type AuctionRealtimeSnapshot, type AuctionReview } from "../api/auctions";
 import { formatLocalDateTime, formatMoney, formatRemainingTime } from "../utils/format";
 
 export function AuctionDetailPage() {
@@ -14,6 +14,8 @@ export function AuctionDetailPage() {
   const [messages, setMessages] = useState<AuctionMessage[]>([]);
   const [bidHistory, setBidHistory] = useState<AuctionBid[]>([]);
   const [reviews, setReviews] = useState<AuctionReview[]>([]);
+  const [relatedAuctions, setRelatedAuctions] = useState<Auction[]>([]);
+  const [sellerAuctions, setSellerAuctions] = useState<Auction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [postAuctionMessage, setPostAuctionMessage] = useState("");
@@ -33,6 +35,8 @@ export function AuctionDetailPage() {
         setAuction(data);
         listAuctionBids(data.id).then(setBidHistory).catch(() => setBidHistory([]));
         listAuctionReviews(data.id, { limit: 20, sort: "newest" }).then((page) => setReviews(page.items)).catch(() => setReviews([]));
+        listRelatedAuctions(data.id).then(setRelatedAuctions).catch(() => setRelatedAuctions([]));
+        listSellerOtherAuctions(data.id).then(setSellerAuctions).catch(() => setSellerAuctions([]));
         if (data.can_chat) {
           listAuctionMessages(data.id).then(setMessages).catch(() => setMessages([]));
         }
@@ -91,9 +95,9 @@ export function AuctionDetailPage() {
       setAuction(refreshedAuction);
       setBidHistory(refreshedBids);
       setBidAmount("");
-      setBidMessage(createdBid.reaches_buy_now ? "A licit elĂ©rte a villĂˇmĂˇrat. A lezĂˇrĂˇsi folyamat elĹ‘kĂ©szĂ­tve." : "A licit sikeresen rĂ¶gzĂ­tve.");
+      setBidMessage(createdBid.reaches_buy_now ? "A licit elérte a villámárat, az aukció lezárult." : "A licit sikeresen rögzítve.");
     } catch (error) {
-      setBidMessage(error instanceof Error ? error.message : "A licit rĂ¶gzĂ­tĂ©se nem sikerĂĽlt.");
+      setBidMessage(error instanceof Error ? error.message : "A licit rögzítése nem sikerült.");
     } finally {
       setIsBidSubmitting(false);
     }
@@ -124,11 +128,11 @@ export function AuctionDetailPage() {
   };
 
   if (isLoading) {
-    return <section className="container page-shell"><div className="side-panel">AukciĂł betĂ¶ltĂ©se...</div></section>;
+    return <section className="container page-shell"><div className="skeleton-card profile-skeleton" aria-label="Aukció betöltése" /></section>;
   }
 
   if (error || !auction) {
-    return <section className="container page-shell"><div className="side-panel">{error || "Az aukciĂł nem talĂˇlhatĂł."}</div></section>;
+    return <section className="container page-shell"><div className="side-panel form-message" role="alert">{error || "Az aukció nem található."}</div></section>;
   }
 
   const coverImage = auction.images.find((image) => image.is_cover) ?? auction.images[0];
@@ -139,27 +143,27 @@ export function AuctionDetailPage() {
         {coverImage ? <img src={apiAssetUrl(coverImage.storage_key)} alt={auction.title} /> : null}
       </div>
       <div className="side-panel detail-panel">
-        <p className="eyebrow">{auction.category} Â· {auction.status}</p>
+        <p className="eyebrow">{auction.category} · {auction.status}</p>
         <h1>{auction.title}</h1>
         <p className="hero-lead">
           {auction.description}
         </p>
         <dl className="detail-list">
-          <div><dt>AktuĂˇlis licit</dt><dd>{formatMoney(auction.current_price ?? auction.starting_price)}</dd></div>
-          <div><dt>KezdĹ‘Ăˇr</dt><dd>{formatMoney(auction.starting_price)}</dd></div>
-          <div><dt>LicitlĂ©pcsĹ‘</dt><dd>{formatMoney(auction.bid_increment)}</dd></div>
-          <div><dt>HĂˇtralĂ©vĹ‘ idĹ‘</dt><dd>{formatRemainingTime(auction.ends_at, auction.status)}</dd></div>
-          <div><dt>KezdĂ©s</dt><dd>{formatLocalDateTime(auction.starts_at)}</dd></div>
-          <div><dt>ZĂˇrĂˇs</dt><dd>{formatLocalDateTime(auction.ends_at)}</dd></div>
+          <div><dt>Aktuális licit</dt><dd>{formatMoney(auction.current_price ?? auction.starting_price)}</dd></div>
+          <div><dt>Kezdőár</dt><dd>{formatMoney(auction.starting_price)}</dd></div>
+          <div><dt>Licitlépcső</dt><dd>{formatMoney(auction.bid_increment)}</dd></div>
+          <div><dt>Hátralévő idő</dt><dd>{formatRemainingTime(auction.ends_at, auction.status)}</dd></div>
+          <div><dt>Kezdés</dt><dd>{formatLocalDateTime(auction.starts_at)}</dd></div>
+          <div><dt>Zárás</dt><dd>{formatLocalDateTime(auction.ends_at)}</dd></div>
           <div><dt>Eladó</dt><dd>{auction.seller?.username ? <Link className="seller-link" to={`/users/${auction.seller.username}`}>{auction.seller.full_name ?? auction.seller.username}</Link> : "Eladó"}</dd></div>
           {auction.buy_now_enabled && auction.buy_now_price ? (
-            <div><dt>VillĂˇmĂˇr</dt><dd>{formatMoney(auction.buy_now_price)}</dd></div>
+            <div><dt>Villámár</dt><dd>{formatMoney(auction.buy_now_price)}</dd></div>
           ) : null}
         </dl>
         {auction.status === "active" && !auction.is_owner ? (
           <form className="bid-panel" onSubmit={submitBid}>
             <label>
-              Licit Ă¶sszege
+              Licit összege
               <input
                 min="1"
                 step="1"
@@ -170,7 +174,7 @@ export function AuctionDetailPage() {
               />
             </label>
             <button className="button button-primary" type="submit" disabled={isBidSubmitting}>
-              {isBidSubmitting ? "Licit rĂ¶gzĂ­tĂ©se..." : "LicitĂˇlok"}
+              {isBidSubmitting ? "Licit rögzítése..." : "Licitálok"}
             </button>
             {auction.buy_now_enabled && auction.buy_now_price ? (
               <button className="button button-lightning" type="button" disabled={isBidSubmitting} onClick={() => placeBidAmount(auction.buy_now_price ?? "")}>
@@ -188,15 +192,15 @@ export function AuctionDetailPage() {
         <div className="hero-actions">
           <button className="button button-secondary" type="button" onClick={addToWatchlist}>Figyelem</button>
           {isAuthenticated && !auction.is_owner ? <button className="button button-ghost" type="button" onClick={() => setShowReportDialog(true)}>Aukcio jelentese</button> : null}
-          <Link className="button button-ghost" to="/auctions">Vissza az aukciĂłkhoz</Link>
+          <Link className="button button-ghost" to="/auctions">Vissza az aukciókhoz</Link>
         </div>
         {watchlistMessage ? <p className="form-message">{watchlistMessage}</p> : null}
         {reportMessage ? <p className="form-message">{reportMessage}</p> : null}
 
         <section className="post-auction-panel">
-          <h2>LicittĂ¶rtĂ©net</h2>
+          <h2>Licittörténet</h2>
           {bidHistory.length === 0 ? (
-            <p>MĂ©g nincs licit ezen az aukciĂłn.</p>
+            <p>Még nincs licit ezen az aukción.</p>
           ) : (
             <div className="bid-history-list">
               {bidHistory.map((bid) => (
@@ -233,7 +237,7 @@ export function AuctionDetailPage() {
 
         {auction.can_chat ? (
           <section className="post-auction-panel">
-            <h2>Kapcsolat a mĂˇsik fĂ©llel</h2>
+            <h2>Kapcsolat a másik féllel</h2>
             <div className="message-list">
               {messages.map((message) => (
                 <p key={message.id}>{message.message}</p>
@@ -241,15 +245,15 @@ export function AuctionDetailPage() {
             </div>
             <form onSubmit={sendMessage}>
               <textarea value={postAuctionMessage} onChange={(event) => setPostAuctionMessage(event.target.value)} rows={3} />
-              <button className="button button-secondary" type="submit">Ăśzenet kĂĽldĂ©se</button>
+              <button className="button button-secondary" type="submit">Üzenet küldése</button>
             </form>
           </section>
         ) : null}
 
         {auction.can_review ? (
           <section className="post-auction-panel">
-            <h2>Ă‰rtĂ©kelĂ©s</h2>
-            <button className="button button-secondary" type="button" onClick={() => sendReview(5)}>5 csillagos Ă©rtĂ©kelĂ©s kĂĽldĂ©se</button>
+            <h2>Értékelés</h2>
+            <button className="button button-secondary" type="button" onClick={() => sendReview(5)}>5 csillagos értékelés küldése</button>
           </section>
         ) : null}
         {showReportDialog ? (
@@ -265,6 +269,18 @@ export function AuctionDetailPage() {
           />
         ) : null}
       </div>
+      <section className="account-section related-auctions-section" aria-labelledby="related-auctions-title">
+        <div className="section-heading"><h2 id="related-auctions-title">Kapcsolódó aukciók</h2></div>
+        {relatedAuctions.length === 0 ? <div className="side-panel empty-state">Jelenleg nincs kapcsolódó aukció.</div> : (
+          <div className="compact-auction-list">{relatedAuctions.map((item) => <Link className="compact-auction-row" to={`/auctions/${item.id}`} key={item.id}><strong>{item.title}</strong><span>{item.category}</span><span>{formatMoney(item.current_price)}</span><span>{item.bid_count ?? 0} licit</span></Link>)}</div>
+        )}
+      </section>
+      <section className="account-section related-auctions-section" aria-labelledby="seller-auctions-title">
+        <div className="section-heading"><h2 id="seller-auctions-title">Az eladó további aukciói</h2></div>
+        {sellerAuctions.length === 0 ? <div className="side-panel empty-state">Az eladónak nincs másik publikus aukciója.</div> : (
+          <div className="compact-auction-list">{sellerAuctions.map((item) => <Link className="compact-auction-row" to={`/auctions/${item.id}`} key={item.id}><strong>{item.title}</strong><span>{item.category}</span><span>{formatMoney(item.current_price)}</span><span>{formatRemainingTime(item.ends_at, item.status)}</span></Link>)}</div>
+        )}
+      </section>
     </section>
   );
 }

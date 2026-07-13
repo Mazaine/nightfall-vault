@@ -1259,3 +1259,30 @@ h3 {
     grid-template-columns: 1fr;
   }
 }
+
+/* Sprint 9 marketplace UX */
+.filter-wide {
+  grid-column: span 2;
+}
+
+.saved-search-row {
+  align-items: center;
+  display: flex;
+  gap: var(--space-4);
+  justify-content: space-between;
+}
+
+.related-auctions-section {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 760px) {
+  .filter-wide {
+    grid-column: auto;
+  }
+
+  .saved-search-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}

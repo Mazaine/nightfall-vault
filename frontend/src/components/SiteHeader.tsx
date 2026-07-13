@@ -68,6 +68,7 @@ export function SiteHeader() {
             </Link>
           ) : null}
           {isAuthenticated ? <Link className="button button-ghost watchlist-button" to="/watchlist">Figyelolista</Link> : null}
+          {isAuthenticated ? <Link className="button button-ghost saved-searches-button" to="/saved-searches">Mentett keresések</Link> : null}
           <Link className="icon-button icon-button-profile" to="/account" aria-label="Profil" />
           {userName ? (
             <Link className="button button-ghost user-button" to="/account">{userName}</Link>

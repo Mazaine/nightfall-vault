@@ -125,11 +125,16 @@ export function UserProfilePage() {
       {actionMessage ? <p className="form-message">{actionMessage}</p> : null}
 
       <div className="stats-grid">
+        <div className="side-panel"><span>Követők</span><strong>{stats.follower_count}</strong></div>
+        <div className="side-panel"><span>Követett eladók</span><strong>{stats.following_count}</strong></div>
         <div className="side-panel"><span>Aktiv aukciok</span><strong>{stats.active_auctions}</strong></div>
         <div className="side-panel"><span>Lezart aukciok</span><strong>{stats.closed_auctions}</strong></div>
         <div className="side-panel"><span>Sikeres eladasok</span><strong>{stats.successful_sales}</strong></div>
         <div className="side-panel"><span>Nyert aukciok</span><strong>{stats.won_auctions}</strong></div>
         <div className="side-panel"><span>Osszes licit</span><strong>{stats.total_bids}</strong></div>
+        <div className="side-panel"><span>Sikeres licitek</span><strong>{stats.successful_bids}</strong></div>
+        <div className="side-panel"><span>Elvesztett licitek</span><strong>{stats.lost_bids}</strong></div>
+        <div className="side-panel"><span>Sikerességi arány</span><strong>{stats.success_rate}%</strong></div>
         <div className="side-panel"><span>Pozitiv / negativ</span><strong>{stats.positive_reviews} / {stats.negative_reviews}</strong></div>
       </div>
 

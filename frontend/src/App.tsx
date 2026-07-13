@@ -25,6 +25,7 @@ import { NotificationsPage } from "./pages/NotificationsPage";
 import { OrdersPage } from "./pages/OrdersPage";
 import { UserProfilePage } from "./pages/UserProfilePage";
 import { WatchlistPage } from "./pages/WatchlistPage";
+import { SavedSearchesPage } from "./pages/SavedSearchesPage";
 
 function AdminRoute() {
   const { isAdmin } = useAuth();
@@ -47,6 +48,7 @@ function App() {
           <Route path="/account" element={<AccountPage />} />
           <Route path="/notifications" element={<NotificationsPage />} />
           <Route path="/watchlist" element={<WatchlistPage />} />
+          <Route path="/saved-searches" element={<SavedSearchesPage />} />
           <Route path="/orders" element={<OrdersPage />} />
           <Route path="/how-it-works" element={<HowItWorksPage />} />
           <Route path="/about" element={<AboutPage />} />
@@ -61,10 +63,10 @@ function App() {
             <Route path="audit-logs" element={<AdminAuditLogsPage />} />
             <Route path="reports" element={<AdminReportsPage />} />
           </Route>
-          <Route path="/terms" element={<InfoPage eyebrow="Jogi informÄ‚Ë‡ciÄ‚Ĺ‚k" title="FelhasznÄ‚Ë‡lÄ‚Ë‡si feltÄ‚Â©telek" />} />
-          <Route path="/privacy" element={<InfoPage eyebrow="AdatvÄ‚Â©delem" title="AdatvÄ‚Â©delmi tÄ‚Ë‡jÄ‚Â©koztatÄ‚Ĺ‚" />} />
-          <Route path="/support" element={<InfoPage eyebrow="TÄ‚Ë‡mogatÄ‚Ë‡s" title="Ä‚Ĺ›gyfÄ‚Â©lszolgÄ‚Ë‡lat" />} />
-          <Route path="*" element={<InfoPage eyebrow="404" title="Az oldal nem talÄ‚Ë‡lhatÄ‚Ĺ‚" />} />
+          <Route path="/terms" element={<InfoPage eyebrow="Jogi információk" title="Felhasználási feltételek" />} />
+          <Route path="/privacy" element={<InfoPage eyebrow="Adatvédelem" title="Adatvédelmi tájékoztató" />} />
+          <Route path="/support" element={<InfoPage eyebrow="Támogatás" title="Ügyfélszolgálat" />} />
+          <Route path="*" element={<InfoPage eyebrow="404" title="Az oldal nem található" />} />
         </Routes>
       </main>
       <SiteFooter />
