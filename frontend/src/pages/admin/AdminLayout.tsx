@@ -1,4 +1,4 @@
-﻿import { Link, Outlet } from "react-router-dom";
+import { Link, Outlet } from "react-router-dom";
 
 const adminLinks = [
   { label: "Dashboard", to: "/admin" },
@@ -6,6 +6,7 @@ const adminLinks = [
   { label: "Rendelesek", to: "/admin/orders" },
   { label: "Felhasznalok", to: "/admin/users" },
   { label: "Audit naplo", to: "/admin/audit-logs" },
+  { label: "Jelentesek", to: "/admin/reports" },
 ];
 
 export function AdminLayout() {

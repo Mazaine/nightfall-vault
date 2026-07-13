@@ -1,11 +1,15 @@
 import { FormEvent, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { apiAssetUrl } from "../api/client";
+import { auctionReportReasons, createAuctionReport } from "../api/reports";
+import { useAuth } from "../AuthContext";
+import { ReportDialog } from "../components/ReportDialog";
 import { addWatchlistItem, auctionStreamUrl, createAuctionMessage, createAuctionReview, getAuction, listAuctionBids, listAuctionMessages, placeAuctionBid, listAuctionReviews, type Auction, type AuctionBid, type AuctionMessage, type AuctionRealtimeSnapshot, type AuctionReview } from "../api/auctions";
 import { formatLocalDateTime, formatMoney, formatRemainingTime } from "../utils/format";
 
 export function AuctionDetailPage() {
   const { auctionId } = useParams();
+  const { isAuthenticated } = useAuth();
   const [auction, setAuction] = useState<Auction | null>(null);
   const [messages, setMessages] = useState<AuctionMessage[]>([]);
   const [bidHistory, setBidHistory] = useState<AuctionBid[]>([]);
@@ -17,6 +21,8 @@ export function AuctionDetailPage() {
   const [bidMessage, setBidMessage] = useState("");
   const [watchlistMessage, setWatchlistMessage] = useState("");
   const [isBidSubmitting, setIsBidSubmitting] = useState(false);
+  const [showReportDialog, setShowReportDialog] = useState(false);
+  const [reportMessage, setReportMessage] = useState("");
 
   useEffect(() => {
     if (!auctionId) {
@@ -181,9 +187,11 @@ export function AuctionDetailPage() {
         ) : null}
         <div className="hero-actions">
           <button className="button button-secondary" type="button" onClick={addToWatchlist}>Figyelem</button>
+          {isAuthenticated && !auction.is_owner ? <button className="button button-ghost" type="button" onClick={() => setShowReportDialog(true)}>Aukcio jelentese</button> : null}
           <Link className="button button-ghost" to="/auctions">Vissza az aukciĂłkhoz</Link>
         </div>
         {watchlistMessage ? <p className="form-message">{watchlistMessage}</p> : null}
+        {reportMessage ? <p className="form-message">{reportMessage}</p> : null}
 
         <section className="post-auction-panel">
           <h2>LicittĂ¶rtĂ©net</h2>
@@ -243,6 +251,18 @@ export function AuctionDetailPage() {
             <h2>Ă‰rtĂ©kelĂ©s</h2>
             <button className="button button-secondary" type="button" onClick={() => sendReview(5)}>5 csillagos Ă©rtĂ©kelĂ©s kĂĽldĂ©se</button>
           </section>
+        ) : null}
+        {showReportDialog ? (
+          <ReportDialog
+            title="Aukcio jelentese"
+            targetLabel={auction.title}
+            reasons={auctionReportReasons}
+            onClose={() => setShowReportDialog(false)}
+            onSubmit={(reason, details) => createAuctionReport(auction.id, reason, details).then(() => {
+              setReportMessage("A jelentes rogzitve.");
+              setShowReportDialog(false);
+            })}
+          />
         ) : null}
       </div>
     </section>

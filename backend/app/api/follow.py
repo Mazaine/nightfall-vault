@@ -7,6 +7,7 @@ from app.dependencies.auth import require_active_user
 from app.models.auction import Auction, AuctionReview
 from app.models.user import SellerFollow, User
 from app.schemas.user import FollowedSellerRead, FollowRequest
+from app.services.user_blocks import ensure_not_blocked, has_block_between
 
 router = APIRouter(prefix="/api/follow", tags=["follow"])
 
@@ -35,6 +36,7 @@ def follow_seller(payload: FollowRequest, current_user: User = Depends(require_a
     seller = _seller_or_404(db, payload.username)
     if seller.id == current_user.id:
         raise HTTPException(status_code=409, detail="Sajat profilt nem lehet kovetni.")
+    ensure_not_blocked(db, current_user.id, seller.id, "Blokkolt felhaszn?l?t nem lehet k?vetni.")
     existing = db.scalar(select(SellerFollow).where(SellerFollow.follower_id == current_user.id, SellerFollow.seller_id == seller.id))
     if existing is not None:
         return _followed_seller_read(db, existing)
@@ -58,4 +60,4 @@ def unfollow_seller(payload: FollowRequest, current_user: User = Depends(require
 @router.get("ing", response_model=list[FollowedSellerRead])
 def list_following(current_user: User = Depends(require_active_user), db: Session = Depends(get_db)) -> list[FollowedSellerRead]:
     follows = db.scalars(select(SellerFollow).where(SellerFollow.follower_id == current_user.id).order_by(SellerFollow.created_at.desc(), SellerFollow.id.desc())).all()
-    return [_followed_seller_read(db, follow) for follow in follows]
+    return [_followed_seller_read(db, follow) for follow in follows if not has_block_between(db, current_user.id, follow.seller_id)]

@@ -302,3 +302,17 @@ Sprint 7-ben bekerult a piacteri bizalmi reteg:
 - frontend publikus profiloldal es kattinthato eladoi profil linkek.
 
 A publikus profil nem ad vissza emailt, admin statuszt, belso user ID-t, notification preference-t vagy audit adatot.
+
+## Sprint 8 Trust & Safety
+
+Sprint 8-ban bekerult a marketplace biztonsagi es moderacios retege:
+
+- egyseges Report domain aukcio- es felhasznaloi jelentesekhez;
+- publikus report endpointok: `POST /api/reports/auctions/{auction_id}`, `POST /api/reports/users/{username}`, `GET /api/reports/me`, `GET /api/reports/me/{report_id}`;
+- admin report queue: `GET /api/admin/reports`, `GET /api/admin/reports/{report_id}`, statusz-, prioritas- es jegyzetfrissites;
+- UserBlock domain: `POST /api/blocks/{username}`, `DELETE /api/blocks/{username}`, `GET /api/blocks`, `GET /api/blocks/{username}/status`;
+- blokkolas hatasa: uj chat uzenet es kovetes tiltasa, a regi uzenetek es aukcios eredmenyek valtozatlanul megmaradnak;
+- report es block audit logok erzekeny reszletek es admin note nelkul;
+- frontend profil jelentese/blokkolasa, aukcio jelentese, sajat jelenteseim, blokkolt felhasznalok es admin jelentessor.
+
+A felhasznalo nem allithat report prioritasitast, nem jelentheti sajat aukciojat vagy sajat profiljat, es ugyanarra a celra nem kuldhet duplikalt nyitott jelentest.

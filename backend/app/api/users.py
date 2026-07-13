@@ -7,6 +7,7 @@ from app.dependencies.auth import get_optional_current_user
 from app.models.auction import Auction, AuctionReview, Bid
 from app.models.user import SellerFollow, User
 from app.schemas.user import PublicAuctionSummary, PublicReviewPage, PublicReviewRead, PublicUserProfile, PublicUserStats
+from app.services.user_blocks import is_blocked_by
 
 router = APIRouter(prefix="/api/users", tags=["users"])
 ACTIVE_STATUSES = {"scheduled", "active"}
@@ -81,8 +82,12 @@ def build_public_profile(db: Session, user: User, current_user: User | None = No
     closed_auctions = db.scalars(select(Auction).where(Auction.seller_id == user.id, Auction.deleted_at.is_(None), Auction.status.in_(CLOSED_STATUSES)).order_by(Auction.ends_at.desc(), Auction.id.desc()).limit(12)).all()
     recent_reviews = _apply_review_sort(_review_query(db, user.id), "newest").limit(5).all()
     is_followed = False
+    is_blocked = False
+    is_blocked_by_user = False
     if current_user is not None:
         is_followed = db.scalar(select(SellerFollow.id).where(SellerFollow.follower_id == current_user.id, SellerFollow.seller_id == user.id)) is not None
+        is_blocked = is_blocked_by(db, current_user.id, user.id)
+        is_blocked_by_user = is_blocked_by(db, user.id, current_user.id)
 
     return PublicUserProfile(
         username=user.username,
@@ -103,6 +108,8 @@ def build_public_profile(db: Session, user: User, current_user: User | None = No
         closed_auctions=[_auction_summary(db, auction) for auction in closed_auctions],
         recent_reviews=[_review_read(review) for review in recent_reviews],
         is_followed=is_followed,
+        is_blocked=is_blocked,
+        is_blocked_by_user=is_blocked_by_user,
     )
 
 

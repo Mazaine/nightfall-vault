@@ -12,12 +12,14 @@ from app.crud.product import create_product, deactivate_product, get_admin_produ
 from app.db.session import get_db
 from app.dependencies.auth import require_admin
 from app.models.auction import Auction
+from app.models.moderation import Report
 from app.models.newsletter import NewsletterCampaign, NewsletterSubscriber
 from app.models.order import Order
 from app.models.password_reset_token import PasswordResetToken
 from app.models.product import Product
 from app.models.security_log import AuditLog
 from app.models.user import User
+from app.schemas.moderation import AdminReportPage, AdminReportRead, ReportNoteUpdate, ReportPriorityUpdate, ReportStatusUpdate
 from app.schemas.newsletter import NewsletterBulkSendResponse, NewsletterCampaignCreate, NewsletterCampaignRead, NewsletterCampaignUpdate, NewsletterSendBulkRequest, NewsletterSendTestRequest, NewsletterSubscriberCreate, NewsletterSubscriberRead, NewsletterSubscriberUpdate
 from app.schemas.order import OrderDetailRead, OrderRead, OrderStatusUpdate
 from app.schemas.auction import AuctionListItem, AuctionModerationRequest, AuctionStatusResponse
@@ -26,6 +28,7 @@ from app.schemas.stock_movement import StockAdjustmentCreate, StockMovementRead
 from app.schemas.user import UserAdminUpdate, UserPublic
 from app.services.email import send_test_newsletter_email
 from app.services.email_service import send_newsletter_email, send_order_completed_email
+from app.services.reports import get_report_or_404, related_report_counts, report_options, update_report_note, update_report_priority, update_report_status
 from app.services.auction_lifecycle import get_auction_statement, sync_auction_status
 from app.services.auction_moderation import restore_auction, soft_delete_auction, suspend_auction
 from app.services.stock_movements import adjust_product_stock, list_stock_movements, release_order_stock
@@ -86,6 +89,86 @@ def get_admin_stats(_current_user: User = Depends(require_admin), db: Session = 
         "total_products": db.scalar(select(func.count()).select_from(Product)) or 0,
         "low_stock_products": db.scalar(select(func.count()).select_from(Product).where(Product.is_active.is_(True), Product.stock_quantity <= 3)) or 0,
     }
+
+
+
+
+def admin_report_read(db: Session, report: Report) -> AdminReportRead:
+    open_count, total_count = related_report_counts(db, report)
+    return AdminReportRead.model_validate(report).model_copy(update={"related_open_reports": open_count, "related_total_reports": total_count})
+
+
+@router.get("/reports", response_model=AdminReportPage)
+def list_admin_reports(
+    status_filter: str | None = Query(default=None, alias="status", max_length=30),
+    target_type: str | None = Query(default=None, max_length=20),
+    reason: str | None = Query(default=None, max_length=80),
+    priority: str | None = Query(default=None, max_length=20),
+    reporter_id: int | None = None,
+    reported_user_id: int | None = None,
+    auction_id: int | None = None,
+    date_from: datetime | None = None,
+    date_to: datetime | None = None,
+    assigned_admin_id: int | None = None,
+    sort: str = Query(default="newest"),
+    limit: int = Query(default=50, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    _current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> AdminReportPage:
+    query = db.query(Report).options(*report_options())
+    if status_filter:
+        query = query.filter(Report.status == status_filter)
+    if target_type:
+        query = query.filter(Report.target_type == target_type)
+    if reason:
+        query = query.filter(Report.reason == reason)
+    if priority:
+        query = query.filter(Report.priority == priority)
+    if reporter_id is not None:
+        query = query.filter(Report.reporter_id == reporter_id)
+    if reported_user_id is not None:
+        query = query.filter(Report.reported_user_id == reported_user_id)
+    if auction_id is not None:
+        query = query.filter(Report.auction_id == auction_id)
+    if date_from is not None:
+        query = query.filter(Report.created_at >= date_from)
+    if date_to is not None:
+        query = query.filter(Report.created_at <= date_to)
+    if assigned_admin_id is not None:
+        query = query.filter(Report.assigned_admin_id == assigned_admin_id)
+    total = query.count()
+    if sort == "oldest":
+        query = query.order_by(Report.created_at.asc(), Report.id.asc())
+    elif sort == "priority":
+        query = query.order_by(Report.priority.desc(), Report.created_at.desc(), Report.id.desc())
+    else:
+        query = query.order_by(Report.created_at.desc(), Report.id.desc())
+    reports = query.offset(offset).limit(limit).all()
+    return AdminReportPage(items=[admin_report_read(db, report) for report in reports], total=total, limit=limit, offset=offset)
+
+
+@router.get("/reports/{report_id}", response_model=AdminReportRead)
+def get_admin_report(report_id: int, _current_user: User = Depends(require_admin), db: Session = Depends(get_db)) -> AdminReportRead:
+    return admin_report_read(db, get_report_or_404(db, report_id))
+
+
+@router.put("/reports/{report_id}/status", response_model=AdminReportRead)
+def update_admin_report_status(report_id: int, payload: ReportStatusUpdate, current_user: User = Depends(require_admin), db: Session = Depends(get_db)) -> AdminReportRead:
+    report = update_report_status(db, get_report_or_404(db, report_id), current_user, payload.status, payload.public_resolution)
+    return admin_report_read(db, report)
+
+
+@router.put("/reports/{report_id}/priority", response_model=AdminReportRead)
+def update_admin_report_priority(report_id: int, payload: ReportPriorityUpdate, current_user: User = Depends(require_admin), db: Session = Depends(get_db)) -> AdminReportRead:
+    report = update_report_priority(db, get_report_or_404(db, report_id), current_user, payload.priority)
+    return admin_report_read(db, report)
+
+
+@router.put("/reports/{report_id}/note", response_model=AdminReportRead)
+def update_admin_report_note(report_id: int, payload: ReportNoteUpdate, current_user: User = Depends(require_admin), db: Session = Depends(get_db)) -> AdminReportRead:
+    report = update_report_note(db, get_report_or_404(db, report_id), current_user, payload.admin_note)
+    return admin_report_read(db, report)
 
 
 @router.get("/audit-logs")

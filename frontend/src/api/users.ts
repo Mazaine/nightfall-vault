@@ -41,6 +41,8 @@ export type PublicUserProfile = {
   closed_auctions: PublicAuctionSummary[];
   recent_reviews: PublicReview[];
   is_followed: boolean;
+  is_blocked: boolean;
+  is_blocked_by_user: boolean;
 };
 
 export type FollowedSeller = {

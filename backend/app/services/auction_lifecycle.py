@@ -10,6 +10,7 @@ from app.models.user import User
 from app.schemas.auction import AuctionCreate, AuctionUpdate
 from app.services.notifications import notify_auction_closed
 from app.services.security_audit import create_domain_audit_log
+from app.services.user_blocks import ensure_not_blocked
 
 SELLER_DECLARATION_VERSION = "2026-07-11"
 PUBLIC_AUCTION_STATUSES = {"scheduled", "active", "ended", "sold", "unsold"}
@@ -304,6 +305,7 @@ def require_post_auction_participant(auction: Auction, user: User) -> None:
 
 def create_message(db: Session, auction: Auction, sender: User, message: str) -> AuctionMessage:
     require_post_auction_participant(auction, sender)
+    ensure_not_blocked(db, sender.id, get_auction_counterparty(auction, sender.id), "Blokkol?s miatt nem k?ldhet? ?j chat?zenet.")
     normalized_message = message.strip()
     if not normalized_message:
         raise HTTPException(status_code=422, detail="Message is required.")

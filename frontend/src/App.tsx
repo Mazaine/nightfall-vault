@@ -10,6 +10,7 @@ import { AdminOrdersPage } from "./pages/admin/AdminOrdersPage";
 import { AdminUsersPage } from "./pages/admin/AdminUsersPage";
 import { AdminAuctionsPage } from "./pages/admin/AdminAuctionsPage";
 import { AdminAuditLogsPage } from "./pages/admin/AdminAuditLogsPage";
+import { AdminReportsPage } from "./pages/admin/AdminReportsPage";
 import { AuctionDetailPage } from "./pages/AuctionDetailPage";
 import { AuctionsPage } from "./pages/AuctionsPage";
 import { AuthPage } from "./pages/AuthPages";
@@ -58,11 +59,12 @@ function App() {
             <Route path="orders" element={<AdminOrdersPage />} />
             <Route path="users" element={<AdminUsersPage />} />
             <Route path="audit-logs" element={<AdminAuditLogsPage />} />
+            <Route path="reports" element={<AdminReportsPage />} />
           </Route>
-          <Route path="/terms" element={<InfoPage eyebrow="Jogi informĂˇciĂłk" title="FelhasznĂˇlĂˇsi feltĂ©telek" />} />
-          <Route path="/privacy" element={<InfoPage eyebrow="AdatvĂ©delem" title="AdatvĂ©delmi tĂˇjĂ©koztatĂł" />} />
-          <Route path="/support" element={<InfoPage eyebrow="TĂˇmogatĂˇs" title="ĂśgyfĂ©lszolgĂˇlat" />} />
-          <Route path="*" element={<InfoPage eyebrow="404" title="Az oldal nem talĂˇlhatĂł" />} />
+          <Route path="/terms" element={<InfoPage eyebrow="Jogi informÄ‚Ë‡ciÄ‚Ĺ‚k" title="FelhasznÄ‚Ë‡lÄ‚Ë‡si feltÄ‚Â©telek" />} />
+          <Route path="/privacy" element={<InfoPage eyebrow="AdatvÄ‚Â©delem" title="AdatvÄ‚Â©delmi tÄ‚Ë‡jÄ‚Â©koztatÄ‚Ĺ‚" />} />
+          <Route path="/support" element={<InfoPage eyebrow="TÄ‚Ë‡mogatÄ‚Ë‡s" title="Ä‚Ĺ›gyfÄ‚Â©lszolgÄ‚Ë‡lat" />} />
+          <Route path="*" element={<InfoPage eyebrow="404" title="Az oldal nem talÄ‚Ë‡lhatÄ‚Ĺ‚" />} />
         </Routes>
       </main>
       <SiteFooter />

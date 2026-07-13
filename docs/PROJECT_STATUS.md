@@ -1,12 +1,12 @@
 # Nightfall Vault - Projektallapot
 
-Utolso frissites: 2026-07-12
+Utolso frissites: 2026-07-13
 
 ## Project Version
 
-v0.7.0-dev
+v0.8.0-dev
 
-Sprint 7 public profiles, reputation, seller follow and auction discovery implemented
+Sprint 8 Trust & Safety, reports and user blocking implemented
 
 ## Aktiv projektmappa
 
@@ -78,7 +78,7 @@ Meglevo fo oldalak:
 - Admin aukciok
 - Admin rendelesek
 - Admin felhasznalok
-- Admin audit naplo
+- Admin audit naplo`r`n- Admin jelentessor
 - 404/info oldal
 
 ## Navigacio
@@ -267,7 +267,7 @@ Elkeszult:
 - kepfeltoltes es boritokep kuldes
 - aukcio aktivalas/idotizes
 - aktiv aukcion licit elhelyezese backend API-val
-- aktuális licit es licittortenet megjelenitese backend adatbol
+- aktuĂˇlis licit es licittortenet megjelenitese backend adatbol
 - cim alapu aukcio navigacio
 - chat es ertekeles megjelenites backend jogosultsagi flag alapjan
 - login/register API bekotes az aktiv frontendben
@@ -307,16 +307,35 @@ Elkeszult elemek:
 
 Publikus profil privacy szabaly: email, admin statusz, belso user ID, notification preference es audit adat nem jelenhet meg a publikus profile response-ban.
 
+
+## Sprint 8 Trust & Safety
+
+Elkeszult elemek:
+
+- egyseges `Report` domain aukcio- es felhasznaloi jelentesekhez;
+- `UserBlock` domain blocker/blocked egyedi parral es self-block tilalommal;
+- publikus report API sajat aukcio/profil es duplikalt nyitott report tiltassal;
+- admin report queue szuresi, lapozasi, statusz-, prioritas- es jegyzetkezelesi endpointokkal;
+- report statusz eletciklus: `open`, `under_review`, `resolved`, `dismissed`, ujranyitas nelkul;
+- blokkolas hatasa chatre es kovetesre, aukcioeredmeny visszamenoleges modositas nelkul;
+- report resolved/dismissed notification;
+- domain audit log report created, status change, priority change, note change, block create es block remove esemenyekhez;
+- frontend profil jelentese/blokkolasa, aukcio jelentese, sajat jelenteseim, blokkolt felhasznalok es admin jelentessor.
+
+Privacy szabaly: admin note, prioritas es belso azonositok nem jelennek meg normal felhasznaloi report valaszban. Reporter, reported user, seller, sender es block azonositok backend oldalon szarmaztatottak vagy ellenorzottek.
 ## Current Technical Debt
+
+- A report domain uj, admin oldalon meg nincs bulk action/export vagy reszletes SLA dashboard.
+- A user blocking Sprint 8-ban kommunikaciot es kovetest tilt, teljes profil- vagy aukciolista-rejtes nincs bevezetve.
 
 - A frontend auth allapot kozponti providerbe kerult, de a backend token refresh es session lejarti UX meg nem teljes.
 - A `Product` domain meg oroksegkent jelen van a backendben es a legacy frontend kodban.
 - Az SSE stream alap frissitest ad, de nincs teljes notification center vagy WebSocket presence.
 - A scheduler in-process fut; tobb production backend replika eseten kulon worker vagy leader valasztas javasolt.
-- Az email notification csatorna Brevo/API vagy SMTP transporttal konfigurálható, de production engedélyezéshez külön EMAIL_DELIVERY_ENABLED és NOTIFICATION_EMAIL_ENABLED szükséges.
-- Az admin Audit Log API és alap frontend oldal elkészült; később részletesebb szűrés/export javasolt.
+- Az email notification csatorna Brevo/API vagy SMTP transporttal konfigurĂˇlhatĂł, de production engedĂ©lyezĂ©shez kĂĽlĂ¶n EMAIL_DELIVERY_ENABLED Ă©s NOTIFICATION_EMAIL_ENABLED szĂĽksĂ©ges.
+- Az admin Audit Log API Ă©s alap frontend oldal elkĂ©szĂĽlt; kĂ©sĹ‘bb rĂ©szletesebb szĹ±rĂ©s/export javasolt.
 - A FastAPI `on_event` technikai adossag Sprint 5-ben megszunt, a scheduler lifespan handlerrel indul.
 
 ## Next Planned Sprint
 
-A kovetkezo sprint celja a Sprint 7 piacteri bizalmi funkciok finomhangolasa: seller notification email opcio, profiloldali tovabbi paginacio, UX validaciok es admin/moderacios riportok bovitesenek megtervezese. Production release elott tovabbra is szukseges a Sprint 6 dependency auditban jelzett csomagfrissitesi terv vegrehajtasa.
+A kovetkezo sprint celja a Trust & Safety folyamatok tovabbfejlesztese: moderator UX finomitas, report SLA/riporting, moderation action osszekotes es dependency frissitesi terv vegrehajtasa production release elott.

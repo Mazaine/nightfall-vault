@@ -1,6 +1,6 @@
-# Nightfall Vault - Biztonsag es uzemeltetes
+﻿# Nightfall Vault - Biztonsag es uzemeltetes
 
-Utolso frissites: 2026-07-12
+Utolso frissites: 2026-07-13
 
 ## Secret kezeles
 
@@ -336,3 +336,35 @@ Aukciokereso:
 - a szures es rendezes backend oldalon tortenik;
 - a lapozas `limit`/`offset` parameterekkel korlatozott;
 - publikus listaban csak publikus aukcio statuszok es nem torolt aukciok jelennek meg.
+
+## Sprint 8 Trust & Safety security
+
+Report biztonsag:
+
+- a reporter mindig az aktualis JWT userbol szarmazik;
+- aukciojelentesnel a reported user az aukcio eladoja, nem frontend mezobol jon;
+- user reportnal a cel felhasznalo username alapjan, backend oldalon kerul feloldasra;
+- sajat aukcio es sajat profil jelentese tiltott;
+- ugyanarra a celra ugyanattol a reportertol nyitott vagy vizsgalat alatti duplikalt report tiltott;
+- normal felhasznaloi report valasz nem tartalmaz admin note-ot, prioritas mezot vagy belso user ID-t;
+- admin note es report reszletek nem kerulnek domain audit metadata-ba.
+
+Statusz es prioritas:
+
+- a report statuszvaltas csak admin dependency mogott erheto el;
+- engedelyezett statusz utak: `open -> under_review/resolved/dismissed`, `under_review -> resolved/dismissed`;
+- lezart report nem nyithato ujra;
+- prioritas csak admin API-n allithato.
+
+User blocking:
+
+- self-block adatbazis- es service-szinten tiltott;
+- blocker/blocked par egyedi constrainttel vedett;
+- blokkolt felhasznalo nem kovetheto, a meglevo follow kapcsolat torlesre kerul;
+- elado es nyertes kozotti uj chat uzenet tiltott, ha barmelyik fel blokkolta a masikat;
+- regi chat uzenetek, licitek es aukcioeredmenyek nem modosulnak visszamenolegesen;
+- block create/remove audit log keszul, de block notification nem jon letre.
+
+XSS:
+
+Report details, public resolution, chat uzenetek es review kommentek sima szovegkent tarolodnak es React escapinggel jelennek meg. `dangerouslySetInnerHTML` hasznalata ezekhez a mezokhoz tiltott.

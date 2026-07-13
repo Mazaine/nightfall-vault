@@ -178,6 +178,8 @@ class PublicUserProfile(BaseModel):
     closed_auctions: list[PublicAuctionSummary]
     recent_reviews: list[PublicReviewRead]
     is_followed: bool = False
+    is_blocked: bool = False
+    is_blocked_by_user: bool = False
 
 
 class FollowRequest(BaseModel):

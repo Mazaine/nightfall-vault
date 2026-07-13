@@ -1,6 +1,8 @@
 ﻿import { ChangeEvent, FormEvent, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { activateAuction, cancelAuction, createAuction, listMyAuctions, listMyBidAuctions, updateAuction, uploadAuctionImage, type Auction, type AuctionCondition, type MyBidAuction } from "../api/auctions";
+import { listBlocks, unblockUser, type BlockRead } from "../api/blocks";
+import { listMyReports, type ReportRead } from "../api/reports";
 import { AuctionCard } from "../components/AuctionCard";
 import { NotificationPreferencesPanel } from "../components/NotificationPreferencesPanel";
 import { categories, conditionOptions } from "../data/content";
@@ -63,6 +65,9 @@ export function AccountPage() {
   const [coverImageIndex, setCoverImageIndex] = useState(0);
   const [imageMessage, setImageMessage] = useState("");
   const [formMessage, setFormMessage] = useState("");
+  const [myReports, setMyReports] = useState<ReportRead[]>([]);
+  const [blocks, setBlocks] = useState<BlockRead[]>([]);
+  const [isLoadingTrustSafety, setIsLoadingTrustSafety] = useState(true);
 
   const refreshMyAuctions = async () => {
     const refreshedAuctions = await listMyAuctions();
@@ -83,6 +88,16 @@ export function AccountPage() {
       .then(setMyBidAuctions)
       .catch(() => setMyBidAuctions([]))
       .finally(() => setIsLoadingMyBids(false));
+    Promise.all([listMyReports({ limit: 20 }), listBlocks()])
+      .then(([reportPage, blockList]) => {
+        setMyReports(reportPage.items);
+        setBlocks(blockList);
+      })
+      .catch(() => {
+        setMyReports([]);
+        setBlocks([]);
+      })
+      .finally(() => setIsLoadingTrustSafety(false));
   }, []);
 
   const handleImageChange = (event: ChangeEvent<HTMLInputElement>) => {
@@ -186,6 +201,40 @@ export function AccountPage() {
       </div>
 
       <NotificationPreferencesPanel />
+
+      <section className="account-section" aria-labelledby="trust-safety-title">
+        <div className="section-heading">
+          <div>
+            <p className="eyebrow">Trust & Safety</p>
+            <h2 id="trust-safety-title">Jelenteseim es blokkolasok</h2>
+          </div>
+        </div>
+        <div className="trust-safety-grid">
+          <div className="side-panel">
+            <h3>Sajat jelenteseim</h3>
+            {isLoadingTrustSafety ? <p>Jelentesek betoltese...</p> : null}
+            {!isLoadingTrustSafety && myReports.length === 0 ? <p className="empty-state">Meg nincs bekuldott jelentesed.</p> : null}
+            {myReports.map((report) => (
+              <article className="report-summary" key={report.id}>
+                <strong>#{report.id} {report.target_type === "auction" ? report.auction_title ?? "Aukcio" : report.reported_username}</strong>
+                <span>{report.reason} / {report.status}</span>
+                {report.public_resolution ? <p>{report.public_resolution}</p> : null}
+              </article>
+            ))}
+          </div>
+          <div className="side-panel">
+            <h3>Blokkolt felhasznalok</h3>
+            {isLoadingTrustSafety ? <p>Blokkolasok betoltese...</p> : null}
+            {!isLoadingTrustSafety && blocks.length === 0 ? <p className="empty-state">Nincs blokkolt felhasznalo.</p> : null}
+            {blocks.map((block) => (
+              <article className="report-summary" key={block.id}>
+                <Link className="text-link" to={`/users/${block.blocked_username}`}>{block.blocked_full_name || block.blocked_username}</Link>
+                <button className="button button-secondary" type="button" onClick={() => unblockUser(block.blocked_username).then(() => setBlocks((items) => items.filter((item) => item.id !== block.id)))}>Feloldas</button>
+              </article>
+            ))}
+          </div>
+        </div>
+      </section>
 
       <section className="account-section" aria-labelledby="watched-auctions-title">
         <div className="section-heading">

@@ -13,8 +13,10 @@ def should_email(user: User, notification_type: str) -> bool:
         return False
     if notification_type == "outbid":
         return user.notify_email_outbid
-    if notification_type in {"auction_won", "auction_lost", "auction_sold", "auction_unsold"}:
+    if notification_type in {"auction_won", "auction_lost", "auction_sold", "auction_unsold", "auction_moderation_action"}:
         return user.notify_email_auction_result
+    if notification_type in {"report_resolved", "report_dismissed", "seller_new_auction"}:
+        return user.notify_in_app and settings.notification_email_enabled
     return True
 
 
