@@ -20,8 +20,8 @@ jobs:
           printf '\nTEST_DATABASE_URL=postgresql+psycopg://nightfall_vault_dev:replace-with-generated-development-password@postgres-test:5432/nightfall_vault_test\n' >> .env
       - name: Build and start services
         run: docker compose up -d --build
-      - name: Apply migrations
-        run: docker compose exec -T backend alembic upgrade head
+      - name: Bootstrap or migrate database
+        run: docker compose exec -T backend python -m app.scripts.bootstrap_database
       - name: Run backend tests
         run: docker compose exec -T backend pytest
       - name: Run frontend tests
