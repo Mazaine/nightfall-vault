@@ -15,19 +15,19 @@ Utolsó frissítés: 2026-07-13
 - `DONE` 10.7 Licitjeim és Saját aukcióim UX: aktív/nyert/elvesztett, státuszok, műveletek és lapozás auditja.
 - `DONE` 10.8 Újrafelhasználható loading, skeleton, empty, error és retry állapotok.
 - `DONE` 10.9 Profilbeállítások és publikus profil privacy/UX audit.
-- `IN PROGRESS` 10.10 Accessibility audit és indokolt javítások.
+- `DONE` 10.10 Accessibility audit és indokolt javítások.
 - `DONE` 10.11 SEO, route title, robots/noindex és sitemap audit.
-- `TODO` 10.12 Képkezelési és frontend performance audit.
-- `TODO` 10.13 Frontend/cache stratégia audit és auth-váltás utáni állapottisztítás.
-- `TODO` 10.14 Security audit, account/admin/ownership/privacy ellenőrzések.
+- `DONE` 10.12 Képkezelési és frontend performance audit.
+- `DONE` 10.13 Frontend/cache stratégia audit és auth-váltás utáni állapottisztítás.
+- `DONE` 10.14 Security audit, account/admin/ownership/privacy ellenőrzések.
 - `DONE` 10.15 Frontend tesztinfrastruktúra audit és fenntartható regressziós tesztek.
-- `TODO` 10.16 Backend célzott tesztek, ha backend változik.
-- `TODO` 10.17 CI/CD audit és szükség esetén minimális workflow.
-- `TODO` 10.18 Docker és production hardening audit.
-- `TODO` 10.19 Backup/restore audit és `docs/BACKUP_AND_RESTORE.md`.
-- `TODO` 10.20 Monitoring/health/logging audit.
-- `TODO` 10.21 Dependency warning audit és kategorizálás.
-- `TODO` 10.22 Alembic döntés dokumentálása; migráció csak valós adatmodell-változásnál.
+- `DONE` 10.16 Backend célzott tesztek, ha backend változik.
+- `DONE` 10.17 CI/CD audit és szükség esetén minimális workflow.
+- `DONE` 10.18 Docker és production hardening audit.
+- `DONE` 10.19 Backup/restore audit és `docs/BACKUP_AND_RESTORE.md`.
+- `DONE` 10.20 Monitoring/health/logging audit.
+- `DONE` 10.21 Dependency warning audit és kategorizálás.
+- `DONE` 10.22 Alembic döntés dokumentálása; migráció csak valós adatmodell-változásnál.
 - `TODO` 10.23 README, projektállapot, biztonsági dokumentáció és Sprint 10 riport.
 - `TODO` 10.24 Teljes záró Docker, Redis, Alembic, pytest, frontend build és Git ellenőrzés.
 
@@ -48,7 +48,7 @@ Utolsó frissítés: 2026-07-13
 
 ## Utoljára befejezett konkrét lépés
 
-Az account felület védett `/account/*` struktúrára váltott közös reszponzív navigációval. Elkészült a profil dropdown, a külön Licitjeim/Saját aukcióim oldal, a státuszcsoportok, az egységes async állapotok, a régi URL redirect, a route meta/noindex kezelés és a minimális frontend tesztalap.
+Az operational/security audit és az indokolt hardening elkészült: privát cache-headerek, route code splitting, dependency remediation, CI workflow, Docker healthcheckek, `.dockerignore`, backup script ellenőrzés és backup/restore dokumentáció.
 
 ## Éppen módosított fájlok
 
@@ -60,6 +60,9 @@ Az account felület védett `/account/*` struktúrára váltott közös reszponz
 - `frontend/src/pages/Account*.tsx`, `NotificationsPage.tsx`, `SavedSearchesPage.tsx`, `WatchlistPage.tsx`
 - `frontend/package.json`, `frontend/package-lock.json`, `frontend/vitest.config.ts`, `frontend/src/test/setup.ts`
 - `frontend/index.html`, `frontend/public/robots.txt`, `frontend/public/sitemap.xml`
+- `backend/app/main.py`, `backend/app/schemas/stock_movement.py`, `backend/tests/test_operations_readiness.py`, `backend/requirements.txt`
+- `.github/workflows/verify.yml`, `docker-compose.yml`, `backend/.dockerignore`, `frontend/.dockerignore`, `frontend/Dockerfile`
+- `scripts/backup_database.ps1`, `docs/BACKUP_AND_RESTORE.md`
 
 ## Már lefuttatott ellenőrzések
 
@@ -76,6 +79,12 @@ Az account felület védett `/account/*` struktúrára váltott közös reszponz
 - Mobilmenü: nyitás, `aria-expanded`, body scroll lock, Escape és fókusz-visszaadás sikeres.
 - Kijelentkezett `/account/bids` direkt URL: `/login` redirect sikeres.
 - Bejelentkezett dropdown/admin viselkedés automatizált komponens- és route-teszttel ellenőrzött; valódi böngészős bejelentkezett session nem állt rendelkezésre.
+- Privát cache célzott backend teszt: 1 passed, 4 warning a dependency frissítés előtt.
+- Dependency frissítés utáni teljes backend pytest: 55 passed, 1 passlib warning.
+- Frontend teszt: 2 fájl, 9 teszt sikeres; production build 93 modul, route chunkokkal, fő JS 293,35 kB.
+- `docker compose config --quiet` – sikeres.
+- Kezdő pip-audit: 32 találat/6 csomag; ismételt audit: 11 találat/4 csomag.
+- `npm audit --audit-level=high` – 0 vulnerability.
 
 ## Hátralévő ellenőrzések
 
@@ -109,8 +118,8 @@ Az account felület védett `/account/*` struktúrára váltott közös reszponz
 
 ## Legutóbbi elkészült commit
 
-`cb06e1a` – `feat(frontend): organize account navigation and UX`.
+`efcdd5f` – `perf(frontend): split account routes and protect private cache`.
 
 ## Következő lépés
 
-A frontend tesztalap commitja; ezután performance, cache, security, CI/Docker/monitoring és üzemeltetési dokumentáció auditja.
+Az operational/security módosítások ellenőrzése és commitja, majd a teljes záró parancskészlet és a Sprint 10 riport véglegesítése.

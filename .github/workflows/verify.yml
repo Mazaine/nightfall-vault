@@ -1,0 +1,32 @@
+name: Verify
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare isolated CI configuration
+        run: |
+          cp .env.example .env
+          printf '\nDATABASE_URL=postgresql+psycopg://nightfall_vault_dev:replace-with-generated-development-password@postgres:5432/nightfall_vault_dev\n' >> .env
+      - name: Build and start services
+        run: docker compose up -d --build
+      - name: Apply migrations
+        run: docker compose exec -T backend alembic upgrade head
+      - name: Run backend tests
+        run: docker compose exec -T backend pytest
+      - name: Run frontend tests
+        run: docker compose exec -T frontend npm run test
+      - name: Build frontend
+        run: docker compose exec -T frontend npm run build
+      - name: Service diagnostics
+        if: failure()
+        run: docker compose ps && docker compose logs --no-color --tail=200
