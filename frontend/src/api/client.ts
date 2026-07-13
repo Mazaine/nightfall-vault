@@ -7,6 +7,13 @@ type RequestOptions = RequestInit & {
   authenticated?: boolean;
 };
 
+export class ApiError extends Error {
+  constructor(message: string, public readonly status: number) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
+
 export function apiAssetUrl(storageKey: string | null | undefined) {
   if (!storageKey) {
     return "";
@@ -44,7 +51,7 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
     if (response.status === 401 && options.authenticated !== false) {
       window.dispatchEvent(new CustomEvent(SESSION_EXPIRED_EVENT, { detail: { message } }));
     }
-    throw new Error(message);
+    throw new ApiError(message, response.status);
   }
 
   if (response.status === 204) {

@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { apiAssetUrl } from "../api/client";
+import { ApiError } from "../api/client";
 import { auctionReportReasons, createAuctionReport } from "../api/reports";
 import { useAuth } from "../AuthContext";
 import { ReportDialog } from "../components/ReportDialog";
@@ -18,6 +19,7 @@ export function AuctionDetailPage() {
   const [sellerAuctions, setSellerAuctions] = useState<Auction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
+  const [isNotFound, setIsNotFound] = useState(false);
   const [postAuctionMessage, setPostAuctionMessage] = useState("");
   const [bidAmount, setBidAmount] = useState("");
   const [bidMessage, setBidMessage] = useState("");
@@ -27,9 +29,14 @@ export function AuctionDetailPage() {
   const [reportMessage, setReportMessage] = useState("");
 
   useEffect(() => {
-    if (!auctionId) {
+    if (!auctionId || !/^\d+$/.test(auctionId)) {
+      setIsNotFound(true);
+      setIsLoading(false);
       return;
     }
+    setIsNotFound(false);
+    setError("");
+    setIsLoading(true);
     getAuction(auctionId)
       .then((data) => {
         setAuction(data);
@@ -41,12 +48,15 @@ export function AuctionDetailPage() {
           listAuctionMessages(data.id).then(setMessages).catch(() => setMessages([]));
         }
       })
-      .catch((err: Error) => setError(err.message))
+      .catch((err: Error) => {
+        setIsNotFound(err instanceof ApiError && err.status === 404);
+        setError(err.message);
+      })
       .finally(() => setIsLoading(false));
   }, [auctionId]);
 
   useEffect(() => {
-    if (!auctionId || typeof EventSource === "undefined") {
+    if (!auctionId || !/^\d+$/.test(auctionId) || typeof EventSource === "undefined") {
       return;
     }
     const source = new EventSource(auctionStreamUrl(auctionId));
@@ -131,8 +141,24 @@ export function AuctionDetailPage() {
     return <section className="container page-shell"><div className="skeleton-card profile-skeleton" aria-label="Aukció betöltése" /></section>;
   }
 
-  if (error || !auction) {
-    return <section className="container page-shell"><div className="side-panel form-message" role="alert">{error || "Az aukció nem található."}</div></section>;
+  if (isNotFound || (error && !auction)) {
+    return (
+      <section className="container page-shell">
+        <div className="side-panel empty-state" role="alert">
+          <p className="eyebrow">404</p>
+          <h1>Az aukció nem található</h1>
+          <p>{isNotFound ? "A megadott aukció nem létezik, vagy már nem publikus." : error}</p>
+          <div className="hero-actions">
+            <Link className="button button-primary" to="/auctions">Aukciók böngészése</Link>
+            <Link className="button button-secondary" to="/">Vissza a kezdőlapra</Link>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  if (!auction) {
+    return null;
   }
 
   const coverImage = auction.images.find((image) => image.is_cover) ?? auction.images[0];
@@ -160,8 +186,8 @@ export function AuctionDetailPage() {
             <div><dt>Villámár</dt><dd>{formatMoney(auction.buy_now_price)}</dd></div>
           ) : null}
         </dl>
-        {auction.status === "active" && !auction.is_owner ? (
-          <form className="bid-panel" onSubmit={submitBid}>
+        {auction.status === "active" && !auction.is_owner && isAuthenticated ? (
+          <form className="bid-panel" id="bid-section" onSubmit={submitBid}>
             <label>
               Licit összege
               <input
@@ -177,12 +203,21 @@ export function AuctionDetailPage() {
               {isBidSubmitting ? "Licit rögzítése..." : "Licitálok"}
             </button>
             {auction.buy_now_enabled && auction.buy_now_price ? (
-              <button className="button button-lightning" type="button" disabled={isBidSubmitting} onClick={() => placeBidAmount(auction.buy_now_price ?? "")}>
+              <button className="button button-lightning" id="buy-now-section" type="button" disabled={isBidSubmitting} onClick={() => placeBidAmount(auction.buy_now_price ?? "")}>
                 Villámár: {formatMoney(auction.buy_now_price)}
               </button>
             ) : null}
             {bidMessage ? <p className="form-message">{bidMessage}</p> : null}
           </form>
+        ) : null}
+        {auction.status === "active" && !auction.is_owner && !isAuthenticated ? (
+          <div className="side-panel bid-panel" id="bid-section">
+            <h2>Jelentkezz be a licitáláshoz</h2>
+            <p>A licitálás, a villámár és a figyelőlista bejelentkezés után érhető el.</p>
+            <Link className="button button-primary" id="buy-now-section" to={`/login?next=${encodeURIComponent(`/auctions/${auction.id}`)}`}>
+              Bejelentkezés a licitáláshoz
+            </Link>
+          </div>
         ) : null}
         {auction.status === "sold" && auction.winner_id ? (
           <div className="side-panel sold-state-panel">
@@ -190,7 +225,11 @@ export function AuctionDetailPage() {
           </div>
         ) : null}
         <div className="hero-actions">
-          <button className="button button-secondary" type="button" onClick={addToWatchlist}>Figyelem</button>
+          {isAuthenticated ? (
+            <button className="button button-secondary" type="button" onClick={addToWatchlist}>Figyelem</button>
+          ) : (
+            <Link className="button button-secondary" to={`/login?next=${encodeURIComponent(`/auctions/${auction.id}`)}`}>Belépés a figyeléshez</Link>
+          )}
           {isAuthenticated && !auction.is_owner ? <button className="button button-ghost" type="button" onClick={() => setShowReportDialog(true)}>Aukció jelentése</button> : null}
           <Link className="button button-ghost" to="/auctions">Vissza az aukciókhoz</Link>
         </div>

@@ -4,7 +4,7 @@ import { listAuctions, type Auction, type AuctionListParams } from "../api/aucti
 import { createSavedSearch } from "../api/searches";
 import { useAuth } from "../AuthContext";
 import { AuctionCard } from "../components/AuctionCard";
-import { formatMoney, formatRemainingTime } from "../utils/format";
+import { toAuctionCardItem } from "../utils/auctionPresentation";
 
 const CATEGORY_OPTIONS = ["Hatalom Kártyái Kártyajáték", "Pokemon", "One Piece", "Star Wars TCG", "Yu-gi-oh", "Magic the Gathering", "Egyéb"];
 const CONDITION_OPTIONS = [
@@ -59,23 +59,6 @@ const INITIAL_FILTERS: FilterState = {
   new_only: false,
   sort: "newest",
 };
-
-function toCardAuction(auction: Auction) {
-  const sellerName = auction.seller?.full_name ?? auction.seller?.username ?? "Eladó";
-  return {
-    id: auction.id,
-    title: auction.title,
-    type: auction.category,
-    price: formatMoney(auction.current_price ?? auction.starting_price),
-    step: formatMoney(auction.bid_increment),
-    time: formatRemainingTime(auction.ends_at, auction.status),
-    sellerName,
-    sellerRating: auction.bid_count ? `${auction.bid_count} licit` : "Még nincs licit",
-    sellerProfilePath: auction.seller?.username ? `/users/${auction.seller.username}` : undefined,
-    buyNowPrice: auction.buy_now_enabled ? auction.buy_now_price : null,
-    isClosed: ["ended", "sold", "unsold", "cancelled", "suspended"].includes(auction.status),
-  };
-}
 
 function toParams(filters: FilterState, offset: number): AuctionListParams {
   return {
@@ -239,7 +222,7 @@ export function AuctionsPage() {
       {!isLoading && !error && auctions.length === 0 ? <div className="side-panel empty-state">Nincs a szűrésnek megfelelő aukció.</div> : null}
 
       <div className="auction-grid page-grid">
-        {auctions.map((auction, index) => <AuctionCard item={toCardAuction(auction)} index={index} detailPath={`/auctions/${auction.id}`} key={auction.id} />)}
+        {auctions.map((auction, index) => <AuctionCard item={toAuctionCardItem(auction)} index={index} detailPath={`/auctions/${auction.id}`} key={auction.id} />)}
       </div>
 
       {!isLoading && total > auctions.length ? (

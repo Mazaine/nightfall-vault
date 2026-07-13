@@ -7,6 +7,9 @@ export type AuctionImage = {
   id: number;
   auction_id: number;
   storage_key: string;
+  thumbnail_storage_key?: string | null;
+  list_storage_key?: string | null;
+  detail_storage_key?: string | null;
   original_filename: string;
   content_type: string;
   file_size: number;

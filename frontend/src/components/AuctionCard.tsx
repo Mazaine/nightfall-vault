@@ -1,4 +1,5 @@
-import { Link } from "react-router-dom";
+import { KeyboardEvent, MouseEvent } from "react";
+import { Link, useNavigate } from "react-router-dom";
 
 type AuctionCardProps = {
   item: {
@@ -17,6 +18,7 @@ type AuctionCardProps = {
     imageUrl?: string;
     statusLabel?: string;
     bidCount?: number;
+    canBid?: boolean;
   };
   index: number;
   detailPath: string;
@@ -33,9 +35,30 @@ export function AuctionCard({
   showTimer = true,
   showBidActions = true,
 }: AuctionCardProps) {
+  const navigate = useNavigate();
+  const openDetail = () => navigate(detailPath);
+  const handleClick = (event: MouseEvent<HTMLElement>) => {
+    if (!(event.target as HTMLElement).closest("a, button")) openDetail();
+  };
+  const handleKeyDown = (event: KeyboardEvent<HTMLElement>) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      openDetail();
+    }
+  };
+
   return (
-    <article className={`auction-card auction-card-${index + 1}${item.isClosed ? " auction-card-closed" : ""}`}>
-      <div className="auction-image">{item.imageUrl ? <img src={item.imageUrl} alt="" loading="lazy" decoding="async" /> : null}</div>
+    <article
+      aria-label={`${item.title} aukció megnyitása`}
+      className={`auction-card auction-card-${index + 1}${item.isClosed ? " auction-card-closed" : ""}`}
+      onClick={handleClick}
+      onKeyDown={handleKeyDown}
+      role="link"
+      tabIndex={0}
+    >
+      <Link className="auction-image" to={detailPath} aria-label={`${item.title} részletei`}>
+        {item.imageUrl ? <img src={item.imageUrl} alt={item.title} loading="lazy" decoding="async" /> : null}
+      </Link>
       {showTimer && <div className="auction-time">{item.time}</div>}
       {item.userIsOutbid && <div className="auction-alert">Rád licitáltak</div>}
 
@@ -57,11 +80,11 @@ export function AuctionCard({
         {typeof item.bidCount === "number" ? <small>{item.bidCount} licit</small> : null}
 
         <div className="auction-actions">
-          {showBidActions && !item.isClosed ? (
+          {showBidActions && !item.isClosed && item.canBid !== false ? (
             <>
-              <button className="button button-secondary" type="button">Licitálok</button>
+              <Link className="button button-secondary" to={`${detailPath}#bid-section`}>Licitálok</Link>
               {item.buyNowPrice ? (
-                <button className="button button-lightning" type="button">⚡ Lecsapom</button>
+                <Link className="button button-lightning" to={`${detailPath}#buy-now-section`}>⚡ Lecsapom</Link>
               ) : null}
             </>
           ) : null}
