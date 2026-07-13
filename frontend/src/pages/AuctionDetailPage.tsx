@@ -1,7 +1,7 @@
-﻿import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { apiAssetUrl } from "../api/client";
-import { addWatchlistItem, auctionStreamUrl, createAuctionMessage, createAuctionReview, getAuction, listAuctionBids, listAuctionMessages, placeAuctionBid, type Auction, type AuctionBid, type AuctionMessage, type AuctionRealtimeSnapshot } from "../api/auctions";
+import { addWatchlistItem, auctionStreamUrl, createAuctionMessage, createAuctionReview, getAuction, listAuctionBids, listAuctionMessages, placeAuctionBid, listAuctionReviews, type Auction, type AuctionBid, type AuctionMessage, type AuctionRealtimeSnapshot, type AuctionReview } from "../api/auctions";
 import { formatLocalDateTime, formatMoney, formatRemainingTime } from "../utils/format";
 
 export function AuctionDetailPage() {
@@ -9,6 +9,7 @@ export function AuctionDetailPage() {
   const [auction, setAuction] = useState<Auction | null>(null);
   const [messages, setMessages] = useState<AuctionMessage[]>([]);
   const [bidHistory, setBidHistory] = useState<AuctionBid[]>([]);
+  const [reviews, setReviews] = useState<AuctionReview[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [postAuctionMessage, setPostAuctionMessage] = useState("");
@@ -25,6 +26,7 @@ export function AuctionDetailPage() {
       .then((data) => {
         setAuction(data);
         listAuctionBids(data.id).then(setBidHistory).catch(() => setBidHistory([]));
+        listAuctionReviews(data.id, { limit: 20, sort: "newest" }).then((page) => setReviews(page.items)).catch(() => setReviews([]));
         if (data.can_chat) {
           listAuctionMessages(data.id).then(setMessages).catch(() => setMessages([]));
         }
@@ -110,7 +112,8 @@ export function AuctionDetailPage() {
     if (!auction) {
       return;
     }
-    await createAuctionReview(auction.id, rating, "Ă‰rtĂ©kelĂ©s a sikeresen lezĂˇrt aukciĂł utĂˇn.");
+    const created = await createAuctionReview(auction.id, rating, "Értékelés a sikeresen lezárt aukció után.");
+    setReviews((items) => [created, ...items]);
     setAuction({ ...auction, can_review: false });
   };
 
@@ -142,7 +145,7 @@ export function AuctionDetailPage() {
           <div><dt>HĂˇtralĂ©vĹ‘ idĹ‘</dt><dd>{formatRemainingTime(auction.ends_at, auction.status)}</dd></div>
           <div><dt>KezdĂ©s</dt><dd>{formatLocalDateTime(auction.starts_at)}</dd></div>
           <div><dt>ZĂˇrĂˇs</dt><dd>{formatLocalDateTime(auction.ends_at)}</dd></div>
-          <div><dt>EladĂł</dt><dd>{auction.seller?.full_name ?? auction.seller?.username ?? "EladĂł"}</dd></div>
+          <div><dt>Eladó</dt><dd>{auction.seller?.username ? <Link className="seller-link" to={`/users/${auction.seller.username}`}>{auction.seller.full_name ?? auction.seller.username}</Link> : "Eladó"}</dd></div>
           {auction.buy_now_enabled && auction.buy_now_price ? (
             <div><dt>VillĂˇmĂˇr</dt><dd>{formatMoney(auction.buy_now_price)}</dd></div>
           ) : null}
@@ -194,6 +197,27 @@ export function AuctionDetailPage() {
                   <span>{bid.bidder_label}</span>
                   {bid.is_highest ? <em>Legmagasabb</em> : null}
                 </p>
+              ))}
+            </div>
+          )}
+        </section>
+
+
+        <section className="post-auction-panel">
+          <h2>Értékelések</h2>
+          {reviews.length === 0 ? (
+            <p>Még nincs értékelés ehhez az aukcióhoz.</p>
+          ) : (
+            <div className="review-list">
+              {reviews.map((review) => (
+                <article className="review-row" key={review.id}>
+                  <div>
+                    <strong>{review.reviewer?.username ?? "Felhasználó"}</strong>
+                    <span>{formatLocalDateTime(review.created_at)}</span>
+                  </div>
+                  <span className="star-rating">{Array.from({ length: 5 }).map((_, index) => <span key={index}>{index < review.rating ? "★" : "☆"}</span>)}</span>
+                  {review.comment ? <p>{review.comment}</p> : <p className="empty-state">Szöveges értékelés nélkül.</p>}
+                </article>
               ))}
             </div>
           )}

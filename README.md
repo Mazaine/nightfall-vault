@@ -1,4 +1,4 @@
-﻿# 🌑 Nightfall Vault
+# 🌑 Nightfall Vault
 
 > **Modern, teljes értékű aukciós platform React, FastAPI és Docker technológiákkal.**
 
@@ -288,3 +288,17 @@ DEV_ADMIN_EMAIL
 DEV_ADMIN_PASSWORD
 VITE_API_BASE_URL
 ```
+
+## Sprint 7 public profiles and reputation
+
+Sprint 7-ben bekerult a piacteri bizalmi reteg:
+
+- publikus felhasznaloi profil: `GET /api/users/{username}`;
+- publikus user review lista lapozassal: `GET /api/users/{username}/reviews`;
+- aukcio review lista lapozassal es rendezessel: `GET /api/auctions/{auction_id}/reviews`;
+- elado kovetes: `POST /api/follow`, `DELETE /api/follow`, `GET /api/following`;
+- aukciokereso kategoriaval, allapottal, arral, licitszammal, villamarral, hamarosan lejaro es uj aukcio szurokkel;
+- rendezes: legujabb, legregebbi, legmagasabb ar, legalacsonyabb ar, legtobb licit, legkevesebb licit, hamarosan lejar, villamar elore;
+- frontend publikus profiloldal es kattinthato eladoi profil linkek.
+
+A publikus profil nem ad vissza emailt, admin statuszt, belso user ID-t, notification preference-t vagy audit adatot.

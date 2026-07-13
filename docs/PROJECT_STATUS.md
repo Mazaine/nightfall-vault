@@ -1,12 +1,12 @@
-﻿# Nightfall Vault - Projektallapot
+# Nightfall Vault - Projektallapot
 
 Utolso frissites: 2026-07-12
 
 ## Project Version
 
-v0.6.0-dev
+v0.7.0-dev
 
-Sprint 6 operational readiness, monitoring basics, media processing and email channel implemented with restore validation blocker
+Sprint 7 public profiles, reputation, seller follow and auction discovery implemented
 
 ## Aktiv projektmappa
 
@@ -292,6 +292,21 @@ Elkeszult elemek:
 - frontend npm audit es tracked-file secret scan lefuttatva.
 
 Restore validacio: az aktiv dev adatbazis jogosultsagainak modositasa nelkul, izolalt `postgres_restore` Compose profillal sikeresen lefutott. A visszaallitott teszt DB Alembic revisionje `0006_operations_media_email`, a public tablakszam 23.
+## Sprint 7 marketplace trust features
+
+Elkeszult elemek:
+
+- publikus felhasznaloi profil API: `GET /api/users/{username}`;
+- publikus review lista lapozassal es rendezessel;
+- elado kovetes API: `POST /api/follow`, `DELETE /api/follow`, `GET /api/following`;
+- seller follow tabla adatbazis constrainttel, self-follow tiltassal es follower/seller unique vedelmekkel;
+- kovetett elado uj aktivalt aukciojarol in-app notification tipus;
+- paginalt aukciokereso backend oldali szurokkel es rendezesekkel;
+- frontend publikus profiloldal, kattinthato eladoi linkek, szuropanel es skeleton/empty/error allapotok;
+- Sprint 7 backend tesztek publikus profilra, jogosultsagra, review listara, follow rendszerre, keresesre es rendezesekre.
+
+Publikus profil privacy szabaly: email, admin statusz, belso user ID, notification preference es audit adat nem jelenhet meg a publikus profile response-ban.
+
 ## Current Technical Debt
 
 - A frontend auth allapot kozponti providerbe kerult, de a backend token refresh es session lejarti UX meg nem teljes.
@@ -304,6 +319,4 @@ Restore validacio: az aktiv dev adatbazis jogosultsagainak modositasa nelkul, iz
 
 ## Next Planned Sprint
 
-A kovetkezo sprint celja a dependency auditban talalt serulekenysegek frissitesi tervenek vegrehajtasa, a production storage strategia veglegesitese, valamint a monitoring/alerting melyitese.
-
-Sprint 6-ban erdemes a kulso szolgaltatasok es eles deploy kockazatait kezelni: backup visszaallitas proba, dependency audit, kep tarolas es riasztasi folyamatok.
+A kovetkezo sprint celja a Sprint 7 piacteri bizalmi funkciok finomhangolasa: seller notification email opcio, profiloldali tovabbi paginacio, UX validaciok es admin/moderacios riportok bovitesenek megtervezese. Production release elott tovabbra is szukseges a Sprint 6 dependency auditban jelzett csomagfrissitesi terv vegrehajtasa.

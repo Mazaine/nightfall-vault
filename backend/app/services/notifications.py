@@ -1,11 +1,11 @@
-﻿from datetime import datetime, timezone
+from datetime import datetime, timezone
 
 from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
 from app.models.auction import Auction, Bid
 from app.models.notification import Notification
-from app.models.user import User
+from app.models.user import SellerFollow, User
 from app.services.notification_email import send_notification_email
 
 
@@ -100,4 +100,21 @@ def notify_auction_closed(db: Session, auction: Auction) -> None:
             notification_type="auction_unsold",
             title="Eladatlan aukcio",
             message=f"Az aukcio licit nelkul zarult: {auction.title}",
+        )
+
+def notify_followers_new_auction(db: Session, auction: Auction) -> None:
+    follower_ids = [
+        follower_id
+        for (follower_id,) in db.execute(
+            select(SellerFollow.follower_id).where(SellerFollow.seller_id == auction.seller_id)
+        ).all()
+    ]
+    for follower_id in follower_ids:
+        create_notification(
+            db,
+            user_id=follower_id,
+            auction_id=auction.id,
+            notification_type="seller_new_auction",
+            title="Kovetett elado uj aukcioja",
+            message=f"Uj aukcio indult: {auction.title}",
         )

@@ -16,6 +16,7 @@ from app.api.auctions import router as auctions_router
 from app.api.auth import router as auth_router
 from app.api.categories import router as categories_router
 from app.api.checkout import router as checkout_router
+from app.api.follow import router as follow_router
 from app.api.health import router as health_router
 from app.api.newsletter import router as newsletter_router
 from app.api.notifications import router as notifications_router
@@ -24,6 +25,7 @@ from app.api.pickup_points import router as pickup_points_router
 from app.api.products import router as products_router
 from app.api.shipping import router as shipping_router
 from app.api.test_email import router as test_email_router
+from app.api.users import router as users_router
 from app.api.watchlist import router as watchlist_router
 from app.core.config import settings
 from app.core.logging_config import configure_logging
@@ -176,6 +178,7 @@ app.include_router(admin_router)
 app.include_router(auctions_router)
 app.include_router(categories_router)
 app.include_router(checkout_router)
+app.include_router(follow_router)
 app.include_router(newsletter_router)
 app.include_router(notifications_router)
 app.include_router(orders_router)
@@ -183,4 +186,5 @@ app.include_router(pickup_points_router)
 app.include_router(products_router)
 app.include_router(shipping_router)
 app.include_router(test_email_router)
+app.include_router(users_router)
 app.include_router(watchlist_router)

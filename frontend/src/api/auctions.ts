@@ -48,6 +48,7 @@ export type Auction = {
   can_chat?: boolean;
   can_review?: boolean;
   is_owner?: boolean;
+  bid_count?: number;
 };
 
 export type AuctionCreatePayload = {
@@ -74,11 +75,14 @@ export type AuctionMessage = {
 
 export type AuctionReview = {
   id: number;
+  auction_id: number;
   reviewer_id: number;
   reviewed_user_id: number;
   rating: number;
   comment: string | null;
   created_at: string;
+  reviewer?: AuctionUser | null;
+  reviewed_user?: AuctionUser | null;
 };
 
 export type AuctionBid = {
@@ -126,8 +130,48 @@ export type WatchlistItem = {
   created_at: string;
 };
 
-export function listAuctions() {
-  return apiRequest<Auction[]>("/api/auctions", { authenticated: false });
+export type AuctionListParams = {
+  category?: string;
+  condition?: string;
+  status?: string;
+  min_price?: string;
+  max_price?: string;
+  min_bids?: string;
+  max_bids?: string;
+  buy_now?: boolean | "";
+  soon_ending?: boolean;
+  new_only?: boolean;
+  sort?: string;
+  limit?: number;
+  offset?: number;
+};
+
+export type AuctionPage = {
+  items: Auction[];
+  total: number;
+  limit: number;
+  offset: number;
+};
+
+export type AuctionReviewPage = {
+  items: AuctionReview[];
+  total: number;
+  limit: number;
+  offset: number;
+};
+
+function toQuery(params: Record<string, string | number | boolean | undefined | null>) {
+  const search = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => {
+    if (value === undefined || value === null || value === "") return;
+    search.set(key, String(value));
+  });
+  const query = search.toString();
+  return query ? `?${query}` : "";
+}
+
+export function listAuctions(params: AuctionListParams = {}) {
+  return apiRequest<AuctionPage>(`/api/auctions${toQuery(params)}`, { authenticated: false });
 }
 
 export function getAuction(auctionId: string | number) {
@@ -254,6 +298,10 @@ export function createAuctionMessage(auctionId: number, message: string) {
     method: "POST",
     body: JSON.stringify({ message }),
   });
+}
+
+export function listAuctionReviews(auctionId: number, params: { limit?: number; offset?: number; sort?: string } = {}) {
+  return apiRequest<AuctionReviewPage>(`/api/auctions/${auctionId}/reviews${toQuery(params)}`, { authenticated: false });
 }
 
 export function createAuctionReview(auctionId: number, rating: number, comment: string) {

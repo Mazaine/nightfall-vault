@@ -1,4 +1,4 @@
-﻿# Nightfall Vault - Biztonsag es uzemeltetes
+# Nightfall Vault - Biztonsag es uzemeltetes
 
 Utolso frissites: 2026-07-12
 
@@ -315,3 +315,24 @@ Eredmeny:
 - `ecdsa` transitive crypto dependency, nincs javito verzio jelolve.
 
 Production release elott dependency upgrade sprint szukseges, majd teljes backend pytest, frontend build es uj dependency audit futtatando.
+
+## Sprint 7 profile privacy and follow security
+
+Publikus profil privacy:
+
+- a `GET /api/users/{username}` valasz nem tartalmaz emailt, admin statuszt, belso user ID-t, notification preference-t vagy audit adatot;
+- profil statisztikak backend oldalon szarmaztatott aukcio-, bid- es review-adatokbol epulnek;
+- review kommentek tovabbra is sima szovegkent tarolodnak es React escapinggel jelennek meg.
+
+Follow biztonsag:
+
+- seller follow csak aktiv, hitelesitett felhasznalonak erheto el;
+- sajat profil kovetese tiltott;
+- egy follower/seller par csak egyszer hozhato letre adatbazis unique constrainttel;
+- kovetett elado uj aktivalasakor in-app notification keszul, email kuldes csak a Sprint 6 kapcsolok explicit engedelyezese mellett indulhat.
+
+Aukciokereso:
+
+- a szures es rendezes backend oldalon tortenik;
+- a lapozas `limit`/`offset` parameterekkel korlatozott;
+- publikus listaban csak publikus aukcio statuszok es nem torolt aukciok jelennek meg.

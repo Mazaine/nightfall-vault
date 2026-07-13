@@ -1,9 +1,10 @@
 import asyncio
 import json
+from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile, status
 from fastapi.responses import StreamingResponse
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.db.session import SessionLocal
@@ -12,12 +13,68 @@ from app.dependencies.auth import get_optional_current_user, require_active_user
 from app.models.auction import Auction, AuctionMessage, AuctionReview, Bid
 from app.models.notification import Notification
 from app.models.user import User
-from app.schemas.auction import AuctionCreate, AuctionFinalizeRequest, AuctionImageRead, AuctionListItem, AuctionMessageCreate, AuctionMessageRead, AuctionRealtimeSnapshot, AuctionResponse, AuctionReviewCreate, AuctionReviewRead, AuctionStatusResponse, AuctionUpdate, BidCreate, BidHistoryItem, BidRead, MyBidAuctionItem, NotificationRead
+from app.schemas.auction import AuctionCreate, AuctionFinalizeRequest, AuctionImageRead, AuctionListItem, AuctionListPage, AuctionMessageCreate, AuctionMessageRead, AuctionRealtimeSnapshot, AuctionResponse, AuctionReviewCreate, AuctionReviewPage, AuctionReviewRead, AuctionStatusResponse, AuctionUpdate, BidCreate, BidHistoryItem, BidRead, MyBidAuctionItem, NotificationRead
 from app.services.auction_images import add_auction_image, delete_auction_image, set_cover_image
 from app.services.auction_lifecycle import PUBLIC_AUCTION_STATUSES, activate_auction, can_access_post_auction_features, cancel_auction, create_auction, create_message, create_review, finalize_auction, get_auction_or_404, get_auction_statement, require_can_view_auction, require_post_auction_participant, sync_auction_status, update_auction
 from app.services.bidding import auction_realtime_snapshot, bid_to_history_item, bid_to_read, list_bid_history, place_bid
+from app.services.notifications import notify_followers_new_auction
 
 router = APIRouter(prefix="/api/auctions", tags=["auctions"])
+
+
+AUCTION_SORTS = {"newest", "oldest", "highest_price", "lowest_price", "most_bids", "fewest_bids", "soon_ending", "buy_now_first"}
+
+
+def auction_list_item(auction: Auction, bid_count: int | None = None) -> AuctionListItem:
+    count = len(auction.bids) if bid_count is None else bid_count
+    return AuctionListItem.model_validate(auction).model_copy(update={"bid_count": count})
+
+
+def _apply_auction_filters(query, *, category, condition, status_filter, min_price, max_price, min_bids, max_bids, buy_now, soon_ending, new_only):
+    now = datetime.now(timezone.utc)
+    query = query.filter(Auction.status.in_(PUBLIC_AUCTION_STATUSES), Auction.deleted_at.is_(None))
+    if category:
+        query = query.filter(Auction.category == category)
+    if condition:
+        query = query.filter(Auction.condition == condition)
+    if status_filter:
+        if status_filter not in PUBLIC_AUCTION_STATUSES:
+            raise HTTPException(status_code=422, detail="Ervenytelen aukcio statusz.")
+        query = query.filter(Auction.status == status_filter)
+    if min_price is not None:
+        query = query.filter(Auction.current_price >= min_price)
+    if max_price is not None:
+        query = query.filter(Auction.current_price <= max_price)
+    if buy_now is not None:
+        query = query.filter(Auction.buy_now_enabled.is_(buy_now))
+    if soon_ending:
+        query = query.filter(Auction.ends_at <= now + timedelta(hours=24), Auction.ends_at >= now)
+    if new_only:
+        query = query.filter(Auction.created_at >= now - timedelta(days=7))
+    if min_bids is not None:
+        query = query.having(func.count(Bid.id) >= min_bids)
+    if max_bids is not None:
+        query = query.having(func.count(Bid.id) <= max_bids)
+    return query
+
+
+def _apply_auction_sort(query, sort: str):
+    bid_count = func.count(Bid.id)
+    if sort == "oldest":
+        return query.order_by(Auction.created_at.asc(), Auction.id.asc())
+    if sort == "highest_price":
+        return query.order_by(Auction.current_price.desc(), Auction.id.desc())
+    if sort == "lowest_price":
+        return query.order_by(Auction.current_price.asc(), Auction.id.asc())
+    if sort == "most_bids":
+        return query.order_by(bid_count.desc(), Auction.id.desc())
+    if sort == "fewest_bids":
+        return query.order_by(bid_count.asc(), Auction.id.asc())
+    if sort == "soon_ending":
+        return query.order_by(Auction.ends_at.asc(), Auction.id.asc())
+    if sort == "buy_now_first":
+        return query.order_by(Auction.buy_now_enabled.desc(), Auction.created_at.desc(), Auction.id.desc())
+    return query.order_by(Auction.created_at.desc(), Auction.id.desc())
 
 
 def auction_response(auction: Auction, user: User | None = None) -> AuctionResponse:
@@ -33,11 +90,55 @@ def auction_response(auction: Auction, user: User | None = None) -> AuctionRespo
     )
 
 
-@router.get("", response_model=list[AuctionListItem])
-def list_public_auctions(db: Session = Depends(get_db)) -> list[AuctionListItem]:
-    statement = get_auction_statement().where(Auction.status.in_(PUBLIC_AUCTION_STATUSES), Auction.deleted_at.is_(None)).order_by(Auction.created_at.desc(), Auction.id.desc())
-    auctions = list(db.scalars(statement).all())
-    return [AuctionListItem.model_validate(sync_auction_status(db, auction)) for auction in auctions if auction.status in PUBLIC_AUCTION_STATUSES]
+@router.get("", response_model=AuctionListPage)
+def list_public_auctions(
+    category: str | None = None,
+    condition: str | None = None,
+    status_filter: str | None = Query(default=None, alias="status"),
+    min_price: float | None = Query(default=None, ge=0),
+    max_price: float | None = Query(default=None, ge=0),
+    min_bids: int | None = Query(default=None, ge=0),
+    max_bids: int | None = Query(default=None, ge=0),
+    buy_now: bool | None = None,
+    soon_ending: bool = False,
+    new_only: bool = False,
+    sort: str = Query(default="newest"),
+    limit: int = Query(default=24, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    db: Session = Depends(get_db),
+) -> AuctionListPage:
+    if sort not in AUCTION_SORTS:
+        raise HTTPException(status_code=422, detail="Ervenytelen rendezes.")
+    base_query = db.query(Auction.id, func.count(Bid.id).label("bid_count")).outerjoin(Bid, Bid.auction_id == Auction.id).group_by(Auction.id)
+    filtered_query = _apply_auction_filters(
+        base_query,
+        category=category,
+        condition=condition,
+        status_filter=status_filter,
+        min_price=min_price,
+        max_price=max_price,
+        min_bids=min_bids,
+        max_bids=max_bids,
+        buy_now=buy_now,
+        soon_ending=soon_ending,
+        new_only=new_only,
+    )
+    total = filtered_query.count()
+    rows = _apply_auction_sort(filtered_query, sort).offset(offset).limit(limit).all()
+    auction_ids = [row.id for row in rows]
+    bid_counts = {row.id: int(row.bid_count or 0) for row in rows}
+    if not auction_ids:
+        return AuctionListPage(items=[], total=total, limit=limit, offset=offset)
+    auctions_by_id = {auction.id: auction for auction in db.scalars(get_auction_statement().where(Auction.id.in_(auction_ids))).all()}
+    items: list[AuctionListItem] = []
+    for auction_id in auction_ids:
+        auction = auctions_by_id.get(auction_id)
+        if auction is None:
+            continue
+        auction = sync_auction_status(db, auction)
+        if auction.status in PUBLIC_AUCTION_STATUSES:
+            items.append(auction_list_item(auction, bid_counts.get(auction.id, 0)))
+    return AuctionListPage(items=items, total=total, limit=limit, offset=offset)
 
 
 @router.post("", response_model=AuctionResponse, status_code=status.HTTP_201_CREATED)
@@ -53,7 +154,7 @@ def create_my_auction(
 @router.get("/me", response_model=list[AuctionListItem])
 def list_my_auctions(current_user: User = Depends(require_active_user), db: Session = Depends(get_db)) -> list[AuctionListItem]:
     statement = get_auction_statement().where(Auction.seller_id == current_user.id, Auction.deleted_at.is_(None)).order_by(Auction.created_at.desc(), Auction.id.desc())
-    return [AuctionListItem.model_validate(sync_auction_status(db, auction)) for auction in db.scalars(statement).all()]
+    return [auction_list_item(sync_auction_status(db, auction)) for auction in db.scalars(statement).all()]
 
 
 @router.get("/my-bids", response_model=list[MyBidAuctionItem])
@@ -73,7 +174,7 @@ def list_my_bid_auctions(current_user: User = Depends(require_active_user), db: 
         has_won = auction.status == "sold" and auction.winner_id == current_user.id
         items.append(
             MyBidAuctionItem(
-                auction=AuctionListItem.model_validate(auction),
+                auction=auction_list_item(auction),
                 my_highest_bid=my_highest_bid,
                 is_leading=is_leading,
                 has_won=has_won,
@@ -120,6 +221,9 @@ def activate_my_auction(
 ) -> AuctionStatusResponse:
     auction = get_auction_or_404(db, auction_id)
     activated = activate_auction(db=db, auction=auction, user=current_user)
+    if activated.status in {"scheduled", "active"}:
+        notify_followers_new_auction(db, activated)
+        db.commit()
     return AuctionStatusResponse.model_validate(activated)
 
 
@@ -283,16 +387,31 @@ def create_auction_message(
     return AuctionMessageRead.model_validate(message)
 
 
-@router.get("/{auction_id}/reviews", response_model=list[AuctionReviewRead])
+@router.get("/{auction_id}/reviews", response_model=AuctionReviewPage)
 def list_auction_reviews(
     auction_id: int,
     current_user: User | None = Depends(get_optional_current_user),
+    limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    sort: str = Query(default="newest"),
     db: Session = Depends(get_db),
-) -> list[AuctionReviewRead]:
+) -> AuctionReviewPage:
     auction = get_auction_or_404(db, auction_id)
     require_can_view_auction(auction, current_user)
-    statement = select(AuctionReview).where(AuctionReview.auction_id == auction.id).order_by(AuctionReview.created_at.desc(), AuctionReview.id.desc())
-    return [AuctionReviewRead.model_validate(review) for review in db.scalars(statement).all()]
+    query = db.query(AuctionReview).filter(AuctionReview.auction_id == auction.id)
+    total = query.count()
+    if sort == "oldest":
+        query = query.order_by(AuctionReview.created_at.asc(), AuctionReview.id.asc())
+    elif sort == "rating_high":
+        query = query.order_by(AuctionReview.rating.desc(), AuctionReview.created_at.desc(), AuctionReview.id.desc())
+    elif sort == "rating_low":
+        query = query.order_by(AuctionReview.rating.asc(), AuctionReview.created_at.desc(), AuctionReview.id.desc())
+    elif sort == "newest":
+        query = query.order_by(AuctionReview.created_at.desc(), AuctionReview.id.desc())
+    else:
+        raise HTTPException(status_code=422, detail="Ervenytelen rendezes.")
+    reviews = query.offset(offset).limit(limit).all()
+    return AuctionReviewPage(items=[AuctionReviewRead.model_validate(review) for review in reviews], total=total, limit=limit, offset=offset)
 
 
 @router.post("/{auction_id}/reviews", response_model=AuctionReviewRead, status_code=status.HTTP_201_CREATED)

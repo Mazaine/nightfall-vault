@@ -125,3 +125,76 @@ class UserAdminUpdate(BaseModel):
     role: Literal["user", "admin"] | None = None
     is_active: bool | None = None
     is_email_verified: bool | None = None
+
+
+class PublicAuctionSummary(BaseModel):
+    id: int
+    title: str
+    category: str
+    condition: str
+    status: str
+    current_price: str
+    buy_now_enabled: bool
+    buy_now_price: str | None = None
+    ends_at: datetime
+    bid_count: int
+
+
+class PublicReviewRead(BaseModel):
+    id: int
+    auction_id: int
+    auction_title: str
+    reviewer_username: str
+    rating: int
+    comment: str | None
+    created_at: datetime
+
+
+class PublicReviewPage(BaseModel):
+    items: list[PublicReviewRead]
+    total: int
+    limit: int
+    offset: int
+
+
+class PublicUserStats(BaseModel):
+    positive_reviews: int
+    negative_reviews: int
+    average_rating: float | None
+    active_auctions: int
+    closed_auctions: int
+    successful_sales: int
+    sold_auctions: int
+    won_auctions: int
+    total_bids: int
+
+
+class PublicUserProfile(BaseModel):
+    username: str
+    full_name: str
+    created_at: datetime
+    stats: PublicUserStats
+    active_auctions: list[PublicAuctionSummary]
+    closed_auctions: list[PublicAuctionSummary]
+    recent_reviews: list[PublicReviewRead]
+    is_followed: bool = False
+
+
+class FollowRequest(BaseModel):
+    username: str = Field(min_length=3, max_length=80)
+
+    @field_validator("username")
+    @classmethod
+    def normalize_follow_username(cls, value: str) -> str:
+        normalized_value = value.strip()
+        if not normalized_value:
+            raise ValueError("Username is required")
+        return normalized_value
+
+
+class FollowedSellerRead(BaseModel):
+    username: str
+    full_name: str
+    followed_at: datetime
+    active_auctions: int
+    average_rating: float | None

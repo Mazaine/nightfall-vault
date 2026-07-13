@@ -8,7 +8,7 @@ from app.db.base import Base
 
 class Notification(Base):
     __tablename__ = "notifications"
-    NOTIFICATION_TYPES = ("outbid", "auction_won", "auction_lost", "auction_sold", "auction_unsold")
+    NOTIFICATION_TYPES = ("outbid", "auction_won", "auction_lost", "auction_sold", "auction_unsold", "seller_new_auction")
     __table_args__ = (
         CheckConstraint(f"type IN {NOTIFICATION_TYPES}", name="ck_notifications_type"),
         Index("ix_notifications_user_created", "user_id", "created_at"),

@@ -232,6 +232,7 @@ class AuctionListItem(BaseModel):
     moderated_at: datetime | None = None
     moderated_by_admin_id: int | None = None
     moderation_reason: str | None = None
+    bid_count: int = 0
     seller: UserSummary | None = None
     images: list[AuctionImageRead] = []
 
@@ -305,3 +306,16 @@ class AuctionReviewRead(BaseModel):
     reviewed_user: UserSummary | None = None
 
     model_config = ConfigDict(from_attributes=True)
+
+class AuctionListPage(BaseModel):
+    items: list[AuctionListItem]
+    total: int
+    limit: int
+    offset: int
+
+
+class AuctionReviewPage(BaseModel):
+    items: list[AuctionReviewRead]
+    total: int
+    limit: int
+    offset: int

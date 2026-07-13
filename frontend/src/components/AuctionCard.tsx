@@ -13,6 +13,7 @@ type AuctionCardProps = {
     buyNowPrice?: string | null;
     isClosed?: boolean;
     userIsOutbid?: boolean;
+    sellerProfilePath?: string;
   };
   index: number;
   detailPath: string;
