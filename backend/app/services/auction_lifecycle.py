@@ -10,6 +10,7 @@ from app.models.user import User
 from app.schemas.auction import AuctionCreate, AuctionUpdate
 from app.services.notifications import notify_auction_closed
 from app.services.security_audit import create_domain_audit_log
+from app.services.auction_transactions import ensure_auction_transaction
 from app.services.user_blocks import ensure_not_blocked
 
 SELLER_DECLARATION_VERSION = "2026-07-11"
@@ -69,6 +70,8 @@ def sync_auction_status(db: Session, auction: Auction) -> Auction:
         create_domain_audit_log(db, action="auction_status_changed", auction_id=auction.id, metadata={"from": original_status, "to": auction.status})
         if auction.status in {"sold", "unsold"}:
             notify_auction_closed(db, auction)
+        if auction.status == "sold":
+            ensure_auction_transaction(db, auction)
         db.commit()
         db.refresh(auction)
     return auction
@@ -90,6 +93,8 @@ def close_ended_active_auction(db: Session, auction: Auction) -> Auction:
     db.add(auction)
     create_domain_audit_log(db, action="auction_status_changed", auction_id=auction.id, metadata={"from": "active", "to": auction.status, "source": "scheduler"})
     notify_auction_closed(db, auction)
+    if auction.status == "sold":
+        ensure_auction_transaction(db, auction)
     return auction
 
 
@@ -275,6 +280,8 @@ def finalize_auction(db: Session, auction: Auction, final_status: str, winner: U
     db.add(auction)
     create_domain_audit_log(db, action="auction_status_changed", user_id=admin_user.id, auction_id=auction.id, metadata={"to": final_status, "source": "admin_finalize"})
     notify_auction_closed(db, auction)
+    if auction.status == "sold":
+        ensure_auction_transaction(db, auction)
     db.commit()
     db.refresh(auction)
     return auction

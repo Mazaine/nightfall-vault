@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { useLocation } from "react-router-dom";
 
 const titles: Array<[string, string]> = [
+  ["/account/transactions", "Tranzakcióim"],
   ["/account/profile", "Profilbeállítások"],
   ["/account/bids", "Licitjeim"],
   ["/account/auctions", "Saját aukcióim"],

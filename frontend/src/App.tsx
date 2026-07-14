@@ -24,6 +24,7 @@ const AccountPage = lazy(() => import("./pages/AccountPage").then((module) => ({
 const AccountBlockedUsersPage = lazy(() => import("./pages/AccountBlockedUsersPage").then((module) => ({ default: module.AccountBlockedUsersPage })));
 const AccountProfilePage = lazy(() => import("./pages/AccountProfilePage").then((module) => ({ default: module.AccountProfilePage })));
 const AccountReportsPage = lazy(() => import("./pages/AccountReportsPage").then((module) => ({ default: module.AccountReportsPage })));
+const AccountTransactionsPage = lazy(() => import("./pages/AccountTransactionsPage").then((module) => ({ default: module.AccountTransactionsPage })));
 const NotificationsPage = lazy(() => import("./pages/NotificationsPage").then((module) => ({ default: module.NotificationsPage })));
 const SavedSearchesPage = lazy(() => import("./pages/SavedSearchesPage").then((module) => ({ default: module.SavedSearchesPage })));
 const WatchlistPage = lazy(() => import("./pages/WatchlistPage").then((module) => ({ default: module.WatchlistPage })));
@@ -67,6 +68,7 @@ function App() {
               <Route path="profile" element={<AccountProfilePage />} />
               <Route path="bids" element={<AccountPage section="bids" />} />
               <Route path="auctions" element={<AccountPage section="auctions" />} />
+              <Route path="transactions" element={<AccountTransactionsPage />} />
               <Route path="notifications" element={<NotificationsPage />} />
               <Route path="saved-searches" element={<SavedSearchesPage />} />
               <Route path="watchlist" element={<WatchlistPage />} />
