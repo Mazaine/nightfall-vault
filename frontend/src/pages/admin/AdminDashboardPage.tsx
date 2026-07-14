@@ -12,8 +12,8 @@ export function AdminDashboardPage() {
         />
         <AdminStatCard
           value="4"
-          title="Új rendelés"
-          text="Feldolgozásra vár."
+          title="Nyitott jelentés"
+          text="Moderátori ellenőrzésre vár."
         />
         <AdminStatCard
           value="8"

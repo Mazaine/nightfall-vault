@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { useLocation } from "react-router-dom";
 
 const titles: Array<[string, string]> = [
-  ["/account/transactions", "Tranzakcióim"],
+  ["/account/messages", "Üzeneteim"],
   ["/account/profile", "Profilbeállítások"],
   ["/account/bids", "Licitjeim"],
   ["/account/auctions", "Saját aukcióim"],
@@ -27,7 +27,7 @@ export function RouteMetadata() {
     document.title = `${match?.[1] ?? "Nightfall Vault"} | Nightfall Vault`;
     let robots = document.querySelector<HTMLMetaElement>('meta[name="robots"]');
     if (!robots) { robots = document.createElement("meta"); robots.name = "robots"; document.head.appendChild(robots); }
-    const isPrivate = pathname.startsWith("/account") || pathname.startsWith("/admin") || ["/login", "/register", "/checkout", "/cart", "/orders"].includes(pathname);
+    const isPrivate = pathname.startsWith("/account") || pathname.startsWith("/admin") || ["/login", "/register"].includes(pathname);
     robots.content = isPrivate ? "noindex, nofollow" : "index, follow";
   }, [pathname]);
   return null;

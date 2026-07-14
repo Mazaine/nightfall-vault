@@ -1,44 +1,28 @@
-from pathlib import Path
 from datetime import datetime, timedelta, timezone
-import logging
-from uuid import uuid4
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
-from sqlalchemy.orm import Session, selectinload
+from sqlalchemy.orm import Session
 
-from app.crud.category import get_active_categories
-from app.crud.product import create_product, deactivate_product, get_admin_products, get_any_product_by_slug, get_product_by_id, update_product
 from app.db.session import get_db
 from app.dependencies.auth import require_admin
 from app.models.auction import Auction
 from app.models.moderation import Report
 from app.models.newsletter import NewsletterCampaign, NewsletterSubscriber
-from app.models.order import Order
 from app.models.password_reset_token import PasswordResetToken
-from app.models.product import Product
 from app.models.security_log import AuditLog
 from app.models.user import User
 from app.schemas.moderation import AdminReportPage, AdminReportRead, ReportNoteUpdate, ReportPriorityUpdate, ReportStatusUpdate
 from app.schemas.newsletter import NewsletterBulkSendResponse, NewsletterCampaignCreate, NewsletterCampaignRead, NewsletterCampaignUpdate, NewsletterSendBulkRequest, NewsletterSendTestRequest, NewsletterSubscriberCreate, NewsletterSubscriberRead, NewsletterSubscriberUpdate
-from app.schemas.order import OrderDetailRead, OrderRead, OrderStatusUpdate
 from app.schemas.auction import AuctionListItem, AuctionModerationRequest, AuctionStatusResponse
-from app.schemas.product import ProductAdminRead, ProductCreate, ProductUpdate
-from app.schemas.stock_movement import StockAdjustmentCreate, StockMovementRead
 from app.schemas.user import UserAdminUpdate, UserPublic
 from app.services.email import send_test_newsletter_email
-from app.services.email_service import send_newsletter_email, send_order_completed_email
+from app.services.email_service import send_newsletter_email
 from app.services.reports import get_report_or_404, related_report_counts, report_options, update_report_note, update_report_priority, update_report_status
 from app.services.auction_lifecycle import get_auction_statement, sync_auction_status
 from app.services.auction_moderation import restore_auction, soft_delete_auction, suspend_auction
-from app.services.stock_movements import adjust_product_stock, list_stock_movements, release_order_stock
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
-logger = logging.getLogger(__name__)
-
-ALLOWED_IMAGE_CONTENT_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif"}
-PRODUCT_UPLOAD_DIR = Path("uploads/products")
-COMPLETED_ORDER_STATUSES = {"completed"}
 
 
 def serialize_audit_log(log: AuditLog) -> dict:
@@ -76,18 +60,15 @@ def get_admin_stats(_current_user: User = Depends(require_admin), db: Session = 
     now = datetime.now(timezone.utc)
     today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
     week_start = now - timedelta(days=7)
-    completed_revenue = db.scalar(select(func.coalesce(func.sum(Order.total_amount), 0)).where(Order.status == "completed"))
     new_users = db.scalar(select(func.count()).select_from(User).where(User.created_at >= week_start, User.deleted_at.is_(None))) or 0
     return {
-        "total_orders": db.scalar(select(func.count()).select_from(Order)) or 0,
-        "today_orders": db.scalar(select(func.count()).select_from(Order).where(Order.created_at >= today_start)) or 0,
-        "week_orders": db.scalar(select(func.count()).select_from(Order).where(Order.created_at >= week_start)) or 0,
-        "pending_orders": db.scalar(select(func.count()).select_from(Order).where(Order.status.in_(["pending_payment", "processing"]))) or 0,
-        "completed_revenue": int(completed_revenue or 0),
+        "total_auctions": db.scalar(select(func.count()).select_from(Auction).where(Auction.deleted_at.is_(None))) or 0,
+        "active_auctions": db.scalar(select(func.count()).select_from(Auction).where(Auction.status == "active", Auction.deleted_at.is_(None))) or 0,
+        "today_auctions": db.scalar(select(func.count()).select_from(Auction).where(Auction.created_at >= today_start, Auction.deleted_at.is_(None))) or 0,
+        "sold_auctions": db.scalar(select(func.count()).select_from(Auction).where(Auction.status == "sold", Auction.deleted_at.is_(None))) or 0,
+        "open_reports": db.scalar(select(func.count()).select_from(Report).where(Report.status.in_(["open", "under_review"]))) or 0,
         "total_users": db.scalar(select(func.count()).select_from(User).where(User.deleted_at.is_(None))) or 0,
         "new_users": int(new_users),
-        "total_products": db.scalar(select(func.count()).select_from(Product)) or 0,
-        "low_stock_products": db.scalar(select(func.count()).select_from(Product).where(Product.is_active.is_(True), Product.stock_quantity <= 3)) or 0,
     }
 
 
@@ -411,8 +392,6 @@ def update_admin_user(user_id: int, user_update: UserAdminUpdate, _current_user:
     db.commit()
     db.refresh(user)
     return UserPublic.model_validate(user)
-
-
 @router.delete("/users/{user_id}", response_model=UserPublic)
 def delete_admin_user(user_id: int, _current_user: User = Depends(require_admin), db: Session = Depends(get_db)) -> UserPublic:
     user = get_active_user_or_404(db, user_id)
@@ -422,121 +401,3 @@ def delete_admin_user(user_id: int, _current_user: User = Depends(require_admin)
     db.commit()
     db.refresh(user)
     return UserPublic.model_validate(user)
-
-
-@router.get("/orders", response_model=list[OrderRead])
-def list_admin_orders(search: str | None = Query(default=None, max_length=120), status_filter: str | None = Query(default=None, alias="status", max_length=30), _current_user: User = Depends(require_admin), db: Session = Depends(get_db)) -> list[OrderRead]:
-    statement = select(Order).order_by(Order.created_at.desc(), Order.id.desc())
-    if status_filter:
-        statement = statement.where(Order.status == status_filter)
-    if search:
-        normalized_search = f"%{search.strip()}%"
-        statement = statement.where(Order.order_number.ilike(normalized_search) | Order.customer_name.ilike(normalized_search) | Order.customer_email.ilike(normalized_search))
-    return list(db.scalars(statement).all())
-
-
-@router.get("/orders/{order_id}", response_model=OrderDetailRead)
-def get_admin_order(order_id: int, _current_user: User = Depends(require_admin), db: Session = Depends(get_db)) -> OrderDetailRead:
-    order = db.scalar(select(Order).options(selectinload(Order.items)).where(Order.id == order_id))
-    if order is None:
-        raise HTTPException(status_code=404, detail="Order not found")
-    return OrderDetailRead.model_validate(order)
-
-
-@router.patch("/orders/{order_id}/status", response_model=OrderDetailRead)
-def update_admin_order_status(order_id: int, status_update: OrderStatusUpdate, _current_user: User = Depends(require_admin), db: Session = Depends(get_db)) -> OrderDetailRead:
-    order = db.scalar(select(Order).options(selectinload(Order.items)).where(Order.id == order_id))
-    if order is None:
-        raise HTTPException(status_code=404, detail="Order not found")
-    was_completed_before = order.status in COMPLETED_ORDER_STATUSES
-    order.status = status_update.status
-    if status_update.status == "cancelled" and order.stock_released_at is None:
-        release_order_stock(db, order, _current_user)
-    db.add(order)
-    db.commit()
-    db.refresh(order)
-    if status_update.status in COMPLETED_ORDER_STATUSES and not was_completed_before:
-        try:
-            send_order_completed_email(order)
-        except Exception:
-            logger.exception("Order completed email failed: %s", order.order_number)
-    return OrderDetailRead.model_validate(order)
-
-
-@router.post("/products/images")
-async def upload_admin_product_image(request: Request, image: UploadFile = File(...), _current_user: User = Depends(require_admin)) -> dict[str, str]:
-    if image.content_type not in ALLOWED_IMAGE_CONTENT_TYPES:
-        raise HTTPException(status_code=400, detail="Only image files are allowed")
-    PRODUCT_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
-    suffix = Path(image.filename or "").suffix.lower()
-    if suffix not in {".jpg", ".jpeg", ".png", ".webp", ".gif"}:
-        suffix = ".jpg"
-    file_name = f"{uuid4().hex}{suffix}"
-    file_path = PRODUCT_UPLOAD_DIR / file_name
-    file_path.write_bytes(await image.read())
-    return {"image_url": str(request.base_url).rstrip("/") + f"/uploads/products/{file_name}"}
-
-
-@router.get("/stock-movements", response_model=list[StockMovementRead])
-def list_admin_stock_movements(_current_user: User = Depends(require_admin), db: Session = Depends(get_db)) -> list[StockMovementRead]:
-    return list_stock_movements(db)
-
-
-@router.get("/products/{product_id}/stock-movements", response_model=list[StockMovementRead])
-def list_admin_product_stock_movements(product_id: int, _current_user: User = Depends(require_admin), db: Session = Depends(get_db)) -> list[StockMovementRead]:
-    product = get_product_by_id(db, product_id)
-    if product is None:
-        raise HTTPException(status_code=404, detail="Product not found.")
-    return list_stock_movements(db, product_id=product.id)
-
-
-@router.post("/products/{product_id}/stock-adjust", response_model=ProductAdminRead)
-def adjust_admin_product_stock(product_id: int, stock_adjustment: StockAdjustmentCreate, current_user: User = Depends(require_admin), db: Session = Depends(get_db)) -> ProductAdminRead:
-    product = get_product_by_id(db, product_id)
-    if product is None:
-        raise HTTPException(status_code=404, detail="Product not found.")
-    updated_product = adjust_product_stock(db=db, product=product, quantity_change=stock_adjustment.quantity_change, note=stock_adjustment.note, admin_user=current_user)
-    if updated_product.manage_stock and updated_product.stock_quantity <= 0:
-        updated_product.stock_status = "out_of_stock"
-    elif updated_product.manage_stock and updated_product.stock_quantity > 0 and updated_product.stock_status == "out_of_stock":
-        updated_product.stock_status = "in_stock"
-    db.add(updated_product)
-    db.commit()
-    db.refresh(updated_product)
-    return ProductAdminRead.model_validate(updated_product)
-
-
-@router.get("/products", response_model=list[ProductAdminRead])
-def list_admin_products(_current_user: User = Depends(require_admin), db: Session = Depends(get_db)) -> list[ProductAdminRead]:
-    return get_admin_products(db)
-
-
-@router.post("/products", response_model=ProductAdminRead, status_code=status.HTTP_201_CREATED)
-def create_admin_product(product_create: ProductCreate, _current_user: User = Depends(require_admin), db: Session = Depends(get_db)) -> ProductAdminRead:
-    if not any(category.id == product_create.category_id for category in get_active_categories(db)):
-        raise HTTPException(status_code=404, detail="Category not found")
-    if get_any_product_by_slug(db, product_create.slug) is not None:
-        raise HTTPException(status_code=409, detail="Product slug already exists")
-    return create_product(db, product_create)
-
-
-@router.patch("/products/{product_id}", response_model=ProductAdminRead)
-def update_admin_product(product_id: int, product_update: ProductUpdate, _current_user: User = Depends(require_admin), db: Session = Depends(get_db)) -> ProductAdminRead:
-    product = get_product_by_id(db, product_id)
-    if product is None:
-        raise HTTPException(status_code=404, detail="Product not found")
-    if product_update.category_id is not None and not any(category.id == product_update.category_id for category in get_active_categories(db)):
-        raise HTTPException(status_code=404, detail="Category not found")
-    if product_update.slug is not None:
-        existing_product = get_any_product_by_slug(db, product_update.slug)
-        if existing_product is not None and existing_product.id != product.id:
-            raise HTTPException(status_code=409, detail="Product slug already exists")
-    return update_product(db, product, product_update)
-
-
-@router.delete("/products/{product_id}", response_model=ProductAdminRead)
-def delete_admin_product(product_id: int, _current_user: User = Depends(require_admin), db: Session = Depends(get_db)) -> ProductAdminRead:
-    product = get_product_by_id(db, product_id)
-    if product is None:
-        raise HTTPException(status_code=404, detail="Product not found")
-    return deactivate_product(db, product)

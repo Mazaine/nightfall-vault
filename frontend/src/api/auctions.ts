@@ -74,6 +74,19 @@ export type AuctionMessage = {
   sender_id: number;
   message: string;
   created_at: string;
+  sender?: AuctionUser | null;
+};
+
+export type AuctionConversation = {
+  auction_id: number;
+  auction_title: string;
+  auction_image_key: string | null;
+  role: "seller" | "winner";
+  counterparty: AuctionUser;
+  message_count: number;
+  last_message: string | null;
+  last_message_at: string | null;
+  finalized_at: string;
 };
 
 export type AuctionReview = {
@@ -182,7 +195,7 @@ export function listAuctions(params: AuctionListParams = {}) {
 }
 
 export function getAuction(auctionId: string | number) {
-  return apiRequest<Auction>(`/api/auctions/${auctionId}`, { authenticated: false });
+  return apiRequest<Auction>(`/api/auctions/${auctionId}`);
 }
 
 export function listRelatedAuctions(auctionId: string | number) {
@@ -306,6 +319,10 @@ export function auctionStreamUrl(auctionId: number | string) {
 
 export function listAuctionMessages(auctionId: number) {
   return apiRequest<AuctionMessage[]>(`/api/auctions/${auctionId}/messages`);
+}
+
+export function listMyAuctionConversations() {
+  return apiRequest<AuctionConversation[]>("/api/auctions/me/conversations");
 }
 
 export function createAuctionMessage(auctionId: number, message: string) {

@@ -293,6 +293,18 @@ class AuctionMessageRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class AuctionConversationRead(BaseModel):
+    auction_id: int
+    auction_title: str
+    auction_image_key: str | None = None
+    role: Literal["seller", "winner"]
+    counterparty: UserSummary
+    message_count: int
+    last_message: str | None = None
+    last_message_at: datetime | None = None
+    finalized_at: datetime
+
+
 class AuctionReviewRead(BaseModel):
     id: int
     auction_id: int

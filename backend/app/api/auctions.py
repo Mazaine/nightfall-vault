@@ -13,7 +13,7 @@ from app.dependencies.auth import get_optional_current_user, require_active_user
 from app.models.auction import Auction, AuctionMessage, AuctionReview, Bid
 from app.models.notification import Notification
 from app.models.user import User
-from app.schemas.auction import AuctionCreate, AuctionFinalizeRequest, AuctionImageRead, AuctionListItem, AuctionListPage, AuctionMessageCreate, AuctionMessageRead, AuctionRealtimeSnapshot, AuctionResponse, AuctionReviewCreate, AuctionReviewPage, AuctionReviewRead, AuctionStatusResponse, AuctionUpdate, BidCreate, BidHistoryItem, BidRead, MyBidAuctionItem, NotificationRead
+from app.schemas.auction import AuctionConversationRead, AuctionCreate, AuctionFinalizeRequest, AuctionImageRead, AuctionListItem, AuctionListPage, AuctionMessageCreate, AuctionMessageRead, AuctionRealtimeSnapshot, AuctionResponse, AuctionReviewCreate, AuctionReviewPage, AuctionReviewRead, AuctionStatusResponse, AuctionUpdate, BidCreate, BidHistoryItem, BidRead, MyBidAuctionItem, NotificationRead, UserSummary
 from app.services.auction_images import add_auction_image, delete_auction_image, set_cover_image
 from app.services.auction_lifecycle import PUBLIC_AUCTION_STATUSES, activate_auction, can_access_post_auction_features, cancel_auction, create_auction, create_message, create_review, finalize_auction, get_auction_or_404, get_auction_statement, require_can_view_auction, require_post_auction_participant, sync_auction_status, update_auction
 from app.services.bidding import auction_realtime_snapshot, bid_to_history_item, bid_to_read, list_bid_history, place_bid
@@ -180,6 +180,46 @@ def create_my_auction(
 def list_my_auctions(current_user: User = Depends(require_active_user), db: Session = Depends(get_db)) -> list[AuctionListItem]:
     statement = get_auction_statement().where(Auction.seller_id == current_user.id, Auction.deleted_at.is_(None)).order_by(Auction.created_at.desc(), Auction.id.desc())
     return [auction_list_item(sync_auction_status(db, auction)) for auction in db.scalars(statement).all()]
+
+
+@router.get("/me/conversations", response_model=list[AuctionConversationRead])
+def list_my_auction_conversations(
+    current_user: User = Depends(require_active_user),
+    db: Session = Depends(get_db),
+) -> list[AuctionConversationRead]:
+    statement = (
+        get_auction_statement()
+        .where(
+            Auction.status == "sold",
+            Auction.finalized_at.is_not(None),
+            Auction.deleted_at.is_(None),
+            or_(Auction.seller_id == current_user.id, Auction.winner_id == current_user.id),
+        )
+        .order_by(Auction.finalized_at.desc(), Auction.id.desc())
+    )
+    conversations: list[AuctionConversationRead] = []
+    for auction in db.scalars(statement).all():
+        is_seller = auction.seller_id == current_user.id
+        counterparty = auction.winner if is_seller else auction.seller
+        if counterparty is None or auction.finalized_at is None:
+            continue
+        cover = next((image for image in auction.images if image.is_cover), None)
+        cover = cover or (auction.images[0] if auction.images else None)
+        last_message = auction.messages[-1] if auction.messages else None
+        conversations.append(
+            AuctionConversationRead(
+                auction_id=auction.id,
+                auction_title=auction.title,
+                auction_image_key=(cover.list_storage_key or cover.storage_key) if cover else None,
+                role="seller" if is_seller else "winner",
+                counterparty=UserSummary.model_validate(counterparty),
+                message_count=len(auction.messages),
+                last_message=last_message.message if last_message else None,
+                last_message_at=last_message.created_at if last_message else None,
+                finalized_at=auction.finalized_at,
+            ),
+        )
+    return conversations
 
 
 @router.get("/my-bids", response_model=list[MyBidAuctionItem])

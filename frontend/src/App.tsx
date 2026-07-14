@@ -9,14 +9,11 @@ import { AboutPage } from "./pages/AboutPage";
 import { AuctionDetailPage } from "./pages/AuctionDetailPage";
 import { AuctionsPage } from "./pages/AuctionsPage";
 import { AuthPage } from "./pages/AuthPages";
-import { CartPage } from "./pages/CartPage";
 import { CategoriesPage } from "./pages/CategoriesPage";
-import { CheckoutPage } from "./pages/CheckoutPage";
 import { ContactPage } from "./pages/ContactPage";
 import { HomePage } from "./pages/HomePage";
 import { HowItWorksPage } from "./pages/HowItWorksPage";
 import { InfoPage } from "./pages/InfoPages";
-import { OrdersPage } from "./pages/OrdersPage";
 import { UserProfilePage } from "./pages/UserProfilePage";
 
 const AccountLayout = lazy(() => import("./components/AccountLayout").then((module) => ({ default: module.AccountLayout })));
@@ -24,13 +21,12 @@ const AccountPage = lazy(() => import("./pages/AccountPage").then((module) => ({
 const AccountBlockedUsersPage = lazy(() => import("./pages/AccountBlockedUsersPage").then((module) => ({ default: module.AccountBlockedUsersPage })));
 const AccountProfilePage = lazy(() => import("./pages/AccountProfilePage").then((module) => ({ default: module.AccountProfilePage })));
 const AccountReportsPage = lazy(() => import("./pages/AccountReportsPage").then((module) => ({ default: module.AccountReportsPage })));
-const AccountTransactionsPage = lazy(() => import("./pages/AccountTransactionsPage").then((module) => ({ default: module.AccountTransactionsPage })));
+const AccountConversationsPage = lazy(() => import("./pages/AccountConversationsPage").then((module) => ({ default: module.AccountConversationsPage })));
 const NotificationsPage = lazy(() => import("./pages/NotificationsPage").then((module) => ({ default: module.NotificationsPage })));
 const SavedSearchesPage = lazy(() => import("./pages/SavedSearchesPage").then((module) => ({ default: module.SavedSearchesPage })));
 const WatchlistPage = lazy(() => import("./pages/WatchlistPage").then((module) => ({ default: module.WatchlistPage })));
 const AdminLayout = lazy(() => import("./pages/admin/AdminLayout").then((module) => ({ default: module.AdminLayout })));
 const AdminDashboardPage = lazy(() => import("./pages/admin/AdminDashboardPage").then((module) => ({ default: module.AdminDashboardPage })));
-const AdminOrdersPage = lazy(() => import("./pages/admin/AdminOrdersPage").then((module) => ({ default: module.AdminOrdersPage })));
 const AdminUsersPage = lazy(() => import("./pages/admin/AdminUsersPage").then((module) => ({ default: module.AdminUsersPage })));
 const AdminAuctionsPage = lazy(() => import("./pages/admin/AdminAuctionsPage").then((module) => ({ default: module.AdminAuctionsPage })));
 const AdminAuditLogsPage = lazy(() => import("./pages/admin/AdminAuditLogsPage").then((module) => ({ default: module.AdminAuditLogsPage })));
@@ -60,15 +56,13 @@ function App() {
           <Route path="/auctions/:auctionId" element={<AuctionDetailPage />} />
           <Route path="/users/:username" element={<UserProfilePage />} />
           <Route path="/categories" element={<CategoriesPage />} />
-          <Route path="/cart" element={<CartPage />} />
-          <Route path="/checkout" element={<CheckoutPage />} />
           <Route element={<ProtectedRoute />}>
             <Route path="/account" element={<AccountLayout />}>
               <Route index element={<Navigate to="profile" replace />} />
               <Route path="profile" element={<AccountProfilePage />} />
               <Route path="bids" element={<AccountPage section="bids" />} />
               <Route path="auctions" element={<AccountPage section="auctions" />} />
-              <Route path="transactions" element={<AccountTransactionsPage />} />
+              <Route path="messages" element={<AccountConversationsPage />} />
               <Route path="notifications" element={<NotificationsPage />} />
               <Route path="saved-searches" element={<SavedSearchesPage />} />
               <Route path="watchlist" element={<WatchlistPage />} />
@@ -79,7 +73,6 @@ function App() {
             <Route path="/watchlist" element={<Navigate to="/account/watchlist" replace />} />
             <Route path="/saved-searches" element={<Navigate to="/account/saved-searches" replace />} />
           </Route>
-          <Route path="/orders" element={<OrdersPage />} />
           <Route path="/how-it-works" element={<HowItWorksPage />} />
           <Route path="/about" element={<AboutPage />} />
           <Route path="/contact" element={<ContactPage />} />
@@ -88,7 +81,6 @@ function App() {
           <Route path="/admin" element={<AdminRoute />}>
             <Route index element={<AdminDashboardPage />} />
             <Route path="auctions" element={<AdminAuctionsPage />} />
-            <Route path="orders" element={<AdminOrdersPage />} />
             <Route path="users" element={<AdminUsersPage />} />
             <Route path="audit-logs" element={<AdminAuditLogsPage />} />
             <Route path="reports" element={<AdminReportsPage />} />

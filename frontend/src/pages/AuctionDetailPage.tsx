@@ -10,7 +10,7 @@ import { formatLocalDateTime, formatMoney, formatRemainingTime } from "../utils/
 
 export function AuctionDetailPage() {
   const { auctionId } = useParams();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   const [auction, setAuction] = useState<Auction | null>(null);
   const [messages, setMessages] = useState<AuctionMessage[]>([]);
   const [bidHistory, setBidHistory] = useState<AuctionBid[]>([]);
@@ -21,6 +21,8 @@ export function AuctionDetailPage() {
   const [error, setError] = useState("");
   const [isNotFound, setIsNotFound] = useState(false);
   const [postAuctionMessage, setPostAuctionMessage] = useState("");
+  const [messageFeedback, setMessageFeedback] = useState("");
+  const [isMessageSending, setIsMessageSending] = useState(false);
   const [bidAmount, setBidAmount] = useState("");
   const [bidMessage, setBidMessage] = useState("");
   const [watchlistMessage, setWatchlistMessage] = useState("");
@@ -85,9 +87,18 @@ export function AuctionDetailPage() {
     if (!auction || !postAuctionMessage.trim()) {
       return;
     }
-    const created = await createAuctionMessage(auction.id, postAuctionMessage);
-    setMessages((items) => [...items, created]);
-    setPostAuctionMessage("");
+    setIsMessageSending(true);
+    setMessageFeedback("");
+    try {
+      const created = await createAuctionMessage(auction.id, postAuctionMessage);
+      setMessages((items) => [...items, created]);
+      setPostAuctionMessage("");
+      setMessageFeedback("Az üzenet elküldve.");
+    } catch (reason) {
+      setMessageFeedback(reason instanceof Error ? reason.message : "Az üzenet küldése nem sikerült.");
+    } finally {
+      setIsMessageSending(false);
+    }
   };
 
   const placeBidAmount = async (amount: string) => {
@@ -221,7 +232,9 @@ export function AuctionDetailPage() {
         ) : null}
         {auction.status === "sold" && auction.winner_id ? (
           <div className="side-panel sold-state-panel">
-            Az aukció lezárult. A nyertes státusz és a kapcsolatfelvétel a backend véglegesített állapota alapján érhető el.
+            {auction.can_chat
+              ? <>Az aukció lezárult. <a href="#auction-conversation">Nyisd meg a privát beszélgetést</a> a másik féllel az egyeztetéshez.</>
+              : "Az aukció lezárult. A privát kapcsolatfelvétel kizárólag az eladó és a nyertes számára érhető el."}
           </div>
         ) : null}
         <div className="hero-actions">
@@ -275,16 +288,26 @@ export function AuctionDetailPage() {
         </section>
 
         {auction.can_chat ? (
-          <section className="post-auction-panel">
+          <section className="post-auction-panel auction-conversation" id="auction-conversation">
+            <p className="eyebrow">Privát beszélgetés</p>
             <h2>Kapcsolat a másik féllel</h2>
+            <div className="marketplace-boundary-note" role="note">
+              A Nightfall Vault nem kezel fizetést vagy szállítást. A részleteket egymással, saját felelősségre beszélitek meg.
+            </div>
             <div className="message-list">
+              {messages.length === 0 ? <p className="empty-state">Még nincs üzenet. Írj a másik félnek az egyeztetés megkezdéséhez.</p> : null}
               {messages.map((message) => (
-                <p key={message.id}>{message.message}</p>
+                <article className={message.sender_id === user?.id ? "message-row is-own" : "message-row"} key={message.id}>
+                  <div><strong>{message.sender?.full_name ?? (message.sender_id === user?.id ? "Te" : "Másik fél")}</strong><time>{formatLocalDateTime(message.created_at)}</time></div>
+                  <p>{message.message}</p>
+                </article>
               ))}
             </div>
             <form onSubmit={sendMessage}>
-              <textarea value={postAuctionMessage} onChange={(event) => setPostAuctionMessage(event.target.value)} rows={3} />
-              <button className="button button-secondary" type="submit">Üzenet küldése</button>
+              <label htmlFor="auction-message">Üzenet a másik félnek</label>
+              <textarea id="auction-message" maxLength={2000} required value={postAuctionMessage} onChange={(event) => setPostAuctionMessage(event.target.value)} rows={4} />
+              <button className="button button-secondary" type="submit" disabled={isMessageSending || !postAuctionMessage.trim()}>{isMessageSending ? "Küldés..." : "Üzenet küldése"}</button>
+              {messageFeedback ? <p className="form-message" role="status">{messageFeedback}</p> : null}
             </form>
           </section>
         ) : null}

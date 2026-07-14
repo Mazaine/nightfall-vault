@@ -8,9 +8,8 @@ from sqlalchemy.orm import Session, selectinload
 from app.models.auction import Auction, AuctionImage, AuctionMessage, AuctionReview, Bid
 from app.models.user import User
 from app.schemas.auction import AuctionCreate, AuctionUpdate
-from app.services.notifications import notify_auction_closed
+from app.services.notifications import create_notification, notify_auction_closed
 from app.services.security_audit import create_domain_audit_log
-from app.services.auction_transactions import ensure_auction_transaction
 from app.services.user_blocks import ensure_not_blocked
 
 SELLER_DECLARATION_VERSION = "2026-07-11"
@@ -70,8 +69,6 @@ def sync_auction_status(db: Session, auction: Auction) -> Auction:
         create_domain_audit_log(db, action="auction_status_changed", auction_id=auction.id, metadata={"from": original_status, "to": auction.status})
         if auction.status in {"sold", "unsold"}:
             notify_auction_closed(db, auction)
-        if auction.status == "sold":
-            ensure_auction_transaction(db, auction)
         db.commit()
         db.refresh(auction)
     return auction
@@ -93,8 +90,6 @@ def close_ended_active_auction(db: Session, auction: Auction) -> Auction:
     db.add(auction)
     create_domain_audit_log(db, action="auction_status_changed", auction_id=auction.id, metadata={"from": "active", "to": auction.status, "source": "scheduler"})
     notify_auction_closed(db, auction)
-    if auction.status == "sold":
-        ensure_auction_transaction(db, auction)
     return auction
 
 
@@ -280,8 +275,6 @@ def finalize_auction(db: Session, auction: Auction, final_status: str, winner: U
     db.add(auction)
     create_domain_audit_log(db, action="auction_status_changed", user_id=admin_user.id, auction_id=auction.id, metadata={"to": final_status, "source": "admin_finalize"})
     notify_auction_closed(db, auction)
-    if auction.status == "sold":
-        ensure_auction_transaction(db, auction)
     db.commit()
     db.refresh(auction)
     return auction
@@ -320,6 +313,23 @@ def create_message(db: Session, auction: Auction, sender: User, message: str) ->
         raise HTTPException(status_code=422, detail="Message is too long.")
     auction_message = AuctionMessage(auction_id=auction.id, sender_id=sender.id, message=normalized_message)
     db.add(auction_message)
+    db.flush()
+    counterparty_id = get_auction_counterparty(auction, sender.id)
+    create_notification(
+        db,
+        user_id=counterparty_id,
+        auction_id=auction.id,
+        notification_type="auction_message",
+        title="Új üzenet egy lezárt aukcióhoz",
+        message=f"Új üzenet érkezett ehhez az aukcióhoz: {auction.title}",
+    )
+    create_domain_audit_log(
+        db,
+        action="auction_message_sent",
+        user_id=sender.id,
+        auction_id=auction.id,
+        metadata={"recipient_id": counterparty_id, "message_id": auction_message.id},
+    )
     db.commit()
     db.refresh(auction_message)
     return auction_message

@@ -1449,31 +1449,33 @@ h3 {
 .auction-image img { display: block; width: 100%; height: 100%; object-fit: cover; }
 .status-badge { align-self: start; width: fit-content; border: 1px solid var(--color-border-strong); border-radius: var(--radius-full); background: rgb(124 58 237 / 0.12); color: var(--color-text-secondary); font-size: var(--font-size-caption); padding: 0.25rem 0.55rem; }
 
-.transaction-list { display: grid; gap: var(--space-4); }
-.transaction-card { display: grid; grid-template-columns: 10rem minmax(0, 1fr); gap: var(--space-5); }
-.transaction-card > img,
-.transaction-image-placeholder { width: 10rem; height: 10rem; border-radius: var(--radius-md); background: linear-gradient(135deg, #21152f, #090910); object-fit: cover; }
-.transaction-copy { display: grid; min-width: 0; gap: var(--space-3); }
-.transaction-copy p,
-.transaction-copy small { margin: 0; color: var(--color-text-muted); }
-.transaction-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-4); }
-.transaction-heading h2 { margin-top: var(--space-2); }
-.transaction-heading h2 a { color: inherit; }
-.transaction-heading > strong { color: var(--color-text-primary); font-size: 1.25rem; white-space: nowrap; }
-.transaction-confirmations { display: flex; flex-wrap: wrap; gap: var(--space-2); }
-.transaction-confirmations span { border: 1px solid var(--color-border); border-radius: var(--radius-full); color: var(--color-text-muted); padding: 0.3rem 0.65rem; }
-.transaction-confirmations .is-complete { border-color: rgb(74 222 128 / 0.45); color: #86efac; }
-.transaction-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
-.transaction-dispute { border-left: 3px solid #f87171; padding-left: var(--space-3); }
-.transaction-dispute-form { display: grid; gap: var(--space-2); border-top: 1px solid var(--color-divider); padding-top: var(--space-3); }
-.transaction-dispute-form textarea { min-height: 7rem; resize: vertical; }
+.conversation-list { display: grid; gap: var(--space-4); }
+.conversation-card { display: grid; grid-template-columns: 9rem minmax(0, 1fr); gap: var(--space-5); }
+.conversation-card > img,
+.conversation-image-placeholder { width: 9rem; height: 9rem; border-radius: var(--radius-md); background: linear-gradient(135deg, #21152f, #090910); object-fit: cover; }
+.conversation-copy { display: grid; min-width: 0; gap: var(--space-2); }
+.conversation-copy h2,
+.conversation-copy p,
+.conversation-copy small { margin: 0; }
+.conversation-copy p,
+.conversation-copy small { color: var(--color-text-muted); }
+.conversation-preview { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.marketplace-boundary-note { margin: var(--space-4) 0; border-left: 3px solid var(--color-accent); background: rgb(124 58 237 / 0.09); color: var(--color-text-muted); padding: var(--space-3) var(--space-4); }
+.auction-conversation { scroll-margin-top: 7rem; }
+.auction-conversation form { display: grid; gap: var(--space-2); margin-top: var(--space-4); }
+.auction-conversation textarea { min-height: 7rem; resize: vertical; }
+.message-list { display: grid; gap: var(--space-3); }
+.message-row { max-width: 85%; border: 1px solid var(--color-border); border-radius: var(--radius-md); background: rgb(255 255 255 / 0.025); padding: var(--space-3); }
+.message-row.is-own { justify-self: end; border-color: rgb(168 85 247 / 0.45); background: rgb(124 58 237 / 0.1); }
+.message-row > div { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--space-2); color: var(--color-text-muted); font-size: 0.85rem; }
+.message-row p { margin: var(--space-2) 0 0; white-space: pre-wrap; }
 
 @media (max-width: 520px) {
   .account-bid-row { grid-template-columns: 4.5rem minmax(0, 1fr); gap: var(--space-3); }
   .account-bid-row > img,
   .bid-image-placeholder { width: 4.5rem; height: 4.5rem; }
-  .transaction-card { grid-template-columns: 1fr; }
-  .transaction-card > img,
-  .transaction-image-placeholder { width: 100%; height: auto; aspect-ratio: 16 / 9; }
-  .transaction-heading { flex-direction: column; }
+  .conversation-card { grid-template-columns: 1fr; }
+  .conversation-card > img,
+  .conversation-image-placeholder { width: 100%; height: auto; aspect-ratio: 16 / 9; }
+  .message-row { max-width: 100%; }
 }

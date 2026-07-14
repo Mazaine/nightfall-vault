@@ -11,7 +11,6 @@ from app.models.user import User
 from app.services.auction_lifecycle import can_view_auction, normalize_money, now_utc, sync_auction_status
 from app.services.notifications import notify_auction_closed
 from app.services.security_audit import create_domain_audit_log
-from app.services.auction_transactions import ensure_auction_transaction
 
 
 FIVE_MINUTE_EXTENSION_WINDOW = timedelta(minutes=5)
@@ -85,8 +84,6 @@ def _sync_locked_auction_for_bidding(db: Session, auction: Auction) -> Auction:
         auction.finalized_at = current_time
     if auction.status != original_status and auction.status in {"sold", "unsold"}:
         notify_auction_closed(db, auction)
-        if auction.status == "sold":
-            ensure_auction_transaction(db, auction)
         create_domain_audit_log(db, action="auction_status_changed", auction_id=auction.id, metadata={"from": original_status, "to": auction.status, "source": "bid_sync"})
     return auction
 
@@ -135,7 +132,6 @@ def place_bid(db: Session, auction_id: int, bidder: User, amount: Decimal) -> tu
         auction.winner_id = bidder.id
         auction.finalized_at = now_utc()
         notify_auction_closed(db, auction)
-        ensure_auction_transaction(db, auction)
         create_domain_audit_log(db, action="auction_buy_now", user_id=bidder.id, auction_id=auction.id, metadata={"amount": str(normalized_amount)})
     elif auction.five_minute_rule_enabled and auction.ends_at - now_utc() <= FIVE_MINUTE_EXTENSION_WINDOW:
         auction.ends_at = now_utc() + FIVE_MINUTE_EXTENSION_WINDOW
