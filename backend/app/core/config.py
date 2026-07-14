@@ -35,6 +35,7 @@ class Settings(BaseSettings):
     login_rate_limit_per_minute: int = 5
     register_rate_limit_per_minute: int = 3
     forgot_password_rate_limit_per_minute: int = 3
+    resend_verification_rate_limit_per_minute: int = 3
     newsletter_rate_limit_per_minute: int = 5
     order_admin_email: str | None = None
     log_level: str = "INFO"

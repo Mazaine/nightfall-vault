@@ -85,24 +85,24 @@ PRIVATE_API_PREFIXES = (
 )
 
 FIELD_LABELS = {
-    "email": "email",
-    "password": "password",
-    "confirm_password": "password confirmation",
-    "username": "username",
-    "full_name": "full name",
-    "accepted_terms": "terms",
-    "accepted_privacy": "privacy policy",
+    "email": "e-mail-cím",
+    "password": "jelszó",
+    "confirm_password": "jelszó-megerősítés",
+    "username": "felhasználónév",
+    "full_name": "teljes név",
+    "accepted_terms": "felhasználási feltételek",
+    "accepted_privacy": "adatkezelési tájékoztató",
 }
 
 
 def validation_message(field: str, message: str) -> str:
     label = FIELD_LABELS.get(field, field)
     if "Field required" in message or "missing" in message.lower():
-        return f"The {label} field is required."
+        return f"A(z) {label} mező kitöltése kötelező."
     if "valid email" in message.lower():
-        return "Enter a valid email address."
+        return "Adj meg érvényes e-mail-címet."
     if "at least 8" in message or "greater than or equal to 8" in message or "String should have at least 8" in message:
-        return "The password must be at least 8 characters long."
+        return "A jelszónak legalább 8 karakter hosszúnak kell lennie."
     if "Value error," in message:
         return message.split("Value error,", 1)[1].strip()
     return message
@@ -143,13 +143,13 @@ async def security_headers_middleware(request: Request, call_next):
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
     if request.url.path == "/api/auth/register":
-        return JSONResponse(status_code=422, content={"message": "Registration failed.", "errors": registration_validation_errors(exc)})
+        return JSONResponse(status_code=422, content={"message": "A regisztráció nem sikerült.", "errors": registration_validation_errors(exc)})
     errors = []
     for error in exc.errors():
         loc = list(error.get("loc", []))
         field = str(loc[-1]) if loc else "request"
         errors.append({"field": field, "message": validation_message(field, str(error.get("msg", "")))})
-    return JSONResponse(status_code=422, content={"detail": {"message": "Submitted data validation failed.", "errors": errors}})
+    return JSONResponse(status_code=422, content={"detail": {"message": "A megadott adatok ellenőrzése nem sikerült.", "errors": errors}})
 
 
 @app.exception_handler(StarletteHTTPException)

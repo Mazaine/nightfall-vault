@@ -133,7 +133,7 @@ def require_owner_or_admin(auction: Auction, user: User) -> None:
 
 def create_auction(db: Session, auction_create: AuctionCreate, seller: User) -> Auction:
     if seller.deleted_at is not None or not seller.is_active:
-        raise HTTPException(status_code=403, detail="Inactive user")
+        raise HTTPException(status_code=403, detail="Ez a felhasználói fiók inaktív.")
     auction = Auction(
         seller_id=seller.id,
         title=auction_create.title,
@@ -252,7 +252,7 @@ def cancel_auction(db: Session, auction: Auction, user: User) -> Auction:
 
 def finalize_auction(db: Session, auction: Auction, final_status: str, winner: User | None, admin_user: User) -> Auction:
     if admin_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Admin access required")
+        raise HTTPException(status_code=403, detail="Ehhez a művelethez admin jogosultság szükséges.")
     sync_auction_status(db, auction)
     if auction.status == "active":
         ensure_transition_allowed("active", "ended")

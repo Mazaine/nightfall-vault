@@ -15,12 +15,11 @@ def send_brevo_test_email(
 ) -> TestEmailResponse:
     send_test_email(
         to_email=str(request.email),
-        subject="Webshop Template email test",
+        subject="Nightfall Vault – e-mail-küldési próba",
         html_content=(
-            "<h1>Webshop Template test email</h1>"
-            "<p>A Brevo transactional email integr??ci?? megfelel??en m??k??dik.</p>"
+            "<h1>Nightfall Vault e-mail-próba</h1>"
+            "<p>A Brevo tranzakciós e-mail integráció megfelelően működik.</p>"
         ),
     )
-    return TestEmailResponse(message="A teszt emailt sikeresen elk??ldt??k.")
-
+    return TestEmailResponse(message="A teszt e-mail küldését elindítottuk.")
 

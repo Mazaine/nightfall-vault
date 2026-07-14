@@ -1,5 +1,7 @@
 ﻿import logging
 from email.message import EmailMessage
+from html import unescape
+import re
 import smtplib
 
 import httpx
@@ -10,6 +12,12 @@ from app.models.user import User
 from app.services.email_templates import render_email_template
 
 logger = logging.getLogger(__name__)
+
+
+def _plain_text(html_content: str) -> str:
+    text = re.sub(r"<style[^>]*>.*?</style>", " ", html_content, flags=re.IGNORECASE | re.DOTALL)
+    text = re.sub(r"<[^>]+>", " ", text)
+    return " ".join(unescape(text).split())
 
 
 def _sender() -> dict[str, str]:
@@ -27,6 +35,7 @@ def send_email(to_email: str, subject: str, html_content: str) -> bool:
             "to": [{"email": to_email}],
             "subject": safe_subject,
             "htmlContent": html_content,
+            "textContent": _plain_text(html_content),
         }
         try:
             response = httpx.post(
@@ -49,7 +58,8 @@ def send_email(to_email: str, subject: str, html_content: str) -> bool:
     message["Subject"] = safe_subject
     message["From"] = f"{settings.smtp_from_name} <{settings.smtp_from_email}>"
     message["To"] = to_email
-    message.set_content(html_content, subtype="html")
+    message.set_content(_plain_text(html_content))
+    message.add_alternative(html_content, subtype="html")
     with smtplib.SMTP(settings.smtp_host, settings.smtp_port) as smtp:
         smtp.starttls()
         if settings.smtp_user and settings.smtp_password:

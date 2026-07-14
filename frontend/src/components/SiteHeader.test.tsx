@@ -75,6 +75,6 @@ describe("SiteHeader", () => {
 
   it("védi a közvetlen account URL-t kijelentkezve", async () => {
     render(<MemoryRouter initialEntries={["/account/bids"]}><App /></MemoryRouter>);
-    expect(await screen.findByRole("heading", { name: "Üdvözöllek újra" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Üdvözlünk újra" })).toBeInTheDocument();
   });
 });

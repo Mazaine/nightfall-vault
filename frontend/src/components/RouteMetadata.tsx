@@ -18,6 +18,9 @@ const titles: Array<[string, string]> = [
   ["/contact", "Kapcsolat"],
   ["/login", "Belépés"],
   ["/register", "Regisztráció"],
+  ["/forgot-password", "Elfelejtett jelszó"],
+  ["/reset-password", "Új jelszó"],
+  ["/auth/verify-email", "Fiókaktiválás"],
 ];
 
 export function RouteMetadata() {
@@ -27,7 +30,7 @@ export function RouteMetadata() {
     document.title = `${match?.[1] ?? "Nightfall Vault"} | Nightfall Vault`;
     let robots = document.querySelector<HTMLMetaElement>('meta[name="robots"]');
     if (!robots) { robots = document.createElement("meta"); robots.name = "robots"; document.head.appendChild(robots); }
-    const isPrivate = pathname.startsWith("/account") || pathname.startsWith("/admin") || ["/login", "/register"].includes(pathname);
+    const isPrivate = pathname.startsWith("/account") || pathname.startsWith("/admin") || ["/login", "/register", "/forgot-password", "/reset-password", "/auth/verify-email"].includes(pathname);
     robots.content = isPrivate ? "noindex, nofollow" : "index, follow";
   }, [pathname]);
   return null;

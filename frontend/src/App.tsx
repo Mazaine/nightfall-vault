@@ -1,5 +1,5 @@
 import { lazy, Suspense } from "react";
-import { Navigate, Outlet, Route, Routes } from "react-router-dom";
+import { Navigate, Outlet, Route, Routes, useLocation } from "react-router-dom";
 import { LoadingState } from "./components/AsyncStates";
 import { SiteFooter } from "./components/SiteFooter";
 import { SiteHeader } from "./components/SiteHeader";
@@ -9,6 +9,7 @@ import { AboutPage } from "./pages/AboutPage";
 import { AuctionDetailPage } from "./pages/AuctionDetailPage";
 import { AuctionsPage } from "./pages/AuctionsPage";
 import { AuthPage } from "./pages/AuthPages";
+import { EmailVerificationPage, ForgotPasswordPage, ResetPasswordPage } from "./pages/AuthRecoveryPages";
 import { CategoriesPage } from "./pages/CategoriesPage";
 import { ContactPage } from "./pages/ContactPage";
 import { HomePage } from "./pages/HomePage";
@@ -33,13 +34,18 @@ const AdminAuditLogsPage = lazy(() => import("./pages/admin/AdminAuditLogsPage")
 const AdminReportsPage = lazy(() => import("./pages/admin/AdminReportsPage").then((module) => ({ default: module.AdminReportsPage })));
 
 function AdminRoute() {
-  const { isAdmin } = useAuth();
-  return isAdmin ? <AdminLayout /> : <Navigate to="/" replace />;
+  const { isAdmin, isAuthenticated, isLoading } = useAuth();
+  const location = useLocation();
+  if (isLoading) return <section className="container page-shell"><LoadingState label="Munkamenet ellenőrzése" /></section>;
+  if (!isAuthenticated) return <Navigate to={`/login?next=${encodeURIComponent(location.pathname)}`} replace />;
+  return isAdmin ? <AdminLayout /> : <Navigate to="/account" replace />;
 }
 
 function ProtectedRoute() {
-  const { isAuthenticated } = useAuth();
-  return isAuthenticated ? <Outlet /> : <Navigate to="/login" replace />;
+  const { isAuthenticated, isLoading } = useAuth();
+  const location = useLocation();
+  if (isLoading) return <section className="container page-shell"><LoadingState label="Munkamenet ellenőrzése" /></section>;
+  return isAuthenticated ? <Outlet /> : <Navigate to={`/login?next=${encodeURIComponent(`${location.pathname}${location.search}`)}`} replace />;
 }
 
 function App() {
@@ -78,6 +84,9 @@ function App() {
           <Route path="/contact" element={<ContactPage />} />
           <Route path="/login" element={<AuthPage mode="login" />} />
           <Route path="/register" element={<AuthPage mode="register" />} />
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
+          <Route path="/auth/verify-email" element={<EmailVerificationPage />} />
           <Route path="/admin" element={<AdminRoute />}>
             <Route index element={<AdminDashboardPage />} />
             <Route path="auctions" element={<AdminAuctionsPage />} />

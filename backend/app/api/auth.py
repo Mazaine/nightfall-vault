@@ -17,7 +17,7 @@ from app.models.email_verification_token import EmailVerificationToken
 from app.models.newsletter import NewsletterSubscriber
 from app.models.password_reset_token import PasswordResetToken
 from app.models.user import User
-from app.schemas.auth import ForgotPasswordRequest, LoginRequest, MessageResponse, ResetPasswordRequest, TokenResponse
+from app.schemas.auth import ForgotPasswordRequest, LoginRequest, MessageResponse, ResendVerificationRequest, ResetPasswordRequest, TokenResponse
 from app.schemas.user import AccountDeleteRequest, NotificationPreferencesRead, NotificationPreferencesUpdate, PasswordChangeRequest, UserCreate, UserMeRead, UserProfileUpdate
 from app.services.captcha_service import verify_captcha
 from app.services.email_service import send_email_verification_email, send_password_reset_email
@@ -39,19 +39,29 @@ def field_errors(errors: dict[str, str], status_code: int = status.HTTP_422_UNPR
     return HTTPException(
         status_code=status_code,
         detail={
-            "message": "A regisztrĂˇciĂł nem sikerĂĽlt.",
+            "message": "A regisztráció nem sikerült.",
             "errors": errors,
         },
     )
 
 
 def create_email_verification(db: Session, user: User) -> str:
+    now = datetime.now(timezone.utc)
+    active_tokens = db.scalars(
+        select(EmailVerificationToken).where(
+            EmailVerificationToken.user_id == user.id,
+            EmailVerificationToken.used_at.is_(None),
+        ),
+    ).all()
+    for token in active_tokens:
+        token.used_at = now
+        db.add(token)
     raw_token = secrets.token_urlsafe(32)
     db.add(
         EmailVerificationToken(
             user_id=user.id,
             token_hash=hash_reset_token(raw_token),
-            expires_at=datetime.now(timezone.utc) + timedelta(hours=24),
+            expires_at=now + timedelta(hours=24),
         ),
     )
     db.commit()
@@ -69,15 +79,15 @@ def register(
 
     errors: dict[str, str] = {}
     if get_user_by_email(db, user_create.email) is not None:
-        errors["email"] = "Ez az e-mail cĂ­m mĂˇr regisztrĂˇlva van."
+        errors["email"] = "Ez az e-mail-cím már regisztrálva van."
     if get_user_by_username(db, user_create.username) is not None:
-        errors["username"] = "Ez a felhasznĂˇlĂłnĂ©v mĂˇr foglalt."
+        errors["username"] = "Ez a felhasználónév már foglalt."
     if user_create.password != user_create.confirm_password:
-        errors["confirm_password"] = "A kĂ©t jelszĂł nem egyezik."
+        errors["confirm_password"] = "A két jelszó nem egyezik."
     if not user_create.accepted_terms:
-        errors["accepted_terms"] = "Az ĂSZF elfogadĂˇsa kĂ¶telezĹ‘."
+        errors["accepted_terms"] = "A felhasználási feltételek elfogadása kötelező."
     if not user_create.accepted_privacy:
-        errors["accepted_privacy"] = "Az adatkezelĂ©si tĂˇjĂ©koztatĂł elfogadĂˇsa kĂ¶telezĹ‘."
+        errors["accepted_privacy"] = "Az adatkezelési tájékoztató elfogadása kötelező."
     if errors:
         raise field_errors(errors)
 
@@ -101,7 +111,7 @@ def register(
     raw_token = create_email_verification(db, user)
     verification_url = f"{settings.app_frontend_url.rstrip('/')}/auth/verify-email?token={raw_token}"
     send_email_verification_email(user.email, verification_url)
-    return MessageResponse(message="Sikeres regisztrĂˇciĂł. Az aktivĂˇlĂł linket elkĂĽldtĂĽk e-mailben.")
+    return MessageResponse(message="Sikeres regisztráció. Az aktiváló linket elküldtük e-mailben.")
 
 
 @router.post("/login", response_model=TokenResponse)
@@ -129,7 +139,7 @@ def login(
         logger.warning("Failed login reason=invalid_credentials ip=%s request_id=%s", ip_address, getattr(request.state, "request_id", None))
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect email or password",
+            detail="Hibás e-mail-cím vagy jelszó.",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
@@ -146,7 +156,7 @@ def login(
         logger.warning("Failed login reason=inactive_user user_id=%s ip=%s request_id=%s", user.id, ip_address, getattr(request.state, "request_id", None))
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Inactive user",
+            detail="Ez a felhasználói fiók inaktív.",
         )
 
     if not user.is_email_verified:
@@ -162,7 +172,7 @@ def login(
         logger.warning("Failed login reason=email_not_verified user_id=%s ip=%s request_id=%s", user.id, ip_address, getattr(request.state, "request_id", None))
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="A fiok meg nincs aktivalva.",
+            detail="A fiók még nincs aktiválva. Ellenőrizd az e-mail-fiókodat.",
         )
 
     create_login_attempt(
@@ -188,11 +198,21 @@ def forgot_password(
 
     user = get_user_by_email(db, forgot_request.email)
     if user is not None and user.is_active:
+        now = datetime.now(timezone.utc)
+        active_tokens = db.scalars(
+            select(PasswordResetToken).where(
+                PasswordResetToken.user_id == user.id,
+                PasswordResetToken.used_at.is_(None),
+            ),
+        ).all()
+        for token in active_tokens:
+            token.used_at = now
+            db.add(token)
         raw_token = secrets.token_urlsafe(32)
         reset_token = PasswordResetToken(
             user_id=user.id,
             token_hash=hash_reset_token(raw_token),
-            expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
+            expires_at=now + timedelta(hours=1),
         )
         db.add(reset_token)
         db.commit()
@@ -201,7 +221,32 @@ def forgot_password(
         send_password_reset_email(user.email, reset_url)
 
     return MessageResponse(
-        message="Ha lĂ©tezik ilyen email cĂ­mĹ± aktĂ­v fiĂłk, elkĂĽldtĂĽk a jelszĂł-visszaĂˇllĂ­tĂł linket.",
+        message="Ha létezik ilyen e-mail-című aktív fiók, elküldtük a jelszó-visszaállító linket.",
+    )
+
+
+@router.post("/resend-verification", response_model=MessageResponse)
+def resend_verification(
+    resend_request: ResendVerificationRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+) -> MessageResponse:
+    check_rate_limit(
+        request,
+        "auth:resend-verification",
+        settings.resend_verification_rate_limit_per_minute,
+        resend_request.email,
+    )
+    verify_captcha(resend_request.captcha_token or resend_request.turnstile_token, action="resend-verification")
+
+    user = get_user_by_email(db, resend_request.email)
+    if user is not None and user.is_active and not user.is_email_verified:
+        raw_token = create_email_verification(db, user)
+        verification_url = f"{settings.app_frontend_url.rstrip('/')}/auth/verify-email?token={raw_token}"
+        send_email_verification_email(user.email, verification_url)
+
+    return MessageResponse(
+        message="Ha a fiók létezik és még nincs aktiválva, elküldtük az új aktiváló linket.",
     )
 
 
@@ -216,27 +261,35 @@ def reset_password(
     )
     now = datetime.now(timezone.utc)
     if reset_token is None or reset_token.used_at is not None:
-        raise HTTPException(status_code=400, detail="Ă‰rvĂ©nytelen vagy mĂˇr felhasznĂˇlt jelszĂł-visszaĂˇllĂ­tĂł link.")
+        raise HTTPException(status_code=400, detail="Érvénytelen vagy már felhasznált jelszó-visszaállító link.")
 
     expires_at = reset_token.expires_at
     if expires_at.tzinfo is None:
         expires_at = expires_at.replace(tzinfo=timezone.utc)
     if expires_at < now:
-        raise HTTPException(status_code=400, detail="A jelszĂł-visszaĂˇllĂ­tĂł link lejĂˇrt.")
+        raise HTTPException(status_code=400, detail="A jelszó-visszaállító link lejárt.")
 
-    if len(reset_request.new_password) < 8:
-        raise HTTPException(status_code=422, detail="Az Ăşj jelszĂłnak legalĂˇbb 8 karakter hosszĂşnak kell lennie.")
+    if reset_request.new_password != reset_request.confirm_password:
+        raise HTTPException(status_code=422, detail="Az új jelszó és a megerősítése nem egyezik.")
 
     user = db.get(User, reset_token.user_id)
     if user is None or not user.is_active or user.deleted_at is not None:
-        raise HTTPException(status_code=400, detail="A jelszĂł-visszaĂˇllĂ­tĂˇs nem hajthatĂł vĂ©gre.")
+        raise HTTPException(status_code=400, detail="A jelszó-visszaállítás nem hajtható végre.")
 
     user.password_hash = hash_password(reset_request.new_password)
-    reset_token.used_at = now
+    user_tokens = db.scalars(
+        select(PasswordResetToken).where(
+            PasswordResetToken.user_id == user.id,
+            PasswordResetToken.used_at.is_(None),
+        ),
+    ).all()
+    for token in user_tokens:
+        token.used_at = now
+        db.add(token)
     db.add(user)
     db.add(reset_token)
     db.commit()
-    return MessageResponse(message="A jelszavad sikeresen mĂłdosult. Most mĂˇr bejelentkezhetsz.")
+    return MessageResponse(message="A jelszavad sikeresen módosult. Most már bejelentkezhetsz.")
 
 
 @router.get("/verify-email", response_model=MessageResponse)
@@ -247,24 +300,24 @@ def verify_email(token: str, db: Session = Depends(get_db)) -> MessageResponse:
     )
     now = datetime.now(timezone.utc)
     if verification is None or verification.used_at is not None:
-        raise HTTPException(status_code=400, detail="Ă‰rvĂ©nytelen vagy mĂˇr felhasznĂˇlt aktivĂˇlĂł link.")
+        raise HTTPException(status_code=400, detail="Érvénytelen vagy már felhasznált aktiváló link.")
 
     expires_at = verification.expires_at
     if expires_at.tzinfo is None:
         expires_at = expires_at.replace(tzinfo=timezone.utc)
     if expires_at < now:
-        raise HTTPException(status_code=400, detail="Az aktivĂˇlĂł link lejĂˇrt.")
+        raise HTTPException(status_code=400, detail="Az aktiváló link lejárt.")
 
     user = db.get(User, verification.user_id)
     if user is None or not user.is_active or user.deleted_at is not None:
-        raise HTTPException(status_code=400, detail="A fiĂłk aktivĂˇlĂˇsa nem hajthatĂł vĂ©gre.")
+        raise HTTPException(status_code=400, detail="A fiók aktiválása nem hajtható végre.")
 
     user.is_email_verified = True
     verification.used_at = now
     db.add(user)
     db.add(verification)
     db.commit()
-    return MessageResponse(message="A fiĂłkod sikeresen aktivĂˇlva lett. Most mĂˇr bejelentkezhetsz.")
+    return MessageResponse(message="A fiókod sikeresen aktiválva lett. Most már bejelentkezhetsz.")
 
 
 @router.get("/me", response_model=UserMeRead)
@@ -297,22 +350,24 @@ def update_me(
     current_user: User = Depends(require_active_user),
     db: Session = Depends(get_db),
 ) -> UserMeRead:
+    email_changed = False
     if profile_update.email is not None and profile_update.email != current_user.email:
         existing_user = get_user_by_email(db, profile_update.email)
         if existing_user is not None and existing_user.id != current_user.id:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail="Email already registered",
+                detail="Ez az e-mail-cím már regisztrálva van.",
             )
         current_user.email = profile_update.email
         current_user.is_email_verified = False
+        email_changed = True
 
     if profile_update.username is not None and profile_update.username != current_user.username:
         existing_user = get_user_by_username(db, profile_update.username)
         if existing_user is not None and existing_user.id != current_user.id:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail="Username already registered",
+                detail="Ez a felhasználónév már foglalt.",
             )
         current_user.username = profile_update.username
 
@@ -328,6 +383,10 @@ def update_me(
 
     db.commit()
     db.refresh(current_user)
+    if email_changed:
+        raw_token = create_email_verification(db, current_user)
+        verification_url = f"{settings.app_frontend_url.rstrip('/')}/auth/verify-email?token={raw_token}"
+        send_email_verification_email(current_user.email, verification_url)
     return UserMeRead.model_validate(current_user)
 
 
@@ -338,18 +397,18 @@ def change_my_password(
     db: Session = Depends(get_db),
 ) -> MessageResponse:
     if not verify_password(password_change.current_password, current_user.password_hash):
-        raise HTTPException(status_code=403, detail="A jelenlegi jelszĂł nem megfelelĹ‘.")
+        raise HTTPException(status_code=403, detail="A jelenlegi jelszó nem megfelelő.")
 
     if password_change.new_password != password_change.confirm_password:
-        raise HTTPException(status_code=422, detail="Az Ăşj jelszĂł Ă©s a megerĹ‘sĂ­tĂ©s nem egyezik.")
+        raise HTTPException(status_code=422, detail="Az új jelszó és a megerősítése nem egyezik.")
 
     if verify_password(password_change.new_password, current_user.password_hash):
-        raise HTTPException(status_code=422, detail="Az Ăşj jelszĂł nem lehet azonos a jelenlegi jelszĂłval.")
+        raise HTTPException(status_code=422, detail="Az új jelszó nem lehet azonos a jelenlegi jelszóval.")
 
     current_user.password_hash = hash_password(password_change.new_password)
     db.add(current_user)
     db.commit()
-    return MessageResponse(message="A jelszavad sikeresen mĂłdosult.")
+    return MessageResponse(message="A jelszavad sikeresen módosult.")
 
 
 @router.delete("/me", response_model=MessageResponse)
@@ -359,13 +418,13 @@ def delete_me(
     db: Session = Depends(get_db),
 ) -> MessageResponse:
     if not verify_password(delete_request.password, current_user.password_hash):
-        raise HTTPException(status_code=403, detail="A megadott jelszĂł nem megfelelĹ‘.")
+        raise HTTPException(status_code=403, detail="A megadott jelszó nem megfelelő.")
 
     current_user.is_active = False
     current_user.deleted_at = datetime.now(timezone.utc)
     current_user.email = f"deleted-{current_user.id}-{current_user.email}"
     current_user.username = f"deleted-{current_user.id}-{current_user.username}"
-    current_user.full_name = f"TĂ¶rĂ¶lt felhasznĂˇlĂł #{current_user.id}"
+    current_user.full_name = f"Törölt felhasználó #{current_user.id}"
     subscriber = db.scalar(select(NewsletterSubscriber).where(NewsletterSubscriber.user_id == current_user.id))
     if subscriber is not None:
         subscriber.is_active = False
@@ -373,4 +432,4 @@ def delete_me(
         db.add(subscriber)
     db.add(current_user)
     db.commit()
-    return MessageResponse(message="A fiĂłkod tĂ¶rlĂ©sre kerĂĽlt.")
+    return MessageResponse(message="A fiókod törlésre került.")

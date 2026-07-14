@@ -52,7 +52,7 @@ def require_active_user(current_user: User = Depends(get_current_user)) -> User:
     if not current_user.is_active or current_user.deleted_at is not None:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Inactive user",
+            detail="Ez a felhasználói fiók inaktív.",
         )
     return current_user
 
@@ -61,7 +61,7 @@ def require_admin(current_user: User = Depends(require_active_user)) -> User:
     if current_user.role != "admin":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin access required",
+            detail="Ehhez a művelethez admin jogosultság szükséges.",
         )
     return current_user
 
