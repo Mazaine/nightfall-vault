@@ -28,9 +28,27 @@ router = APIRouter(prefix="/api/auctions", tags=["auctions"])
 AUCTION_SORTS = {"newest", "oldest", "highest_price", "lowest_price", "most_bids", "fewest_bids", "soon_ending", "buy_now_first"}
 
 
-def auction_list_item(auction: Auction, bid_count: int | None = None) -> AuctionListItem:
+def seller_rating_summary(db: Session, seller_id: int) -> tuple[float | None, int]:
+    average, count = db.query(func.avg(AuctionReview.rating), func.count(AuctionReview.id)).filter(AuctionReview.reviewed_user_id == seller_id).one()
+    return (round(float(average), 2) if average is not None else None, int(count or 0))
+
+
+def auction_list_item(
+    auction: Auction,
+    bid_count: int | None = None,
+    *,
+    db: Session | None = None,
+    seller_average_rating: float | None = None,
+    seller_review_count: int | None = None,
+) -> AuctionListItem:
     count = len(auction.bids) if bid_count is None else bid_count
-    return AuctionListItem.model_validate(auction).model_copy(update={"bid_count": count})
+    if db is not None and seller_review_count is None:
+        seller_average_rating, seller_review_count = seller_rating_summary(db, auction.seller_id)
+    return AuctionListItem.model_validate(auction).model_copy(update={
+        "bid_count": count,
+        "seller_average_rating": seller_average_rating,
+        "seller_review_count": seller_review_count or 0,
+    })
 
 
 def _escaped_contains(value: str) -> str:
@@ -95,7 +113,8 @@ def _apply_auction_sort(query, sort: str):
 
 
 def auction_response(auction: Auction, user: User | None = None, db: Session | None = None) -> AuctionResponse:
-    response = AuctionResponse.model_validate(auction)
+    seller_average_rating, seller_review_count = seller_rating_summary(db, auction.seller_id) if db is not None else (None, 0)
+    response = AuctionResponse.model_validate(auction).model_copy(update={"seller_average_rating": seller_average_rating, "seller_review_count": seller_review_count})
     if user is None:
         return response
     return response.model_copy(
@@ -156,6 +175,13 @@ def list_public_auctions(
         return AuctionListPage(items=[], total=total, limit=limit, offset=offset)
     list_statement = select(Auction).options(selectinload(Auction.seller), selectinload(Auction.images)).where(Auction.id.in_(auction_ids))
     auctions_by_id = {auction.id: auction for auction in db.scalars(list_statement).all()}
+    seller_ids = {auction.seller_id for auction in auctions_by_id.values()}
+    rating_rows = db.query(
+        AuctionReview.reviewed_user_id,
+        func.avg(AuctionReview.rating),
+        func.count(AuctionReview.id),
+    ).filter(AuctionReview.reviewed_user_id.in_(seller_ids)).group_by(AuctionReview.reviewed_user_id).all() if seller_ids else []
+    seller_ratings = {user_id: (round(float(average), 2), int(count)) for user_id, average, count in rating_rows}
     items: list[AuctionListItem] = []
     for auction_id in auction_ids:
         auction = auctions_by_id.get(auction_id)
@@ -163,7 +189,8 @@ def list_public_auctions(
             continue
         auction = sync_auction_status(db, auction)
         if auction.status in PUBLIC_AUCTION_STATUSES:
-            items.append(auction_list_item(auction, bid_counts.get(auction.id, 0)))
+            average, review_count = seller_ratings.get(auction.seller_id, (None, 0))
+            items.append(auction_list_item(auction, bid_counts.get(auction.id, 0), seller_average_rating=average, seller_review_count=review_count))
     return AuctionListPage(items=items, total=total, limit=limit, offset=offset)
 
 
@@ -180,7 +207,7 @@ def create_my_auction(
 @router.get("/me", response_model=list[AuctionListItem])
 def list_my_auctions(current_user: User = Depends(require_active_user), db: Session = Depends(get_db)) -> list[AuctionListItem]:
     statement = get_auction_statement().where(Auction.seller_id == current_user.id, Auction.deleted_at.is_(None)).order_by(Auction.created_at.desc(), Auction.id.desc())
-    return [auction_list_item(sync_auction_status(db, auction)) for auction in db.scalars(statement).all()]
+    return [auction_list_item(sync_auction_status(db, auction), db=db) for auction in db.scalars(statement).all()]
 
 
 @router.get("/me/conversations", response_model=list[AuctionConversationRead])
@@ -240,7 +267,7 @@ def list_my_bid_auctions(current_user: User = Depends(require_active_user), db: 
         has_won = auction.status == "sold" and auction.winner_id == current_user.id
         items.append(
             MyBidAuctionItem(
-                auction=auction_list_item(auction),
+                auction=auction_list_item(auction, db=db),
                 my_highest_bid=my_highest_bid,
                 is_leading=is_leading,
                 has_won=has_won,
@@ -298,14 +325,14 @@ def activate_my_auction(
 def list_related_auctions(auction_id: int, current_user: User | None = Depends(get_optional_current_user), db: Session = Depends(get_db)) -> list[AuctionListItem]:
     auction = get_auction_or_404(db, auction_id)
     require_can_view_auction(auction, current_user)
-    return [auction_list_item(item, len(item.bids)) for item in related_auctions(db, auction)]
+    return [auction_list_item(item, len(item.bids), db=db) for item in related_auctions(db, auction)]
 
 
 @router.get("/{auction_id}/seller-auctions", response_model=list[AuctionListItem])
 def list_seller_other_auctions(auction_id: int, current_user: User | None = Depends(get_optional_current_user), db: Session = Depends(get_db)) -> list[AuctionListItem]:
     auction = get_auction_or_404(db, auction_id)
     require_can_view_auction(auction, current_user)
-    return [auction_list_item(item, len(item.bids)) for item in seller_other_auctions(db, auction, limit=6)]
+    return [auction_list_item(item, len(item.bids), db=db) for item in seller_other_auctions(db, auction, limit=6)]
 
 
 @router.post("/{auction_id}/cancel", response_model=AuctionStatusResponse)

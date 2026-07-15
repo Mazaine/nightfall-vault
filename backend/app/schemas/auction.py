@@ -233,6 +233,8 @@ class AuctionListItem(BaseModel):
     moderated_by_admin_id: int | None = None
     moderation_reason: str | None = None
     bid_count: int = 0
+    seller_average_rating: float | None = None
+    seller_review_count: int = 0
     seller: UserSummary | None = None
     images: list[AuctionImageRead] = []
 

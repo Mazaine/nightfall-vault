@@ -43,6 +43,11 @@ def test_public_profile_exposes_safe_fields_and_stats() -> None:
     review = client.post(f"/api/auctions/{sold['id']}/reviews", json={"rating": 5, "comment": "Korrekt elado."}, headers=auth_headers(winner))
     assert review.status_code == 201
 
+    auction_detail = client.get(f"/api/auctions/{sold['id']}")
+    assert auction_detail.status_code == 200
+    assert auction_detail.json()["seller_average_rating"] == 5.0
+    assert auction_detail.json()["seller_review_count"] == 1
+
     response = client.get(f"/api/users/{seller.username}")
 
     assert response.status_code == 200

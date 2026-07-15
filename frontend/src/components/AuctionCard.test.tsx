@@ -3,7 +3,7 @@ import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { describe, expect, it } from "vitest";
 import { AuctionCard } from "./AuctionCard";
 
-const item = { id: 7, title: "Teszt kártya", type: "Pokemon", price: "1 200 Ft", step: "100 Ft", time: "2 óra", sellerName: "Anna", sellerRating: "2 licit", buyNowPrice: "2 000 Ft", imageUrl: "https://example.test/card.png", canBid: true };
+const item = { id: 7, title: "Teszt kártya", type: "Pokemon", price: "1 200 Ft", step: "100 Ft", time: "2 óra", sellerName: "Anna Kártyabarlang", sellerRating: 4, bidCount: 2, buyNowPrice: "2 000 Ft", imageUrl: "https://example.test/card.png", canBid: true };
 
 function Location() {
   return <span data-testid="location">{useLocation().pathname}{useLocation().hash}</span>;
@@ -22,5 +22,12 @@ describe("AuctionCard", () => {
     render(<MemoryRouter><Routes><Route path="*" element={<><AuctionCard item={item} index={0} detailPath="/auctions/7" /><Location /></>} /></Routes></MemoryRouter>);
     fireEvent.keyDown(screen.getByRole("link", { name: "Teszt kártya aukció megnyitása" }), { key: "Enter" });
     expect(screen.getByTestId("location")).toHaveTextContent("/auctions/7");
+  });
+
+  it("az eladó értékelését csillagokkal, a licitszámot külön jeleníti meg", () => {
+    render(<MemoryRouter><AuctionCard item={item} index={0} detailPath="/auctions/7" /></MemoryRouter>);
+    expect(screen.getByText("Eladó: Anna Kártyabarlang")).toBeInTheDocument();
+    expect(screen.getByLabelText("4 csillag az 5-ből")).toHaveTextContent("★★★★☆");
+    expect(screen.getByText("2 licit")).toBeInTheDocument();
   });
 });

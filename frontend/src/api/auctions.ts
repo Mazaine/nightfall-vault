@@ -52,6 +52,8 @@ export type Auction = {
   can_review?: boolean;
   is_owner?: boolean;
   bid_count?: number;
+  seller_average_rating?: number | null;
+  seller_review_count?: number;
 };
 
 export type AuctionCreatePayload = {

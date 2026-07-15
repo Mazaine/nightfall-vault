@@ -10,7 +10,8 @@ type AuctionCardProps = {
     step: string;
     time: string;
     sellerName: string;
-    sellerRating: string;
+    sellerRating: number | string | null;
+    sellerReviewCount?: number;
     buyNowPrice?: string | null;
     isClosed?: boolean;
     userIsOutbid?: boolean;
@@ -36,6 +37,13 @@ export function AuctionCard({
   showBidActions = true,
 }: AuctionCardProps) {
   const navigate = useNavigate();
+  const parsedSellerRating = typeof item.sellerRating === "number"
+    ? item.sellerRating
+    : Number.parseFloat(String(item.sellerRating ?? "").replace(",", "."));
+  const sellerRating = Number.isFinite(parsedSellerRating) && parsedSellerRating >= 0 && parsedSellerRating <= 5
+    ? parsedSellerRating
+    : null;
+  const filledStars = sellerRating === null ? 0 : Math.round(sellerRating);
   const openDetail = () => navigate(detailPath);
   const handleClick = (event: MouseEvent<HTMLElement>) => {
     if (!(event.target as HTMLElement).closest("a, button")) openDetail();
@@ -72,7 +80,18 @@ export function AuctionCard({
         {item.statusLabel ? <span className="status-badge">Állapot: {item.statusLabel}</span> : null}
         <div className="seller-meta">
           <span>Eladó: {item.sellerName}</span>
-          <span>Értékelés: {item.sellerRating}</span>
+          <span className="seller-rating-line">
+            <span>Értékelés:</span>
+            <span
+              className="star-rating"
+              aria-label={sellerRating === null ? "Még nincs értékelés" : `${sellerRating.toLocaleString("hu-HU")} csillag az 5-ből`}
+              title={sellerRating === null ? "Még nincs értékelés" : `${sellerRating.toLocaleString("hu-HU")} / 5`}
+            >
+              {Array.from({ length: 5 }, (_, starIndex) => (
+                <span aria-hidden="true" key={starIndex}>{starIndex < filledStars ? "★" : "☆"}</span>
+              ))}
+            </span>
+          </span>
         </div>
         <span>{priceLabel}</span>
         <strong>{item.price}</strong>
