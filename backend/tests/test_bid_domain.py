@@ -1,6 +1,7 @@
 ﻿import base64
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
+from decimal import Decimal
 from uuid import uuid4
 
 from fastapi.testclient import TestClient
@@ -14,6 +15,7 @@ from app.models.notification import Notification
 from app.models.security_log import AuditLog
 from app.models.user import User
 from app.services.auction_scheduler import close_expired_auctions
+from app.services.bidding import format_bid_amount
 
 
 client = TestClient(app)
@@ -104,6 +106,10 @@ def place_bid(auction_id: int, bidder: User, amount: str):
     return client.post(f"/api/auctions/{auction_id}/bids", json={"amount": amount}, headers=auth_headers(bidder))
 
 
+def test_bid_amount_is_formatted_as_hungarian_forint() -> None:
+    assert format_bid_amount(Decimal("21000.00")) == "21 000 Ft"
+
+
 def test_successful_bid_updates_current_price_and_highest_bid() -> None:
     cleanup_test_data()
     seller = create_test_user("seller-success@bid-test.local")
@@ -131,8 +137,10 @@ def test_bid_validation_rejects_too_low_amount_and_respects_increment() -> None:
     next_too_low = place_bid(auction["id"], bidder, "1150.00")
 
     assert too_low.status_code == 422
+    assert too_low.json()["detail"] == "A licit összege legalább 1 100 Ft legyen."
     assert valid.status_code == 201
     assert next_too_low.status_code == 422
+    assert next_too_low.json()["detail"] == "A licit összege legalább 1 200 Ft legyen."
 
 
 def test_seller_cannot_bid_on_own_auction() -> None:
@@ -143,6 +151,7 @@ def test_seller_cannot_bid_on_own_auction() -> None:
     response = place_bid(auction["id"], seller, "1100.00")
 
     assert response.status_code == 403
+    assert response.json()["detail"] == "A saját aukciódra nem licitálhatsz."
 
 
 def test_bids_are_rejected_on_closed_and_suspended_auctions() -> None:
@@ -168,6 +177,8 @@ def test_bids_are_rejected_on_closed_and_suspended_auctions() -> None:
 
     assert closed_response.status_code == 409
     assert suspended_response.status_code == 409
+    assert closed_response.json()["detail"] == "Licit csak aktív aukcióra adható le."
+    assert suspended_response.json()["detail"] == "Licit csak aktív aukcióra adható le."
 
 
 def test_concurrent_bids_keep_single_highest_price() -> None:

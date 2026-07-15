@@ -16,6 +16,10 @@ from app.services.security_audit import create_domain_audit_log
 FIVE_MINUTE_EXTENSION_WINDOW = timedelta(minutes=5)
 
 
+def format_bid_amount(amount: Decimal) -> str:
+    return f"{amount:,.0f}".replace(",", " ") + " Ft"
+
+
 def bidder_label(bid: Bid) -> str:
     return f"Licitáló #{bid.bidder_id}"
 
@@ -63,7 +67,7 @@ def bid_to_history_item(bid: Bid, auction: Auction) -> dict:
 def list_bid_history(db: Session, auction: Auction, user: User | None) -> list[Bid]:
     sync_auction_status(db, auction)
     if not can_view_auction(auction, user):
-        raise HTTPException(status_code=404, detail="Auction not found")
+        raise HTTPException(status_code=404, detail="Az aukció nem található.")
     statement = select(Bid).where(Bid.auction_id == auction.id).order_by(Bid.amount.desc(), Bid.created_at.asc(), Bid.id.asc())
     return list(db.scalars(statement).all())
 
@@ -101,17 +105,17 @@ def place_bid(db: Session, auction_id: int, bidder: User, amount: Decimal) -> tu
     )
     auction = db.scalar(locked_statement)
     if auction is None:
-        raise HTTPException(status_code=404, detail="Auction not found")
+        raise HTTPException(status_code=404, detail="Az aukció nem található.")
 
     auction = _sync_locked_auction_for_bidding(db, auction)
     if auction.status != "active":
         db.add(auction)
         db.commit()
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Bids can only be placed on active auctions.")
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Licit csak aktív aukcióra adható le.")
     if auction.seller_id == bidder.id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Seller cannot bid on own auction.")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="A saját aukciódra nem licitálhatsz.")
     if normalized_amount <= 0:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Bid amount must be positive.")
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="A licit összegének pozitívnak kell lennie.")
 
     previous_highest_bid_id = auction.highest_bid_id
     previous_highest_bidder_id = auction.highest_bid.bidder_id if auction.highest_bid is not None else None
@@ -122,7 +126,10 @@ def place_bid(db: Session, auction_id: int, bidder: User, amount: Decimal) -> tu
     current_price = normalize_money(auction.current_price)
     minimum_bid = normalize_money(current_price + auction.bid_increment)
     if normalized_amount < minimum_bid:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=f"Bid must be at least {minimum_bid}.")
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"A licit összege legalább {format_bid_amount(minimum_bid)} legyen.",
+        )
 
     bid = Bid(auction_id=auction.id, bidder_id=bidder.id, amount=normalized_amount)
     db.add(bid)
