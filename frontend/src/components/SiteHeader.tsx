@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import { getUnreadNotificationCount } from "../api/auctions";
 import { useAuth } from "../AuthContext";
+import { UNREAD_NOTIFICATION_COUNT_CHANGED } from "../utils/notificationEvents";
 
 const navItems = [
   { label: "Kezdőlap", to: "/" },
@@ -71,8 +72,17 @@ export function SiteHeader() {
   useEffect(() => {
     if (!isAuthenticated) { setUnreadCount(0); return; }
     let active = true;
-    getUnreadNotificationCount().then((result) => { if (active) setUnreadCount(result.unread_count); }).catch(() => { if (active) setUnreadCount(0); });
-    return () => { active = false; };
+    let hasLiveUpdate = false;
+    const handleUnreadCountChanged = (event: Event) => {
+      hasLiveUpdate = true;
+      setUnreadCount(Math.max(0, (event as CustomEvent<number>).detail));
+    };
+    window.addEventListener(UNREAD_NOTIFICATION_COUNT_CHANGED, handleUnreadCountChanged);
+    getUnreadNotificationCount().then((result) => { if (active && !hasLiveUpdate) setUnreadCount(result.unread_count); }).catch(() => { if (active && !hasLiveUpdate) setUnreadCount(0); });
+    return () => {
+      active = false;
+      window.removeEventListener(UNREAD_NOTIFICATION_COUNT_CHANGED, handleUnreadCountChanged);
+    };
   }, [isAuthenticated]);
 
   const signOut = () => { setIsAccountOpen(false); logout(); navigate("/"); };
