@@ -10,7 +10,6 @@ import { AuctionDetailPage } from "./pages/AuctionDetailPage";
 import { AuctionsPage } from "./pages/AuctionsPage";
 import { AuthPage } from "./pages/AuthPages";
 import { EmailVerificationPage, ForgotPasswordPage, ResetPasswordPage } from "./pages/AuthRecoveryPages";
-import { CategoriesPage } from "./pages/CategoriesPage";
 import { ContactPage } from "./pages/ContactPage";
 import { HomePage } from "./pages/HomePage";
 import { HowItWorksPage } from "./pages/HowItWorksPage";
@@ -63,7 +62,7 @@ function App() {
           <Route path="/auctions" element={<AuctionsPage />} />
           <Route path="/auctions/:auctionId" element={<AuctionDetailPage />} />
           <Route path="/users/:username" element={<UserProfilePage />} />
-          <Route path="/categories" element={<CategoriesPage />} />
+          <Route path="/categories" element={<Navigate to="/auctions" replace />} />
           <Route element={<ProtectedRoute />}>
             <Route path="/account" element={<AccountLayout />}>
               <Route index element={<Navigate to="profile" replace />} />

@@ -7,7 +7,6 @@ const navItems = [
   { label: "Kezdőlap", to: "/" },
   { label: "Licitjeim", to: "/account/bids", authenticated: true },
   { label: "Aukciók", to: "/auctions" },
-  { label: "Kategóriák", to: "/categories" },
   { label: "Hogyan működik?", to: "/how-it-works" },
   { label: "Rólunk", to: "/about" },
   { label: "Kapcsolat", to: "/contact" },

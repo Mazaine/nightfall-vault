@@ -14,7 +14,6 @@ const titles: Array<[string, string]> = [
   ["/account/reports", "Jelentéseim"],
   ["/account/blocked-users", "Blokkolt felhasználók"],
   ["/auctions", "Aukciók"],
-  ["/categories", "Kategóriák"],
   ["/how-it-works", "Hogyan működik?"],
   ["/about", "Rólunk"],
   ["/contact", "Kapcsolat"],
