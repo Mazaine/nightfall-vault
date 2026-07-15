@@ -14,8 +14,8 @@ from app.services.user_blocks import ensure_not_blocked
 
 SELLER_DECLARATION_VERSION = "2026-07-11"
 PUBLIC_AUCTION_STATUSES = {"scheduled", "active", "ended", "sold", "unsold"}
-EDITABLE_OWNER_STATUSES = {"draft", "scheduled"}
-CRITICAL_AUCTION_FIELDS = {"starting_price", "bid_increment", "buy_now_enabled", "buy_now_price", "starts_at"}
+EDITABLE_OWNER_STATUSES = {"draft", "scheduled", "active"}
+CRITICAL_AUCTION_FIELDS = {"starting_price", "bid_increment", "buy_now_price", "starts_at"}
 
 ALLOWED_STATUS_TRANSITIONS: dict[str, set[str]] = {
     "draft": {"scheduled", "active", "cancelled"},
@@ -167,30 +167,30 @@ def _validate_update_time_window(auction: Auction, update: AuctionUpdate) -> Non
     starts_at = normalize_datetime(update.starts_at) if update.starts_at is not None else auction.starts_at
     ends_at = normalize_datetime(update.ends_at) if update.ends_at is not None else auction.ends_at
     if ends_at <= starts_at:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="ends_at must be later than starts_at.")
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="A lejárati időnek későbbinek kell lennie a kezdési időnél.")
 
 
 def _validate_update_buy_now(auction: Auction, update: AuctionUpdate) -> None:
     buy_now_enabled = auction.buy_now_enabled if update.buy_now_enabled is None else update.buy_now_enabled
     starting_price = auction.starting_price if update.starting_price is None else normalize_money(update.starting_price)
     buy_now_price = auction.buy_now_price if update.buy_now_price is None else normalize_money(update.buy_now_price)
-    if not buy_now_enabled and buy_now_price is not None:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="buy_now_price must be empty when buy now is disabled.")
+    if not buy_now_enabled and update.buy_now_price is not None:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Kikapcsolt villámárnál nem adható meg villámárösszeg.")
     if buy_now_enabled:
         if buy_now_price is None:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="buy_now_price is required when buy now is enabled.")
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Bekapcsolt villámárnál kötelező megadni a villámár összegét.")
         if buy_now_price <= starting_price:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="buy_now_price must be greater than starting_price.")
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="A villámárnak magasabbnak kell lennie a kezdőárnál.")
 
 
 def update_auction(db: Session, auction: Auction, auction_update: AuctionUpdate, user: User) -> Auction:
     sync_auction_status(db, auction)
     require_owner_or_admin(auction, user)
     if auction.status not in EDITABLE_OWNER_STATUSES and user.role != "admin":
-        raise HTTPException(status_code=409, detail="Auction cannot be edited in its current status.")
+        raise HTTPException(status_code=409, detail="Ebben az aukcióállapotban az aukció nem módosítható.")
     update_data = auction_update.model_dump(exclude_unset=True)
     if user.role != "admin" and auction.status != "draft" and any(field in update_data for field in CRITICAL_AUCTION_FIELDS):
-        raise HTTPException(status_code=409, detail="Critical auction fields cannot be changed after draft status.")
+        raise HTTPException(status_code=409, detail="A kezdőár, a licitlépcső, a villámár és a kezdési idő piszkozat után nem módosítható.")
     _validate_update_time_window(auction, auction_update)
     _validate_update_buy_now(auction, auction_update)
     for field_name, value in update_data.items():

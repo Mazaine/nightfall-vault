@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AccountPage } from "./AccountPage";
@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   listMyAuctions: vi.fn(),
   listMyBidAuctions: vi.fn(),
   createAuction: vi.fn(),
+  updateAuction: vi.fn(),
   uploadAuctionImage: vi.fn(),
   activateAuction: vi.fn(),
   setAuctionCoverImage: vi.fn(),
@@ -42,6 +43,8 @@ describe("AccountPage media upload", () => {
     mocks.listMyAuctions.mockResolvedValue([]);
     mocks.listMyBidAuctions.mockResolvedValue([]);
     mocks.createAuction.mockResolvedValue({ id: 91 });
+    mocks.updateAuction.mockResolvedValue({});
+    mocks.uploadAuctionImage.mockResolvedValue({});
     mocks.activateAuction.mockResolvedValue({ id: 91, status: "scheduled" });
     mocks.setAuctionCoverImage.mockResolvedValue({});
     mocks.deleteAuctionImage.mockResolvedValue({});
@@ -80,11 +83,32 @@ describe("AccountPage media upload", () => {
 
   it("meglévő piszkozatnál backend művelettel állít borítót és töröl képet", async () => {
     vi.spyOn(window, "confirm").mockReturnValue(true);
-    mocks.listMyAuctions.mockResolvedValue([{ id: 91, seller_id: 2, title: "Képes piszkozat", category: "Pokemon", condition: "fresh", status: "draft", starting_price: "1000", bid_increment: "100", current_price: "1000", buy_now_enabled: false, buy_now_price: null, starts_at: "2026-07-16T10:00:00Z", ends_at: "2026-07-17T10:00:00Z", five_minute_rule_enabled: true, winner_id: null, highest_bid_id: null, images: [{ id: 10, auction_id: 91, storage_key: "original.webp", url: "/media/original.webp", thumbnail_url: "/media/thumb.webp", original_filename: "one.png", content_type: "image/webp", file_size: 10, position: 0, is_cover: false, created_at: "2026-07-15T10:00:00Z" }] }]);
+    mocks.listMyAuctions.mockResolvedValue([{ id: 91, seller_id: 2, title: "Képes piszkozat", description: "Leírás", category: "Pokemon", condition: "fresh", status: "draft", starting_price: "1000", bid_increment: "100", current_price: "1000", buy_now_enabled: false, buy_now_price: null, starts_at: "2026-07-16T10:00:00Z", ends_at: "2026-07-17T10:00:00Z", five_minute_rule_enabled: true, winner_id: null, highest_bid_id: null, images: [{ id: 10, auction_id: 91, storage_key: "original.webp", url: "/media/original.webp", thumbnail_url: "/media/thumb.webp", original_filename: "one.png", content_type: "image/webp", file_size: 10, position: 0, is_cover: false, created_at: "2026-07-15T10:00:00Z" }] }]);
     renderPage();
+    fireEvent.click(await screen.findByRole("button", { name: "Módosítás" }));
     fireEvent.click(await screen.findByRole("button", { name: "Legyen borítókép" }));
     await waitFor(() => expect(mocks.setAuctionCoverImage).toHaveBeenCalledWith(91, 10));
     fireEvent.click(screen.getByRole("button", { name: "Kép törlése" }));
     await waitFor(() => expect(mocks.deleteAuctionImage).toHaveBeenCalledWith(91, 10));
+  });
+
+  it("a felugró prompt helyett előre kitöltött szerkesztő űrlapot nyit", async () => {
+    mocks.listMyAuctions.mockResolvedValue([{ id: 92, seller_id: 2, title: "Aktív tesztaukció", description: "Régi leírás", category: "Pokemon", condition: "fresh", status: "active", starting_price: "1000", bid_increment: "100", current_price: "1200", buy_now_enabled: false, buy_now_price: null, starts_at: "2026-07-15T10:00:00Z", ends_at: "2026-07-17T10:00:00Z", five_minute_rule_enabled: true, winner_id: null, highest_bid_id: null, images: [] }]);
+    renderPage();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Módosítás" }));
+    const form = screen.getByRole("form", { name: "Aktív tesztaukció módosítása" });
+    const editor = within(form);
+    expect(editor.getByLabelText("Leírás")).toHaveValue("Régi leírás");
+    expect(editor.getByLabelText(/Kezdőár/)).toBeDisabled();
+    expect(editor.getByLabelText(/Licitlépcső/)).toBeDisabled();
+
+    fireEvent.change(editor.getByLabelText("Leírás"), { target: { value: "Frissített leírás" } });
+    fireEvent.click(editor.getByRole("button", { name: "Módosítások mentése" }));
+
+    await waitFor(() => expect(mocks.updateAuction).toHaveBeenCalledWith(92, expect.objectContaining({
+      description: "Frissített leírás",
+      five_minute_rule_enabled: true,
+    })));
   });
 });

@@ -33,6 +33,10 @@ const conditionMap: Record<string, AuctionCondition> = {
   "Nyomdahibás": "misprint",
 };
 
+const conditionLabelMap = Object.fromEntries(
+  Object.entries(conditionMap).map(([label, value]) => [value, label]),
+) as Record<AuctionCondition, string>;
+
 function toCardAuction(auction: Auction) {
   const coverImage = auction.images.find((image) => image.is_cover) ?? auction.images[0];
   return {
@@ -61,6 +65,12 @@ function localDateTimeToIso(value: FormDataEntryValue | null) {
   return new Date(textValue).toISOString();
 }
 
+function isoToLocalDateTime(value: string) {
+  const date = new Date(value);
+  const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
+  return localDate.toISOString().slice(0, 16);
+}
+
 export function AccountPage({ section }: { section: "bids" | "auctions" }) {
   const [myAuctions, setMyAuctions] = useState<Auction[]>([]);
   const [myBidAuctions, setMyBidAuctions] = useState<MyBidAuction[]>([]);
@@ -74,6 +84,12 @@ export function AccountPage({ section }: { section: "bids" | "auctions" }) {
   const [formMessage, setFormMessage] = useState("");
   const [isCreatingAuction, setIsCreatingAuction] = useState(false);
   const [uploadProgress, setUploadProgress] = useState("");
+  const [editingAuctionId, setEditingAuctionId] = useState<number | null>(null);
+  const [isUpdatingAuction, setIsUpdatingAuction] = useState(false);
+  const [editAuctionImages, setEditAuctionImages] = useState<File[]>([]);
+  const [editCoverImageIndex, setEditCoverImageIndex] = useState<number | null>(null);
+  const [editImageMessage, setEditImageMessage] = useState("");
+  const [editUploadProgress, setEditUploadProgress] = useState("");
 
   const refreshMyAuctions = async () => {
     setIsLoadingMyAuctions(true);
@@ -177,20 +193,90 @@ export function AccountPage({ section }: { section: "bids" | "auctions" }) {
     }
   };
 
-  const handleEditDescription = async (auction: Auction) => {
-    const nextDescription = window.prompt(
-      "Módosítható: leírás, kép, lejárati dátum, 5 perces szabály, villámár kapcsoló. Nem módosítható: kezdőár, licitlépcső, már megadott villámár összege.",
-      auction.description ?? "",
-    );
-    if (nextDescription === null) {
+  const beginEditingAuction = (auction: Auction) => {
+    setEditingAuctionId(auction.id);
+    setEditAuctionImages([]);
+    setEditCoverImageIndex(null);
+    setEditImageMessage("");
+    setEditUploadProgress("");
+    setFormMessage("");
+  };
+
+  const stopEditingAuction = () => {
+    setEditingAuctionId(null);
+    setEditAuctionImages([]);
+    setEditCoverImageIndex(null);
+    setEditImageMessage("");
+    setEditUploadProgress("");
+  };
+
+  const handleEditImageChange = (event: ChangeEvent<HTMLInputElement>, auction: Auction) => {
+    const selectedFiles = Array.from(event.target.files ?? []);
+    const invalidFile = selectedFiles.find((file) => !["image/jpeg", "image/png", "image/webp"].includes(file.type) || file.size > 5 * 1024 * 1024);
+    if (invalidFile) {
+      setEditAuctionImages([]);
+      setEditImageMessage(`${invalidFile.name}: csak JPEG, PNG vagy WEBP kép tölthető fel, legfeljebb 5 MB méretben.`);
+      event.target.value = "";
       return;
     }
+    const availableSlots = Math.max(0, MAX_AUCTION_IMAGES - auction.images.length);
+    const limitedFiles = selectedFiles.slice(0, availableSlots);
+    setEditAuctionImages(limitedFiles);
+    setEditCoverImageIndex(null);
+    setEditImageMessage(
+      availableSlots === 0
+        ? "Az aukción már elérted az 5 képes maximumot. Előbb törölj egy meglévő képet."
+        : selectedFiles.length > availableSlots
+          ? `Még ${availableSlots} kép tölthető fel, ezért csak az első ${availableSlots} fájlt tartottuk meg.`
+          : "",
+    );
+  };
+
+  const removeEditSelectedImage = (index: number) => {
+    setEditAuctionImages((current) => current.filter((_, imageIndex) => imageIndex !== index));
+    setEditCoverImageIndex((current) => current === index ? null : current !== null && current > index ? current - 1 : current);
+  };
+
+  const handleUpdateAuction = async (event: FormEvent<HTMLFormElement>, auction: Auction) => {
+    event.preventDefault();
+    if (isUpdatingAuction) return;
+    const formData = new FormData(event.currentTarget);
+    const isDraft = auction.status === "draft";
+    const safeUpdate = {
+      description: String(formData.get("description") ?? ""),
+      ends_at: localDateTimeToIso(formData.get("ends_at")),
+      five_minute_rule_enabled: formData.get("five_minute_rule_enabled") === "on",
+      buy_now_enabled: formData.get("buy_now_enabled") === "on",
+    };
+    const updatePayload = isDraft ? {
+      ...safeUpdate,
+      title: String(formData.get("title") ?? ""),
+      category: String(formData.get("category") ?? categories[0]),
+      condition: conditionMap[String(formData.get("condition") ?? conditionOptions[0])],
+      starting_price: String(formData.get("starting_price") ?? auction.starting_price),
+      bid_increment: String(formData.get("bid_increment") ?? auction.bid_increment),
+      starts_at: localDateTimeToIso(formData.get("starts_at")),
+      buy_now_enabled: formData.get("buy_now_enabled") === "on",
+      buy_now_price: formData.get("buy_now_enabled") === "on" ? String(formData.get("buy_now_price") ?? "") : null,
+    } : safeUpdate;
+
+    setIsUpdatingAuction(true);
+    setFormMessage("");
+    setEditUploadProgress("A módosítások mentése folyamatban...");
     try {
-      await updateAuction(auction.id, { description: nextDescription });
+      await updateAuction(auction.id, updatePayload);
+      for (const [index, file] of editAuctionImages.entries()) {
+        setEditUploadProgress(`${index + 1}/${editAuctionImages.length}: ${file.name} feltöltése és feldolgozása...`);
+        await uploadAuctionImage(auction.id, file, editCoverImageIndex === index);
+      }
       await refreshMyAuctions();
-      setFormMessage("Az aukció leírása frissült.");
+      setFormMessage("Az aukció módosításai és új képei sikeresen mentve.");
+      stopEditingAuction();
     } catch (error) {
       setFormMessage(error instanceof Error ? error.message : "A módosítás nem sikerült.");
+      setEditUploadProgress("");
+    } finally {
+      setIsUpdatingAuction(false);
     }
   };
 
@@ -283,7 +369,137 @@ export function AccountPage({ section }: { section: "bids" | "auctions" }) {
           {isLoadingMyAuctions ? <LoadingState label="Saját aukciók betöltése" /> : null}
           {myAuctionsError ? <ErrorState message={myAuctionsError} onRetry={() => void refreshMyAuctions()} /> : null}
           {!isLoadingMyAuctions && !myAuctionsError && myAuctions.length === 0 ? <EmptyState title="Még nincs saját aukciód" action={<a className="button button-primary" href="#auction-create">Első aukció létrehozása</a>} /> : null}
-          {!isLoadingMyAuctions && !myAuctionsError && myAuctions.length > 0 ? <div className="auction-status-sections">{auctionGroups.map((group, groupIndex) => <section aria-labelledby={`auction-group-${groupIndex}`} key={group.title}><h3 id={`auction-group-${groupIndex}`}>{group.title} <span>({group.items.length})</span></h3>{group.items.length === 0 ? <p className="side-panel empty-state">Ebben a csoportban nincs aukció.</p> : <div className="auction-grid page-grid">{group.items.map((auction, index) => <div className="own-auction-card" key={auction.id}><AuctionCard item={toCardAuction(auction)} index={index} detailPath={`/auctions/${auction.id}`} showBidActions={false} /><div className="owner-actions"><button className="button button-secondary" type="button" onClick={() => handleEditDescription(auction)}>Módosítás</button>{["draft", "scheduled", "active"].includes(auction.status) ? <button className="button button-danger" type="button" onClick={() => handleCancelAuction(auction)}>Megszakítás</button> : null}</div>{["draft", "scheduled"].includes(auction.status) && auction.images.length > 0 ? <div className="owner-image-manager" aria-label={`${auction.title} képeinek kezelése`}>{auction.images.map((image) => <div className="owner-image-row" key={image.id}><SafeImage src={apiAssetUrl(image.thumbnail_url ?? image.list_url ?? image.url)} alt="" width={320} height={320} />{image.is_cover ? <span className="status-badge">Borítókép</span> : <button className="button button-secondary" type="button" onClick={() => void handleSetCoverImage(auction.id, image.id)}>Legyen borítókép</button>}<button className="button button-danger" type="button" onClick={() => void handleDeleteStoredImage(auction.id, image.id)}>Kép törlése</button></div>)}</div> : null}</div>)}</div>}</section>)}</div> : null}
+          {!isLoadingMyAuctions && !myAuctionsError && myAuctions.length > 0 ? (
+            <div className="auction-status-sections">
+              {auctionGroups.map((group, groupIndex) => (
+                <section aria-labelledby={`auction-group-${groupIndex}`} key={group.title}>
+                  <h3 id={`auction-group-${groupIndex}`}>{group.title} <span>({group.items.length})</span></h3>
+                  {group.items.length === 0 ? <p className="side-panel empty-state">Ebben a csoportban nincs aukció.</p> : (
+                    <div className="auction-grid page-grid">
+                      {group.items.map((auction, index) => {
+                        const isEditing = editingAuctionId === auction.id;
+                        const isDraft = auction.status === "draft";
+                        const canEdit = ["draft", "scheduled", "active"].includes(auction.status);
+                        return (
+                          <div className={isEditing ? "own-auction-card is-editing" : "own-auction-card"} key={auction.id}>
+                            <AuctionCard item={toCardAuction(auction)} index={index} detailPath={`/auctions/${auction.id}`} showBidActions={false} />
+                            <div className="owner-actions">
+                              {canEdit ? <button className="button button-secondary" type="button" onClick={() => isEditing ? stopEditingAuction() : beginEditingAuction(auction)}>{isEditing ? "Szerkesztő bezárása" : "Módosítás"}</button> : null}
+                              {canEdit ? <button className="button button-danger" type="button" onClick={() => handleCancelAuction(auction)}>Megszakítás</button> : null}
+                            </div>
+
+                            {isEditing ? (
+                              <form className="side-panel auction-create-form auction-edit-form" aria-label={`${auction.title} módosítása`} onSubmit={(event) => void handleUpdateAuction(event, auction)}>
+                                <div className="form-wide section-heading edit-form-heading">
+                                  <div>
+                                    <p className="eyebrow">Aukció módosítása</p>
+                                    <h3>{auction.title}</h3>
+                                  </div>
+                                  <button className="button button-ghost" type="button" onClick={stopEditingAuction}>Mégse</button>
+                                </div>
+                                <label>
+                                  Név
+                                  <input name="title" type="text" defaultValue={auction.title} required disabled={!isDraft} />
+                                  {!isDraft ? <small>Aktív vagy időzített aukción nem módosítható.</small> : null}
+                                </label>
+                                <label>
+                                  Kategória
+                                  <select name="category" defaultValue={auction.category} disabled={!isDraft}>
+                                    {categories.map((category) => <option key={category}>{category}</option>)}
+                                  </select>
+                                </label>
+                                <label>
+                                  Állapot
+                                  <select name="condition" defaultValue={conditionLabelMap[auction.condition]} disabled={!isDraft}>
+                                    {conditionOptions.map((condition) => <option key={condition}>{condition}</option>)}
+                                  </select>
+                                </label>
+                                <label className="form-wide">
+                                  Leírás
+                                  <textarea name="description" rows={5} defaultValue={auction.description ?? ""} required />
+                                </label>
+                                <label>
+                                  Kezdőár
+                                  <input name="starting_price" type="number" min="1" defaultValue={auction.starting_price} required disabled={!isDraft} />
+                                  {!isDraft ? <small>Zárolt érték.</small> : null}
+                                </label>
+                                <label>
+                                  Licitlépcső
+                                  <input name="bid_increment" type="number" min="1" defaultValue={auction.bid_increment} required disabled={!isDraft} />
+                                  {!isDraft ? <small>Zárolt érték.</small> : null}
+                                </label>
+                                <label>
+                                  Villámár
+                                  <input name="buy_now_price" type="number" min="1" defaultValue={auction.buy_now_price ?? ""} disabled={!isDraft} />
+                                  {!isDraft ? <small>A már rögzített összeg nem módosítható.</small> : null}
+                                </label>
+                                <label>
+                                  Kezdési dátum
+                                  <input name="starts_at" type="datetime-local" defaultValue={isoToLocalDateTime(auction.starts_at)} required disabled={!isDraft} />
+                                  {!isDraft ? <small>A kezdés után zárolt.</small> : null}
+                                </label>
+                                <label>
+                                  Lejárati dátum
+                                  <input name="ends_at" type="datetime-local" defaultValue={isoToLocalDateTime(auction.ends_at)} required />
+                                </label>
+                                <label className="toggle-row">
+                                  <input name="five_minute_rule_enabled" type="checkbox" defaultChecked={auction.five_minute_rule_enabled} />
+                                  5 perces szabály bekapcsolása
+                                </label>
+                                <label className="toggle-row">
+                                  <input name="buy_now_enabled" type="checkbox" defaultChecked={auction.buy_now_enabled} disabled={!isDraft && !auction.buy_now_price} />
+                                  Villámár bekapcsolása
+                                  {!isDraft && !auction.buy_now_price ? <small>Korábban megadott villámár nélkül nem kapcsolható be.</small> : null}
+                                </label>
+
+                                <div className="form-wide image-upload-field">
+                                  <h4>Meglévő képek</h4>
+                                  <div className="owner-image-manager" aria-label={`${auction.title} képeinek kezelése`}>
+                                    {auction.images.map((image) => (
+                                      <div className="owner-image-row" key={image.id}>
+                                        <SafeImage src={apiAssetUrl(image.thumbnail_url ?? image.list_url ?? image.url)} alt="" width={320} height={320} />
+                                        {image.is_cover ? <span className="status-badge">Borítókép</span> : <button className="button button-secondary" type="button" onClick={() => void handleSetCoverImage(auction.id, image.id)}>Legyen borítókép</button>}
+                                        <button className="button button-danger" type="button" onClick={() => void handleDeleteStoredImage(auction.id, image.id)}>Kép törlése</button>
+                                      </div>
+                                    ))}
+                                  </div>
+                                  <label>
+                                    Új képek hozzáadása
+                                    <input type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={(event) => handleEditImageChange(event, auction)} disabled={isUpdatingAuction || auction.images.length >= MAX_AUCTION_IMAGES} />
+                                  </label>
+                                  <small>JPEG, PNG vagy WEBP; képenként legfeljebb 5 MB. Összesen maximum 5 kép.</small>
+                                  {editAuctionImages.length > 0 ? (
+                                    <div className="cover-image-list" aria-label="Új képek beállítása">
+                                      {editAuctionImages.map((file, imageIndex) => (
+                                        <label className="cover-image-option" key={`${file.name}-${file.lastModified}`}>
+                                          <input type="radio" name="editCoverImage" checked={editCoverImageIndex === imageIndex} onChange={() => setEditCoverImageIndex(imageIndex)} />
+                                          <span>{imageIndex + 1}. új kép</span>
+                                          <strong>{file.name}</strong>
+                                          {editCoverImageIndex === imageIndex ? <em>Új borítókép</em> : null}
+                                          <button className="button button-danger" type="button" onClick={() => removeEditSelectedImage(imageIndex)}>Kép eltávolítása</button>
+                                        </label>
+                                      ))}
+                                    </div>
+                                  ) : null}
+                                  {editImageMessage ? <p className="form-message">{editImageMessage}</p> : null}
+                                  {editUploadProgress ? <p className="form-message" role="status" aria-live="polite">{editUploadProgress}</p> : null}
+                                </div>
+
+                                <div className="form-wide edit-form-actions">
+                                  <button className="button button-primary" type="submit" disabled={isUpdatingAuction}>{isUpdatingAuction ? "Módosítások mentése..." : "Módosítások mentése"}</button>
+                                  <button className="button button-secondary" type="button" onClick={stopEditingAuction} disabled={isUpdatingAuction}>Mégse</button>
+                                </div>
+                              </form>
+                            ) : null}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </section>
+              ))}
+            </div>
+          ) : null}
         </div>
 
         <div className="side-panel edit-rules-panel">

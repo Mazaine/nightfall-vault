@@ -919,6 +919,14 @@ h3 {
   gap: var(--space-3);
 }
 
+.own-auction-card.is-editing {
+  grid-column: 1 / -1;
+}
+
+.own-auction-card.is-editing > .auction-card {
+  max-width: 22rem;
+}
+
 .owner-actions {
   padding-inline: var(--space-1);
 }
@@ -997,6 +1005,33 @@ h3 {
 .auction-create-form small {
   color: #fef3c7;
   font-size: var(--font-size-caption);
+}
+
+.auction-create-form input:disabled,
+.auction-create-form select:disabled,
+.auction-create-form textarea:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
+  background: rgb(255 255 255 / 0.025);
+}
+
+.auction-edit-form {
+  margin-top: var(--space-2);
+}
+
+.edit-form-heading {
+  align-items: flex-start;
+  margin: 0;
+}
+
+.edit-form-heading h3 {
+  margin: 0;
+}
+
+.edit-form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
 }
 
 .image-upload-field {

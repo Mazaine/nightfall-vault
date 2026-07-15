@@ -225,7 +225,7 @@ def test_image_upload_cover_and_activation_rules() -> None:
     assert bad_file.status_code == 400
 
 
-def test_active_auction_locks_critical_fields() -> None:
+def test_active_auction_allows_safe_edits_and_images_but_locks_critical_fields() -> None:
     cleanup_test_data()
     seller = create_test_user("seller-active@auction-test.local")
     now = datetime.now(timezone.utc)
@@ -241,9 +241,20 @@ def test_active_auction_locks_critical_fields() -> None:
     )
     client.post(f"/api/auctions/{created['id']}/activate", headers=auth_headers(seller))
 
-    response = client.patch(f"/api/auctions/{created['id']}", json={"starting_price": "2000.00"}, headers=auth_headers(seller))
+    safe_update = client.patch(
+        f"/api/auctions/{created['id']}",
+        json={"description": "Aktív aukció biztonságosan frissített részletes leírása.", "five_minute_rule_enabled": False, "buy_now_enabled": False},
+        headers=auth_headers(seller),
+    )
+    added_image = upload_png(created["id"], seller, name="active-second.png", is_cover=False)
+    critical_update = client.patch(f"/api/auctions/{created['id']}", json={"starting_price": "2000.00"}, headers=auth_headers(seller))
 
-    assert response.status_code == 409
+    assert safe_update.status_code == 200
+    assert safe_update.json()["description"] == "Aktív aukció biztonságosan frissített részletes leírása."
+    assert safe_update.json()["five_minute_rule_enabled"] is False
+    assert safe_update.json()["buy_now_enabled"] is False
+    assert added_image.status_code == 201
+    assert critical_update.status_code == 409
 
 
 def test_sold_auction_chat_and_review_are_participant_only() -> None:

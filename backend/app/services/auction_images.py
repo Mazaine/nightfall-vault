@@ -15,7 +15,7 @@ MAX_AUCTION_IMAGES = 5
 
 
 def _assert_image_editable(auction: Auction) -> None:
-    if auction.status not in {"draft", "scheduled"}:
+    if auction.status not in {"draft", "scheduled", "active"}:
         raise HTTPException(status_code=409, detail="Ebben az aukcióállapotban a képek nem módosíthatók.")
 
 
