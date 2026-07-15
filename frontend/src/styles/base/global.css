@@ -674,17 +674,35 @@ h3 {
 }
 
 .detail-media {
-  min-height: clamp(22rem, 42vw, 34rem);
+  position: relative;
+  display: grid;
+  place-items: center;
+  height: clamp(26rem, 55vh, 38rem);
+  min-height: 0;
+  overflow: hidden;
   border: 1px solid var(--color-divider);
   border-radius: var(--radius-md);
+  background: radial-gradient(circle at center, rgb(124 58 237 / 0.12), transparent 52%), #07070c;
 }
 
 .detail-media img {
   width: 100%;
   height: 100%;
   border-radius: inherit;
-  object-fit: cover;
+  object-fit: contain;
 }
+
+.auction-gallery { display: grid; min-width: 0; gap: var(--space-3); }
+.gallery-thumbnails { display: flex; gap: var(--space-3); overflow-x: auto; padding: 0.15rem 0 var(--space-2); }
+.gallery-thumbnail { flex: 0 0 6.5rem; height: 5rem; overflow: hidden; border: 1px solid var(--color-divider); border-radius: var(--radius-sm); background: #07070c; cursor: pointer; padding: 0; opacity: 0.68; }
+.gallery-thumbnail:hover { opacity: 1; border-color: var(--color-violet-300); }
+.gallery-thumbnail.is-active { opacity: 1; border-color: var(--color-accent); box-shadow: 0 0 0 2px rgb(241 213 138 / 0.2); }
+.gallery-thumbnail img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.gallery-arrow { position: absolute; top: 50%; z-index: 2; display: grid; place-items: center; width: 2.75rem; height: 2.75rem; border: 1px solid rgb(255 255 255 / 0.22); border-radius: var(--radius-full); background: rgb(5 5 9 / 0.76); color: #fff; cursor: pointer; font-size: 2rem; line-height: 1; transform: translateY(-50%); backdrop-filter: blur(8px); }
+.gallery-arrow:hover { border-color: var(--color-accent); background: rgb(91 33 182 / 0.84); }
+.gallery-arrow-previous { left: var(--space-3); }
+.gallery-arrow-next { right: var(--space-3); }
+.gallery-counter { position: absolute; right: var(--space-3); bottom: var(--space-3); border-radius: var(--radius-full); background: rgb(5 5 9 / 0.78); color: #fff; font-size: var(--font-size-caption); padding: 0.4rem 0.7rem; backdrop-filter: blur(8px); }
 
 .detail-panel h1 {
   max-width: none;
@@ -1503,6 +1521,12 @@ h3 {
 .bid-row-copy strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .auction-status-sections > section { display: grid; gap: var(--space-4); }
 .auction-image img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.detail-media.auction-image img { object-fit: contain; }
+
+@media (max-width: 760px) {
+  .detail-media { height: clamp(20rem, 62vh, 32rem); }
+  .gallery-thumbnail { flex-basis: 5.5rem; height: 4.25rem; }
+}
 .status-badge { align-self: start; width: fit-content; border: 1px solid var(--color-border-strong); border-radius: var(--radius-full); background: rgb(124 58 237 / 0.12); color: var(--color-text-secondary); font-size: var(--font-size-caption); padding: 0.25rem 0.55rem; }
 
 .conversation-list { display: grid; gap: var(--space-4); }

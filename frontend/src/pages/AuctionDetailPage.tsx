@@ -30,6 +30,7 @@ export function AuctionDetailPage() {
   const [isBidSubmitting, setIsBidSubmitting] = useState(false);
   const [showReportDialog, setShowReportDialog] = useState(false);
   const [reportMessage, setReportMessage] = useState("");
+  const [selectedImageId, setSelectedImageId] = useState<number | null>(null);
 
   useEffect(() => {
     if (!auctionId || !/^\d+$/.test(auctionId)) {
@@ -43,6 +44,7 @@ export function AuctionDetailPage() {
     getAuction(auctionId)
       .then((data) => {
         setAuction(data);
+        setSelectedImageId((data.images.find((image) => image.is_cover) ?? data.images[0])?.id ?? null);
         listAuctionBids(data.id).then(setBidHistory).catch(() => setBidHistory([]));
         listAuctionReviews(data.id, { limit: 20, sort: "newest" }).then((page) => setReviews(page.items)).catch(() => setReviews([]));
         listRelatedAuctions(data.id).then(setRelatedAuctions).catch(() => setRelatedAuctions([]));
@@ -173,12 +175,49 @@ export function AuctionDetailPage() {
     return null;
   }
 
-  const coverImage = auction.images.find((image) => image.is_cover) ?? auction.images[0];
+  const galleryImages = [...auction.images].sort((left, right) => left.position - right.position);
+  const selectedImageIndex = Math.max(0, galleryImages.findIndex((image) => image.id === selectedImageId));
+  const selectedImage = galleryImages[selectedImageIndex];
+  const selectRelativeImage = (direction: -1 | 1) => {
+    if (galleryImages.length < 2) return;
+    const nextIndex = (selectedImageIndex + direction + galleryImages.length) % galleryImages.length;
+    setSelectedImageId(galleryImages[nextIndex].id);
+  };
 
   return (
     <section className="container page-shell detail-layout">
-      <div className="detail-media auction-image">
-        <SafeImage src={apiAssetUrl(coverImage?.detail_url ?? coverImage?.url)} alt={auction.title} width={1200} height={1200} />
+      <div className="auction-gallery">
+        <div className="detail-media auction-image">
+          <SafeImage
+            src={apiAssetUrl(selectedImage?.detail_url ?? selectedImage?.url)}
+            alt={selectedImage ? `${auction.title} – ${selectedImageIndex + 1}. kép` : auction.title}
+            width={1200}
+            height={1200}
+          />
+          {galleryImages.length > 1 ? (
+            <>
+              <button className="gallery-arrow gallery-arrow-previous" type="button" aria-label="Előző kép" onClick={() => selectRelativeImage(-1)}><span aria-hidden="true">‹</span></button>
+              <button className="gallery-arrow gallery-arrow-next" type="button" aria-label="Következő kép" onClick={() => selectRelativeImage(1)}><span aria-hidden="true">›</span></button>
+              <span className="gallery-counter" aria-live="polite">{selectedImageIndex + 1} / {galleryImages.length}</span>
+            </>
+          ) : null}
+        </div>
+        {galleryImages.length > 1 ? (
+          <div className="gallery-thumbnails" aria-label="Az aukció további képei">
+            {galleryImages.map((image, index) => (
+              <button
+                className={image.id === selectedImage?.id ? "gallery-thumbnail is-active" : "gallery-thumbnail"}
+                type="button"
+                aria-label={`${index + 1}. kép megnyitása`}
+                aria-pressed={image.id === selectedImage?.id}
+                onClick={() => setSelectedImageId(image.id)}
+                key={image.id}
+              >
+                <SafeImage src={apiAssetUrl(image.thumbnail_url ?? image.list_url ?? image.url)} alt="" width={160} height={120} />
+              </button>
+            ))}
+          </div>
+        ) : null}
       </div>
       <div className="side-panel detail-panel">
         <p className="eyebrow">{auction.category} · {auction.status}</p>
