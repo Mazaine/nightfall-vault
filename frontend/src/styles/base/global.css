@@ -1570,6 +1570,98 @@ h3 {
   .report-meta-grid { grid-template-columns: 1fr; }
 }
 
+.blocked-users-page-heading h1 {
+  max-width: none;
+  font-size: clamp(2.25rem, 4vw, 3.5rem);
+  line-height: 1.02;
+}
+
+.blocked-users-list {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 28rem), 1fr));
+  align-items: stretch;
+  gap: var(--space-4);
+}
+
+.blocked-user-card {
+  display: grid;
+  align-content: start;
+  gap: var(--space-4);
+  min-width: 0;
+  padding: clamp(var(--space-4), 3vw, var(--space-5));
+}
+
+.blocked-user-main {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.blocked-user-avatar {
+  display: grid;
+  flex: 0 0 3.5rem;
+  width: 3.5rem;
+  height: 3.5rem;
+  place-items: center;
+  border: 1px solid rgb(168 85 247 / 0.45);
+  border-radius: var(--radius-full);
+  background: linear-gradient(135deg, rgb(124 58 237 / 0.38), rgb(88 28 135 / 0.18));
+  color: #f5e9ff;
+  font-weight: var(--font-weight-bold);
+}
+
+.blocked-user-identity {
+  min-width: 0;
+}
+
+.blocked-user-identity h2,
+.blocked-user-identity p {
+  margin: 0;
+}
+
+.blocked-user-identity h2 {
+  margin-block: var(--space-1);
+  font-size: clamp(1.3rem, 2vw, 1.65rem);
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+
+.blocked-user-label {
+  color: var(--color-accent);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.blocked-user-meta {
+  display: grid;
+  gap: var(--space-1);
+  border: 1px solid var(--color-divider);
+  border-radius: var(--radius-md);
+  background: rgb(255 255 255 / 0.025);
+  padding: var(--space-3);
+}
+
+.blocked-user-meta span {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-caption);
+}
+
+.blocked-user-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  margin-top: auto;
+  border-top: 1px solid var(--color-divider);
+  padding-top: var(--space-4);
+}
+
+@media (max-width: 520px) {
+  .blocked-user-actions .button { width: 100%; }
+}
+
 .dialog-backdrop {
   align-items: center;
   background: rgba(0, 0, 0, 0.72);

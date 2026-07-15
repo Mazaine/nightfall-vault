@@ -1,10 +1,13 @@
 ﻿import { apiRequest } from "./client";
 
 export type BlockRead = {
-  id: number;
-  blocked_username: string;
-  blocked_full_name: string;
-  created_at: string;
+  username: string;
+  full_name: string;
+  blocked_at: string;
+  id?: number;
+  blocked_username?: string;
+  blocked_full_name?: string;
+  created_at?: string;
 };
 
 export type BlockStatusRead = {
