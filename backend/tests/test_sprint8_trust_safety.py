@@ -50,6 +50,7 @@ def test_report_creation_privacy_duplicate_and_admin_queue() -> None:
     duplicate = client.post(f"/api/reports/auctions/{auction['id']}", json={"reason": "spam"}, headers=auth_headers(reporter))
     own_profile = client.post(f"/api/reports/users/{reporter.username}", json={"reason": "harassment"}, headers=auth_headers(reporter))
     user_report = client.post(f"/api/reports/users/{seller.username}", json={"reason": "suspected_fraud"}, headers=auth_headers(other))
+    duplicate_user_report = client.post(f"/api/reports/users/{seller.username}", json={"reason": "harassment"}, headers=auth_headers(other))
     invalid_target = client.post("/api/reports/users/no-such-user", json={"reason": "spam"}, headers=auth_headers(reporter))
 
     assert anonymous.status_code == 401
@@ -58,6 +59,7 @@ def test_report_creation_privacy_duplicate_and_admin_queue() -> None:
     assert duplicate.status_code == 409
     assert own_profile.status_code == 409
     assert user_report.status_code == 201
+    assert duplicate_user_report.status_code == 409
     assert invalid_target.status_code == 404
     assert "admin_note" not in created.json()
     assert "priority" not in created.json()
@@ -66,6 +68,8 @@ def test_report_creation_privacy_duplicate_and_admin_queue() -> None:
     foreign_detail = client.get(f"/api/reports/me/{user_report.json()['id']}", headers=auth_headers(reporter))
     normal_admin_list = client.get("/api/admin/reports", headers=auth_headers(reporter))
     admin_list = client.get("/api/admin/reports?status=open&target_type=auction&priority=normal&limit=1", headers=auth_headers(admin))
+    resolved = client.put(f"/api/admin/reports/{created.json()['id']}/status", json={"status": "resolved"}, headers=auth_headers(admin))
+    duplicate_after_resolution = client.post(f"/api/reports/auctions/{auction['id']}", json={"reason": "misleading_description"}, headers=auth_headers(reporter))
 
     assert mine.status_code == 200
     assert mine.json()["total"] == 1
@@ -74,6 +78,9 @@ def test_report_creation_privacy_duplicate_and_admin_queue() -> None:
     assert admin_list.status_code == 200
     assert admin_list.json()["total"] >= 1
     assert admin_list.json()["items"][0]["admin_note"] is None
+    assert resolved.status_code == 200
+    assert duplicate_after_resolution.status_code == 409
+    assert duplicate_after_resolution.json()["detail"] == "Ezt már korábban jelentetted. Ugyanazt az aukciót vagy felhasználót csak egyszer jelentheted."
 
 
 def test_admin_report_status_priority_note_audit_and_notification() -> None:

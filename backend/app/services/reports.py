@@ -48,14 +48,17 @@ def ensure_reason(target_type: str, reason: str) -> None:
         raise HTTPException(status_code=422, detail="?rv?nytelen jelent?si ok.")
 
 
-def ensure_no_open_duplicate(db: Session, reporter_id: int, target_type: str, auction_id: int | None, reported_user_id: int | None) -> None:
-    query = select(Report.id).where(Report.reporter_id == reporter_id, Report.target_type == target_type, Report.status.in_(OPEN_REPORT_STATUSES))
+def ensure_no_duplicate(db: Session, reporter_id: int, target_type: str, auction_id: int | None, reported_user_id: int | None) -> None:
+    # A reporter sorának zárolása sorba rendezi az ugyanattól a felhasználótól
+    # párhuzamosan érkező jelentéseket, így két gyors kérés sem tud átcsúszni.
+    db.execute(select(User.id).where(User.id == reporter_id).with_for_update())
+    query = select(Report.id).where(Report.reporter_id == reporter_id, Report.target_type == target_type)
     if target_type == "auction":
         query = query.where(Report.auction_id == auction_id)
     else:
         query = query.where(Report.reported_user_id == reported_user_id)
     if db.scalar(query) is not None:
-        raise HTTPException(status_code=409, detail="Erre a c?lra m?r van nyitott jelent?sed.")
+        raise HTTPException(status_code=409, detail="Ezt már korábban jelentetted. Ugyanazt az aukciót vagy felhasználót csak egyszer jelentheted.")
 
 
 def create_auction_report(db: Session, reporter: User, auction_id: int, reason: str, details: str | None) -> Report:
@@ -68,7 +71,7 @@ def create_auction_report(db: Session, reporter: User, auction_id: int, reason: 
         raise HTTPException(status_code=404, detail="Aukci? nem tal?lhat?.")
     if auction.seller_id == reporter.id:
         raise HTTPException(status_code=409, detail="Saj?t aukci?t nem lehet jelenteni.")
-    ensure_no_open_duplicate(db, reporter.id, "auction", auction.id, auction.seller_id)
+    ensure_no_duplicate(db, reporter.id, "auction", auction.id, auction.seller_id)
     report = Report(reporter_id=reporter.id, target_type="auction", auction_id=auction.id, reported_user_id=auction.seller_id, reason=reason, details=details, status="open", priority="normal")
     db.add(report)
     db.flush()
@@ -84,7 +87,7 @@ def create_user_report(db: Session, reporter: User, reported_user: User, reason:
         raise HTTPException(status_code=409, detail="Saj?t profilt nem lehet jelenteni.")
     if reported_user.deleted_at is not None or not reported_user.is_active:
         raise HTTPException(status_code=404, detail="Felhaszn?l? nem tal?lhat?.")
-    ensure_no_open_duplicate(db, reporter.id, "user", None, reported_user.id)
+    ensure_no_duplicate(db, reporter.id, "user", None, reported_user.id)
     report = Report(reporter_id=reporter.id, target_type="user", reported_user_id=reported_user.id, reason=reason, details=details, status="open", priority="normal")
     db.add(report)
     db.flush()
