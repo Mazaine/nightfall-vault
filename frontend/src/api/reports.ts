@@ -10,6 +10,8 @@ export type ReportRead = {
   auction_id: number | null;
   auction_title?: string | null;
   reported_username?: string | null;
+  auction?: { id: number; title: string; status: string } | null;
+  reported_user?: { username: string; full_name: string } | null;
   reason: string;
   details: string | null;
   status: ReportStatus;
@@ -28,6 +30,7 @@ export type ReportPage = {
 
 export type AdminReportRead = ReportRead & {
   reporter_username: string;
+  reporter?: { username: string; full_name: string } | null;
   priority: ReportPriority;
   assigned_admin_username: string | null;
   admin_note: string | null;
