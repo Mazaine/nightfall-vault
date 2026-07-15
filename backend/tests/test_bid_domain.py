@@ -279,7 +279,11 @@ def test_buy_now_closes_auction_and_enables_winner_features() -> None:
     assert refreshed.json()["status"] == "sold"
     assert refreshed.json()["winner_id"] == bidder.id
     assert refreshed.json()["can_chat"] is True
-    assert refreshed.json()["can_review"] is True
+    assert refreshed.json()["can_review"] is False
+    transactions = client.get("/api/transactions", headers=auth_headers(bidder))
+    assert transactions.status_code == 200
+    assert transactions.json()["items"][0]["auction_id"] == auction["id"]
+    assert transactions.json()["items"][0]["status"] == "transaction_open"
     assert next_bid.status_code == 409
 
 

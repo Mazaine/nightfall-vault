@@ -64,6 +64,19 @@ def count_unread_notifications(db: Session, user_id: int) -> int:
 
 def notify_auction_closed(db: Session, auction: Auction) -> None:
     if auction.status == "sold" and auction.winner_id is not None:
+        from app.services.transactions import ensure_transaction_for_sold_auction
+
+        transaction, created = ensure_transaction_for_sold_auction(db, auction)
+        if created and transaction is not None:
+            for participant_id in (auction.seller_id, auction.winner_id):
+                create_notification(
+                    db,
+                    user_id=participant_id,
+                    auction_id=auction.id,
+                    notification_type="transaction_opened",
+                    title="Megnyílt az aukció utáni egyeztetés",
+                    message=f"A privát chatben egyeztethetitek a teljesítést: {auction.title}",
+                )
         create_notification(
             db,
             user_id=auction.winner_id,

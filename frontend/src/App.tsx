@@ -23,6 +23,7 @@ const AccountBlockedUsersPage = lazy(() => import("./pages/AccountBlockedUsersPa
 const AccountProfilePage = lazy(() => import("./pages/AccountProfilePage").then((module) => ({ default: module.AccountProfilePage })));
 const AccountReportsPage = lazy(() => import("./pages/AccountReportsPage").then((module) => ({ default: module.AccountReportsPage })));
 const AccountConversationsPage = lazy(() => import("./pages/AccountConversationsPage").then((module) => ({ default: module.AccountConversationsPage })));
+const AccountTransactionsPage = lazy(() => import("./pages/AccountTransactionsPage").then((module) => ({ default: module.AccountTransactionsPage })));
 const NotificationsPage = lazy(() => import("./pages/NotificationsPage").then((module) => ({ default: module.NotificationsPage })));
 const SavedSearchesPage = lazy(() => import("./pages/SavedSearchesPage").then((module) => ({ default: module.SavedSearchesPage })));
 const WatchlistPage = lazy(() => import("./pages/WatchlistPage").then((module) => ({ default: module.WatchlistPage })));
@@ -32,6 +33,7 @@ const AdminUsersPage = lazy(() => import("./pages/admin/AdminUsersPage").then((m
 const AdminAuctionsPage = lazy(() => import("./pages/admin/AdminAuctionsPage").then((module) => ({ default: module.AdminAuctionsPage })));
 const AdminAuditLogsPage = lazy(() => import("./pages/admin/AdminAuditLogsPage").then((module) => ({ default: module.AdminAuditLogsPage })));
 const AdminReportsPage = lazy(() => import("./pages/admin/AdminReportsPage").then((module) => ({ default: module.AdminReportsPage })));
+const AdminModerationPage = lazy(() => import("./pages/admin/AdminModerationPage").then((module) => ({ default: module.AdminModerationPage })));
 
 function AdminRoute() {
   const { isAdmin, isAuthenticated, isLoading } = useAuth();
@@ -69,6 +71,7 @@ function App() {
               <Route path="bids" element={<AccountPage section="bids" />} />
               <Route path="auctions" element={<AccountPage section="auctions" />} />
               <Route path="messages" element={<AccountConversationsPage />} />
+              <Route path="transactions" element={<AccountTransactionsPage />} />
               <Route path="notifications" element={<NotificationsPage />} />
               <Route path="saved-searches" element={<SavedSearchesPage />} />
               <Route path="watchlist" element={<WatchlistPage />} />
@@ -93,6 +96,7 @@ function App() {
             <Route path="users" element={<AdminUsersPage />} />
             <Route path="audit-logs" element={<AdminAuditLogsPage />} />
             <Route path="reports" element={<AdminReportsPage />} />
+            <Route path="moderation" element={<AdminModerationPage />} />
           </Route>
           <Route path="/terms" element={<InfoPage eyebrow="Jogi információk" title="Felhasználási feltételek" />} />
           <Route path="/privacy" element={<InfoPage eyebrow="Adatvédelem" title="Adatvédelmi tájékoztató" />} />

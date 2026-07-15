@@ -1,6 +1,7 @@
 import { NavLink, Outlet } from "react-router-dom";
 
 const accountItems = [
+  { to: "/account/transactions", label: "Tranzakcióim" },
   { to: "/account/messages", label: "Üzeneteim" },
   { to: "/account/profile", label: "Profilbeállítások" },
   { to: "/account/bids", label: "Licitjeim" },

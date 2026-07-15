@@ -89,6 +89,9 @@ def _sync_locked_auction_for_bidding(db: Session, auction: Auction) -> Auction:
 
 
 def place_bid(db: Session, auction_id: int, bidder: User, amount: Decimal) -> tuple[Bid, Auction]:
+    from app.services.moderation_actions import require_no_restriction
+
+    require_no_restriction(db, bidder.id, "bidding_ban")
     normalized_amount = normalize_money(amount)
     locked_statement = (
         select(Auction)

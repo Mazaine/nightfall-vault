@@ -4,7 +4,7 @@ from sqlalchemy import delete
 
 from app.db.session import SessionLocal
 from app.models.user import SellerFollow
-from test_auction_domain import auth_headers, auction_payload, cleanup_test_data, client, create_sold_auction, create_test_user, upload_png
+from test_auction_domain import auth_headers, auction_payload, cleanup_test_data, client, complete_auction_transaction, create_sold_auction, create_test_user, upload_png
 
 
 def cleanup_sprint7_data() -> None:
@@ -39,6 +39,7 @@ def test_public_profile_exposes_safe_fields_and_stats() -> None:
     winner = create_test_user("winner-profile@auction-test.local")
     admin = create_test_user("admin-profile@auction-test.local", role="admin")
     sold = create_sold_auction(seller, winner, admin)
+    complete_auction_transaction(seller, winner)
     review = client.post(f"/api/auctions/{sold['id']}/reviews", json={"rating": 5, "comment": "Korrekt elado."}, headers=auth_headers(winner))
     assert review.status_code == 201
 
@@ -89,6 +90,8 @@ def test_public_review_listing_supports_pagination_and_sorting() -> None:
     admin = create_test_user("admin-reviews@auction-test.local", role="admin")
     sold_one = create_sold_auction(seller, winner_one, admin)
     sold_two = create_sold_auction(seller, winner_two, admin)
+    complete_auction_transaction(seller, winner_one)
+    complete_auction_transaction(seller, winner_two)
     assert client.post(f"/api/auctions/{sold_one['id']}/reviews", json={"rating": 5, "comment": "Gyors atadas."}, headers=auth_headers(winner_one)).status_code == 201
     assert client.post(f"/api/auctions/{sold_two['id']}/reviews", json={"rating": 2, "comment": "Lassu kommunikacio."}, headers=auth_headers(winner_two)).status_code == 201
 

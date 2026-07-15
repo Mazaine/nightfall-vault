@@ -132,6 +132,9 @@ def require_owner_or_admin(auction: Auction, user: User) -> None:
 
 
 def create_auction(db: Session, auction_create: AuctionCreate, seller: User) -> Auction:
+    from app.services.moderation_actions import require_no_restriction
+
+    require_no_restriction(db, seller.id, "auction_creation_ban")
     if seller.deleted_at is not None or not seller.is_active:
         raise HTTPException(status_code=403, detail="Ez a felhasználói fiók inaktív.")
     auction = Auction(
@@ -305,6 +308,13 @@ def require_post_auction_participant(auction: Auction, user: User) -> None:
 
 def create_message(db: Session, auction: Auction, sender: User, message: str) -> AuctionMessage:
     require_post_auction_participant(auction, sender)
+    from app.services.moderation_actions import require_no_restriction
+    from app.models.transaction import AuctionTransaction
+
+    require_no_restriction(db, sender.id, "chat_ban")
+    transaction = db.scalar(select(AuctionTransaction).where(AuctionTransaction.auction_id == auction.id))
+    if transaction is not None and transaction.status == "archived":
+        raise HTTPException(status_code=409, detail="Az archivált tranzakció chatje csak olvasható.")
     ensure_not_blocked(db, sender.id, get_auction_counterparty(auction, sender.id), "Blokkol?s miatt nem k?ldhet? ?j chat?zenet.")
     normalized_message = message.strip()
     if not normalized_message:
@@ -337,6 +347,9 @@ def create_message(db: Session, auction: Auction, sender: User, message: str) ->
 
 def create_review(db: Session, auction: Auction, reviewer: User, rating: int, comment: str | None) -> AuctionReview:
     require_post_auction_participant(auction, reviewer)
+    from app.services.transactions import mark_reviewed_if_complete, require_reviewable_transaction
+
+    transaction = require_reviewable_transaction(db, auction, reviewer.id)
     reviewed_user_id = get_auction_counterparty(auction, reviewer.id)
     existing_review = db.scalar(
         select(AuctionReview).where(
@@ -355,6 +368,8 @@ def create_review(db: Session, auction: Auction, reviewer: User, rating: int, co
         comment=comment,
     )
     db.add(review)
+    db.flush()
+    mark_reviewed_if_complete(db, transaction)
     db.commit()
     db.refresh(review)
     return review

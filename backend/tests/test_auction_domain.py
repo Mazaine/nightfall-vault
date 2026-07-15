@@ -55,7 +55,7 @@ def cleanup_test_data() -> None:
         db.execute(delete(Bid))
         db.execute(delete(AuctionImage))
         db.execute(delete(Auction))
-        db.execute(delete(User).where(User.email.like("%@auction-test.local")))
+        db.execute(delete(User).where(User.email.like("%@auction-test.%")))
         db.commit()
     finally:
         db.close()
@@ -121,6 +121,18 @@ def create_sold_auction(seller: User, winner: User, admin: User) -> dict:
     )
     assert finalized.status_code == 200
     return finalized.json()
+
+
+def complete_auction_transaction(seller: User, winner: User) -> dict:
+    page = client.get("/api/transactions", headers=auth_headers(seller))
+    assert page.status_code == 200
+    transaction = next(item for item in page.json()["items"] if item["partner"]["username"] == winner.username)
+    seller_confirmation = client.post(f"/api/transactions/{transaction['id']}/confirm-completion", headers=auth_headers(seller))
+    winner_confirmation = client.post(f"/api/transactions/{transaction['id']}/confirm-completion", headers=auth_headers(winner))
+    assert seller_confirmation.status_code == 200
+    assert winner_confirmation.status_code == 200
+    assert winner_confirmation.json()["status"] == "completed"
+    return winner_confirmation.json()
 
 
 def test_authenticated_user_can_create_auction_and_seller_is_current_user() -> None:
@@ -241,6 +253,7 @@ def test_sold_auction_chat_and_review_are_participant_only() -> None:
     stranger = create_test_user("stranger-closed@auction-test.local")
     admin = create_test_user("admin-closed@auction-test.local", role="admin")
     finalized = create_sold_auction(seller, winner, admin)
+    complete_auction_transaction(seller, winner)
 
     seller_message = client.post(f"/api/auctions/{finalized['id']}/messages", json={"message": "KapcsolatfelvĂ©tel."}, headers=auth_headers(seller))
     stranger_messages = client.get(f"/api/auctions/{finalized['id']}/messages", headers=auth_headers(stranger))
@@ -335,6 +348,7 @@ def test_chat_between_seller_and_winner_and_review_rating_boundaries() -> None:
     winner = create_test_user("winner-chat-rules@auction-test.local")
     admin = create_test_user("admin-chat-rules@auction-test.local", role="admin")
     sold = create_sold_auction(seller, winner, admin)
+    complete_auction_transaction(seller, winner)
 
     seller_message = client.post(f"/api/auctions/{sold['id']}/messages", json={"message": "Sikeres aukciĂł utĂˇn."}, headers=auth_headers(seller))
     winner_reads = client.get(f"/api/auctions/{sold['id']}/messages", headers=auth_headers(winner))
@@ -354,6 +368,8 @@ def test_reviewed_user_spoofing_is_ignored_and_self_review_is_not_possible() -> 
     winner = create_test_user("winner-review-spoof@auction-test.local")
     admin = create_test_user("admin-review-spoof@auction-test.local", role="admin")
     sold = create_sold_auction(seller, winner, admin)
+
+    complete_auction_transaction(seller, winner)
 
     spoofed_review = client.post(
         f"/api/auctions/{sold['id']}/reviews",

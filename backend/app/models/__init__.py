@@ -2,7 +2,7 @@ from app.models.category import Category
 from app.models.auction import Auction, AuctionImage, AuctionMessage, AuctionReview, Bid, WatchlistItem
 from app.models.email_verification_token import EmailVerificationToken
 from app.models.newsletter import NewsletterCampaign, NewsletterSubscriber
-from app.models.moderation import Report, UserBlock
+from app.models.moderation import ModerationAction, Report, UserBlock, UserStrike
 from app.models.notification import Notification
 from app.models.order import Order, OrderItem
 from app.models.password_reset_token import PasswordResetToken
@@ -12,6 +12,7 @@ from app.models.product_variant import ProductVariant
 from app.models.shipping import ShippingMethod
 from app.models.stock_movement import StockMovement
 from app.models.security_log import AuditLog, LoginAttempt
+from app.models.transaction import AuctionTransaction
 from app.models.user import SavedSearch, SellerFollow, User
 
 __all__ = [
@@ -27,6 +28,8 @@ __all__ = [
     "NewsletterSubscriber",
     "Report",
     "UserBlock",
+    "ModerationAction",
+    "UserStrike",
     "Notification",
     "Order",
     "OrderItem",
@@ -38,6 +41,7 @@ __all__ = [
     "StockMovement",
     "AuditLog",
     "LoginAttempt",
+    "AuctionTransaction",
     "User",
     "SellerFollow",
     "SavedSearch",

@@ -1,6 +1,7 @@
 import { Link, Outlet } from "react-router-dom";
 
 const adminLinks = [
+  { label: "Moderáció", to: "/admin/moderation" },
   { label: "Dashboard", to: "/admin" },
   { label: "Aukciók", to: "/admin/auctions" },
   { label: "Felhasználók", to: "/admin/users" },

@@ -23,6 +23,8 @@ class SchedulerIterationResult:
 
 
 def close_expired_auctions(db: Session, limit: int = 50) -> int:
+    from app.services.transactions import archive_due_transactions
+
     statement = (
         select(Auction)
         .where(Auction.status == "active", Auction.ends_at <= now_utc())
@@ -34,6 +36,7 @@ def close_expired_auctions(db: Session, limit: int = 50) -> int:
     for auction in db.scalars(statement).all():
         close_ended_active_auction(db, auction)
         closed_count += 1
+    archive_due_transactions(db)
     db.commit()
     return closed_count
 

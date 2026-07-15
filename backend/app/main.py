@@ -23,6 +23,8 @@ from app.api.notifications import router as notifications_router
 from app.api.reports import router as reports_router
 from app.api.searches import router as searches_router
 from app.api.test_email import router as test_email_router
+from app.api.transactions import router as transactions_router
+from app.api.moderation_actions import router as moderation_actions_router
 from app.api.users import router as users_router
 from app.api.watchlist import router as watchlist_router
 from app.core.config import settings
@@ -82,6 +84,7 @@ PRIVATE_API_PREFIXES = (
     "/api/reports",
     "/api/searches",
     "/api/watchlist",
+    "/api/transactions",
 )
 
 FIELD_LABELS = {
@@ -204,3 +207,5 @@ app.include_router(searches_router)
 app.include_router(test_email_router)
 app.include_router(users_router)
 app.include_router(watchlist_router)
+app.include_router(transactions_router)
+app.include_router(moderation_actions_router)

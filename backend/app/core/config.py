@@ -49,6 +49,8 @@ class Settings(BaseSettings):
     auction_scheduler_interval_seconds: int = 10
     auction_scheduler_lock_key: int = 8711042
     auction_scheduler_heartbeat_ttl_seconds: int = 30
+    transaction_review_window_days: int = 30
+    moderation_strike_alert_threshold: int = 3
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

@@ -159,6 +159,10 @@ def login(
             detail="Ez a felhasználói fiók inaktív.",
         )
 
+    from app.services.moderation_actions import require_not_fully_banned
+
+    require_not_fully_banned(db, user.id)
+
     if not user.is_email_verified:
         create_login_attempt(
             db,

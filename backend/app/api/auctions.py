@@ -20,6 +20,7 @@ from app.services.bidding import auction_realtime_snapshot, bid_to_history_item,
 from app.services.notifications import notify_followers_new_auction
 from app.services.recommendations import related_auctions, seller_other_auctions
 from app.services.saved_searches import notify_saved_search_matches
+from app.services.transactions import can_user_review_transaction
 
 router = APIRouter(prefix="/api/auctions", tags=["auctions"])
 
@@ -93,7 +94,7 @@ def _apply_auction_sort(query, sort: str):
     return query.order_by(Auction.created_at.desc(), Auction.id.desc())
 
 
-def auction_response(auction: Auction, user: User | None = None) -> AuctionResponse:
+def auction_response(auction: Auction, user: User | None = None, db: Session | None = None) -> AuctionResponse:
     response = AuctionResponse.model_validate(auction)
     if user is None:
         return response
@@ -101,7 +102,7 @@ def auction_response(auction: Auction, user: User | None = None) -> AuctionRespo
         update={
             "is_owner": auction.seller_id == user.id,
             "can_chat": can_access_post_auction_features(auction, user.id),
-            "can_review": can_access_post_auction_features(auction, user.id),
+            "can_review": bool(db is not None and can_user_review_transaction(db, auction, user.id)),
         },
     )
 
@@ -173,7 +174,7 @@ def create_my_auction(
     db: Session = Depends(get_db),
 ) -> AuctionResponse:
     auction = create_auction(db=db, auction_create=auction_create, seller=current_user)
-    return auction_response(get_auction_or_404(db, auction.id), current_user)
+    return auction_response(get_auction_or_404(db, auction.id), current_user, db)
 
 
 @router.get("/me", response_model=list[AuctionListItem])
@@ -263,7 +264,7 @@ def get_auction(
 ) -> AuctionResponse:
     auction = get_auction_or_404(db, auction_id)
     require_can_view_auction(auction, current_user)
-    return auction_response(auction, current_user)
+    return auction_response(auction, current_user, db)
 
 
 @router.patch("/{auction_id}", response_model=AuctionResponse)
@@ -275,7 +276,7 @@ def update_my_auction(
 ) -> AuctionResponse:
     auction = get_auction_or_404(db, auction_id)
     updated = update_auction(db=db, auction=auction, auction_update=auction_update, user=current_user)
-    return auction_response(get_auction_or_404(db, updated.id), current_user)
+    return auction_response(get_auction_or_404(db, updated.id), current_user, db)
 
 
 @router.post("/{auction_id}/activate", response_model=AuctionStatusResponse)

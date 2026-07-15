@@ -48,12 +48,15 @@ def get_current_user(
     return user
 
 
-def require_active_user(current_user: User = Depends(get_current_user)) -> User:
+def require_active_user(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> User:
     if not current_user.is_active or current_user.deleted_at is not None:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Ez a felhasználói fiók inaktív.",
         )
+    from app.services.moderation_actions import require_not_fully_banned
+
+    require_not_fully_banned(db, current_user.id)
     return current_user
 
 
