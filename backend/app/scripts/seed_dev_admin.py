@@ -37,7 +37,12 @@ def seed_dev_admin() -> None:
 
     db = SessionLocal()
     try:
-        user = db.scalar(select(User).where(User.email == admin_email))
+        user_by_email = db.scalar(select(User).where(User.email == admin_email))
+        user_by_username = db.scalar(select(User).where(User.username == admin_username))
+        if user_by_email is not None and user_by_username is not None and user_by_email.id != user_by_username.id:
+            raise RuntimeError("Configured development admin email and username belong to different users.")
+
+        user = user_by_email or user_by_username
         if user is None:
             user = User(
                 email=admin_email,
@@ -50,6 +55,7 @@ def seed_dev_admin() -> None:
             )
             db.add(user)
         else:
+            user.email = admin_email
             user.username = admin_username
             user.full_name = admin_full_name
             user.password_hash = hash_password(admin_password)

@@ -1,13 +1,14 @@
 from sqlalchemy import func, select
 
 from app.core.config import settings
-from app.core.security import hash_password
+from app.core.security import hash_password, verify_password
 from app.db.session import SessionLocal
 from app.models.auction import Auction, AuctionImage, AuctionMessage, AuctionReview, Bid, WatchlistItem
 from app.models.moderation import Report, UserBlock
 from app.models.notification import Notification
 from app.models.user import SavedSearch, SellerFollow, User
 from app.scripts.seed_development import DEMO_DOMAIN, _clear_previous_demo_graph, seed_development
+from app.scripts.seed_dev_admin import seed_dev_admin
 from app.storage import storage
 
 
@@ -86,3 +87,48 @@ def test_development_seed_refuses_production(monkeypatch) -> None:
         assert "production" in str(error).lower()
     else:
         raise AssertionError("Development seed must refuse production environments.")
+
+
+def test_admin_seed_reuses_existing_username_when_email_changes(monkeypatch) -> None:
+    username = "seed-admin-reuse"
+    old_email = "seed-admin-old@auction-test.local"
+    new_email = "seed-admin-new@auction-test.local"
+    password = "UpdatedDevelopmentAdmin123!"
+
+    with SessionLocal() as db:
+        db.query(User).filter(User.email.in_([old_email, new_email])).delete(synchronize_session=False)
+        db.query(User).filter(User.username == username).delete(synchronize_session=False)
+        existing = User(
+            email=old_email,
+            username=username,
+            full_name="Old Admin",
+            password_hash=hash_password("OldDevelopmentAdmin123!"),
+            role="admin",
+            is_active=True,
+            is_email_verified=True,
+        )
+        db.add(existing)
+        db.commit()
+        existing_id = existing.id
+
+    monkeypatch.setenv("DEV_ADMIN_EMAIL", new_email)
+    monkeypatch.setenv("DEV_ADMIN_PASSWORD", password)
+    monkeypatch.setenv("DEV_ADMIN_USERNAME", username)
+    monkeypatch.setenv("DEV_ADMIN_FULL_NAME", "Updated Admin")
+
+    try:
+        seed_dev_admin()
+        with SessionLocal() as db:
+            updated = db.scalar(select(User).where(User.username == username))
+            assert updated is not None
+            assert updated.id == existing_id
+            assert updated.email == new_email
+            assert updated.full_name == "Updated Admin"
+            assert updated.role == "admin"
+            assert updated.is_active is True
+            assert updated.is_email_verified is True
+            assert verify_password(password, updated.password_hash)
+    finally:
+        with SessionLocal() as db:
+            db.query(User).filter(User.username == username).delete(synchronize_session=False)
+            db.commit()
