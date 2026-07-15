@@ -10,6 +10,10 @@ export type AuctionImage = {
   thumbnail_storage_key?: string | null;
   list_storage_key?: string | null;
   detail_storage_key?: string | null;
+  url: string;
+  thumbnail_url?: string | null;
+  list_url?: string | null;
+  detail_url?: string | null;
   original_filename: string;
   content_type: string;
   file_size: number;
@@ -82,7 +86,7 @@ export type AuctionMessage = {
 export type AuctionConversation = {
   auction_id: number;
   auction_title: string;
-  auction_image_key: string | null;
+  auction_image_url: string | null;
   role: "seller" | "winner";
   counterparty: AuctionUser;
   message_count: number;
@@ -290,6 +294,14 @@ export async function uploadAuctionImage(auctionId: number, file: File, isCover:
     method: "POST",
     body: formData,
   });
+}
+
+export function setAuctionCoverImage(auctionId: number, imageId: number) {
+  return apiRequest<AuctionImage>(`/api/auctions/${auctionId}/images/${imageId}/cover`, { method: "POST" });
+}
+
+export function deleteAuctionImage(auctionId: number, imageId: number) {
+  return apiRequest<AuctionImage>(`/api/auctions/${auctionId}/images/${imageId}`, { method: "DELETE" });
 }
 
 export function activateAuction(auctionId: number) {

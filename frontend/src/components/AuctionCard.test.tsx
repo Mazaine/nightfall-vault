@@ -30,4 +30,10 @@ describe("AuctionCard", () => {
     expect(screen.getByLabelText("4 csillag az 5-ből")).toHaveTextContent("★★★★☆");
     expect(screen.getByText("2 licit")).toBeInTheDocument();
   });
+
+  it("hibás kép helyett hozzáférhető fallbacket mutat", () => {
+    render(<MemoryRouter><AuctionCard item={item} index={0} detailPath="/auctions/7" /></MemoryRouter>);
+    fireEvent.error(screen.getByRole("img", { name: "Teszt kártya" }));
+    expect(screen.getByRole("img", { name: "Teszt kártya – kép nem érhető el" })).toHaveTextContent("Kép nem érhető el");
+  });
 });

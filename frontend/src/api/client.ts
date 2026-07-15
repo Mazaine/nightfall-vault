@@ -15,11 +15,14 @@ export class ApiError extends Error {
   }
 }
 
-export function apiAssetUrl(storageKey: string | null | undefined) {
-  if (!storageKey) {
+export function apiAssetUrl(apiUrl: string | null | undefined) {
+  if (!apiUrl) {
     return "";
   }
-  return `${API_BASE_URL.replace(/\/$/, "")}/uploads/${storageKey}`;
+  if (/^https?:\/\//i.test(apiUrl)) {
+    return apiUrl;
+  }
+  return `${API_BASE_URL.replace(/\/$/, "")}/${apiUrl.replace(/^\//, "")}`;
 }
 
 export function getStoredToken() {

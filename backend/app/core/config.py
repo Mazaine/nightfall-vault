@@ -1,5 +1,6 @@
 ﻿from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import field_validator
 
 
 class Settings(BaseSettings):
@@ -42,7 +43,10 @@ class Settings(BaseSettings):
     log_format: str = "text"
     notification_email_enabled: bool = False
     storage_backend: str = "local"
-    storage_upload_dir: str = "uploads"
+    media_root: str = Field(default="/data/media", validation_alias=AliasChoices("MEDIA_ROOT", "STORAGE_UPLOAD_DIR"))
+    media_url_prefix: str = "/media"
+    max_image_file_size_bytes: int = 5 * 1024 * 1024
+    max_image_pixels: int = 24_000_000
     max_image_width: int = 2400
     max_image_height: int = 2400
     auction_scheduler_mode: str = "embedded"
@@ -51,6 +55,14 @@ class Settings(BaseSettings):
     auction_scheduler_heartbeat_ttl_seconds: int = 30
     transaction_review_window_days: int = 30
     moderation_strike_alert_threshold: int = 3
+
+    @field_validator("media_url_prefix")
+    @classmethod
+    def validate_media_url_prefix(cls, value: str) -> str:
+        normalized = "/" + value.strip("/")
+        if normalized in {"/", "/api"} or ".." in normalized or "\\" in normalized:
+            raise ValueError("MEDIA_URL_PREFIX must be a safe dedicated URL prefix.")
+        return normalized
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

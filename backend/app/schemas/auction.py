@@ -2,7 +2,9 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator, model_validator
+
+from app.storage.paths import media_url
 
 AuctionStatus = Literal["draft", "scheduled", "active", "ended", "sold", "unsold", "cancelled", "suspended"]
 AuctionCondition = Literal["fresh", "like_new", "played", "damaged", "worn", "misprint"]
@@ -163,6 +165,26 @@ class AuctionImageRead(BaseModel):
     is_cover: bool
     created_at: datetime
 
+    @computed_field
+    @property
+    def url(self) -> str:
+        return media_url(self.storage_key) or ""
+
+    @computed_field
+    @property
+    def thumbnail_url(self) -> str | None:
+        return media_url(self.thumbnail_storage_key)
+
+    @computed_field
+    @property
+    def list_url(self) -> str | None:
+        return media_url(self.list_storage_key)
+
+    @computed_field
+    @property
+    def detail_url(self) -> str | None:
+        return media_url(self.detail_storage_key)
+
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -298,7 +320,7 @@ class AuctionMessageRead(BaseModel):
 class AuctionConversationRead(BaseModel):
     auction_id: int
     auction_title: str
-    auction_image_key: str | None = None
+    auction_image_url: str | None = None
     role: Literal["seller", "winner"]
     counterparty: UserSummary
     message_count: int

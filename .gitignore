@@ -49,6 +49,8 @@ backend/uploads/*
 !backend/uploads/products/
 backend/uploads/products/*
 !backend/uploads/products/.gitkeep
+backend/media/
+media/
 backend/imports/
 database/imports/
 

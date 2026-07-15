@@ -37,6 +37,7 @@ services:
       - "8000:8000"
     volumes:
       - ./backend:/app
+      - nightfall_media:/data/media
     environment:
       PROJECT_NAME: ${PROJECT_NAME:-Nightfall Vault API}
       DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in your local .env file}
@@ -54,6 +55,8 @@ services:
       AUCTION_SCHEDULER_MODE: external
       TRANSACTION_REVIEW_WINDOW_DAYS: ${TRANSACTION_REVIEW_WINDOW_DAYS:-30}
       MODERATION_STRIKE_ALERT_THRESHOLD: ${MODERATION_STRIKE_ALERT_THRESHOLD:-3}
+      MEDIA_ROOT: /data/media
+      MEDIA_URL_PREFIX: ${MEDIA_URL_PREFIX:-/media}
     depends_on:
       postgres:
         condition: service_healthy
@@ -143,3 +146,5 @@ volumes:
   frontend_node_modules:
   postgres_data:
   redis_data:
+  nightfall_media:
+    name: nightfall_vault_media

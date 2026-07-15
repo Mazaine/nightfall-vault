@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { apiAssetUrl } from "../api/client";
 import { listMyAuctionConversations, type AuctionConversation } from "../api/auctions";
 import { ErrorState, LoadingState } from "../components/AsyncStates";
+import { SafeImage } from "../components/SafeImage";
 import { formatLocalDateTime } from "../utils/format";
 
 export function AccountConversationsPage() {
@@ -37,7 +38,7 @@ export function AccountConversationsPage() {
       <Link className="button button-primary" to="/auctions">Aukciók böngészése</Link>
     </div> : <div className="conversation-list">
       {items.map((item) => <article className="side-panel conversation-card" key={item.auction_id}>
-        {item.auction_image_key ? <img src={apiAssetUrl(item.auction_image_key)} alt="" /> : <div className="conversation-image-placeholder" aria-hidden="true" />}
+        {item.auction_image_url ? <SafeImage src={apiAssetUrl(item.auction_image_url)} alt="" loading="lazy" width={700} height={700} fallbackClassName="conversation-image-placeholder" /> : <div className="conversation-image-placeholder" aria-hidden="true" />}
         <div className="conversation-copy">
           <span className="status-badge">{item.role === "seller" ? "Eladóként" : "Nyertesként"}</span>
           <h2>{item.auction_title}</h2>

@@ -2,13 +2,11 @@ import asyncio
 import logging
 from uuid import uuid4
 from contextlib import asynccontextmanager
-from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.api.admin import router as admin_router
@@ -29,14 +27,14 @@ from app.api.users import router as users_router
 from app.api.watchlist import router as watchlist_router
 from app.core.config import settings
 from app.core.logging_config import configure_logging
+from app.media import ImmutableMediaFiles
 from app.db.session import SessionLocal
 from app.services.security_audit import create_admin_audit_log
 from app.services.auction_scheduler import scheduler_loop
+from app.storage import storage
 
 logger = logging.getLogger(__name__)
 configure_logging()
-UPLOADS_DIR = Path("uploads")
-UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 
 _scheduler_stop_event: asyncio.Event | None = None
 _scheduler_task: asyncio.Task | None = None
@@ -67,7 +65,7 @@ async def lifespan(_app: FastAPI):
 
 
 app = FastAPI(title=settings.project_name, lifespan=lifespan)
-app.mount("/uploads", StaticFiles(directory=UPLOADS_DIR), name="uploads")
+app.mount(settings.media_url_prefix, ImmutableMediaFiles(directory=storage.root, follow_symlink=False), name="media")
 
 SECURITY_HEADERS = {
     "X-Content-Type-Options": "nosniff",

@@ -25,4 +25,10 @@ describe("AuctionsPage", () => {
     render(<MemoryRouter><AuctionsPage /></MemoryRouter>);
     expect(await screen.findByText("Nincs a szűrésnek megfelelő aukció.")).toBeInTheDocument();
   });
+
+  it("a kártyán az API list variáns URL-jét használja", async () => {
+    mocks.listAuctions.mockResolvedValue({ items: [{ ...auction, images: [{ id: 1, auction_id: 12, storage_key: "legacy-original", url: "/media/original.webp", list_url: "/media/list.webp", original_filename: "card.png", content_type: "image/webp", file_size: 10, position: 0, is_cover: true, created_at: "2026-07-01T10:00:00Z" }] }], total: 1, limit: 24, offset: 0 });
+    render(<MemoryRouter><AuctionsPage /></MemoryRouter>);
+    expect(await screen.findByRole("img", { name: "Publikus aukció" })).toHaveAttribute("src", "http://localhost:8000/media/list.webp");
+  });
 });

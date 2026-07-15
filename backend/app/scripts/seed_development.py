@@ -1,10 +1,10 @@
 """Create a rich, repeatable local auction dataset without touching real users."""
 
 import os
-import shutil
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
-from pathlib import Path
+from io import BytesIO
+from uuid import uuid4
 
 from PIL import Image, ImageDraw
 from sqlalchemy import delete, or_, select
@@ -17,6 +17,9 @@ from app.models.moderation import Report, UserBlock
 from app.models.notification import Notification
 from app.models.user import SavedSearch, SellerFollow, User
 from app.scripts.seed_dev_admin import seed_dev_admin
+from app.images.processing import process_image
+from app.storage import storage
+from app.storage.paths import auction_image_keys
 
 
 DEMO_DOMAIN = "nightfall-demo.local"
@@ -70,17 +73,15 @@ def _clear_previous_demo_graph(db, users: dict[str, User]) -> None:
     auction_ids = list(db.scalars(select(Auction.id).where(Auction.seller_id.in_(user_ids))))
 
     if auction_ids:
-        storage_keys = list(db.scalars(select(AuctionImage.storage_key).where(AuctionImage.auction_id.in_(auction_ids))))
+        image_rows = db.execute(select(AuctionImage.storage_key, AuctionImage.thumbnail_storage_key, AuctionImage.list_storage_key, AuctionImage.detail_storage_key).where(AuctionImage.auction_id.in_(auction_ids))).all()
         db.execute(delete(Report).where(Report.auction_id.in_(auction_ids)))
         db.execute(delete(Notification).where(Notification.auction_id.in_(auction_ids)))
         db.query(Auction).filter(Auction.id.in_(auction_ids)).update({Auction.highest_bid_id: None}, synchronize_session=False)
         db.flush()
         db.execute(delete(Auction).where(Auction.id.in_(auction_ids)))
-        upload_root = Path(settings.storage_upload_dir).resolve()
-        for storage_key in storage_keys:
-            candidate = (upload_root / storage_key).resolve()
-            if upload_root in candidate.parents and candidate.parent.exists():
-                shutil.rmtree(candidate.parent, ignore_errors=True)
+        for row in image_rows:
+            for storage_key in row:
+                storage.delete(storage_key)
 
     db.execute(delete(Report).where(or_(Report.reporter_id.in_(user_ids), Report.reported_user_id.in_(user_ids))))
     db.execute(delete(Notification).where(Notification.user_id.in_(user_ids)))
@@ -114,22 +115,16 @@ def _auction_specs(now: datetime):
 def _create_image_files(auction: Auction, index: int) -> dict[str, str | int]:
     palette = ((46, 20, 77), (13, 71, 89), (98, 44, 31), (28, 83, 58))
     color = palette[index % len(palette)]
-    relative_dir = Path("auctions") / str(auction.id) / "development-seed"
-    absolute_dir = Path(settings.storage_upload_dir) / relative_dir
-    absolute_dir.mkdir(parents=True, exist_ok=True)
-    variants = {"original": (960, 640), "detail": (960, 640), "list": (640, 426), "thumbnail": (320, 213)}
-    paths: dict[str, str | int] = {}
-    for name, size in variants.items():
-        image = Image.new("RGB", size, color)
-        draw = ImageDraw.Draw(image)
-        draw.rectangle((20, 20, size[0] - 20, size[1] - 20), outline=(212, 175, 55), width=max(2, size[0] // 160))
-        draw.text((size[0] // 14, size[1] // 2), auction.title, fill=(245, 238, 220))
-        path = absolute_dir / f"{name}.png"
-        image.save(path, format="PNG")
-        paths[name] = str((relative_dir / path.name).as_posix())
-        if name == "original":
-            paths["file_size"] = path.stat().st_size
-    return paths
+    image = Image.new("RGB", (960, 640), color)
+    draw = ImageDraw.Draw(image)
+    draw.rectangle((20, 20, 940, 620), outline=(212, 175, 55), width=6)
+    draw.text((68, 320), auction.title, fill=(245, 238, 220))
+    buffer = BytesIO()
+    image.save(buffer, format="PNG")
+    processed = process_image(buffer.getvalue(), "image/png")
+    keys = auction_image_keys(auction.id, auction.created_at, uuid4())
+    storage.save_many_atomic({keys[name]: payload for name, payload in processed.variants.items()})
+    return {**keys, "file_size": len(processed.variants["original"])}
 
 
 def _create_auctions(db, users: dict[str, User], now: datetime) -> list[Auction]:
@@ -167,7 +162,7 @@ def _create_auctions(db, users: dict[str, User], now: datetime) -> list[Auction]
             auction_id=auction.id,
             storage_key=paths["original"],
             original_filename="development-seed.png",
-            content_type="image/png",
+            content_type="image/webp",
             file_size=paths["file_size"],
             width=960,
             height=640,

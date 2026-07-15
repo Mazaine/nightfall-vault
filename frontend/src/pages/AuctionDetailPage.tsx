@@ -5,6 +5,7 @@ import { ApiError } from "../api/client";
 import { auctionReportReasons, createAuctionReport } from "../api/reports";
 import { useAuth } from "../AuthContext";
 import { ReportDialog } from "../components/ReportDialog";
+import { SafeImage } from "../components/SafeImage";
 import { addWatchlistItem, auctionStreamUrl, createAuctionMessage, createAuctionReview, getAuction, listAuctionBids, listAuctionMessages, listRelatedAuctions, listSellerOtherAuctions, placeAuctionBid, listAuctionReviews, type Auction, type AuctionBid, type AuctionMessage, type AuctionRealtimeSnapshot, type AuctionReview } from "../api/auctions";
 import { formatLocalDateTime, formatMoney, formatRemainingTime } from "../utils/format";
 
@@ -177,7 +178,7 @@ export function AuctionDetailPage() {
   return (
     <section className="container page-shell detail-layout">
       <div className="detail-media auction-image">
-        {coverImage ? <img src={apiAssetUrl(coverImage.storage_key)} alt={auction.title} /> : null}
+        <SafeImage src={apiAssetUrl(coverImage?.detail_url ?? coverImage?.url)} alt={auction.title} width={1200} height={1200} />
       </div>
       <div className="side-panel detail-panel">
         <p className="eyebrow">{auction.category} · {auction.status}</p>

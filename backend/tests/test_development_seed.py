@@ -8,6 +8,7 @@ from app.models.moderation import Report, UserBlock
 from app.models.notification import Notification
 from app.models.user import SavedSearch, SellerFollow, User
 from app.scripts.seed_development import DEMO_DOMAIN, _clear_previous_demo_graph, seed_development
+from app.storage import storage
 
 
 def _count(db, model, *criteria) -> int:
@@ -38,7 +39,8 @@ def _demo_counts(db) -> tuple[int, ...]:
 
 def test_development_seed_is_idempotent_and_preserves_non_demo_user(monkeypatch, tmp_path) -> None:
     monkeypatch.setenv("DEV_SEED_PASSWORD", "DevelopmentSeed123!")
-    monkeypatch.setattr(settings, "storage_upload_dir", str(tmp_path / "uploads"))
+    monkeypatch.setattr(storage, "root", (tmp_path / "media").resolve())
+    storage.root.mkdir(parents=True, exist_ok=True)
 
     with SessionLocal() as db:
         sentinel = db.scalar(select(User).where(User.email == "sentinel@preserve.local"))

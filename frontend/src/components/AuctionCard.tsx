@@ -1,5 +1,6 @@
 import { KeyboardEvent, MouseEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { SafeImage } from "./SafeImage";
 
 type AuctionCardProps = {
   item: {
@@ -65,7 +66,7 @@ export function AuctionCard({
       tabIndex={0}
     >
       <Link className="auction-image" to={detailPath} aria-label={`${item.title} részletei`}>
-        {item.imageUrl ? <img src={item.imageUrl} alt={item.title} loading="lazy" decoding="async" /> : null}
+        <SafeImage src={item.imageUrl} alt={item.title} loading="lazy" decoding="async" width={700} height={700} />
       </Link>
       {showTimer && <div className="auction-time">{item.time}</div>}
       {item.userIsOutbid && <div className="auction-alert">Rád licitáltak</div>}

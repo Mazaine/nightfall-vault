@@ -550,6 +550,29 @@ h3 {
   flex: 1 1 8rem;
 }
 
+.owner-image-manager {
+  display: grid;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.owner-image-row {
+  align-items: center;
+  display: grid;
+  gap: var(--space-2);
+  grid-template-columns: 4rem minmax(0, 1fr);
+}
+
+.owner-image-row img,
+.owner-image-row .image-fallback {
+  border-radius: var(--radius-md);
+  grid-row: span 2;
+  height: 4rem;
+  min-height: 0;
+  object-fit: cover;
+  width: 4rem;
+}
+
 .button-lightning {
   border: 1px solid rgb(250 204 21 / 0.55);
   background: linear-gradient(180deg, rgb(202 138 4 / 0.96), rgb(133 77 14 / 0.92));
@@ -967,12 +990,36 @@ h3 {
 }
 
 .cover-image-option {
-  grid-template-columns: auto auto minmax(0, 1fr) auto;
+  grid-template-columns: auto auto minmax(0, 1fr) auto auto;
   align-items: center;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   background: rgb(255 255 255 / 0.045);
   padding: var(--space-3);
+}
+
+.image-fallback,
+.auction-image > .image-fallback {
+  align-items: center;
+  background: linear-gradient(135deg, #21152f, #090910);
+  color: var(--color-text-muted);
+  display: flex;
+  height: 100%;
+  justify-content: center;
+  min-height: 10rem;
+  padding: var(--space-4);
+  text-align: center;
+  width: 100%;
+}
+
+.bid-image-placeholder,
+.conversation-image-placeholder {
+  align-items: center;
+  color: var(--color-text-muted);
+  display: flex;
+  font-size: var(--font-size-caption);
+  justify-content: center;
+  text-align: center;
 }
 
 .cover-image-option input {
@@ -1492,6 +1539,8 @@ h3 {
 .button-danger { border: 1px solid rgb(248 113 113 / 0.65); background: rgb(127 29 29 / 0.45); color: rgb(254 202 202); padding: 0 var(--space-5); }
 
 @media (max-width: 520px) {
+  .cover-image-option { grid-template-columns: auto minmax(0, 1fr); }
+  .cover-image-option .button { grid-column: 1 / -1; width: 100%; }
   .moderation-form-grid { grid-template-columns: 1fr; }
   .account-bid-row { grid-template-columns: 4.5rem minmax(0, 1fr); gap: var(--space-3); }
   .account-bid-row > img,

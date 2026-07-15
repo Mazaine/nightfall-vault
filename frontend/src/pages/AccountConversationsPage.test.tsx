@@ -15,7 +15,7 @@ describe("AccountConversationsPage", () => {
     mocks.listMyAuctionConversations.mockReset().mockResolvedValue([{
       auction_id: 42,
       auction_title: "Megnyert gyűjtői kártya",
-      auction_image_key: null,
+      auction_image_url: null,
       role: "winner",
       counterparty: { id: 2, username: "elado", full_name: "Teszt Eladó" },
       message_count: 1,

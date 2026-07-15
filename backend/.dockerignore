@@ -3,5 +3,7 @@
 __pycache__
 *.py[cod]
 uploads
+media
+backups
 htmlcov
 .coverage

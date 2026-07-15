@@ -1,5 +1,5 @@
-from pathlib import Path
 from time import monotonic
+import logging
 
 from fastapi import APIRouter, status
 from fastapi.responses import JSONResponse, PlainTextResponse
@@ -9,9 +9,11 @@ from sqlalchemy import text
 from app.core.config import settings
 from app.db.session import engine
 from app.services.scheduler_health import read_scheduler_heartbeat
+from app.storage import storage
 
 router = APIRouter(tags=["health"])
 PROCESS_STARTED_AT = monotonic()
+logger = logging.getLogger(__name__)
 
 
 @router.get("/health/live")
@@ -47,7 +49,14 @@ def ready():
             checks["scheduler"] = "error"
         if checks["scheduler"] != "ok":
             http_status = status.HTTP_503_SERVICE_UNAVAILABLE
-    checks["storage"] = "ok" if Path(settings.storage_upload_dir).exists() else "error"
+    try:
+        storage_health = storage.check_health()
+        checks["storage"] = "ok" if storage_health.healthy else "error"
+        if not storage_health.healthy:
+            logger.error("Media storage readiness failed: readable=%s writable=%s", storage_health.readable, storage_health.writable)
+    except Exception:
+        logger.exception("Media storage readiness check failed")
+        checks["storage"] = "error"
     if checks["storage"] != "ok":
         http_status = status.HTTP_503_SERVICE_UNAVAILABLE
     return JSONResponse(status_code=http_status, content={"status": "ok" if http_status == 200 else "degraded", "checks": checks})

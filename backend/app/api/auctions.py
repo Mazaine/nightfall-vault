@@ -21,6 +21,7 @@ from app.services.notifications import notify_followers_new_auction
 from app.services.recommendations import related_auctions, seller_other_auctions
 from app.services.saved_searches import notify_saved_search_matches
 from app.services.transactions import can_user_review_transaction
+from app.storage.paths import media_url
 
 router = APIRouter(prefix="/api/auctions", tags=["auctions"])
 
@@ -238,7 +239,7 @@ def list_my_auction_conversations(
             AuctionConversationRead(
                 auction_id=auction.id,
                 auction_title=auction.title,
-                auction_image_key=(cover.list_storage_key or cover.storage_key) if cover else None,
+                auction_image_url=media_url(cover.list_storage_key or cover.storage_key) if cover else None,
                 role="seller" if is_seller else "winner",
                 counterparty=UserSummary.model_validate(counterparty),
                 message_count=len(auction.messages),

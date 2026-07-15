@@ -18,7 +18,7 @@ export function toAuctionCardItem(auction: Auction) {
     sellerProfilePath: auction.seller?.username ? `/users/${auction.seller.username}` : undefined,
     buyNowPrice: auction.buy_now_enabled ? auction.buy_now_price : null,
     isClosed: ["ended", "sold", "unsold", "cancelled", "suspended"].includes(auction.status),
-    imageUrl: apiAssetUrl(coverImage?.list_storage_key ?? coverImage?.storage_key),
+    imageUrl: apiAssetUrl(coverImage?.list_url ?? coverImage?.thumbnail_url ?? coverImage?.url),
     statusLabel: auction.status === "scheduled" ? "Hamarosan indul" : auction.status === "active" ? "Aktív" : auction.status,
     bidCount: auction.bid_count ?? 0,
     canBid: auction.status === "active",

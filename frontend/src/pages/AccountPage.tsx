@@ -1,8 +1,9 @@
 ﻿import { ChangeEvent, FormEvent, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { activateAuction, cancelAuction, createAuction, listMyAuctions, listMyBidAuctions, updateAuction, uploadAuctionImage, type Auction, type AuctionCondition, type MyBidAuction } from "../api/auctions";
+import { activateAuction, cancelAuction, createAuction, deleteAuctionImage, listMyAuctions, listMyBidAuctions, setAuctionCoverImage, updateAuction, uploadAuctionImage, type Auction, type AuctionCondition, type MyBidAuction } from "../api/auctions";
 import { apiAssetUrl } from "../api/client";
 import { AuctionCard } from "../components/AuctionCard";
+import { SafeImage } from "../components/SafeImage";
 import { EmptyState, ErrorState, LoadingState } from "../components/AsyncStates";
 import { categories, conditionOptions } from "../data/content";
 import { formatMoney, formatRemainingTime } from "../utils/format";
@@ -46,7 +47,7 @@ function toCardAuction(auction: Auction) {
     sellerReviewCount: auction.seller_review_count ?? 0,
     buyNowPrice: auction.buy_now_enabled ? auction.buy_now_price : null,
     isClosed: ["ended", "sold", "unsold", "cancelled", "suspended"].includes(auction.status),
-    imageUrl: coverImage ? apiAssetUrl(coverImage.storage_key) : undefined,
+    imageUrl: coverImage ? apiAssetUrl(coverImage.list_url ?? coverImage.thumbnail_url ?? coverImage.url) : undefined,
     statusLabel: auction.status,
     bidCount: auction.bid_count ?? 0,
   };
@@ -71,6 +72,8 @@ export function AccountPage({ section }: { section: "bids" | "auctions" }) {
   const [coverImageIndex, setCoverImageIndex] = useState(0);
   const [imageMessage, setImageMessage] = useState("");
   const [formMessage, setFormMessage] = useState("");
+  const [isCreatingAuction, setIsCreatingAuction] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState("");
 
   const refreshMyAuctions = async () => {
     setIsLoadingMyAuctions(true);
@@ -95,6 +98,13 @@ export function AccountPage({ section }: { section: "bids" | "auctions" }) {
 
   const handleImageChange = (event: ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = Array.from(event.target.files ?? []);
+    const invalidFile = selectedFiles.find((file) => !["image/jpeg", "image/png", "image/webp"].includes(file.type) || file.size > 5 * 1024 * 1024);
+    if (invalidFile) {
+      setAuctionImages([]);
+      setImageMessage(`${invalidFile.name}: csak JPEG, PNG vagy WEBP kép tölthető fel, legfeljebb 5 MB méretben.`);
+      event.target.value = "";
+      return;
+    }
     const limitedFiles = selectedFiles.slice(0, MAX_AUCTION_IMAGES);
 
     setAuctionImages(limitedFiles);
@@ -106,8 +116,15 @@ export function AccountPage({ section }: { section: "bids" | "auctions" }) {
     );
   };
 
+  const removeSelectedImage = (index: number) => {
+    setAuctionImages((current) => current.filter((_, imageIndex) => imageIndex !== index));
+    setCoverImageIndex((current) => current === index ? 0 : current > index ? current - 1 : current);
+    setImageMessage("");
+  };
+
   const handleCreateAuction = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (isCreatingAuction) return;
     setFormMessage("");
 
     if (auctionImages.length === 0) {
@@ -117,6 +134,8 @@ export function AccountPage({ section }: { section: "bids" | "auctions" }) {
 
     const formData = new FormData(event.currentTarget);
 
+    setIsCreatingAuction(true);
+    setUploadProgress("Az aukció mentése folyamatban...");
     try {
       const auction = await createAuction({
         title: String(formData.get("title") ?? ""),
@@ -134,7 +153,12 @@ export function AccountPage({ section }: { section: "bids" | "auctions" }) {
       });
 
       for (const [index, file] of auctionImages.entries()) {
-        await uploadAuctionImage(auction.id, file, index === coverImageIndex);
+        setUploadProgress(`${index + 1}/${auctionImages.length}: ${file.name} feltöltése és feldolgozása...`);
+        try {
+          await uploadAuctionImage(auction.id, file, index === coverImageIndex);
+        } catch (error) {
+          throw new Error(`${file.name}: ${error instanceof Error ? error.message : "a feltöltés nem sikerült."}`);
+        }
       }
 
       await activateAuction(auction.id);
@@ -143,9 +167,13 @@ export function AccountPage({ section }: { section: "bids" | "auctions" }) {
       setAuctionImages([]);
       setImageMessage("");
       setFormMessage("Az aukció létrejött, a képek feltöltődtek, és az aktiválás/időzítés sikeres.");
+      setUploadProgress("Minden kép feltöltése és feldolgozása sikeres.");
       event.currentTarget.reset();
     } catch (error) {
       setFormMessage(error instanceof Error ? error.message : "Az aukció létrehozása nem sikerült.");
+      setUploadProgress("");
+    } finally {
+      setIsCreatingAuction(false);
     }
   };
 
@@ -176,6 +204,27 @@ export function AccountPage({ section }: { section: "bids" | "auctions" }) {
       setFormMessage("Az aukció megszakítva.");
     } catch (error) {
       setFormMessage(error instanceof Error ? error.message : "Az aukció megszakítása nem sikerült.");
+    }
+  };
+
+  const handleSetCoverImage = async (auctionId: number, imageId: number) => {
+    try {
+      await setAuctionCoverImage(auctionId, imageId);
+      await refreshMyAuctions();
+      setFormMessage("A borítókép frissült.");
+    } catch (error) {
+      setFormMessage(error instanceof Error ? error.message : "A borítókép módosítása nem sikerült.");
+    }
+  };
+
+  const handleDeleteStoredImage = async (auctionId: number, imageId: number) => {
+    if (!window.confirm("Biztosan törlöd ezt a képet és minden méretváltozatát?")) return;
+    try {
+      await deleteAuctionImage(auctionId, imageId);
+      await refreshMyAuctions();
+      setFormMessage("A kép és minden méretváltozata törlődött.");
+    } catch (error) {
+      setFormMessage(error instanceof Error ? error.message : "A kép törlése nem sikerült.");
     }
   };
 
@@ -217,7 +266,7 @@ export function AccountPage({ section }: { section: "bids" | "auctions" }) {
           {isLoadingMyBids ? <LoadingState label="Licitált aukciók betöltése" /> : null}
           {myBidsError ? <ErrorState message={myBidsError} onRetry={() => void refreshMyBids()} /> : null}
           {!isLoadingMyBids && !myBidsError && myBidAuctions.length === 0 ? <EmptyState title="Még nincs licited" action={<Link className="button button-primary" to="/auctions">Aukciók böngészése</Link>} /> : null}
-          {!isLoadingMyBids && !myBidsError && myBidAuctions.length > 0 ? <div className="bid-status-sections">{bidGroups.map((group, groupIndex) => <section className="side-panel bid-status-group" aria-labelledby={`bid-group-${groupIndex}`} key={group.title}><h3 id={`bid-group-${groupIndex}`}>{group.title} <span>({group.items.length})</span></h3>{group.items.length === 0 ? <p className="empty-state">Ebben a csoportban nincs aukció.</p> : <div className="my-bids-list">{group.items.map((item) => { const cover = item.auction.images.find((image) => image.is_cover) ?? item.auction.images[0]; return <Link className="my-bid-row account-bid-row" to={`/auctions/${item.auction.id}`} key={item.auction.id}>{cover ? <img src={apiAssetUrl(cover.storage_key)} alt="" loading="lazy" /> : <span className="bid-image-placeholder" aria-hidden="true" />}<span className="bid-row-copy"><strong>{item.auction.title}</strong><span>Aktuális licit: {formatMoney(item.auction.current_price)}</span><span>Saját legmagasabb licit: {formatMoney(item.my_highest_bid)}</span><span>{item.auction.bid_count ?? 0} licit · zárás: {formatRemainingTime(item.auction.ends_at, item.auction.status)}</span><em>{item.has_won ? "Megnyerted" : item.is_leading ? "Te vezetsz" : item.is_outbid ? "Rád licitáltak" : "Figyelés alatt"}</em></span></Link>; })}</div>}</section>)}</div> : null}
+          {!isLoadingMyBids && !myBidsError && myBidAuctions.length > 0 ? <div className="bid-status-sections">{bidGroups.map((group, groupIndex) => <section className="side-panel bid-status-group" aria-labelledby={`bid-group-${groupIndex}`} key={group.title}><h3 id={`bid-group-${groupIndex}`}>{group.title} <span>({group.items.length})</span></h3>{group.items.length === 0 ? <p className="empty-state">Ebben a csoportban nincs aukció.</p> : <div className="my-bids-list">{group.items.map((item) => { const cover = item.auction.images.find((image) => image.is_cover) ?? item.auction.images[0]; return <Link className="my-bid-row account-bid-row" to={`/auctions/${item.auction.id}`} key={item.auction.id}>{cover ? <SafeImage src={apiAssetUrl(cover.thumbnail_url ?? cover.list_url ?? cover.url)} alt="" loading="lazy" width={320} height={320} fallbackClassName="bid-image-placeholder" /> : <span className="bid-image-placeholder" aria-hidden="true" />}<span className="bid-row-copy"><strong>{item.auction.title}</strong><span>Aktuális licit: {formatMoney(item.auction.current_price)}</span><span>Saját legmagasabb licit: {formatMoney(item.my_highest_bid)}</span><span>{item.auction.bid_count ?? 0} licit · zárás: {formatRemainingTime(item.auction.ends_at, item.auction.status)}</span><em>{item.has_won ? "Megnyerted" : item.is_leading ? "Te vezetsz" : item.is_outbid ? "Rád licitáltak" : "Figyelés alatt"}</em></span></Link>; })}</div>}</section>)}</div> : null}
         </div>
       </section> : null}
 
@@ -234,7 +283,7 @@ export function AccountPage({ section }: { section: "bids" | "auctions" }) {
           {isLoadingMyAuctions ? <LoadingState label="Saját aukciók betöltése" /> : null}
           {myAuctionsError ? <ErrorState message={myAuctionsError} onRetry={() => void refreshMyAuctions()} /> : null}
           {!isLoadingMyAuctions && !myAuctionsError && myAuctions.length === 0 ? <EmptyState title="Még nincs saját aukciód" action={<a className="button button-primary" href="#auction-create">Első aukció létrehozása</a>} /> : null}
-          {!isLoadingMyAuctions && !myAuctionsError && myAuctions.length > 0 ? <div className="auction-status-sections">{auctionGroups.map((group, groupIndex) => <section aria-labelledby={`auction-group-${groupIndex}`} key={group.title}><h3 id={`auction-group-${groupIndex}`}>{group.title} <span>({group.items.length})</span></h3>{group.items.length === 0 ? <p className="side-panel empty-state">Ebben a csoportban nincs aukció.</p> : <div className="auction-grid page-grid">{group.items.map((auction, index) => <div className="own-auction-card" key={auction.id}><AuctionCard item={toCardAuction(auction)} index={index} detailPath={`/auctions/${auction.id}`} showBidActions={false} /><div className="owner-actions"><button className="button button-secondary" type="button" onClick={() => handleEditDescription(auction)}>Módosítás</button>{["draft", "scheduled", "active"].includes(auction.status) ? <button className="button button-danger" type="button" onClick={() => handleCancelAuction(auction)}>Megszakítás</button> : null}</div></div>)}</div>}</section>)}</div> : null}
+          {!isLoadingMyAuctions && !myAuctionsError && myAuctions.length > 0 ? <div className="auction-status-sections">{auctionGroups.map((group, groupIndex) => <section aria-labelledby={`auction-group-${groupIndex}`} key={group.title}><h3 id={`auction-group-${groupIndex}`}>{group.title} <span>({group.items.length})</span></h3>{group.items.length === 0 ? <p className="side-panel empty-state">Ebben a csoportban nincs aukció.</p> : <div className="auction-grid page-grid">{group.items.map((auction, index) => <div className="own-auction-card" key={auction.id}><AuctionCard item={toCardAuction(auction)} index={index} detailPath={`/auctions/${auction.id}`} showBidActions={false} /><div className="owner-actions"><button className="button button-secondary" type="button" onClick={() => handleEditDescription(auction)}>Módosítás</button>{["draft", "scheduled", "active"].includes(auction.status) ? <button className="button button-danger" type="button" onClick={() => handleCancelAuction(auction)}>Megszakítás</button> : null}</div>{["draft", "scheduled"].includes(auction.status) && auction.images.length > 0 ? <div className="owner-image-manager" aria-label={`${auction.title} képeinek kezelése`}>{auction.images.map((image) => <div className="owner-image-row" key={image.id}><SafeImage src={apiAssetUrl(image.thumbnail_url ?? image.list_url ?? image.url)} alt="" width={320} height={320} />{image.is_cover ? <span className="status-badge">Borítókép</span> : <button className="button button-secondary" type="button" onClick={() => void handleSetCoverImage(auction.id, image.id)}>Legyen borítókép</button>}<button className="button button-danger" type="button" onClick={() => void handleDeleteStoredImage(auction.id, image.id)}>Kép törlése</button></div>)}</div> : null}</div>)}</div>}</section>)}</div> : null}
         </div>
 
         <div className="side-panel edit-rules-panel">
@@ -273,10 +322,10 @@ export function AccountPage({ section }: { section: "bids" | "auctions" }) {
           <div className="form-wide image-upload-field">
             <label>
               Képek
-              <input type="file" accept="image/*" multiple onChange={handleImageChange} />
+              <input type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={handleImageChange} disabled={isCreatingAuction} />
             </label>
             <small>
-              Minimum 1, maximum 5 kép tölthető fel. Válaszd ki, melyik legyen a borítókép.
+              JPEG, PNG vagy WEBP; képenként legfeljebb 5 MB. Minimum 1, maximum 5 kép tölthető fel. Válaszd ki a borítóképet.
             </small>
             {auctionImages.length > 0 ? (
               <div className="cover-image-list" aria-label="Borítókép kiválasztása">
@@ -291,11 +340,13 @@ export function AccountPage({ section }: { section: "bids" | "auctions" }) {
                     <span>{index + 1}. kép</span>
                     <strong>{file.name}</strong>
                     {coverImageIndex === index ? <em>Borítókép</em> : null}
+                    <button type="button" className="button button-danger" onClick={() => removeSelectedImage(index)} disabled={isCreatingAuction}>Kép eltávolítása</button>
                   </label>
                 ))}
               </div>
             ) : null}
             {imageMessage ? <p className="form-message">{imageMessage}</p> : null}
+            {uploadProgress ? <p className="form-message" role="status" aria-live="polite">{uploadProgress}</p> : null}
           </div>
           <label className="form-wide">
             Leírás
@@ -349,8 +400,8 @@ export function AccountPage({ section }: { section: "bids" | "auctions" }) {
             Elfogadom, hogy jogosult vagyok a termék értékesítésére és a képek használatára, az adásvétel pedig köztem és a nyertes vevő között jön létre.
           </label>
           {formMessage ? <p className="form-message form-wide">{formMessage}</p> : null}
-          <button className="button button-primary form-wide" type="submit">
-            Aukció létrehozása
+          <button className="button button-primary form-wide" type="submit" disabled={isCreatingAuction}>
+            {isCreatingAuction ? "Feltöltés és feldolgozás..." : "Aukció létrehozása"}
           </button>
         </form>
       </section> : null}
