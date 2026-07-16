@@ -3,7 +3,7 @@ from app.models.auction import Auction, AuctionImage, AuctionMessage, AuctionRev
 from app.models.email_verification_token import EmailVerificationToken
 from app.models.newsletter import NewsletterCampaign, NewsletterSubscriber
 from app.models.moderation import ModerationAction, Report, UserBlock, UserStrike
-from app.models.notification import Notification
+from app.models.notification import Notification, NotificationPreference, WatchlistReminder
 from app.models.order import Order, OrderItem
 from app.models.password_reset_token import PasswordResetToken
 from app.models.pickup_point import PickupPoint
@@ -31,6 +31,8 @@ __all__ = [
     "ModerationAction",
     "UserStrike",
     "Notification",
+    "NotificationPreference",
+    "WatchlistReminder",
     "Order",
     "OrderItem",
     "PasswordResetToken",

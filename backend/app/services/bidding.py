@@ -6,10 +6,11 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from app.models.auction import Auction, Bid
-from app.models.notification import Notification
 from app.models.user import User
 from app.services.auction_lifecycle import can_view_auction, normalize_money, now_utc, sync_auction_status
 from app.services.notifications import notify_auction_closed
+from app.services.notification_dispatcher import dispatch_notification
+from app.services.realtime import publish_auction_event
 from app.services.security_audit import create_domain_audit_log
 
 
@@ -41,7 +42,7 @@ def bid_to_read(bid: Bid, auction: Auction) -> dict:
 
 
 def auction_realtime_snapshot(db: Session, auction: Auction) -> dict:
-    history = list_bid_history(db=db, auction=auction, user=None)
+    history = list(db.scalars(select(Bid).where(Bid.auction_id == auction.id).order_by(Bid.amount.desc(), Bid.created_at.asc(), Bid.id.asc())).all())
     return {
         "auction_id": auction.id,
         "status": auction.status,
@@ -146,18 +147,19 @@ def place_bid(db: Session, auction_id: int, bidder: User, amount: Decimal) -> tu
     elif auction.five_minute_rule_enabled and auction.ends_at - now_utc() <= FIVE_MINUTE_EXTENSION_WINDOW:
         auction.ends_at = now_utc() + FIVE_MINUTE_EXTENSION_WINDOW
     if previous_highest_bidder_id is not None and previous_highest_bidder_id != bidder.id:
-        db.add(
-            Notification(
-                user_id=previous_highest_bidder_id,
-                auction_id=auction.id,
-                type="outbid",
-                title="Túllicitáltak",
-                message=f"Valaki magasabb licitet tett erre az aukcióra: {auction.title}",
-            ),
+        dispatch_notification(
+            db,
+            user_id=previous_highest_bidder_id,
+            auction_id=auction.id,
+            notification_type="outbid",
+            title="Túllicitáltak",
+            message=f"Valaki magasabb licitet tett erre az aukcióra: {auction.title}",
+            event_key=f"outbid:{auction.id}:{bid.id}:{previous_highest_bidder_id}",
         )
     create_domain_audit_log(db, action="auction_bid", user_id=bidder.id, auction_id=auction.id, metadata={"amount": str(normalized_amount)})
     db.add(auction)
     db.commit()
     db.refresh(bid)
     db.refresh(auction)
+    publish_auction_event(auction.id, "auction_update", auction_realtime_snapshot(db, auction))
     return bid, auction

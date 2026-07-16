@@ -1,7 +1,8 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
-import { getUnreadNotificationCount } from "../api/auctions";
 import { useAuth } from "../AuthContext";
+import { getUnreadNotificationCount } from "../api/auctions";
+import { useNotifications } from "../NotificationContext";
 import { UNREAD_NOTIFICATION_COUNT_CHANGED } from "../utils/notificationEvents";
 
 const navItems = [
@@ -27,7 +28,8 @@ const accountItems = [
 export function SiteHeader() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isAccountOpen, setIsAccountOpen] = useState(false);
-  const [unreadCount, setUnreadCount] = useState(0);
+  const { unreadCount, isRealtimeReady } = useNotifications();
+  const [displayUnreadCount, setDisplayUnreadCount] = useState(unreadCount);
   const { user, isAdmin, isAuthenticated, logout } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
@@ -41,6 +43,21 @@ export function SiteHeader() {
     setIsMenuOpen(false);
     setIsAccountOpen(false);
   }, [location.pathname]);
+
+  useEffect(() => { setDisplayUnreadCount(unreadCount); }, [unreadCount]);
+
+  useEffect(() => {
+    if (!isAuthenticated || isRealtimeReady) return;
+    let active = true;
+    getUnreadNotificationCount().then((result) => { if (active) setDisplayUnreadCount(result.unread_count); }).catch(() => undefined);
+    return () => { active = false; };
+  }, [isAuthenticated, isRealtimeReady]);
+
+  useEffect(() => {
+    const update = (event: Event) => setDisplayUnreadCount(Math.max(0, (event as CustomEvent<number>).detail));
+    window.addEventListener(UNREAD_NOTIFICATION_COUNT_CHANGED, update);
+    return () => window.removeEventListener(UNREAD_NOTIFICATION_COUNT_CHANGED, update);
+  }, []);
 
   useEffect(() => {
     if (!isMenuOpen) return;
@@ -69,22 +86,6 @@ export function SiteHeader() {
     if (isAccountOpen) accountMenuRef.current?.querySelector<HTMLElement>("[role='menuitem']")?.focus();
   }, [isAccountOpen]);
 
-  useEffect(() => {
-    if (!isAuthenticated) { setUnreadCount(0); return; }
-    let active = true;
-    let hasLiveUpdate = false;
-    const handleUnreadCountChanged = (event: Event) => {
-      hasLiveUpdate = true;
-      setUnreadCount(Math.max(0, (event as CustomEvent<number>).detail));
-    };
-    window.addEventListener(UNREAD_NOTIFICATION_COUNT_CHANGED, handleUnreadCountChanged);
-    getUnreadNotificationCount().then((result) => { if (active && !hasLiveUpdate) setUnreadCount(result.unread_count); }).catch(() => { if (active && !hasLiveUpdate) setUnreadCount(0); });
-    return () => {
-      active = false;
-      window.removeEventListener(UNREAD_NOTIFICATION_COUNT_CHANGED, handleUnreadCountChanged);
-    };
-  }, [isAuthenticated]);
-
   const signOut = () => { setIsAccountOpen(false); logout(); navigate("/"); };
 
   return (
@@ -106,7 +107,7 @@ export function SiteHeader() {
 
         <div className="header-actions" aria-label="Fiókműveletek">
           <Link className="icon-button icon-button-search" to="/auctions" aria-label="Keresés az aukciók között" />
-          {isAuthenticated ? <Link className="notification-link icon-button" to="/account/notifications" aria-label={`Értesítések${unreadCount ? `, ${unreadCount} olvasatlan` : ""}`}><span className="visually-hidden">Értesítések</span>{unreadCount > 0 ? <strong>{unreadCount > 99 ? "99+" : unreadCount}</strong> : null}</Link> : null}
+          {isAuthenticated ? <Link className="notification-link icon-button" to="/account/notifications" aria-label={`Értesítések${displayUnreadCount ? `, ${displayUnreadCount} olvasatlan` : ""}`}><span className="visually-hidden">Értesítések</span>{displayUnreadCount > 0 ? <strong>{displayUnreadCount > 99 ? "99+" : displayUnreadCount}</strong> : null}</Link> : null}
           {isAuthenticated ? (
             <div className="account-menu-wrap">
               <button ref={accountButtonRef} className="account-menu-trigger" type="button" aria-label="Felhasználói menü" aria-haspopup="menu" aria-expanded={isAccountOpen} aria-controls={accountMenuId} onClick={() => setIsAccountOpen((value) => !value)}>

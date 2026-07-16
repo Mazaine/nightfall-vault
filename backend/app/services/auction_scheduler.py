@@ -2,6 +2,7 @@ import asyncio
 import contextlib
 import logging
 from dataclasses import dataclass
+from datetime import timedelta
 
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
@@ -9,7 +10,9 @@ from sqlalchemy.orm import Session
 from app.db.session import SessionLocal
 from app.core.config import settings
 from app.models.auction import Auction
+from app.models.notification import WatchlistReminder
 from app.services.auction_lifecycle import close_ended_active_auction, now_utc
+from app.services.notification_dispatcher import dispatch_notification
 from app.services.scheduler_health import write_scheduler_heartbeat
 
 logger = logging.getLogger(__name__)
@@ -20,6 +23,41 @@ SCHEDULER_INTERVAL_SECONDS = 10
 class SchedulerIterationResult:
     leader: bool
     closed_count: int
+
+
+def send_due_watchlist_reminders(db: Session, limit: int = 500) -> int:
+    current_time = now_utc()
+    statement = (
+        select(WatchlistReminder, Auction)
+        .join(Auction, Auction.id == WatchlistReminder.auction_id)
+        .where(
+            WatchlistReminder.sent_at.is_(None), Auction.status == "active",
+            Auction.ends_at > current_time,
+            Auction.ends_at <= current_time + timedelta(minutes=30),
+        )
+        .order_by(Auction.ends_at.asc(), WatchlistReminder.minutes_before.desc())
+        .limit(limit)
+        .with_for_update(skip_locked=True)
+    )
+    sent_count = 0
+    for reminder, auction in db.execute(statement).all():
+        due_at = auction.ends_at - timedelta(minutes=reminder.minutes_before)
+        if reminder.created_at and reminder.created_at > due_at:
+            reminder.sent_at = current_time
+            db.add(reminder)
+            continue
+        if current_time < due_at:
+            continue
+        dispatch_notification(
+            db, user_id=reminder.user_id, auction_id=auction.id, notification_type="watchlist_reminder",
+            title="Hamarosan zárul egy figyelt aukció",
+            message=f"A(z) „{auction.title}” aukció {reminder.minutes_before} percen belül zárul.",
+            target_url=f"/auctions/{auction.id}", event_key=f"watchlist-reminder:{reminder.id}",
+        )
+        reminder.sent_at = current_time
+        db.add(reminder)
+        sent_count += 1
+    return sent_count
 
 
 def close_expired_auctions(db: Session, limit: int = 50) -> int:
@@ -37,6 +75,7 @@ def close_expired_auctions(db: Session, limit: int = 50) -> int:
         close_ended_active_auction(db, auction)
         closed_count += 1
     archive_due_transactions(db)
+    send_due_watchlist_reminders(db)
     db.commit()
     return closed_count
 

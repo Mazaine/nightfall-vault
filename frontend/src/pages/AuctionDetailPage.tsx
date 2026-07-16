@@ -1,17 +1,19 @@
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { apiAssetUrl } from "../api/client";
 import { ApiError } from "../api/client";
 import { auctionReportReasons, createAuctionReport } from "../api/reports";
 import { useAuth } from "../AuthContext";
+import { useNotifications } from "../NotificationContext";
 import { ReportDialog } from "../components/ReportDialog";
 import { SafeImage } from "../components/SafeImage";
-import { addWatchlistItem, auctionStreamUrl, createAuctionMessage, createAuctionReview, getAuction, listAuctionBids, listAuctionMessages, listRelatedAuctions, listSellerOtherAuctions, placeAuctionBid, listAuctionReviews, type Auction, type AuctionBid, type AuctionMessage, type AuctionRealtimeSnapshot, type AuctionReview } from "../api/auctions";
+import { addWatchlistItem, auctionStreamUrl, createAuctionMessage, createAuctionReview, getAuction, getAuctionPresence, listAuctionBids, listAuctionMessages, listRelatedAuctions, listSellerOtherAuctions, markAuctionMessagesRead, placeAuctionBid, listAuctionReviews, sendTyping, type Auction, type AuctionBid, type AuctionMessage, type AuctionRealtimeSnapshot, type AuctionReview } from "../api/auctions";
 import { formatLocalDateTime, formatMoney, formatRemainingTime } from "../utils/format";
 
 export function AuctionDetailPage() {
   const { auctionId } = useParams();
   const { isAuthenticated, user } = useAuth();
+  const { subscribe } = useNotifications();
   const [auction, setAuction] = useState<Auction | null>(null);
   const [messages, setMessages] = useState<AuctionMessage[]>([]);
   const [bidHistory, setBidHistory] = useState<AuctionBid[]>([]);
@@ -31,6 +33,12 @@ export function AuctionDetailPage() {
   const [showReportDialog, setShowReportDialog] = useState(false);
   const [reportMessage, setReportMessage] = useState("");
   const [selectedImageId, setSelectedImageId] = useState<number | null>(null);
+  const [typingUser, setTypingUser] = useState("");
+  const [presence, setPresence] = useState<{ online: boolean; last_active_at: string | null } | null>(null);
+  const messageListRef = useRef<HTMLDivElement>(null);
+  const typingTimerRef = useRef<number | null>(null);
+  const presenceTimerRef = useRef<number | null>(null);
+  const lastTypingSentRef = useRef(0);
 
   useEffect(() => {
     if (!auctionId || !/^\d+$/.test(auctionId)) {
@@ -50,7 +58,8 @@ export function AuctionDetailPage() {
         listRelatedAuctions(data.id).then(setRelatedAuctions).catch(() => setRelatedAuctions([]));
         listSellerOtherAuctions(data.id).then(setSellerAuctions).catch(() => setSellerAuctions([]));
         if (data.can_chat) {
-          listAuctionMessages(data.id).then(setMessages).catch(() => setMessages([]));
+          listAuctionMessages(data.id).then((items) => { setMessages(items); void markAuctionMessagesRead(data.id); }).catch(() => setMessages([]));
+          getAuctionPresence(data.id).then(setPresence).catch(() => setPresence(null));
         }
       })
       .catch((err: Error) => {
@@ -79,11 +88,45 @@ export function AuctionDetailPage() {
         : current);
       setBidHistory(snapshot.bids);
     });
-    source.onerror = () => {
-      source.close();
-    };
     return () => source.close();
   }, [auctionId]);
+
+  useEffect(() => subscribe((event) => {
+    const eventAuctionId = Number(event.payload.auction_id);
+    if (!auction || eventAuctionId !== auction.id) return;
+    if (event.type === "auction_message") {
+      const incoming = event.payload as unknown as AuctionMessage;
+      setMessages((items) => items.some((item) => item.id === incoming.id) ? items : [...items, incoming]);
+      if (incoming.sender_id !== user?.id) void markAuctionMessagesRead(auction.id);
+    } else if (event.type === "typing" && Number(event.payload.user_id) !== user?.id) {
+      setTypingUser(String(event.payload.username ?? "A másik fél"));
+      if (typingTimerRef.current) window.clearTimeout(typingTimerRef.current);
+      typingTimerRef.current = window.setTimeout(() => setTypingUser(""), 3000);
+    } else if (event.type === "messages_read") {
+      const readAt = String(event.payload.read_at);
+      setMessages((items) => items.map((item) => item.sender_id === user?.id && !item.read_at ? { ...item, read_at: readAt } : item));
+    } else if (event.type === "presence") {
+      setPresence({ online: Boolean(event.payload.online), last_active_at: event.payload.last_active_at ? String(event.payload.last_active_at) : null });
+      if (presenceTimerRef.current) window.clearTimeout(presenceTimerRef.current);
+      presenceTimerRef.current = window.setTimeout(() => setPresence((value) => value ? { ...value, online: false } : value), 50000);
+    }
+  }), [auction, subscribe, user?.id]);
+
+  useEffect(() => {
+    messageListRef.current?.scrollTo({ top: messageListRef.current.scrollHeight, behavior: "smooth" });
+  }, [messages, typingUser]);
+
+  useEffect(() => () => {
+    if (typingTimerRef.current) window.clearTimeout(typingTimerRef.current);
+    if (presenceTimerRef.current) window.clearTimeout(presenceTimerRef.current);
+  }, []);
+
+  const changeMessage = (value: string) => {
+    setPostAuctionMessage(value);
+    if (!auction || !value.trim() || Date.now() - lastTypingSentRef.current < 1200) return;
+    lastTypingSentRef.current = Date.now();
+    void sendTyping(auction.id).catch(() => undefined);
+  };
 
   const sendMessage = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -334,18 +377,21 @@ export function AuctionDetailPage() {
             <div className="marketplace-boundary-note" role="note">
               A Nightfall Vault nem kezel fizetést vagy szállítást. A részleteket egymással, saját felelősségre beszélitek meg.
             </div>
-            <div className="message-list">
+            <p className={`presence-indicator${presence?.online ? " is-online" : ""}`}>{presence?.online ? "Online" : presence?.last_active_at ? `Utoljára aktív: ${formatLocalDateTime(presence.last_active_at)}` : "Offline"}</p>
+            <div className="message-list" ref={messageListRef} aria-live="polite" aria-label="Privát beszélgetés üzenetei">
               {messages.length === 0 ? <p className="empty-state">Még nincs üzenet. Írj a másik félnek az egyeztetés megkezdéséhez.</p> : null}
               {messages.map((message) => (
                 <article className={message.sender_id === user?.id ? "message-row is-own" : "message-row"} key={message.id}>
                   <div><strong>{message.sender?.full_name ?? (message.sender_id === user?.id ? "Te" : "Másik fél")}</strong><time>{formatLocalDateTime(message.created_at)}</time></div>
                   <p>{message.message}</p>
+                  {message.sender_id === user?.id ? <span className="message-receipt" aria-label={message.read_at ? "Elolvasva" : "Elküldve"}>{message.read_at ? "✓✓" : "✓"}</span> : null}
                 </article>
               ))}
+              {typingUser ? <p className="typing-indicator" aria-live="polite">{typingUser} ír…</p> : null}
             </div>
             <form onSubmit={sendMessage}>
               <label htmlFor="auction-message">Üzenet a másik félnek</label>
-              <textarea id="auction-message" maxLength={2000} required value={postAuctionMessage} onChange={(event) => setPostAuctionMessage(event.target.value)} rows={4} />
+              <textarea id="auction-message" maxLength={2000} required value={postAuctionMessage} onChange={(event) => changeMessage(event.target.value)} rows={4} />
               <button className="button button-secondary" type="submit" disabled={isMessageSending || !postAuctionMessage.trim()}>{isMessageSending ? "Küldés..." : "Üzenet küldése"}</button>
               {messageFeedback ? <p className="form-message" role="status">{messageFeedback}</p> : null}
             </form>

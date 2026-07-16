@@ -18,6 +18,7 @@ from app.api.follow import router as follow_router
 from app.api.health import router as health_router
 from app.api.newsletter import router as newsletter_router
 from app.api.notifications import router as notifications_router
+from app.api.realtime import router as realtime_router
 from app.api.reports import router as reports_router
 from app.api.searches import router as searches_router
 from app.api.test_email import router as test_email_router
@@ -80,6 +81,7 @@ PRIVATE_API_PREFIXES = (
     "/api/blocks",
     "/api/notifications",
     "/api/reports",
+    "/api/realtime",
     "/api/searches",
     "/api/watchlist",
     "/api/transactions",
@@ -200,6 +202,7 @@ app.include_router(categories_router)
 app.include_router(follow_router)
 app.include_router(newsletter_router)
 app.include_router(notifications_router)
+app.include_router(realtime_router)
 app.include_router(reports_router)
 app.include_router(searches_router)
 app.include_router(test_email_router)

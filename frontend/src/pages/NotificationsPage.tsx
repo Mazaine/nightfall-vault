@@ -15,11 +15,12 @@ export function NotificationsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [pendingNotificationId, setPendingNotificationId] = useState<number | null>(null);
   const [isMarkingAll, setIsMarkingAll] = useState(false);
+  const [category, setCategory] = useState("all");
 
   const load = useCallback(async () => {
     setIsLoading(true);
     try {
-      const notifications = await listMyNotifications();
+      const notifications = await listMyNotifications(category);
       setItems(notifications);
       publishUnreadNotificationCount(unreadCount(notifications));
       setError("");
@@ -28,9 +29,19 @@ export function NotificationsPage() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [category]);
 
   useEffect(() => { void load(); }, [load]);
+
+  useEffect(() => {
+    const receive = (event: Event) => {
+      const item = (event as CustomEvent<NotificationItem>).detail;
+      if (category !== "all" && item.category !== category) return;
+      setItems((items) => items.some((existing) => existing.id === item.id) ? items : [item, ...items]);
+    };
+    window.addEventListener("nightfall:notification-received", receive);
+    return () => window.removeEventListener("nightfall:notification-received", receive);
+  }, [category]);
 
   async function markOne(id: number) {
     if (pendingNotificationId !== null || isMarkingAll) return;
@@ -89,6 +100,9 @@ export function NotificationsPage() {
           {isMarkingAll ? "Mentés..." : "Összes olvasott"}
         </button>
       </div>
+      <div className="notification-filters" role="group" aria-label="Értesítési előzmények szűrése">
+        {[["all", "Összes"], ["bids", "Licitek"], ["chat", "Chat"], ["follows", "Követések"], ["transactions", "Tranzakciók"], ["moderation", "Moderáció"], ["system", "Rendszer"]].map(([value, label]) => <button className={category === value ? "filter-chip is-active" : "filter-chip"} type="button" aria-pressed={category === value} onClick={() => setCategory(value)} key={value}>{label}</button>)}
+      </div>
       {isLoading ? <LoadingState label="Értesítések betöltése" /> : null}
       {error ? <ErrorState message={error} onRetry={() => void load()} /> : null}
       <div className="notification-list">
@@ -98,7 +112,7 @@ export function NotificationsPage() {
             <div>
               <strong>{item.title}</strong>
               <p>{item.message}</p>
-              {item.auction_id ? <Link to={`/auctions/${item.auction_id}`}>Aukció megnyitása</Link> : null}
+              {item.target_url || item.auction_id ? <Link to={item.target_url || `/auctions/${item.auction_id}`}>Megnyitás</Link> : null}
             </div>
             {!item.is_read ? (
               <button className="button button-ghost" type="button" disabled={hasPendingAction} onClick={() => void markOne(item.id)}>

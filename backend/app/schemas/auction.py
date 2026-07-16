@@ -223,6 +223,9 @@ class NotificationRead(BaseModel):
     type: str
     title: str
     message: str
+    category: str = "system"
+    target_url: str | None = None
+    browser_enabled: bool = False
     is_read: bool
     created_at: datetime
 

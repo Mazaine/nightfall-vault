@@ -80,6 +80,7 @@ export type AuctionMessage = {
   sender_id: number;
   message: string;
   created_at: string;
+  read_at: string | null;
   sender?: AuctionUser | null;
 };
 
@@ -142,6 +143,9 @@ export type NotificationItem = {
   type: string;
   title: string;
   message: string;
+  category: string;
+  target_url: string | null;
+  browser_enabled: boolean;
   is_read: boolean;
   created_at: string;
 };
@@ -220,8 +224,9 @@ export function listMyBidAuctions() {
   return apiRequest<MyBidAuction[]>("/api/auctions/my-bids");
 }
 
-export function listMyNotifications() {
-  return apiRequest<NotificationItem[]>("/api/notifications");
+export function listMyNotifications(category = "all") {
+  const query = category === "all" ? "" : `?category=${encodeURIComponent(category)}`;
+  return apiRequest<NotificationItem[]>(`/api/notifications${query}`);
 }
 
 export function getUnreadNotificationCount() {
@@ -331,6 +336,10 @@ export function auctionStreamUrl(auctionId: number | string) {
   return `${API_BASE_URL}/api/auctions/${auctionId}/stream`;
 }
 
+export function auctionListStreamUrl() {
+  return `${API_BASE_URL}/api/auctions/realtime/stream`;
+}
+
 export function listAuctionMessages(auctionId: number) {
   return apiRequest<AuctionMessage[]>(`/api/auctions/${auctionId}/messages`);
 }
@@ -344,6 +353,18 @@ export function createAuctionMessage(auctionId: number, message: string) {
     method: "POST",
     body: JSON.stringify({ message }),
   });
+}
+
+export function sendTyping(auctionId: number) {
+  return apiRequest<{ sent: boolean }>(`/api/realtime/auctions/${auctionId}/typing`, { method: "POST" });
+}
+
+export function markAuctionMessagesRead(auctionId: number) {
+  return apiRequest<{ updated: number; read_at: string }>(`/api/realtime/auctions/${auctionId}/messages/read`, { method: "POST" });
+}
+
+export function getAuctionPresence(auctionId: number) {
+  return apiRequest<{ user_id: number; online: boolean; last_active_at: string | null }>(`/api/realtime/auctions/${auctionId}/presence`);
 }
 
 export function listAuctionReviews(auctionId: number, params: { limit?: number; offset?: number; sort?: string } = {}) {

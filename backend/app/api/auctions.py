@@ -1,4 +1,3 @@
-import asyncio
 import json
 from datetime import datetime, timedelta, timezone
 
@@ -7,7 +6,6 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
-from app.db.session import SessionLocal
 from app.db.session import get_db
 from app.dependencies.auth import get_optional_current_user, require_active_user, require_admin
 from app.models.auction import Auction, AuctionMessage, AuctionReview, Bid
@@ -21,6 +19,7 @@ from app.services.notifications import notify_followers_new_auction
 from app.services.recommendations import related_auctions, seller_other_auctions
 from app.services.saved_searches import notify_saved_search_matches
 from app.services.transactions import can_user_review_transaction
+from app.services.realtime import iter_stream
 from app.storage.paths import media_url
 
 router = APIRouter(prefix="/api/auctions", tags=["auctions"])
@@ -369,6 +368,16 @@ def list_auction_bids(
     return [BidHistoryItem.model_validate(bid_to_history_item(bid, auction)) for bid in bids]
 
 
+@router.get("/realtime/stream")
+async def stream_auction_list_updates(request: Request) -> StreamingResponse:
+    async def events():
+        async for event_id, event_type, payload in iter_stream("nightfall:realtime:auctions", request.headers.get("last-event-id", "$")):
+            if await request.is_disconnected():
+                break
+            yield f"id: {event_id}\nevent: {event_type}\ndata: {json.dumps(payload, ensure_ascii=False)}\n\n"
+    return StreamingResponse(events(), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+
 @router.get("/{auction_id}/stream")
 async def stream_auction_updates(
     auction_id: int,
@@ -380,22 +389,19 @@ async def stream_auction_updates(
     auction = get_auction_or_404(db, auction_id)
     require_can_view_auction(auction, current_user)
 
+    initial = AuctionRealtimeSnapshot.model_validate(auction_realtime_snapshot(db, auction)).model_dump(mode="json")
+
     async def event_generator():
-        while True:
-            stream_db = SessionLocal()
-            try:
-                stream_auction = get_auction_or_404(stream_db, auction_id)
-                snapshot = AuctionRealtimeSnapshot.model_validate(auction_realtime_snapshot(stream_db, stream_auction)).model_dump(mode="json")
-                yield f"event: auction_update\ndata: {json.dumps(snapshot, ensure_ascii=False)}\n\n"
-            finally:
-                stream_db.close()
-            if once:
-                break
+        yield f"event: auction_update\ndata: {json.dumps(initial, ensure_ascii=False)}\n\n"
+        if once:
+            return
+        last_event_id = request.headers.get("last-event-id", "$")
+        async for event_id, event_type, payload in iter_stream(f"nightfall:realtime:auction:{auction_id}", last_event_id):
             if await request.is_disconnected():
                 break
-            await asyncio.sleep(2)
+            yield f"id: {event_id}\nevent: {event_type}\ndata: {json.dumps(payload, ensure_ascii=False)}\n\n"
 
-    return StreamingResponse(event_generator(), media_type="text/event-stream")
+    return StreamingResponse(event_generator(), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
 
 @router.post("/{auction_id}/bids", response_model=BidRead, status_code=status.HTTP_201_CREATED)

@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { listAuctions, type Auction, type AuctionListParams } from "../api/auctions";
+import { auctionListStreamUrl, listAuctions, type Auction, type AuctionListParams, type AuctionRealtimeSnapshot } from "../api/auctions";
 import { createSavedSearch } from "../api/searches";
 import { useAuth } from "../AuthContext";
 import { AuctionCard } from "../components/AuctionCard";
@@ -98,6 +98,16 @@ export function AuctionsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [saveMessage, setSaveMessage] = useState("");
+
+  useEffect(() => {
+    if (typeof EventSource === "undefined") return;
+    const source = new EventSource(auctionListStreamUrl());
+    source.addEventListener("auction_update", (event) => {
+      const snapshot = JSON.parse((event as MessageEvent).data) as AuctionRealtimeSnapshot;
+      setAuctions((items) => items.map((item) => item.id === snapshot.auction_id ? { ...item, status: snapshot.status, current_price: snapshot.current_price, highest_bid_id: snapshot.highest_bid_id, winner_id: snapshot.winner_id, ends_at: snapshot.ends_at, bid_count: snapshot.bid_count } : item));
+    });
+    return () => source.close();
+  }, []);
 
   const params = useMemo(() => toParams(appliedFilters, offset), [appliedFilters, offset]);
 

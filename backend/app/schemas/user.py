@@ -88,6 +88,16 @@ class NotificationPreferencesUpdate(BaseModel):
     notify_email_moderation: bool
 
 
+class NotificationChannelPreference(BaseModel):
+    in_app: bool = True
+    browser: bool = False
+    email: bool = False
+
+
+class NotificationPreferenceMatrix(BaseModel):
+    categories: dict[str, NotificationChannelPreference]
+
+
 class UserProfileUpdate(BaseModel):
     email: EmailStr | None = None
     username: str | None = Field(default=None, min_length=3, max_length=80)

@@ -5,8 +5,9 @@ from sqlalchemy.orm import Session
 
 from app.models.auction import Auction, Bid
 from app.models.notification import Notification
-from app.models.user import SellerFollow, User
-from app.services.notification_email import send_notification_email
+from app.models.user import SellerFollow
+from app.services.notification_dispatcher import dispatch_notification
+from app.services.realtime import publish_user_event
 
 
 def now_utc() -> datetime:
@@ -23,19 +24,10 @@ def create_notification(
     auction_id: int | None = None,
     send_email: bool = True,
 ) -> Notification:
-    notification = Notification(
-        user_id=user_id,
-        auction_id=auction_id,
-        type=notification_type,
-        title=title,
-        message=message,
+    return dispatch_notification(
+        db, user_id=user_id, auction_id=auction_id, notification_type=notification_type,
+        title=title, message=message, send_email=send_email,
     )
-    db.add(notification)
-    db.flush()
-    user = db.get(User, user_id)
-    if user is not None and send_email:
-        send_notification_email(user, notification)
-    return notification
 
 
 def mark_notification_read(db: Session, notification: Notification) -> Notification:
@@ -45,6 +37,7 @@ def mark_notification_read(db: Session, notification: Notification) -> Notificat
         db.add(notification)
         db.commit()
         db.refresh(notification)
+        publish_user_event(notification.user_id, "notification_read", {"id": notification.id})
     return notification
 
 
@@ -55,11 +48,12 @@ def mark_all_notifications_read(db: Session, user_id: int) -> int:
         .values(is_read=True, read_at=now_utc()),
     )
     db.commit()
+    publish_user_event(user_id, "notifications_read_all", {"updated": int(result.rowcount or 0)})
     return int(result.rowcount or 0)
 
 
 def count_unread_notifications(db: Session, user_id: int) -> int:
-    return int(db.scalar(select(func.count()).select_from(Notification).where(Notification.user_id == user_id, Notification.is_read.is_(False))) or 0)
+    return int(db.scalar(select(func.count()).select_from(Notification).where(Notification.user_id == user_id, Notification.in_app_enabled.is_(True), Notification.is_read.is_(False))) or 0)
 
 
 def notify_auction_closed(db: Session, auction: Auction) -> None:

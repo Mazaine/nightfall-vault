@@ -33,6 +33,13 @@ def now_utc() -> datetime:
     return datetime.now(timezone.utc)
 
 
+def publish_auction_change(db: Session, auction: Auction) -> None:
+    from app.services.bidding import auction_realtime_snapshot
+    from app.services.realtime import publish_auction_event
+
+    publish_auction_event(auction.id, "auction_update", auction_realtime_snapshot(db, auction))
+
+
 def normalize_datetime(value: datetime) -> datetime:
     if value.tzinfo is None or value.utcoffset() is None:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Datetime must include timezone information.")
@@ -71,6 +78,7 @@ def sync_auction_status(db: Session, auction: Auction) -> Auction:
             notify_auction_closed(db, auction)
         db.commit()
         db.refresh(auction)
+        publish_auction_change(db, auction)
     return auction
 
 
@@ -90,6 +98,7 @@ def close_ended_active_auction(db: Session, auction: Auction) -> Auction:
     db.add(auction)
     create_domain_audit_log(db, action="auction_status_changed", auction_id=auction.id, metadata={"from": "active", "to": auction.status, "source": "scheduler"})
     notify_auction_closed(db, auction)
+    publish_auction_change(db, auction)
     return auction
 
 
@@ -204,6 +213,7 @@ def update_auction(db: Session, auction: Auction, auction_update: AuctionUpdate,
     db.add(auction)
     db.commit()
     db.refresh(auction)
+    publish_auction_change(db, auction)
     return auction
 
 
@@ -239,6 +249,7 @@ def activate_auction(db: Session, auction: Auction, user: User) -> Auction:
     create_domain_audit_log(db, action="auction_activated", user_id=user.id, auction_id=auction.id, metadata={"status": next_status})
     db.commit()
     db.refresh(auction)
+    publish_auction_change(db, auction)
     return auction
 
 
@@ -250,6 +261,7 @@ def cancel_auction(db: Session, auction: Auction, user: User) -> Auction:
     create_domain_audit_log(db, action="auction_status_changed", user_id=user.id, auction_id=auction.id, metadata={"to": "cancelled"})
     db.commit()
     db.refresh(auction)
+    publish_auction_change(db, auction)
     return auction
 
 
@@ -342,6 +354,19 @@ def create_message(db: Session, auction: Auction, sender: User, message: str) ->
     )
     db.commit()
     db.refresh(auction_message)
+    from app.services.realtime import publish_user_event
+
+    payload = {
+        "id": auction_message.id,
+        "auction_id": auction.id,
+        "sender_id": sender.id,
+        "message": auction_message.message,
+        "created_at": auction_message.created_at.isoformat(),
+        "read_at": None,
+        "sender": {"id": sender.id, "username": sender.username, "full_name": sender.full_name},
+    }
+    publish_user_event(counterparty_id, "auction_message", payload)
+    publish_user_event(sender.id, "auction_message", payload)
     return auction_message
 
 
@@ -369,6 +394,12 @@ def create_review(db: Session, auction: Auction, reviewer: User, rating: int, co
     )
     db.add(review)
     db.flush()
+    from app.services.notification_dispatcher import dispatch_notification
+    dispatch_notification(
+        db, user_id=reviewed_user_id, auction_id=auction.id, notification_type="review_received",
+        title="Új értékelést kaptál", message=f"{reviewer.full_name or reviewer.username} {rating} csillagos értékelést adott.",
+        target_url=f"/users/{reviewer.username}", event_key=f"review:{review.id}",
+    )
     mark_reviewed_if_complete(db, transaction)
     db.commit()
     db.refresh(review)

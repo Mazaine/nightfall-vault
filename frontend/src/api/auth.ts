@@ -49,6 +49,14 @@ export async function getMe() {
   return apiRequest<AuthUser>("/api/auth/me");
 }
 
+export function updateProfile(payload: { email: string; username: string; full_name: string }) {
+  return apiRequest<AuthUser>("/api/auth/me", { method: "PATCH", body: JSON.stringify(payload) });
+}
+
+export function deleteProfile(password: string) {
+  return apiRequest<MessageResponse>("/api/auth/me", { method: "DELETE", body: JSON.stringify({ password }) });
+}
+
 export async function forgotPassword(email: string, captchaToken?: string | null) {
   return apiRequest<MessageResponse>("/api/auth/forgot-password", {
     method: "POST",
@@ -78,19 +86,15 @@ export async function verifyEmail(token: string) {
   return apiRequest<MessageResponse>(`/api/auth/verify-email?${query.toString()}`, { authenticated: false });
 }
 
-export type NotificationPreferences = {
-  notify_in_app: boolean;
-  notify_email_outbid: boolean;
-  notify_email_auction_result: boolean;
-  notify_email_moderation: boolean;
-};
+export type NotificationChannelPreference = { in_app: boolean; browser: boolean; email: boolean };
+export type NotificationPreferences = { categories: Record<string, NotificationChannelPreference> };
 
 export async function getNotificationPreferences() {
-  return apiRequest<NotificationPreferences>("/api/auth/me/notification-preferences");
+  return apiRequest<NotificationPreferences>("/api/notifications/preferences");
 }
 
 export async function updateNotificationPreferences(payload: NotificationPreferences) {
-  return apiRequest<NotificationPreferences>("/api/auth/me/notification-preferences", {
+  return apiRequest<NotificationPreferences>("/api/notifications/preferences", {
     method: "PUT",
     body: JSON.stringify(payload),
   });
