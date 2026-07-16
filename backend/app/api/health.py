@@ -5,6 +5,8 @@ from fastapi import APIRouter, status
 from fastapi.responses import JSONResponse, PlainTextResponse
 from redis import Redis
 from sqlalchemy import text
+from alembic.config import Config
+from alembic.script import ScriptDirectory
 
 from app.core.config import settings
 from app.db.session import engine
@@ -14,6 +16,10 @@ from app.storage import storage
 router = APIRouter(tags=["health"])
 PROCESS_STARTED_AT = monotonic()
 logger = logging.getLogger(__name__)
+
+
+def expected_alembic_head() -> str | None:
+    return ScriptDirectory.from_config(Config("alembic.ini")).get_current_head()
 
 
 @router.get("/health/live")
@@ -30,7 +36,10 @@ def ready():
             connection.execute(text("SELECT 1"))
             revision = connection.execute(text("SELECT version_num FROM alembic_version LIMIT 1")).scalar()
         checks["postgres"] = "ok"
-        checks["alembic"] = "ok" if revision else "unknown"
+        migration_ready = bool(revision) if settings.environment.lower() == "test" else revision == expected_alembic_head()
+        checks["alembic"] = "ok" if migration_ready else "error"
+        if checks["alembic"] != "ok":
+            http_status = status.HTTP_503_SERVICE_UNAVAILABLE
     except Exception:
         checks["postgres"] = "error"
         checks["alembic"] = "error"
@@ -39,8 +48,11 @@ def ready():
     try:
         redis_client.ping()
         checks["redis"] = "ok"
+        redis_client.xlen("nightfall:realtime:auctions")
+        checks["realtime"] = "ok"
     except Exception:
         checks["redis"] = "error"
+        checks["realtime"] = "error"
         http_status = status.HTTP_503_SERVICE_UNAVAILABLE
     if settings.auction_scheduler_mode.lower() == "external":
         try:

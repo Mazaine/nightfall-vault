@@ -28,6 +28,7 @@ from app.api.users import router as users_router
 from app.api.watchlist import router as watchlist_router
 from app.core.config import settings
 from app.core.logging_config import configure_logging
+from app.core.production import validate_production_settings
 from app.media import ImmutableMediaFiles
 from app.db.session import SessionLocal
 from app.services.security_audit import create_admin_audit_log
@@ -44,6 +45,7 @@ _scheduler_task: asyncio.Task | None = None
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     global _scheduler_stop_event, _scheduler_task
+    validate_production_settings(settings)
     embedded_scheduler = settings.auction_scheduler_mode.lower() == "embedded"
     if embedded_scheduler:
         _scheduler_stop_event = asyncio.Event()

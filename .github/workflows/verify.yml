@@ -35,3 +35,32 @@ jobs:
       - name: Service diagnostics
         if: failure()
         run: docker compose ps && docker compose logs --no-color --tail=200
+
+  production-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate scripts and tracked secrets
+        run: |
+          bash -n scripts/*.sh scripts/lib/*.sh
+          bash scripts/secret_scan.sh
+          python scripts/test_production_contract.py
+      - name: Validate production Compose
+        env:
+          PRODUCTION_ENV_FILE: .env.production.example
+          POSTGRES_DB: nightfall_vault
+          POSTGRES_USER: nightfall_app
+          POSTGRES_PASSWORD: ci-placeholder
+          REDIS_PASSWORD: ci-placeholder
+        run: docker compose --env-file .env.production.example -f docker-compose.production.yml config --quiet
+      - name: Build production images
+        env:
+          PRODUCTION_ENV_FILE: .env.production.example
+          POSTGRES_DB: nightfall_vault
+          POSTGRES_USER: nightfall_app
+          POSTGRES_PASSWORD: ci-placeholder
+          REDIS_PASSWORD: ci-placeholder
+        run: docker compose --env-file .env.production.example -f docker-compose.production.yml build backend frontend reverse-proxy
+      - name: Test Nginx production configuration
+        run: docker run --rm --add-host backend:127.0.0.1 --add-host frontend:127.0.0.1 nightfall-vault-proxy:local nginx -t

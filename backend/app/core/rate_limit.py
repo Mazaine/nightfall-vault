@@ -1,4 +1,5 @@
 import logging
+import ipaddress
 from collections import defaultdict, deque
 from typing import Protocol
 from time import monotonic
@@ -125,10 +126,26 @@ def reset_rate_limiter_for_tests() -> None:
 
 
 def get_client_ip(request: Request) -> str:
+    remote_ip = request.client.host if request.client else "unknown"
+    try:
+        trusted_networks = [ipaddress.ip_network(value) for value in settings.trusted_proxy_cidrs]
+        remote_is_trusted = any(ipaddress.ip_address(remote_ip) in network for network in trusted_networks)
+    except ValueError:
+        logger.error("Invalid trusted proxy configuration.")
+        remote_is_trusted = False
+        trusted_networks = []
     forwarded_for = request.headers.get("x-forwarded-for")
-    if forwarded_for:
-        return forwarded_for.split(",", 1)[0].strip()
-    return request.client.host if request.client else "unknown"
+    if not forwarded_for or not remote_is_trusted:
+        return remote_ip
+    chain = [item.strip() for item in forwarded_for.split(",") if item.strip()] + [remote_ip]
+    for candidate in reversed(chain):
+        try:
+            address = ipaddress.ip_address(candidate)
+        except ValueError:
+            continue
+        if not any(address in network for network in trusted_networks):
+            return candidate
+    return remote_ip
 
 
 def check_rate_limit(request: Request, scope: str, limit: int, identifier: str | None = None) -> None:

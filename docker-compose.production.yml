@@ -1,0 +1,192 @@
+name: ${COMPOSE_PROJECT_NAME:-nightfall-vault-production}
+
+x-app: &app
+  image: nightfall-vault-backend:${NIGHTFALL_IMAGE_TAG:-local}
+  build:
+    context: ./backend
+    dockerfile: Dockerfile.prod
+  env_file:
+    - ${PRODUCTION_ENV_FILE:-.env.production}
+  restart: unless-stopped
+  init: true
+  read_only: true
+  tmpfs: [/tmp]
+  logging: &logging
+    driver: json-file
+    options: {max-size: "10m", max-file: "5"}
+  networks: [core]
+  depends_on:
+    postgres: {condition: service_healthy}
+    redis: {condition: service_healthy}
+
+services:
+  reverse-proxy:
+    image: nightfall-vault-proxy:${NIGHTFALL_IMAGE_TAG:-local}
+    build: {context: ./nginx}
+    restart: unless-stopped
+    init: true
+    read_only: true
+    tmpfs: [/tmp, /var/cache/nginx, /var/run]
+    ports: ["${HTTP_PORT:-8080}:8080"]
+    volumes:
+      - nightfall_media:/srv/nightfall-media:ro
+    networks:
+      edge: {}
+      core: {ipv4_address: "${REVERSE_PROXY_IP:-172.30.0.10}"}
+    depends_on:
+      frontend: {condition: service_healthy}
+      backend: {condition: service_healthy}
+    healthcheck:
+      test: [CMD, wget, -qO-, http://127.0.0.1:8080/health/live]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    logging: *logging
+    mem_limit: 192m
+    cpus: 0.50
+    pids_limit: 128
+
+  frontend:
+    image: nightfall-vault-frontend:${NIGHTFALL_IMAGE_TAG:-local}
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.prod
+      args:
+        VITE_API_BASE_URL: ""
+        VITE_CAPTCHA_ENABLED: ${CAPTCHA_ENABLED:-false}
+    restart: unless-stopped
+    init: true
+    read_only: true
+    tmpfs: [/tmp, /var/cache/nginx, /var/run]
+    expose: ["8080"]
+    networks: [core]
+    healthcheck:
+      test: [CMD, wget, -qO-, http://127.0.0.1:8080/]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    logging: *logging
+    mem_limit: 128m
+    cpus: 0.50
+    pids_limit: 128
+
+  backend:
+    <<: *app
+    environment:
+      AUCTION_SCHEDULER_MODE: external
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+      media-init: {condition: service_completed_successfully}
+    expose: ["8000"]
+    volumes:
+      - nightfall_media:/data/media
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/live', timeout=2)"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    mem_limit: 768m
+    cpus: 1.50
+    pids_limit: 256
+
+  auction-scheduler:
+    <<: *app
+    environment:
+      AUCTION_SCHEDULER_MODE: worker
+    command: [python, -m, app.workers.auction_scheduler]
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+      media-init: {condition: service_completed_successfully}
+    volumes:
+      - nightfall_media:/data/media:ro
+    healthcheck:
+      test: [CMD, python, -m, app.workers.healthcheck]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    mem_limit: 256m
+    cpus: 0.50
+    pids_limit: 128
+
+  media-init:
+    image: alpine:3.20
+    command: [sh, -c, "mkdir -p /data/media && chown -R 10001:10001 /data/media"]
+    volumes:
+      - nightfall_media:/data/media
+    restart: "no"
+    networks: [core]
+    logging: *logging
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?required}
+      POSTGRES_USER: ${POSTGRES_USER:?required}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?required}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks: [core]
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    logging: *logging
+    mem_limit: 768m
+    cpus: 1.50
+    pids_limit: 256
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: [sh, -c, 'exec redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy noeviction --requirepass "$$REDIS_PASSWORD"']
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?required}
+    volumes:
+      - redis_data:/data
+    networks: [core]
+    healthcheck:
+      test: [CMD-SHELL, 'redis-cli -a "$$REDIS_PASSWORD" ping | grep PONG']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    logging: *logging
+    mem_limit: 320m
+    cpus: 0.75
+    pids_limit: 128
+
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    profiles: [monitoring]
+    restart: unless-stopped
+    read_only: true
+    user: "65534:65534"
+    command: [--config.file=/etc/prometheus/prometheus.yml, --storage.tsdb.path=/prometheus]
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/nightfall-alerts.yml:/etc/prometheus/nightfall-alerts.yml:ro
+      - prometheus_data:/prometheus
+    networks: [core]
+    logging: *logging
+    mem_limit: 256m
+    cpus: 0.50
+    pids_limit: 128
+
+networks:
+  edge: {}
+  core:
+    ipam:
+      config:
+        - subnet: "${CORE_SUBNET:-172.30.0.0/24}"
+
+volumes:
+  postgres_data:
+    name: "${DATABASE_VOLUME_NAME:-nightfall_vault_postgres_prod}"
+  redis_data:
+    name: "${REDIS_VOLUME_NAME:-nightfall_vault_redis_prod}"
+  nightfall_media:
+    name: "${MEDIA_VOLUME_NAME:-nightfall_vault_media_prod}"
+  prometheus_data: {}

@@ -11,7 +11,6 @@ import redis.asyncio as async_redis
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
-STREAM_MAX_LENGTH = 5000
 
 
 def now_iso() -> str:
@@ -25,7 +24,7 @@ def redis_client() -> redis.Redis:
 
 def publish_event(stream: str, event_type: str, payload: dict[str, Any]) -> str | None:
     try:
-        return str(redis_client().xadd(stream, {"event": event_type, "data": json.dumps(payload, ensure_ascii=False)}, maxlen=STREAM_MAX_LENGTH, approximate=True))
+        return str(redis_client().xadd(stream, {"event": event_type, "data": json.dumps(payload, ensure_ascii=False)}, maxlen=settings.realtime_stream_max_length, approximate=True))
     except Exception:
         logger.exception("Realtime event publish failed: stream=%s event=%s", stream, event_type)
         return None

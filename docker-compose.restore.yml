@@ -6,7 +6,7 @@
     environment:
       POSTGRES_DB: restore_admin
       POSTGRES_USER: restore_admin
-      POSTGRES_PASSWORD: ${RESTORE_POSTGRES_PASSWORD:-restore-local-only-change-me}
+      POSTGRES_PASSWORD: ${RESTORE_POSTGRES_PASSWORD:?Set RESTORE_POSTGRES_PASSWORD for the isolated restore environment}
     volumes:
       - postgres_restore_data:/var/lib/postgresql/data
     healthcheck:

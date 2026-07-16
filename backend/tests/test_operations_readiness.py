@@ -90,7 +90,7 @@ def test_health_endpoints_and_request_id() -> None:
     assert live.status_code == 200
     assert live.headers["X-Request-ID"] == "ops-test-request"
     assert ready.status_code == 200
-    expected_checks = {"postgres", "alembic", "redis", "storage"}
+    expected_checks = {"postgres", "alembic", "redis", "realtime", "storage"}
     if settings.auction_scheduler_mode.lower() == "external":
         expected_checks.add("scheduler")
     assert set(ready.json()["checks"]) == expected_checks

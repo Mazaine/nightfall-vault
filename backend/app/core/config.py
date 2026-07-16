@@ -6,7 +6,7 @@ from pydantic import field_validator
 class Settings(BaseSettings):
     project_name: str = "Nightfall Vault API"
     database_url: str = ""
-    backend_cors_origins: list[str] = Field(default_factory=lambda: ["http://localhost:5173"], validation_alias=AliasChoices("BACKEND_CORS_ORIGINS", "CORS_ORIGINS"))
+    backend_cors_origins: list[str] = Field(default_factory=lambda: ["http://localhost:5173"], validation_alias=AliasChoices("backend_cors_origins", "BACKEND_CORS_ORIGINS", "CORS_ORIGINS"))
     secret_key: str = ""
     access_token_algorithm: str = "HS256"
     access_token_expire_minutes: int = 30
@@ -43,7 +43,7 @@ class Settings(BaseSettings):
     log_format: str = "text"
     notification_email_enabled: bool = False
     storage_backend: str = "local"
-    media_root: str = Field(default="/data/media", validation_alias=AliasChoices("MEDIA_ROOT", "STORAGE_UPLOAD_DIR"))
+    media_root: str = Field(default="/data/media", validation_alias=AliasChoices("media_root", "MEDIA_ROOT", "STORAGE_UPLOAD_DIR"))
     media_url_prefix: str = "/media"
     max_image_file_size_bytes: int = 5 * 1024 * 1024
     max_image_pixels: int = 24_000_000
@@ -55,6 +55,10 @@ class Settings(BaseSettings):
     auction_scheduler_heartbeat_ttl_seconds: int = 30
     transaction_review_window_days: int = 30
     moderation_strike_alert_threshold: int = 3
+    trusted_proxy_cidrs: list[str] = Field(default_factory=lambda: ["127.0.0.1/32", "::1/128"])
+    development_admin_seed_enabled: bool = False
+    error_tracking_dsn: str | None = None
+    realtime_stream_max_length: int = 5000
 
     @field_validator("media_url_prefix")
     @classmethod
@@ -64,7 +68,7 @@ class Settings(BaseSettings):
             raise ValueError("MEDIA_URL_PREFIX must be a safe dedicated URL prefix.")
         return normalized
 
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore", populate_by_name=True)
 
 
 settings = Settings()

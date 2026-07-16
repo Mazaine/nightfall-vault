@@ -1,0 +1,13 @@
+groups:
+  - name: nightfall
+    rules:
+      - alert: NightfallApiDown
+        expr: up{job="nightfall-api"} == 0
+        for: 2m
+        labels: {severity: critical}
+        annotations: {summary: "A Nightfall API nem elérhető"}
+      - alert: NightfallSchedulerHeartbeatMissing
+        expr: nightfall_scheduler_heartbeat_up == 0
+        for: 2m
+        labels: {severity: critical}
+        annotations: {summary: "Hiányzik az aukciós scheduler heartbeat"}
