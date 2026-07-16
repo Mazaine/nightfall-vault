@@ -164,6 +164,8 @@
   background: transparent;
   color: var(--color-violet-300);
   cursor: pointer;
+  min-width: 2.75rem;
+  min-height: 2.75rem;
   font: inherit;
   font-size: 0.78rem;
   font-weight: var(--font-weight-semibold);

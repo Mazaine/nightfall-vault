@@ -43,6 +43,9 @@
 }
 
 .site-nav a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
   border-radius: var(--radius-sm);
   color: var(--color-text-muted);
   font-size: clamp(0.76rem, 0.78vw, var(--font-size-body-sm));
@@ -143,8 +146,8 @@
   position: relative;
   display: grid;
   place-items: center;
-  width: 2.55rem;
-  height: 2.55rem;
+  width: 2.75rem;
+  height: 2.75rem;
   border: 1px solid transparent;
   border-radius: var(--radius-md);
   background: transparent;
@@ -199,7 +202,7 @@
 .login-button,
 .register-button,
 .user-button {
-  min-height: 2.55rem;
+  min-height: 2.75rem;
 }
 
 @media (max-width: 1320px) {
@@ -282,11 +285,11 @@
   }
 
   .icon-button {
-    width: 2.35rem;
-    height: 2.35rem;
+    width: 2.75rem;
+    height: 2.75rem;
   }
 
-  .account-menu-trigger { width: 2.55rem; padding: 0; }
+  .account-menu-trigger { width: 2.75rem; padding: 0; }
   .account-menu-trigger > .icon-button { width: 100%; }
 }
 
