@@ -34,9 +34,9 @@ class SavedSearchCreate(BaseModel):
     @model_validator(mode="after")
     def validate_ranges(self) -> "SavedSearchCreate":
         if self.min_price is not None and self.max_price is not None and self.min_price > self.max_price:
-            raise ValueError("min_price cannot be greater than max_price")
+            raise ValueError("A legkisebb ár nem lehet nagyobb a legnagyobb árnál.")
         if self.min_bids is not None and self.max_bids is not None and self.min_bids > self.max_bids:
-            raise ValueError("min_bids cannot be greater than max_bids")
+            raise ValueError("A legkisebb licitszám nem lehet nagyobb a legnagyobb licitszámnál.")
         return self
 
 

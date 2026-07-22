@@ -9,7 +9,12 @@ vi.mock("../api/transactions", async (importOriginal) => ({ ...(await importOrig
 const transaction = { id: 1, auction_id: 42, status: "transaction_open" as const, seller_completed_at: null, buyer_completed_at: null, completed_at: null, review_deadline: null, archived_at: null, created_at: "2026-07-15T10:00:00Z", updated_at: "2026-07-15T10:00:00Z", role: "buyer" as const, own_completed_at: null, partner_completed_at: null, can_confirm: true, can_review: false, auction: { id: 42, title: "Ritka kártya", finalized_at: "2026-07-15T10:00:00Z" }, partner: { username: "elado", full_name: "Teszt Eladó" } };
 
 describe("AccountTransactionsPage", () => {
-  beforeEach(() => { mocks.listTransactions.mockReset().mockResolvedValue({ items: [transaction], total: 1, limit: 20, offset: 0 }); mocks.confirmTransactionCompletion.mockReset().mockResolvedValue({ ...transaction, own_completed_at: "2026-07-15T11:00:00Z", can_confirm: false }); vi.spyOn(window, "confirm").mockReturnValue(true); });
+  beforeEach(() => {
+    mocks.listTransactions.mockReset().mockResolvedValue({ items: [transaction], total: 1, limit: 20, offset: 0 });
+    mocks.confirmTransactionCompletion.mockReset().mockResolvedValue({ ...transaction, own_completed_at: "2026-07-15T11:00:00Z", can_confirm: false });
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+  });
+
   it("magyar státuszt, partnert és jogosult megerősítést mutat", async () => {
     render(<MemoryRouter><AccountTransactionsPage /></MemoryRouter>);
     expect(await screen.findByText("Ritka kártya")).toBeInTheDocument();
@@ -18,9 +23,37 @@ describe("AccountTransactionsPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Teljesítés megerősítése" }));
     await waitFor(() => expect(mocks.confirmTransactionCompletion).toHaveBeenCalledWith(1));
   });
+
   it("nem jelenít meg értékelési CTA-t jogosultság nélkül", async () => {
     render(<MemoryRouter><AccountTransactionsPage /></MemoryRouter>);
     await screen.findByText("Ritka kártya");
     expect(screen.queryByRole("link", { name: "Értékelés" })).not.toBeInTheDocument();
+  });
+
+  it("megjeleníti a teljesített tranzakció értékelési határidejét", async () => {
+    mocks.listTransactions.mockResolvedValue({
+      items: [{ ...transaction, status: "completed", completed_at: "2026-07-16T10:00:00Z", review_deadline: "2026-08-15T10:00:00Z", can_confirm: false, can_review: true }],
+      total: 1,
+      limit: 20,
+      offset: 0,
+    });
+    render(<MemoryRouter><AccountTransactionsPage /></MemoryRouter>);
+    expect(await screen.findByText("Értékelési határidő")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Értékelés" })).toBeInTheDocument();
+  });
+
+  it("érthető üresállapotot jelenít meg", async () => {
+    mocks.listTransactions.mockResolvedValue({ items: [], total: 0, limit: 20, offset: 0 });
+    render(<MemoryRouter><AccountTransactionsPage /></MemoryRouter>);
+    expect(await screen.findByRole("heading", { name: "Még nincs tranzakciód" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Aukciók böngészése" })).toBeInTheDocument();
+  });
+
+  it("hiba után működő újrapróbálást biztosít", async () => {
+    mocks.listTransactions.mockRejectedValueOnce(new Error("Átmeneti betöltési hiba")).mockResolvedValueOnce({ items: [], total: 0, limit: 20, offset: 0 });
+    render(<MemoryRouter><AccountTransactionsPage /></MemoryRouter>);
+    expect(await screen.findByText("Átmeneti betöltési hiba")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Újrapróbálás" }));
+    expect(await screen.findByRole("heading", { name: "Még nincs tranzakciód" })).toBeInTheDocument();
   });
 });

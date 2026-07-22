@@ -368,33 +368,47 @@ def test_scheduler_closes_expired_active_auction_as_unsold() -> None:
         db.close()
 
 
-def test_five_minute_extension_starts_at_original_deadline_and_closes_afterwards() -> None:
+def test_five_minute_rule_restarts_after_every_last_minute_bid() -> None:
     cleanup_test_data()
     seller = create_test_user("seller-extension@bid-test.local")
     bidder = create_test_user("bidder-extension@bid-test.local")
-    original_end = datetime.now(timezone.utc) - timedelta(seconds=1)
+    second_bidder = create_test_user("bidder-extension-two@bid-test.local")
+    original_end = datetime.now(timezone.utc) + timedelta(minutes=4)
     auction = create_active_auction(seller, ends_at=original_end.isoformat())
 
-    response = place_bid(auction["id"], bidder, "1100.00")
+    first_response = place_bid(auction["id"], bidder, "1100.00")
     db = SessionLocal()
     try:
         auction_row = db.get(Auction, auction["id"])
         assert auction_row is not None
+        first_extended_end = auction_row.ends_at
+        assert first_response.status_code == 201
+        assert first_extended_end > original_end
+        assert timedelta(minutes=4, seconds=55) <= first_extended_end - datetime.now(timezone.utc) <= timedelta(minutes=5)
+
+        auction_row.ends_at = datetime.now(timezone.utc) + timedelta(minutes=1)
+        db.add(auction_row)
+        db.commit()
+        before_second_bid = auction_row.ends_at
+        second_response = place_bid(auction["id"], second_bidder, "1200.00")
+        db.refresh(auction_row)
+        second_extended_end = auction_row.ends_at
+        assert second_response.status_code == 201
+        assert second_extended_end > before_second_bid
+        assert timedelta(minutes=4, seconds=55) <= second_extended_end - datetime.now(timezone.utc) <= timedelta(minutes=5)
+
         closed_count = close_expired_auctions(db)
-        assert response.status_code == 201
         assert closed_count == 0
         assert auction_row.status == "active"
-        assert auction_row.ends_at == original_end
 
-        auction_row.starts_at = datetime.now(timezone.utc) - timedelta(minutes=10)
-        auction_row.ends_at = datetime.now(timezone.utc) - timedelta(minutes=5, seconds=1)
+        auction_row.ends_at = datetime.now(timezone.utc) - timedelta(seconds=1)
         db.add(auction_row)
         db.commit()
         closed_count = close_expired_auctions(db)
         db.refresh(auction_row)
         assert closed_count == 1
         assert auction_row.status == "sold"
-        assert auction_row.winner_id == bidder.id
+        assert auction_row.winner_id == second_bidder.id
     finally:
         db.close()
 

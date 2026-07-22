@@ -16,7 +16,7 @@ from app.services.captcha_service import verify_captcha
 from app.services.newsletter_tokens import normalize_newsletter_email, verify_unsubscribe_token
 
 router = APIRouter(prefix="/api/newsletter", tags=["newsletter"])
-PUBLIC_SUBSCRIBE_MESSAGE = "Ha az e-mail c??m ??rv??nyes, a feliratkoz??si k??r??s feldolgoz??sra ker??lt."
+PUBLIC_SUBSCRIBE_MESSAGE = "Ha az e-mail-cím érvényes, a feliratkozási kérés feldolgozásra került."
 
 
 def get_subscriber_for_user(db: Session, user: User) -> NewsletterSubscriber | None:
@@ -60,7 +60,7 @@ def unsubscribe_public(
 ) -> MessageResponse:
     normalized_email = normalize_newsletter_email(email)
     if not verify_unsubscribe_token(normalized_email, token):
-        raise HTTPException(status_code=400, detail="??rv??nytelen leiratkoz??si link.")
+        raise HTTPException(status_code=400, detail="Érvénytelen leiratkozási link.")
 
     subscriber = db.scalar(select(NewsletterSubscriber).where(NewsletterSubscriber.email == normalized_email))
     if subscriber is not None:
@@ -114,5 +114,4 @@ def update_my_newsletter_status(
         email=subscriber.email,
         full_name=subscriber.full_name,
     )
-
 

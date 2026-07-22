@@ -74,7 +74,7 @@ def _apply_auction_filters(query, *, query_text, title, description, seller, cat
         query = query.filter(Auction.condition == condition)
     if status_filter:
         if status_filter not in PUBLIC_AUCTION_STATUSES:
-            raise HTTPException(status_code=422, detail="Ervenytelen aukcio statusz.")
+            raise HTTPException(status_code=422, detail="Érvénytelen aukcióállapot.")
         query = query.filter(Auction.status == status_filter)
     if min_price is not None:
         query = query.filter(Auction.current_price >= min_price)
@@ -149,7 +149,7 @@ def list_public_auctions(
     db: Session = Depends(get_db),
 ) -> AuctionListPage:
     if sort not in AUCTION_SORTS:
-        raise HTTPException(status_code=422, detail="Ervenytelen rendezes.")
+        raise HTTPException(status_code=422, detail="Érvénytelen rendezés.")
     base_query = db.query(Auction.id, func.count(Bid.id).label("bid_count")).join(User, User.id == Auction.seller_id).outerjoin(Bid, Bid.auction_id == Auction.id).group_by(Auction.id)
     filtered_query = _apply_auction_filters(
         base_query,
@@ -426,7 +426,7 @@ def admin_finalize_auction(
     auction = get_auction_or_404(db, auction_id)
     winner = db.get(User, finalize_request.winner_id) if finalize_request.winner_id is not None else None
     if finalize_request.winner_id is not None and winner is None:
-        raise HTTPException(status_code=404, detail="Winner not found")
+        raise HTTPException(status_code=404, detail="A nyertes nem található.")
     finalized = finalize_auction(db=db, auction=auction, final_status=finalize_request.status, winner=winner, admin_user=current_user)
     return AuctionStatusResponse.model_validate(finalized)
 
@@ -525,7 +525,7 @@ def list_auction_reviews(
     elif sort == "newest":
         query = query.order_by(AuctionReview.created_at.desc(), AuctionReview.id.desc())
     else:
-        raise HTTPException(status_code=422, detail="Ervenytelen rendezes.")
+        raise HTTPException(status_code=422, detail="Érvénytelen rendezés.")
     reviews = query.offset(offset).limit(limit).all()
     return AuctionReviewPage(items=[AuctionReviewRead.model_validate(review) for review in reviews], total=total, limit=limit, offset=offset)
 

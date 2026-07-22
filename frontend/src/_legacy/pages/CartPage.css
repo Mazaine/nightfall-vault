@@ -1,8 +1,0 @@
-﻿.cart-layout { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 1rem; align-items: start; }
-.cart-items { display: grid; gap: .85rem; }
-.cart-item { display: grid; grid-template-columns: minmax(0, 1fr) auto auto auto; align-items: center; gap: 1rem; padding: 1rem; }
-.cart-item p, .cart-item span { margin: .25rem 0 0; color: #aaa0b8; }
-.cart-item > strong, .cart-summary strong { color: #f6d98b; }
-.cart-summary { position: sticky; top: 96px; display: grid; gap: .9rem; padding: 1rem; }
-.cart-summary strong { font-size: 1.6rem; }
-@media (max-width: 860px) { .cart-layout { grid-template-columns: 1fr; } .cart-summary { position: static; } .cart-item { grid-template-columns: 1fr; align-items: start; } }

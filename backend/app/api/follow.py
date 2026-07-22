@@ -15,7 +15,7 @@ router = APIRouter(prefix="/api/follow", tags=["follow"])
 def _seller_or_404(db: Session, username: str) -> User:
     seller = db.scalar(select(User).where(User.username == username, User.deleted_at.is_(None), User.is_active.is_(True)))
     if seller is None:
-        raise HTTPException(status_code=404, detail="Elado nem talalhato.")
+        raise HTTPException(status_code=404, detail="Az eladó nem található.")
     return seller
 
 
@@ -35,8 +35,8 @@ def _followed_seller_read(db: Session, follow: SellerFollow) -> FollowedSellerRe
 def follow_seller(payload: FollowRequest, current_user: User = Depends(require_active_user), db: Session = Depends(get_db)) -> FollowedSellerRead:
     seller = _seller_or_404(db, payload.username)
     if seller.id == current_user.id:
-        raise HTTPException(status_code=409, detail="Sajat profilt nem lehet kovetni.")
-    ensure_not_blocked(db, current_user.id, seller.id, "Blokkolt felhaszn?l?t nem lehet k?vetni.")
+        raise HTTPException(status_code=409, detail="Saját profilt nem lehet követni.")
+    ensure_not_blocked(db, current_user.id, seller.id, "Blokkolt felhasználót nem lehet követni.")
     existing = db.scalar(select(SellerFollow).where(SellerFollow.follower_id == current_user.id, SellerFollow.seller_id == seller.id))
     if existing is not None:
         return _followed_seller_read(db, existing)
@@ -52,7 +52,7 @@ def unfollow_seller(payload: FollowRequest, current_user: User = Depends(require
     seller = _seller_or_404(db, payload.username)
     follow = db.scalar(select(SellerFollow).where(SellerFollow.follower_id == current_user.id, SellerFollow.seller_id == seller.id))
     if follow is None:
-        raise HTTPException(status_code=404, detail="A kovetes nem talalhato.")
+        raise HTTPException(status_code=404, detail="A követés nem található.")
     db.delete(follow)
     db.commit()
 

@@ -18,7 +18,7 @@ REVIEW_SORTS = {"newest", "oldest", "rating_high", "rating_low"}
 def _public_user_or_404(db: Session, username: str) -> User:
     user = db.scalar(select(User).where(User.username == username, User.deleted_at.is_(None), User.is_active.is_(True)))
     if user is None:
-        raise HTTPException(status_code=404, detail="Felhasznalo nem talalhato.")
+        raise HTTPException(status_code=404, detail="A felhasználó nem található.")
     return user
 
 
@@ -42,8 +42,8 @@ def _review_read(review: AuctionReview) -> PublicReviewRead:
     return PublicReviewRead(
         id=review.id,
         auction_id=review.auction_id,
-        auction_title=review.auction.title if review.auction else "Aukcio",
-        reviewer_username=review.reviewer.username if review.reviewer else "felhasznalo",
+        auction_title=review.auction.title if review.auction else "Aukció",
+        reviewer_username=review.reviewer.username if review.reviewer else "felhasználó",
         rating=review.rating,
         comment=review.comment,
         created_at=review.created_at,
@@ -138,7 +138,7 @@ def list_public_user_reviews(
     db: Session = Depends(get_db),
 ) -> PublicReviewPage:
     if sort not in REVIEW_SORTS:
-        raise HTTPException(status_code=422, detail="Ervenytelen rendezes.")
+        raise HTTPException(status_code=422, detail="Érvénytelen rendezés.")
     user = _public_user_or_404(db, username)
     query = _review_query(db, user.id)
     total = query.count()

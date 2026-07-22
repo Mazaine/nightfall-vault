@@ -7,7 +7,10 @@ export function HomeHero() {
       <div className="container hero-layout">
         <div className="hero-copy">
           <p className="eyebrow">Nightfall Vault</p>
-          <h1 id="hero-title">Lépj be a sötétség piacára</h1>
+          <h1 id="hero-title">
+            <span>Lépj be a</span>
+            <span>sötétség piacára</span>
+          </h1>
           <p className="hero-lead">
             Prémium aukciós platform ritka tárgyakhoz, ellenőrzött eladókhoz
             és tiszta, modern licitálási élményhez.

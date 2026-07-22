@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.models.auction import Auction, Bid
 from app.models.user import User
-from app.services.auction_lifecycle import can_view_auction, effective_auction_end, normalize_money, now_utc, sync_auction_status
+from app.services.auction_lifecycle import FIVE_MINUTE_EXTENSION, can_view_auction, effective_auction_end, normalize_money, now_utc, sync_auction_status
 from app.services.notifications import notify_auction_closed
 from app.services.notification_dispatcher import dispatch_notification
 from app.services.realtime import publish_auction_event
@@ -139,12 +139,22 @@ def place_bid(db: Session, auction_id: int, bidder: User, amount: Decimal) -> tu
             detail=f"A licit {format_bid_amount(minimum_bid)} összegtől {format_bid_amount(auction.bid_increment)} licitlépcsőkkel emelhető.",
         )
 
+    bid_time = now_utc()
     bid = Bid(auction_id=auction.id, bidder_id=bidder.id, amount=normalized_amount)
     db.add(bid)
     db.flush()
 
     auction.current_price = normalized_amount
     auction.highest_bid_id = bid.id
+    extended_until = None
+    if (
+        auction.five_minute_rule_enabled
+        and auction.ends_at > bid_time
+        and auction.ends_at <= bid_time + FIVE_MINUTE_EXTENSION
+        and not reaches_buy_now(auction, normalized_amount)
+    ):
+        auction.ends_at = bid_time + FIVE_MINUTE_EXTENSION
+        extended_until = auction.ends_at.isoformat()
     if reaches_buy_now(auction, normalized_amount):
         auction.status = "sold"
         auction.winner_id = bidder.id
@@ -161,7 +171,7 @@ def place_bid(db: Session, auction_id: int, bidder: User, amount: Decimal) -> tu
             message=f"Valaki magasabb licitet tett erre az aukcióra: {auction.title}",
             event_key=f"outbid:{auction.id}:{bid.id}:{previous_highest_bidder_id}",
         )
-    create_domain_audit_log(db, action="auction_bid", user_id=bidder.id, auction_id=auction.id, metadata={"amount": str(normalized_amount)})
+    create_domain_audit_log(db, action="auction_bid", user_id=bidder.id, auction_id=auction.id, metadata={"amount": str(normalized_amount), "extended_until": extended_until})
     db.add(auction)
     db.commit()
     db.refresh(bid)

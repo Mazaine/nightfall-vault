@@ -61,6 +61,30 @@ describe("SiteHeader", () => {
     expect(trigger).toHaveFocus();
   });
 
+  it("nyílbillentyűkkel végigjárható a profilmenü", async () => {
+    authenticate();
+    render(<MemoryRouter><SiteHeader /></MemoryRouter>);
+    fireEvent.click(screen.getByRole("button", { name: "Felhasználói menü" }));
+    const firstItem = screen.getByRole("menuitem", { name: "Profilbeállítások" });
+    const secondItem = screen.getByRole("menuitem", { name: "Licitjeim" });
+    await waitFor(() => expect(firstItem).toHaveFocus());
+    fireEvent.keyDown(firstItem, { key: "ArrowDown" });
+    expect(secondItem).toHaveFocus();
+    fireEvent.keyDown(secondItem, { key: "End" });
+    expect(screen.getByRole("menuitem", { name: "Kijelentkezés" })).toHaveFocus();
+    fireEvent.keyDown(screen.getByRole("menuitem", { name: "Kijelentkezés" }), { key: "Home" });
+    expect(firstItem).toHaveFocus();
+  });
+
+  it("a mobilmenü megnyitásakor az első navigációs linkre helyezi a fókuszt", async () => {
+    render(<MemoryRouter><SiteHeader /></MemoryRouter>);
+    const trigger = screen.getByRole("button", { name: "Menü megnyitása" });
+    fireEvent.click(trigger);
+    await waitFor(() => expect(screen.getByRole("link", { name: "Kezdőlap" })).toHaveFocus());
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(trigger).toHaveFocus();
+  });
+
   it("az adminmenüt kizárólag adminnak mutatja", async () => {
     authenticate("admin");
     const { unmount } = render(<MemoryRouter><SiteHeader /></MemoryRouter>);

@@ -19,14 +19,19 @@ export function ReportDialog({ title, targetLabel, reasons, onSubmit, onClose }:
   const [isSubmitting, setIsSubmitting] = useState(false);
   const dialogRef = useRef<HTMLFormElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const openerRef = useRef<HTMLElement | null>(null);
   const titleId = useId();
   const descriptionId = useId();
 
   useEffect(() => {
+    openerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     closeButtonRef.current?.focus();
-    return () => { document.body.style.overflow = previousOverflow; };
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      openerRef.current?.focus();
+    };
   }, []);
 
   const handleKeyDown = (event: KeyboardEvent<HTMLFormElement>) => {
@@ -61,11 +66,11 @@ export function ReportDialog({ title, targetLabel, reasons, onSubmit, onClose }:
   };
 
   return (
-    <div className="dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+    <div className="dialog-backdrop" data-testid="report-dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
       <form ref={dialogRef} className="side-panel report-dialog" role="dialog" aria-modal="true" aria-labelledby={titleId} aria-describedby={descriptionId} onKeyDown={handleKeyDown} onSubmit={submit}>
         <div className="section-heading">
           <div>
-            <p className="eyebrow">Trust & Safety</p>
+            <p className="eyebrow">Biztonság és moderáció</p>
             <h2 id={titleId}>{title}</h2>
             <p className="section-note" id={descriptionId}>Cél: {targetLabel}</p>
           </div>

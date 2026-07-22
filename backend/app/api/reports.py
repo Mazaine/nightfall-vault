@@ -62,5 +62,5 @@ def list_my_reports(
 def get_my_report(report_id: int, current_user: User = Depends(require_active_user), db: Session = Depends(get_db)) -> ReportRead:
     report = get_report_or_404(db, report_id)
     if report.reporter_id != current_user.id:
-        raise HTTPException(status_code=404, detail="Jelent?s nem tal?lhat?.")
+        raise HTTPException(status_code=404, detail="A jelentés nem található.")
     return _report_read(report)

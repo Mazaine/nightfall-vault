@@ -76,4 +76,15 @@ describe("NotificationsPage", () => {
     expect(mocks.listMyNotifications).toHaveBeenCalledTimes(1);
     await waitFor(() => expect(mocks.markAllNotificationsRead).toHaveBeenCalledTimes(1));
   });
+
+  it("a korábban eltárolt moderációs típuskódot is magyarul jeleníti meg", async () => {
+    mocks.listMyNotifications.mockResolvedValue([
+      { id: 3, auction_id: null, type: "moderation_action", category: "moderation", title: "Moderációs intézkedés", message: "auction_creation_ban: dvdv", is_read: false, created_at: "2026-07-22T10:00:00Z" },
+    ]);
+
+    renderNotifications();
+
+    expect(await screen.findByText("Aukció-létrehozási tiltás: dvdv")).toBeInTheDocument();
+    expect(screen.queryByText("auction_creation_ban: dvdv")).not.toBeInTheDocument();
+  });
 });

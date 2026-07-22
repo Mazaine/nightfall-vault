@@ -29,7 +29,7 @@ def list_saved_searches(current_user: User = Depends(require_active_user), db: S
 def delete_saved_search(search_id: int, current_user: User = Depends(require_active_user), db: Session = Depends(get_db)) -> Response:
     saved_search = db.get(SavedSearch, search_id)
     if saved_search is None or saved_search.user_id != current_user.id:
-        raise HTTPException(status_code=404, detail="Saved search not found")
+        raise HTTPException(status_code=404, detail="A mentett keresés nem található.")
     db.delete(saved_search)
     db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)

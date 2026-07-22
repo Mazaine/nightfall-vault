@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { KeyboardEvent as ReactKeyboardEvent, useEffect, useId, useRef, useState } from "react";
 import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../AuthContext";
 import { getUnreadNotificationCount } from "../api/auctions";
@@ -37,6 +37,7 @@ export function SiteHeader() {
   const mobileButtonRef = useRef<HTMLButtonElement>(null);
   const accountButtonRef = useRef<HTMLButtonElement>(null);
   const accountMenuRef = useRef<HTMLDivElement>(null);
+  const primaryNavRef = useRef<HTMLElement>(null);
   const userName = user?.full_name || user?.username || user?.email || "";
 
   useEffect(() => {
@@ -84,7 +85,28 @@ export function SiteHeader() {
 
   useEffect(() => {
     if (isAccountOpen) accountMenuRef.current?.querySelector<HTMLElement>("[role='menuitem']")?.focus();
-  }, [isAccountOpen]);
+    else if (isMenuOpen) primaryNavRef.current?.querySelector<HTMLElement>("a")?.focus();
+  }, [isAccountOpen, isMenuOpen]);
+
+  const closeMobileMenu = () => {
+    setIsMenuOpen(false);
+    window.requestAnimationFrame(() => mobileButtonRef.current?.focus());
+  };
+
+  const handleAccountMenuKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    const items = Array.from(accountMenuRef.current?.querySelectorAll<HTMLElement>("[role='menuitem']") ?? []);
+    if (!items.length) return;
+    const currentIndex = items.indexOf(document.activeElement as HTMLElement);
+    let nextIndex: number | null = null;
+    if (event.key === "ArrowDown") nextIndex = currentIndex < 0 ? 0 : (currentIndex + 1) % items.length;
+    else if (event.key === "ArrowUp") nextIndex = currentIndex < 0 ? items.length - 1 : (currentIndex - 1 + items.length) % items.length;
+    else if (event.key === "Home") nextIndex = 0;
+    else if (event.key === "End") nextIndex = items.length - 1;
+    else if (event.key === "Tab") setIsAccountOpen(false);
+    if (nextIndex === null) return;
+    event.preventDefault();
+    items[nextIndex].focus();
+  };
 
   const signOut = () => { setIsAccountOpen(false); logout(); navigate("/"); };
 
@@ -92,16 +114,16 @@ export function SiteHeader() {
     <header className="site-header">
       <div className="site-header-inner">
         <Link className="brand" to={isAdmin ? "/admin" : "/"} aria-label={isAdmin ? "Adminfelület" : "Nightfall Vault kezdőlap"}>
-          <img className="brand-logo" src="/assets/nightfall-vault-logo-transparent.png" alt="Nightfall Vault" />
+          <img className="brand-logo" src="/assets/nightfall-vault-logo-transparent.png" alt="Nightfall Vault" width="2172" height="724" decoding="async" fetchPriority="high" />
         </Link>
 
         <button ref={mobileButtonRef} className="menu-toggle" type="button" aria-label={isMenuOpen ? "Menü bezárása" : "Menü megnyitása"} aria-expanded={isMenuOpen} aria-controls="primary-navigation" onClick={() => setIsMenuOpen((value) => !value)}>
           <span /><span /><span />
         </button>
 
-        {isMenuOpen ? <button className="menu-backdrop" type="button" aria-label="Menü bezárása" onClick={() => setIsMenuOpen(false)} /> : null}
+        {isMenuOpen ? <div className="menu-backdrop" aria-hidden="true" onClick={closeMobileMenu} /> : null}
 
-        <nav className={isMenuOpen ? "site-nav is-open" : "site-nav"} id="primary-navigation" aria-label="Elsődleges navigáció">
+        <nav ref={primaryNavRef} className={isMenuOpen ? "site-nav is-open" : "site-nav"} id="primary-navigation" aria-label="Elsődleges navigáció">
           {navItems.filter((item) => !item.authenticated || isAuthenticated).map((item) => <NavLink to={item.to} key={item.to} end={item.to === "/"}>{item.label}</NavLink>)}
           {!isAuthenticated ? <div className="mobile-auth-links"><NavLink to="/login">Belépés</NavLink><NavLink to="/register">Regisztráció</NavLink></div> : null}
         </nav>
@@ -115,7 +137,7 @@ export function SiteHeader() {
                 <span className="icon-button icon-button-profile" aria-hidden="true" />
                 <span className="account-user-name">{userName}</span>
               </button>
-              {isAccountOpen ? <div ref={accountMenuRef} className="account-menu" id={accountMenuId} role="menu" aria-label="Felhasználói menü">{accountItems.map(([label, to]) => <Link role="menuitem" tabIndex={-1} to={to} key={to}>{label}</Link>)}{isAdmin ? <Link role="menuitem" tabIndex={-1} to="/admin">Adminfelület</Link> : null}<button role="menuitem" tabIndex={-1} type="button" onClick={signOut}>Kijelentkezés</button></div> : null}
+              {isAccountOpen ? <div ref={accountMenuRef} className="account-menu" id={accountMenuId} role="menu" aria-label="Felhasználói menü" onKeyDown={handleAccountMenuKeyDown}>{accountItems.map(([label, to]) => <Link role="menuitem" tabIndex={-1} to={to} key={to}>{label}</Link>)}{isAdmin ? <Link role="menuitem" tabIndex={-1} to="/admin">Adminfelület</Link> : null}<button role="menuitem" tabIndex={-1} type="button" onClick={signOut}>Kijelentkezés</button></div> : null}
             </div>
           ) : <><Link className="button button-ghost login-button" to="/login">Belépés</Link><Link className="button button-primary register-button" to="/register">Regisztráció</Link></>}
         </div>

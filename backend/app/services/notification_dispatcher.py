@@ -64,7 +64,8 @@ def dispatch_notification(
     payload = {
         "id": notification.id, "auction_id": auction_id, "type": notification_type, "category": category,
         "title": title, "message": message, "target_url": notification.target_url,
-        "is_read": False, "browser_enabled": notification.browser_enabled,
+        "is_read": False, "in_app_enabled": notification.in_app_enabled,
+        "browser_enabled": notification.browser_enabled, "email_enabled": notification.email_enabled,
         "created_at": notification.created_at.isoformat() if notification.created_at else None,
     }
     publish_user_event(user_id, "notification", payload)

@@ -11,9 +11,9 @@ RESTORABLE_STATUSES = {"draft", "scheduled", "active", "ended"}
 
 def suspend_auction(db: Session, auction: Auction, admin: User, reason: str) -> Auction:
     if auction.deleted_at is not None:
-        raise HTTPException(status_code=409, detail="Deleted auction cannot be suspended.")
+        raise HTTPException(status_code=409, detail="Törölt aukció nem függeszthető fel.")
     if auction.status == "suspended":
-        raise HTTPException(status_code=409, detail="Auction is already suspended.")
+        raise HTTPException(status_code=409, detail="Az aukció már fel van függesztve.")
     auction.moderation_previous_status = auction.status
     auction.status = "suspended"
     auction.moderated_at = now_utc()
@@ -28,9 +28,9 @@ def suspend_auction(db: Session, auction: Auction, admin: User, reason: str) -> 
 
 def restore_auction(db: Session, auction: Auction, admin: User, reason: str) -> Auction:
     if auction.deleted_at is not None:
-        raise HTTPException(status_code=409, detail="Deleted auction cannot be restored.")
+        raise HTTPException(status_code=409, detail="Törölt aukció nem állítható vissza.")
     if auction.status != "suspended":
-        raise HTTPException(status_code=409, detail="Only suspended auctions can be restored.")
+        raise HTTPException(status_code=409, detail="Csak felfüggesztett aukció állítható vissza.")
     target_status = auction.moderation_previous_status or "draft"
     if target_status not in RESTORABLE_STATUSES:
         target_status = "draft"

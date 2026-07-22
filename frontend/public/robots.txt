@@ -2,5 +2,10 @@ User-agent: *
 Allow: /
 Disallow: /account
 Disallow: /admin
-Disallow: /checkout
-Disallow: /orders
+Disallow: /login
+Disallow: /register
+Disallow: /forgot-password
+Disallow: /reset-password
+Disallow: /auth/
+
+# A production build a VITE_PUBLIC_SITE_URL alapján hozzáadja a Sitemap sort.

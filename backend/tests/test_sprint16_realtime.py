@@ -56,10 +56,77 @@ def test_notification_matrix_roundtrip() -> None:
     cleanup(); user = create_user("preferences")
     initial = client.get("/api/notifications/preferences", headers=headers(user))
     assert initial.status_code == 200 and set(initial.json()["categories"]) == {"bids", "chat", "follows", "transactions", "reviews", "moderation", "system"}
-    payload = initial.json(); payload["categories"]["bids"] = {"in_app": True, "browser": True, "email": True}
+    payload = initial.json()
+    for category in payload["categories"]:
+        payload["categories"][category] = {"in_app": category != "system", "browser": True, "email": category in {"bids", "transactions", "moderation"}}
     updated = client.put("/api/notifications/preferences", json=payload, headers=headers(user))
-    assert updated.status_code == 200 and updated.json()["categories"]["bids"]["browser"] is True
+    reloaded = client.get("/api/notifications/preferences", headers=headers(user))
+    assert updated.status_code == 200
+    assert reloaded.status_code == 200
+    assert updated.json() == payload
+    assert reloaded.json() == payload
     cleanup()
+
+
+def test_all_notification_categories_respect_disabled_channels(monkeypatch) -> None:
+    cleanup(); user = create_user("all-categories")
+    published: list[tuple[int, str, dict]] = []
+    emailed: list[int] = []
+    monkeypatch.setattr("app.services.notification_dispatcher.publish_user_event", lambda user_id, event_type, payload: published.append((user_id, event_type, payload)))
+    monkeypatch.setattr("app.services.notification_dispatcher.send_notification_email", lambda _user, notification: emailed.append(notification.id))
+    cases = {
+        "outbid": "bids",
+        "auction_message": "chat",
+        "seller_new_auction": "follows",
+        "transaction_opened": "transactions",
+        "review_received": "reviews",
+        "moderation_action": "moderation",
+        "saved_search_match": "system",
+    }
+    db = SessionLocal()
+    for category in cases.values():
+        db.add(NotificationPreference(user_id=user.id, category=category, in_app=False, browser=False, email=False))
+    db.commit()
+    for notification_type, category in cases.items():
+        item = dispatch_notification(
+            db,
+            user_id=user.id,
+            notification_type=notification_type,
+            title=f"{category} teszt",
+            message="Kikapcsolt csatornák tesztje.",
+            event_key=f"category:{category}:{user.id}",
+        )
+        assert item.category == category
+        assert item.in_app_enabled is False
+        assert item.browser_enabled is False
+        assert item.email_enabled is False
+    db.commit()
+    assert len(published) == 7
+    assert all(event_type == "notification" for _, event_type, _ in published)
+    assert all(payload["in_app_enabled"] is False and payload["browser_enabled"] is False and payload["email_enabled"] is False for _, _, payload in published)
+    assert emailed == []
+    db.close()
+    listed = client.get("/api/notifications", headers=headers(user))
+    unread = client.get("/api/notifications/unread-count", headers=headers(user))
+    assert listed.status_code == 200 and listed.json() == []
+    assert unread.status_code == 200 and unread.json()["unread_count"] == 0
+    cleanup()
+
+
+def test_enabled_email_and_browser_channels_are_forwarded(monkeypatch) -> None:
+    cleanup(); user = create_user("enabled-channels")
+    published: list[dict] = []
+    emailed: list[int] = []
+    monkeypatch.setattr("app.services.notification_dispatcher.publish_user_event", lambda _user_id, _event_type, payload: published.append(payload))
+    monkeypatch.setattr("app.services.notification_dispatcher.send_notification_email", lambda _user, notification: emailed.append(notification.id))
+    db = SessionLocal()
+    db.add(NotificationPreference(user_id=user.id, category="bids", in_app=True, browser=True, email=True)); db.commit()
+    item = dispatch_notification(db, user_id=user.id, notification_type="outbid", title="Rád licitáltak", message="Teszt", event_key=f"enabled:bids:{user.id}")
+    db.commit()
+    assert item.in_app_enabled is True and item.browser_enabled is True and item.email_enabled is True
+    assert published[0]["in_app_enabled"] is True and published[0]["browser_enabled"] is True and published[0]["email_enabled"] is True
+    assert emailed == [item.id]
+    db.close(); cleanup()
 
 
 def test_typing_and_presence_are_participant_only() -> None:

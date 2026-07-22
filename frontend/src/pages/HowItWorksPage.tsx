@@ -1,12 +1,12 @@
 const steps = [
-  ["Regisztráció és belépés", "Aukciót és licitet csak aktív, ellenőrzött fiókkal lehet létrehozni."],
+  ["Regisztráció és belépés", "Aukciót csak aktív, ellenőrzött fiókkal lehet létrehozni, licitet pedig csak ilyen fiókkal lehet tenni."],
   ["Aukció létrehozása", "Az eladó megadja a leírást, képeket, állapotot, kezdőárat, licitlépcsőt és az időzítést."],
-  ["Licitálás", "Az aktív aukción a backend ellenőrzi a minimum licitet, a jogosultságot, a villámárat és a bekapcsolható, lejárat után induló +5 perces hosszabbítást."],
+  ["Licitálás", "Az aktív aukción a rendszer ellenőrzi a legkisebb elfogadható licitet, a jogosultságot, a villámárat és a bekapcsolható 5 perces licitvédelmet."],
   ["Aukció lezárása", "Nyertes nélkül az aukció eladatlanul zárul. Nyertes esetén pontosan egy, biztonságosan követett tranzakció nyílik."],
   ["Privát egyeztetés", "Az eladó és a nyertes a privát aukciós chatben egyezteti a fizetést, az átadást vagy a szállítást. A Nightfall Vault ezeket nem kezeli."],
   ["Kölcsönös megerősítés", "Mindkét fél külön erősíti meg, hogy az adásvétel megtörtént. Egyetlen fél nyilatkozata nem zárja le a tranzakciót."],
   ["Értékelés és archiválás", "A kölcsönös teljesítés után a felek egyszer, 1–5 csillaggal értékelhetik egymást. A lezárt előzmények auditálhatóan megmaradnak."],
-  ["Moderáció", "A figyelmeztetés tájékoztatás, a strike naplózott szabálysértési jelzés, a tiltás pedig meghatározott funkciót vagy a teljes fiókot korlátozza. Végleges tiltásról mindig admin dönt."],
+  ["Moderáció", "A figyelmeztetés tájékoztatás, a figyelmeztető pont naplózott szabálysértési jelzés, a tiltás pedig meghatározott funkciót vagy a teljes fiókot korlátozza. Végleges tiltásról mindig adminisztrátor dönt."],
 ] as const;
 
 export function HowItWorksPage() {
@@ -22,10 +22,10 @@ export function HowItWorksPage() {
         <li>A részletes licitoldalon üresen hagyott összegmező szintén a következő teljes licitlépcsőt küldi be.</li>
         <li>Egyedi összeg megadható, de nem lehet kisebb az aktuális licit és egy licitlépcső összegénél. A további emelés csak egész licitlépcsőkben történhet. Például 35 000 Ft-os aktuális licit és 1000 Ft-os licitlépcső esetén 36 000, 37 000 vagy 38 000 Ft érvényes.</li>
         <li>A <strong>Lecsapom</strong> gomb a pontos villámárat küldi be. Sikeres művelet esetén a licitáló megnyeri az aukciót, az aukció pedig azonnal lezárul.</li>
-        <li>A backend minden licitnél újra ellenőrzi a jogosultságot, az aktuális minimumot, a licitlépcsőt és a villámárat. Ha közben más magasabb ajánlatot tett, magyar hibaüzenet jelzi az új szükséges összeget.</li>
-        <li>Bekapcsolt <strong>5 perces szabálynál</strong> az eredeti lejárati idő elérésekor egyszeri +5 perces hosszabbítás indul. Ezalatt továbbra is lehet licitálni, de az idő nem indul újra minden licit után. Az aukció csak a hosszabbítás végén zárul le.</li>
+        <li>A rendszer minden licitnél újra ellenőrzi a jogosultságot, az aktuális legkisebb összeget, a licitlépcsőt és a villámárat. Ha közben más magasabb ajánlatot tett, magyar hibaüzenet jelzi az új szükséges összeget.</li>
+        <li>Bekapcsolt <strong>5 perces szabálynál</strong> az utolsó öt percben érkező minden érvényes licit után a hátralévő idő újra öt percre áll. Ha ezalatt újabb licit érkezik, a számláló ismét öt percről indul. Az aukció akkor zárul le, amikor öt teljes perc eltelik új licit nélkül.</li>
       </ul>
     </section>
-    <section className="side-panel rules-panel"><p className="eyebrow">Biztonság és felelősség</p><h2>Piactéri szabályok</h2><p>A felhasználó csak saját tulajdonú, jogszerűen értékesíthető tételt tölthet fel valós leírással és használható képekkel. A moderáció a jelentéseket kivizsgálja; a report önmagában nem bizonyított szabálysértés, és nem okoz automatikus végleges tiltást.</p><p>A Nightfall Vault technikai aukciós piactér. Nem kezel fizetést, rendelést, checkoutot vagy szállítást.</p></section>
+    <section className="side-panel rules-panel"><p className="eyebrow">Biztonság és felelősség</p><h2>Piactéri szabályok</h2><p>A felhasználó csak saját tulajdonú, jogszerűen értékesíthető tételt tölthet fel valós leírással és használható képekkel. A moderáció a jelentéseket kivizsgálja; egy jelentés önmagában nem bizonyított szabálysértés, és nem okoz automatikus végleges tiltást.</p><p>A Nightfall Vault technikai aukciós piactér. Az adásvétel, a fizetés és az átadás lebonyolítása közvetlenül az eladó és a nyertes között történik.</p></section>
   </section>;
 }

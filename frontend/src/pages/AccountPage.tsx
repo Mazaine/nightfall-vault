@@ -808,7 +808,7 @@ export function AccountPage({ section }: { section: "bids" | "auctions" }) {
           </label>
           <label className="toggle-row form-wide">
             <input name="seller_declaration_accepted" type="checkbox" required aria-invalid={Boolean(auctionFieldErrors.seller_declaration_accepted)} aria-describedby={auctionFieldErrors.seller_declaration_accepted ? "auction-declaration-error" : undefined} onChange={() => clearAuctionFieldError("seller_declaration_accepted")} />
-            Elfogadom, hogy jogosult vagyok a termék értékesítésére és a képek használatára, az adásvétel pedig köztem és a nyertes vevő között jön létre.
+            Elfogadom, hogy jogosult vagyok a termék értékesítésére és a képek használatára, az adásvétel pedig köztem és a nyertes között jön létre.
             {auctionFieldErrors.seller_declaration_accepted ? <small className="auth-field-error" id="auction-declaration-error">{auctionFieldErrors.seller_declaration_accepted}</small> : null}
           </label>
           {formMessage ? <p className="form-message form-wide">{formMessage}</p> : null}

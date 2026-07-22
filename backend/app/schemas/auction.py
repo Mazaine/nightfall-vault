@@ -20,13 +20,13 @@ def _normalize_optional_text(value: str | None) -> str | None:
 def _normalize_required_text(value: str) -> str:
     normalized = " ".join(value.strip().split())
     if not normalized:
-        raise ValueError("This field is required.")
+        raise ValueError("A mező kitöltése kötelező.")
     return normalized
 
 
 def _require_timezone(value: datetime) -> datetime:
     if value.tzinfo is None or value.utcoffset() is None:
-        raise ValueError("Datetime must include timezone information.")
+        raise ValueError("Az időpontnak időzóna-információt is tartalmaznia kell.")
     return value
 
 
@@ -64,14 +64,14 @@ class AuctionBase(BaseModel):
     @model_validator(mode="after")
     def validate_prices_and_time(self) -> "AuctionBase":
         if self.ends_at <= self.starts_at:
-            raise ValueError("ends_at must be later than starts_at.")
+            raise ValueError("A lejárati időnek későbbinek kell lennie a kezdési időnél.")
         if self.buy_now_enabled:
             if self.buy_now_price is None:
-                raise ValueError("buy_now_price is required when buy now is enabled.")
+                raise ValueError("Bekapcsolt villámárnál kötelező megadni a villámár összegét.")
             if self.buy_now_price <= self.starting_price:
-                raise ValueError("buy_now_price must be greater than starting_price.")
+                raise ValueError("A villámárnak magasabbnak kell lennie a kezdőárnál.")
         elif self.buy_now_price is not None:
-            raise ValueError("buy_now_price must be empty when buy now is disabled.")
+            raise ValueError("Kikapcsolt villámárnál nem adható meg villámárösszeg.")
         return self
 
 
@@ -82,7 +82,7 @@ class AuctionCreate(AuctionBase):
     @model_validator(mode="after")
     def validate_declaration(self) -> "AuctionCreate":
         if not self.seller_declaration_accepted:
-            raise ValueError("Seller declaration must be accepted.")
+            raise ValueError("Az eladói nyilatkozat elfogadása kötelező.")
         return self
 
 
@@ -225,7 +225,9 @@ class NotificationRead(BaseModel):
     message: str
     category: str = "system"
     target_url: str | None = None
+    in_app_enabled: bool = True
     browser_enabled: bool = False
+    email_enabled: bool = False
     is_read: bool
     created_at: datetime
 

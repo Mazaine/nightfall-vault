@@ -48,7 +48,7 @@ export const auctionReportReasons = [
   { value: "prohibited_item", label: "Tiltott tétel" },
   { value: "misleading_description", label: "Félrevezető leírás" },
   { value: "copyright_content", label: "Jogsértőnek tűnő tartalom" },
-  { value: "spam", label: "Spam" },
+  { value: "spam", label: "Kéretlen tartalom" },
   { value: "offensive_content", label: "Sértő tartalom" },
   { value: "suspicious_seller", label: "Gyanús eladó" },
   { value: "other", label: "Egyéb" },
@@ -57,7 +57,7 @@ export const auctionReportReasons = [
 export const userReportReasons = [
   { value: "harassment", label: "Zaklatás" },
   { value: "suspected_fraud", label: "Csalásgyanús viselkedés" },
-  { value: "spam", label: "Spam" },
+  { value: "spam", label: "Kéretlen tartalom" },
   { value: "offensive_behavior", label: "Sértő viselkedés" },
   { value: "auction_policy_violation", label: "Aukciós szabálysértés" },
   { value: "impersonation", label: "Megszemélyesítés" },

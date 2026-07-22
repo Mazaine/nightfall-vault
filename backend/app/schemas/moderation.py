@@ -49,7 +49,7 @@ class ReportCreate(BaseModel):
     def normalize_details(cls, value: str | None) -> str | None:
         normalized = normalize_optional_text(value)
         if normalized and ("<" in normalized or ">" in normalized):
-            raise ValueError("A jelent?s nem tartalmazhat HTML jel?l?st.")
+            raise ValueError("A jelentés nem tartalmazhat HTML-jelölést.")
         return normalized
 
 
@@ -117,7 +117,7 @@ class ReportStatusUpdate(BaseModel):
     def normalize_resolution(cls, value: str | None) -> str | None:
         normalized = normalize_optional_text(value)
         if normalized and ("<" in normalized or ">" in normalized):
-            raise ValueError("A lez?r?si ?sszefoglal? nem tartalmazhat HTML jel?l?st.")
+            raise ValueError("A lezárási összefoglaló nem tartalmazhat HTML-jelölést.")
         return normalized
 
 
@@ -133,7 +133,7 @@ class ReportNoteUpdate(BaseModel):
     def normalize_note(cls, value: str | None) -> str | None:
         normalized = normalize_optional_text(value)
         if normalized and ("<" in normalized or ">" in normalized):
-            raise ValueError("Az admin megjegyz?s nem tartalmazhat HTML jel?l?st.")
+            raise ValueError("Az adminisztrátori megjegyzés nem tartalmazhat HTML-jelölést.")
         return normalized
 
 

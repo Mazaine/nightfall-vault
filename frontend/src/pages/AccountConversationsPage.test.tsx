@@ -29,7 +29,7 @@ describe("AccountConversationsPage", () => {
     render(<MemoryRouter><AccountConversationsPage /></MemoryRouter>);
     expect(await screen.findByText("Megnyert gyűjtői kártya")).toBeInTheDocument();
     expect(screen.getByText("Egyeztessük a részleteket.")).toBeInTheDocument();
-    expect(screen.getByText(/nem kezel fizetést, rendelést vagy szállítást/i)).toBeInTheDocument();
+    expect(screen.getByText(/nem bonyolítja le az adásvételt/i)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Beszélgetés megnyitása" })).toHaveAttribute("href", "/auctions/42#auction-conversation");
   });
 });

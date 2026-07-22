@@ -3,7 +3,7 @@ set -Eeuo pipefail
 source "$(cd "$(dirname "$0")" && pwd)/lib/production_common.sh"
 load_production_env
 
-required=(POSTGRES_DB POSTGRES_USER POSTGRES_PASSWORD DATABASE_URL REDIS_PASSWORD REDIS_URL SECRET_KEY BACKEND_CORS_ORIGINS TRUSTED_PROXY_CIDRS APP_FRONTEND_URL APP_BACKEND_URL FRONTEND_BASE_URL MEDIA_VOLUME_NAME DATABASE_VOLUME_NAME REDIS_VOLUME_NAME BACKUP_DIRECTORY)
+required=(POSTGRES_DB POSTGRES_USER POSTGRES_PASSWORD DATABASE_URL REDIS_PASSWORD REDIS_URL SECRET_KEY BACKEND_CORS_ORIGINS TRUSTED_PROXY_CIDRS APP_FRONTEND_URL APP_BACKEND_URL FRONTEND_BASE_URL VITE_SUPPORT_EMAIL MEDIA_VOLUME_NAME DATABASE_VOLUME_NAME REDIS_VOLUME_NAME BACKUP_DIRECTORY)
 for name in "${required[@]}"; do
   [[ -n "${!name:-}" ]] || die "Hiányzó kötelező változó: $name"
 done
@@ -11,10 +11,11 @@ done
 while IFS= read -r name; do
   value="${!name:-}"
   [[ "$value" != *CHANGE_ME* && "$value" != *example.invalid* ]] || die "$name még mintaértéket tartalmaz."
-done < <(printf '%s\n' POSTGRES_PASSWORD DATABASE_URL REDIS_PASSWORD REDIS_URL SECRET_KEY BACKEND_CORS_ORIGINS APP_FRONTEND_URL APP_BACKEND_URL FRONTEND_BASE_URL)
+done < <(printf '%s\n' POSTGRES_PASSWORD DATABASE_URL REDIS_PASSWORD REDIS_URL SECRET_KEY BACKEND_CORS_ORIGINS APP_FRONTEND_URL APP_BACKEND_URL FRONTEND_BASE_URL VITE_SUPPORT_EMAIL)
 
 [[ ${#SECRET_KEY} -ge 32 ]] || die "A SECRET_KEY legalább 32 karakter legyen."
 [[ "$APP_FRONTEND_URL" == https://* && "$APP_BACKEND_URL" == https://* && "$FRONTEND_BASE_URL" == https://* ]] || die "A publikus URL-eknek HTTPS-t kell használniuk."
+[[ "$VITE_SUPPORT_EMAIL" =~ ^[^[:space:]@]+@[^[:space:]@]+\.[^[:space:]@]+$ ]] || die "A VITE_SUPPORT_EMAIL nem érvényes e-mail-cím."
 [[ "${ENVIRONMENT:-}" == production ]] || die "ENVIRONMENT=production szükséges."
 [[ "${DEVELOPMENT_ADMIN_SEED_ENABLED:-false}" == false ]] || die "A fejlesztői admin seed productionben tiltott."
 [[ "$BACKUP_DIRECTORY" == /* && "$BACKUP_DIRECTORY" != "/" ]] || die "A BACKUP_DIRECTORY abszolút, nem gyökér Linux-útvonal legyen."

@@ -1,12 +1,12 @@
-import { Link, Outlet } from "react-router-dom";
+import { NavLink, Outlet } from "react-router-dom";
 
 const adminLinks = [
+  { label: "Áttekintés", to: "/admin", end: true },
+  { label: "Jelentések", to: "/admin/reports" },
   { label: "Moderáció", to: "/admin/moderation" },
-  { label: "Dashboard", to: "/admin" },
   { label: "Aukciók", to: "/admin/auctions" },
   { label: "Felhasználók", to: "/admin/users" },
-  { label: "Audit naplo", to: "/admin/audit-logs" },
-  { label: "Jelentesek", to: "/admin/reports" },
+  { label: "Auditnapló", to: "/admin/audit-logs" },
 ];
 
 export function AdminLayout() {
@@ -14,11 +14,11 @@ export function AdminLayout() {
     <section className="container page-shell admin-layout">
       <aside className="side-panel admin-sidebar">
         <p className="eyebrow">Admin</p>
-        <nav>
+        <nav aria-label="Adminisztráció">
           {adminLinks.map((link) => (
-            <Link className="text-link" to={link.to} key={link.to}>
+            <NavLink className={({ isActive }) => `admin-nav-link${isActive ? " is-active" : ""}`} to={link.to} end={link.end} key={link.to}>
               {link.label}
-            </Link>
+            </NavLink>
           ))}
         </nav>
       </aside>

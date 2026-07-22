@@ -30,7 +30,7 @@ export function AccountConversationsPage() {
     <h1>Üzeneteim</h1>
     <p>A lezárt aukciók eladó–nyertes beszélgetései.</p>
     <div className="marketplace-boundary-note" role="note">
-      A Nightfall Vault nem kezel fizetést, rendelést vagy szállítást. Ezek részleteit a másik féllel közvetlenül, saját felelősségre beszélitek meg.
+      A Nightfall Vault nem bonyolítja le az adásvételt. A fizetés és az átadás részleteit a másik féllel közvetlenül, saját felelősségre beszélitek meg.
     </div>
     {items.length === 0 ? <div className="side-panel empty-state">
       <h2>Még nincs aukciós beszélgetésed</h2>

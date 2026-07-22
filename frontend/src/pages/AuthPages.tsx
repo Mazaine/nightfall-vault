@@ -136,7 +136,7 @@ export function AuthPage({ mode }: AuthPageProps) {
       <aside className="auth-intro-panel" aria-label="Nightfall Vault fiókelőnyök">
         <span className="auth-vault-mark" aria-hidden="true">NV</span>
         <p className="eyebrow">Nightfall Vault</p>
-        <h1>{isLogin ? "Térj vissza a gyűjtemények világába" : "Lépj be az aukciók közösségébe"}</h1>
+        <h2>{isLogin ? "Térj vissza a gyűjtemények világába" : "Lépj be az aukciók közösségébe"}</h2>
         <p className="auth-lead">Biztonságos fiókkal licitálhatsz, aukciót indíthatsz és közvetlenül egyeztethetsz a másik féllel.</p>
         <div className="auth-benefits">
           <span><strong>Átlátható licitálás</strong><small>Valós aukciós előzmények</small></span>
@@ -153,7 +153,7 @@ export function AuthPage({ mode }: AuthPageProps) {
         </nav>
         <div>
           <p className="eyebrow">{isLogin ? "Fiókhozzáférés" : "Új fiók"}</p>
-          <h2>{isLogin ? "Üdvözlünk újra" : "Hozd létre a fiókodat"}</h2>
+          <h1>{isLogin ? "Üdvözlünk újra" : "Hozd létre a fiókodat"}</h1>
           <p className="auth-helper">{isLogin ? "Admin és normál felhasználó ugyanitt jelentkezik be." : "Minden regisztráció normál felhasználói fiókot hoz létre."}</p>
         </div>
 

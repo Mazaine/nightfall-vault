@@ -1,9 +1,10 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { listAuctions, type Auction, type AuctionListParams } from "../api/auctions";
 import { createSavedSearch } from "../api/searches";
 import { useAuth } from "../AuthContext";
 import { AuctionCard } from "../components/AuctionCard";
+import { EmptyState, ErrorState, LoadingState } from "../components/AsyncStates";
 import { toAuctionCardItem } from "../utils/auctionPresentation";
 import { useAuctionRealtime } from "../AuctionRealtimeContext";
 
@@ -107,17 +108,23 @@ export function AuctionsPage() {
 
   const params = useMemo(() => toParams(appliedFilters, offset), [appliedFilters, offset]);
 
-  useEffect(() => {
+  const load = useCallback(async () => {
     setIsLoading(true);
     setError("");
-    listAuctions(params)
-      .then((page) => {
-        setAuctions(page.items);
-        setTotal(page.total);
-      })
-      .catch((err: Error) => setError(err.message))
-      .finally(() => setIsLoading(false));
+    try {
+      const page = await listAuctions(params);
+      setAuctions(page.items);
+      setTotal(page.total);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Az aukciók betöltése nem sikerült.");
+    } finally {
+      setIsLoading(false);
+    }
   }, [params]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   const submitFilters = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -223,11 +230,11 @@ export function AuctionsPage() {
       </form>
       {saveMessage ? <p className="form-message" role="status">{saveMessage}</p> : null}
 
-      {isLoading ? <div className="skeleton-grid">{Array.from({ length: 4 }).map((_, index) => <div className="skeleton-card" key={index} />)}</div> : null}
-      {error ? <div className="side-panel form-message">{error}</div> : null}
-      {!isLoading && !error && auctions.length === 0 ? <div className="side-panel empty-state">Nincs a szűrésnek megfelelő aukció.</div> : null}
+      {isLoading ? <LoadingState label="Aukciók betöltése" cards={4} /> : null}
+      {error ? <ErrorState message={error} onRetry={() => void load()} /> : null}
+      {!isLoading && !error && auctions.length === 0 ? <EmptyState title="Nincs a szűrésnek megfelelő aukció." action={<button className="button button-secondary" type="button" onClick={resetFilters}>Szűrők törlése</button>} /> : null}
 
-      <div className="auction-grid page-grid">
+      <div className="auction-grid page-grid" aria-busy={isLoading}>
         {auctions.map((auction, index) => <AuctionCard item={toAuctionCardItem(auction)} index={index} detailPath={`/auctions/${auction.id}`} key={auction.id} />)}
       </div>
 

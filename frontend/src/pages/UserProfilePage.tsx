@@ -141,19 +141,19 @@ export function UserProfilePage() {
       <div className="stats-grid">
         <div className="side-panel"><span>Követők</span><strong>{stats.follower_count}</strong></div>
         <div className="side-panel"><span>Követett eladók</span><strong>{stats.following_count}</strong></div>
-        <div className="side-panel"><span>Aktiv aukciok</span><strong>{stats.active_auctions}</strong></div>
-        <div className="side-panel"><span>Lezart aukciok</span><strong>{stats.closed_auctions}</strong></div>
-        <div className="side-panel"><span>Sikeres eladasok</span><strong>{stats.successful_sales}</strong></div>
-        <div className="side-panel"><span>Nyert aukciok</span><strong>{stats.won_auctions}</strong></div>
+        <div className="side-panel"><span>Aktív aukciók</span><strong>{stats.active_auctions}</strong></div>
+        <div className="side-panel"><span>Lezárt aukciók</span><strong>{stats.closed_auctions}</strong></div>
+        <div className="side-panel"><span>Sikeres eladások</span><strong>{stats.successful_sales}</strong></div>
+        <div className="side-panel"><span>Nyert aukciók</span><strong>{stats.won_auctions}</strong></div>
         <div className="side-panel"><span>Összes licit</span><strong>{stats.total_bids}</strong></div>
         <div className="side-panel"><span>Sikeres licitek</span><strong>{stats.successful_bids}</strong></div>
         <div className="side-panel"><span>Elvesztett licitek</span><strong>{stats.lost_bids}</strong></div>
         <div className="side-panel"><span>Sikerességi arány</span><strong>{stats.success_rate}%</strong></div>
-        <div className="side-panel"><span>Pozitiv / negativ</span><strong>{stats.positive_reviews} / {stats.negative_reviews}</strong></div>
+        <div className="side-panel"><span>Pozitív / negatív</span><strong>{stats.positive_reviews} / {stats.negative_reviews}</strong></div>
       </div>
 
       <section className="account-section">
-        <div className="section-heading"><h2>Aktiv aukciok</h2></div>
+        <div className="section-heading"><h2>Aktív aukciók</h2></div>
         {profile.active_auctions.length === 0 ? <div className="side-panel empty-state">Nincs aktív aukció.</div> : (
           <div className="compact-auction-list">
             {profile.active_auctions.map((auction) => (
@@ -169,7 +169,7 @@ export function UserProfilePage() {
       </section>
 
       <section className="account-section">
-        <div className="section-heading"><h2>Lezart aukciok</h2></div>
+        <div className="section-heading"><h2>Lezárt aukciók</h2></div>
         {profile.closed_auctions.length === 0 ? <div className="side-panel empty-state">Nincs lezárt aukció.</div> : (
           <div className="compact-auction-list">
             {profile.closed_auctions.map((auction) => (
@@ -185,11 +185,11 @@ export function UserProfilePage() {
       </section>
 
       <section className="account-section">
-        <div className="section-heading">
-          <h2>Ertekelesek</h2>
-          <select className="compact-select" value={reviewSort} onChange={(event) => setReviewSort(event.target.value)}>
-            <option value="newest">Legujabb</option>
-            <option value="oldest">Legregebbi</option>
+        <div className="section-heading profile-reviews-heading">
+          <h2>Értékelések</h2>
+          <select aria-label="Értékelések rendezése" className="compact-select" value={reviewSort} onChange={(event) => setReviewSort(event.target.value)}>
+            <option value="newest">Legújabb</option>
+            <option value="oldest">Legrégebbi</option>
             <option value="rating_high">Legjobb értékelések</option>
             <option value="rating_low">Legalacsonyabb értékelések</option>
           </select>

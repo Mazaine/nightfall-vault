@@ -1,4 +1,4 @@
-import { fireEvent, render, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AdminModerationPage } from "./AdminModerationPage";
 
@@ -28,5 +28,20 @@ describe("AdminModerationPage", () => {
     fireEvent.change(form.querySelector('input[name="target_user_id"]')!, { target: { value: "12" } }); fireEvent.change(form.querySelector("select")!, { target: { value: "permanent_ban" } }); fireEvent.change(form.querySelector('textarea[name="reason"]')!, { target: { value: "Súlyos szabályszegés" } }); fireEvent.submit(form);
     expect(window.confirm).toHaveBeenCalled();
     await waitFor(() => expect(mocks.createModerationAction).toHaveBeenCalled());
+  });
+
+  it("magyarul és lejárattal jeleníti meg a megmaradó előzményeket", async () => {
+    mocks.getModerationOverview.mockResolvedValue({
+      actions: [{ id: 1, target_user_id: 12, target_user: { id: 12, username: "teszt-user", full_name: "Teszt User" }, action_type: "auction_creation_ban", reason: "Teszt indok", internal_note: null, starts_at: "2026-07-22T10:00:00Z", expires_at: "2026-07-24T10:00:00Z", revoked_at: "2026-07-23T10:00:00Z", created_at: "2026-07-22T10:00:00Z" }],
+      strikes: [{ id: 2, user_id: 12, user: { id: 12, username: "teszt-user", full_name: "Teszt User" }, reason: "Teszt pont", severity: "medium", issued_at: "2026-07-22T10:00:00Z", expires_at: null, revoked_at: "2026-07-23T10:00:00Z" }],
+    });
+
+    render(<AdminModerationPage />);
+
+    expect(await screen.findByText("teszt-user · Aukció-létrehozási tiltás")).toBeInTheDocument();
+    expect(screen.getByText("teszt-user · Közepes")).toBeInTheDocument();
+    expect(screen.getByText(/lejárat:/)).toBeInTheDocument();
+    expect(screen.getAllByText(/Visszavonva:/)).toHaveLength(2);
+    expect(screen.queryByText(/auction_creation_ban/)).not.toBeInTheDocument();
   });
 });

@@ -35,8 +35,8 @@ def now_utc() -> datetime:
 
 
 def effective_auction_end(auction: Auction) -> datetime:
-    """Return the fixed closing time including the optional one-off extension."""
-    return auction.ends_at + FIVE_MINUTE_EXTENSION if auction.five_minute_rule_enabled else auction.ends_at
+    """Return the current closing time; last-minute bids move ``ends_at`` forward."""
+    return auction.ends_at
 
 
 def publish_auction_change(db: Session, auction: Auction) -> None:
@@ -48,7 +48,7 @@ def publish_auction_change(db: Session, auction: Auction) -> None:
 
 def normalize_datetime(value: datetime) -> datetime:
     if value.tzinfo is None or value.utcoffset() is None:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Datetime must include timezone information.")
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Az időpontnak időzóna-információt is tartalmaznia kell.")
     return value.astimezone(timezone.utc)
 
 
@@ -58,7 +58,7 @@ def normalize_money(value: Decimal) -> Decimal:
 
 def ensure_transition_allowed(current_status: str, next_status: str) -> None:
     if next_status not in ALLOWED_STATUS_TRANSITIONS.get(current_status, set()):
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"Invalid auction status transition: {current_status} -> {next_status}")
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Az aukció ebbe az állapotba nem helyezhető át.")
 
 
 def sync_auction_status(db: Session, auction: Auction) -> Auction:
@@ -124,7 +124,7 @@ def get_auction_statement():
 def get_auction_or_404(db: Session, auction_id: int) -> Auction:
     auction = db.scalar(get_auction_statement().where(Auction.id == auction_id, Auction.deleted_at.is_(None)))
     if auction is None:
-        raise HTTPException(status_code=404, detail="Auction not found")
+        raise HTTPException(status_code=404, detail="Az aukció nem található.")
     return sync_auction_status(db, auction)
 
 
@@ -138,12 +138,12 @@ def can_view_auction(auction: Auction, user: User | None) -> bool:
 
 def require_can_view_auction(auction: Auction, user: User | None) -> None:
     if not can_view_auction(auction, user):
-        raise HTTPException(status_code=404, detail="Auction not found")
+        raise HTTPException(status_code=404, detail="Az aukció nem található.")
 
 
 def require_owner_or_admin(auction: Auction, user: User) -> None:
     if auction.seller_id != user.id and user.role != "admin":
-        raise HTTPException(status_code=403, detail="Auction ownership required")
+        raise HTTPException(status_code=403, detail="A műveletet csak az aukció eladója végezheti el.")
 
 
 def create_auction(db: Session, auction_create: AuctionCreate, seller: User) -> Auction:
@@ -225,24 +225,24 @@ def update_auction(db: Session, auction: Auction, auction_update: AuctionUpdate,
 
 def validate_activation_requirements(auction: Auction) -> None:
     if auction.status != "draft":
-        raise HTTPException(status_code=409, detail="Only draft auctions can be activated.")
+        raise HTTPException(status_code=409, detail="Csak piszkozat állapotú aukció aktiválható.")
     if not auction.title.strip() or not auction.description.strip() or not auction.category.strip():
-        raise HTTPException(status_code=422, detail="Auction content is incomplete.")
+        raise HTTPException(status_code=422, detail="Az aukció adatai hiányosak.")
     if auction.ends_at <= auction.starts_at:
-        raise HTTPException(status_code=422, detail="Auction time window is invalid.")
+        raise HTTPException(status_code=422, detail="Az aukció kezdési vagy lejárati időpontja érvénytelen.")
     if auction.starting_price <= 0 or auction.bid_increment <= 0:
-        raise HTTPException(status_code=422, detail="Auction prices are invalid.")
+        raise HTTPException(status_code=422, detail="Az aukció árai érvénytelenek.")
     if auction.buy_now_enabled and (auction.buy_now_price is None or auction.buy_now_price <= auction.starting_price):
-        raise HTTPException(status_code=422, detail="Buy now price is invalid.")
+        raise HTTPException(status_code=422, detail="A villámár érvénytelen.")
     if not auction.buy_now_enabled and auction.buy_now_price is not None:
-        raise HTTPException(status_code=422, detail="Buy now price must be empty when buy now is disabled.")
+        raise HTTPException(status_code=422, detail="Kikapcsolt villámárnál nem adható meg villámárösszeg.")
     if auction.seller_declaration_accepted_at is None:
-        raise HTTPException(status_code=422, detail="Seller declaration is required.")
+        raise HTTPException(status_code=422, detail="Az eladói nyilatkozat elfogadása kötelező.")
     if not 1 <= len(auction.images) <= 5:
-        raise HTTPException(status_code=422, detail="Auction activation requires 1 to 5 images.")
+        raise HTTPException(status_code=422, detail="Az aukció aktiválásához 1–5 kép szükséges.")
     cover_count = sum(1 for image in auction.images if image.is_cover)
     if cover_count != 1:
-        raise HTTPException(status_code=422, detail="Auction activation requires exactly one cover image.")
+        raise HTTPException(status_code=422, detail="Az aukció aktiválásához pontosan egy borítókép szükséges.")
 
 
 def activate_auction(db: Session, auction: Auction, user: User) -> Auction:
@@ -279,17 +279,17 @@ def finalize_auction(db: Session, auction: Auction, final_status: str, winner: U
         ensure_transition_allowed("active", "ended")
         auction.status = "ended"
     if auction.status != "ended":
-        raise HTTPException(status_code=409, detail="Only ended auctions can be finalized.")
+        raise HTTPException(status_code=409, detail="Csak lejárt aukció véglegesíthető.")
     ensure_transition_allowed("ended", final_status)
     if final_status == "sold":
         if winner is None:
-            raise HTTPException(status_code=422, detail="Sold auction requires a winner.")
+            raise HTTPException(status_code=422, detail="Eladott aukciónál kötelező nyertest megadni.")
         if winner.id == auction.seller_id:
-            raise HTTPException(status_code=422, detail="Seller cannot be the winner.")
+            raise HTTPException(status_code=422, detail="Az eladó nem lehet az aukció nyertese.")
         auction.winner_id = winner.id
     else:
         if winner is not None:
-            raise HTTPException(status_code=422, detail="Unsold auction cannot have a winner.")
+            raise HTTPException(status_code=422, detail="Eladatlan aukciónak nem lehet nyertese.")
         auction.winner_id = None
     auction.status = final_status
     auction.finalized_at = now_utc()
@@ -311,7 +311,7 @@ def is_auction_participant(auction: Auction, user_id: int) -> bool:
 
 def get_auction_counterparty(auction: Auction, user_id: int) -> int:
     if not is_successfully_closed(auction) or not is_auction_participant(auction, user_id):
-        raise HTTPException(status_code=403, detail="Closed auction participant access required.")
+        raise HTTPException(status_code=403, detail="A lezárt aukciót csak az eladó és a nyertes érheti el.")
     return auction.winner_id if user_id == auction.seller_id else auction.seller_id
 
 
@@ -328,7 +328,7 @@ def is_chat_read_only(db: Session, auction: Auction) -> bool:
 
 def require_post_auction_participant(auction: Auction, user: User) -> None:
     if not can_access_post_auction_features(auction, user.id):
-        raise HTTPException(status_code=403, detail="Closed auction participant access required.")
+        raise HTTPException(status_code=403, detail="A lezárt aukciót csak az eladó és a nyertes érheti el.")
 
 
 def create_message(db: Session, auction: Auction, sender: User, message: str) -> AuctionMessage:
@@ -342,7 +342,7 @@ def create_message(db: Session, auction: Auction, sender: User, message: str) ->
     if not normalized_message:
         raise HTTPException(status_code=422, detail="Az üzenet nem lehet üres.")
     if len(normalized_message) > 2000:
-        raise HTTPException(status_code=422, detail="Message is too long.")
+        raise HTTPException(status_code=422, detail="Az üzenet túl hosszú.")
     auction_message = AuctionMessage(auction_id=auction.id, sender_id=sender.id, message=normalized_message)
     db.add(auction_message)
     db.flush()
@@ -394,7 +394,7 @@ def create_review(db: Session, auction: Auction, reviewer: User, rating: int, co
         ),
     )
     if existing_review is not None:
-        raise HTTPException(status_code=409, detail="This auction participant has already been reviewed.")
+        raise HTTPException(status_code=409, detail="Ezt az aukciós partnert már értékelted.")
     review = AuctionReview(
         auction_id=auction.id,
         reviewer_id=reviewer.id,

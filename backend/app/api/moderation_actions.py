@@ -49,5 +49,5 @@ def revoke_moderation_action(action_id: int, admin: User = Depends(require_admin
 def revoke_user_strike(strike_id: int, admin: User = Depends(require_admin), db: Session = Depends(get_db)) -> UserStrikeRead:
     strike = db.get(UserStrike, strike_id)
     if strike is None:
-        raise HTTPException(status_code=404, detail="A strike nem található.")
+        raise HTTPException(status_code=404, detail="A figyelmeztető pont nem található.")
     return UserStrikeRead.model_validate(revoke_strike(db, admin, strike))

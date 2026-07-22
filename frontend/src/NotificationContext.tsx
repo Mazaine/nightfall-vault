@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { API_BASE_URL, getStoredToken } from "./api/client";
 import { getUnreadNotificationCount, listMyNotifications, markAllNotificationsRead, markNotificationRead, type NotificationItem } from "./api/auctions";
 import { useAuth } from "./AuthContext";
+import { localizeModerationMessage } from "./utils/moderationFormat";
 
 export type RealtimeEvent = { id: string; type: string; payload: Record<string, unknown> };
 type Listener = (event: RealtimeEvent) => void;
@@ -24,6 +25,10 @@ type NotificationContextValue = {
 const EMPTY_CONTEXT: NotificationContextValue = { isRealtimeReady: false, notifications: [], unreadCount: 0, isLoading: false, reload: async () => undefined, markRead: async () => undefined, markAllRead: async () => undefined, subscribe: () => () => undefined, showToast: () => undefined };
 const NotificationContext = createContext<NotificationContextValue>(EMPTY_CONTEXT);
 const LAST_EVENT_KEY = "nightfall:last-realtime-event";
+
+export function isInAppNotificationEnabled(item: Pick<NotificationItem, "in_app_enabled">) {
+  return item.in_app_enabled !== false;
+}
 
 function parseEvent(block: string): RealtimeEvent | null {
   const lines = block.split("\n");
@@ -98,15 +103,19 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
               listeners.current.forEach((listener) => listener(event));
               if (event.type === "notification") {
                 const item = event.payload as unknown as NotificationItem;
-                setNotifications((items) => items.some((existing) => existing.id === item.id) ? items : [item, ...items]);
-                setUnreadCount((count) => count + 1);
-                window.dispatchEvent(new CustomEvent("nightfall:notification-received", { detail: item }));
-                const toast = { id: event.id || String(item.id), title: item.title, message: item.message, targetUrl: item.target_url || "/account/notifications" };
-                setToasts((items) => [...items.filter((entry) => entry.id !== toast.id), toast].slice(-4));
-                window.setTimeout(() => setToasts((items) => items.filter((entry) => entry.id !== toast.id)), 6500);
+                const targetUrl = item.target_url || "/account/notifications";
+                if (isInAppNotificationEnabled(item)) {
+                  setNotifications((items) => items.some((existing) => existing.id === item.id) ? items : [item, ...items]);
+                  setUnreadCount((count) => count + 1);
+                  window.dispatchEvent(new CustomEvent("nightfall:notification-received", { detail: item }));
+                  const localizedMessage = localizeModerationMessage(item.message);
+                  const toast = { id: event.id || String(item.id), title: item.title, message: localizedMessage, targetUrl };
+                  setToasts((items) => [...items.filter((entry) => entry.id !== toast.id), toast].slice(-4));
+                  window.setTimeout(() => setToasts((items) => items.filter((entry) => entry.id !== toast.id)), 6500);
+                }
                 if (item.browser_enabled && Notification.permission === "granted" && document.visibilityState !== "visible") {
-                  const browserNotification = new Notification(item.title, { body: item.message, tag: `nightfall-${item.id}` });
-                  browserNotification.onclick = () => { window.focus(); navigate(toast.targetUrl); browserNotification.close(); };
+                  const browserNotification = new Notification(item.title, { body: localizeModerationMessage(item.message), tag: `nightfall-${item.id}` });
+                  browserNotification.onclick = () => { window.focus(); navigate(targetUrl); browserNotification.close(); };
                 }
               } else if (event.type === "notification_read") {
                 const id = Number(event.payload.id);

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { deleteSavedSearch, listSavedSearches, type SavedSearch } from "../api/searches";
 import { EmptyState, ErrorState, LoadingState } from "../components/AsyncStates";
@@ -17,9 +17,15 @@ export function SavedSearchesPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
 
-  useEffect(() => {
-    listSavedSearches().then(setItems).catch((err: Error) => setError(err.message)).finally(() => setIsLoading(false));
+  const load = useCallback(async () => {
+    setIsLoading(true);
+    setError("");
+    try { setItems(await listSavedSearches()); }
+    catch (reason) { setError(reason instanceof Error ? reason.message : "A mentett keresések betöltése nem sikerült."); }
+    finally { setIsLoading(false); }
   }, []);
+
+  useEffect(() => { void load(); }, [load]);
 
   const remove = async (id: number) => {
     try {
@@ -35,7 +41,7 @@ export function SavedSearchesPage() {
       <p className="eyebrow">Fiók</p>
       <div className="section-heading page-heading"><div><h1>Mentett keresések</h1><p className="section-note">A találatokról kizárólag alkalmazáson belüli értesítés készül.</p></div><Link className="button button-primary" to="/auctions">Új keresés</Link></div>
       {isLoading ? <LoadingState label="Mentett keresések betöltése" /> : null}
-      {error ? <ErrorState message={error} /> : null}
+      {error ? <ErrorState message={error} onRetry={() => void load()} /> : null}
       {!isLoading && !error && items.length === 0 ? <EmptyState title="Még nincs mentett keresésed" action={<Link className="button button-primary" to="/auctions">Új keresés</Link>} /> : null}
       <div className="list-panel">
         {items.map((item) => <article className="side-panel saved-search-row" key={item.id}><div><h2>{item.name}</h2><p>{item.query || item.title || item.category || "Összetett aukciókeresés"}</p></div><div className="auction-actions"><Link className="button button-secondary" to={searchPath(item)}>Találatok</Link><button className="button button-danger" type="button" onClick={() => remove(item.id)}>Törlés</button></div></article>)}

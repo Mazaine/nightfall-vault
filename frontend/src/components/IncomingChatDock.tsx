@@ -5,6 +5,7 @@ import { useAuth } from "../AuthContext";
 import { useNotifications } from "../NotificationContext";
 import { createAuctionMessage, getAuction, listAuctionMessages, markAuctionMessagesRead, sendTyping, type Auction, type AuctionMessage } from "../api/auctions";
 import { formatLocalDateTime } from "../utils/format";
+import { ChatTransactionPanel } from "./ChatTransactionPanel";
 
 function appendUnique(items: AuctionMessage[], incoming: AuctionMessage) {
   return items.some((item) => item.id === incoming.id) ? items : [...items, incoming];
@@ -30,6 +31,11 @@ export function IncomingChatDock() {
   const listRef = useRef<HTMLDivElement>(null);
   const typingTimerRef = useRef<number | null>(null);
   const lastTypingSentRef = useRef(0);
+  const launcherRef = useRef<HTMLButtonElement>(null);
+  const minimizeRef = useRef<HTMLButtonElement>(null);
+  const composerRef = useRef<HTMLTextAreaElement>(null);
+  const focusOnOpenRef = useRef(false);
+  const restoreLauncherFocusRef = useRef(false);
 
   const loadConversation = useCallback(async (auctionId: number, incoming?: AuctionMessage) => {
     activeAuctionIdRef.current = auctionId;
@@ -47,18 +53,23 @@ export function IncomingChatDock() {
   }, []);
 
   useEffect(() => subscribe((event) => {
-    if (event.type === "auction_message") {
+    if (event.type === "notification" && event.payload.category === "chat" && event.payload.in_app_enabled !== false) {
+      const auctionId = Number(event.payload.auction_id);
+      if (!auctionId || location.pathname === `/auctions/${auctionId}`) return;
+      setIsOpen(true);
+      if (activeAuctionIdRef.current !== auctionId) {
+        setMessages([]);
+        void loadConversation(auctionId);
+      } else {
+        void markAuctionMessagesRead(auctionId);
+      }
+    } else if (event.type === "auction_message") {
       const incoming = event.payload as unknown as AuctionMessage & { auction_id: number };
       const auctionId = Number(incoming.auction_id);
-      if (!auctionId || incoming.sender_id === user?.id) return;
-      if (location.pathname === `/auctions/${auctionId}`) return;
-      setIsOpen(true);
-      if (activeAuctionIdRef.current === auctionId) {
+      if (!auctionId || incoming.sender_id === user?.id || activeAuctionIdRef.current !== auctionId) return;
+      if (location.pathname !== `/auctions/${auctionId}`) {
         setMessages((items) => appendUnique(items, incoming));
         void markAuctionMessagesRead(auctionId);
-      } else {
-        setMessages([incoming]);
-        void loadConversation(auctionId, incoming);
       }
     } else if (event.type === "typing" && Number(event.payload.auction_id) === activeAuctionIdRef.current && Number(event.payload.user_id) !== user?.id) {
       setTypingUser(String(event.payload.username ?? "A másik fél"));
@@ -89,6 +100,16 @@ export function IncomingChatDock() {
     if (!isOpen || !listRef.current) return;
     listRef.current.scrollTop = listRef.current.scrollHeight;
   }, [isOpen, messages, typingUser]);
+
+  useEffect(() => {
+    if (isOpen && focusOnOpenRef.current) {
+      focusOnOpenRef.current = false;
+      window.requestAnimationFrame(() => (composerRef.current ?? minimizeRef.current)?.focus());
+    } else if (!isOpen && restoreLauncherFocusRef.current) {
+      restoreLauncherFocusRef.current = false;
+      window.requestAnimationFrame(() => launcherRef.current?.focus());
+    }
+  }, [isOpen, auction]);
 
   useEffect(() => () => {
     if (typingTimerRef.current) window.clearTimeout(typingTimerRef.current);
@@ -126,18 +147,27 @@ export function IncomingChatDock() {
     event.currentTarget.form?.requestSubmit();
   };
 
+  const openFromLauncher = () => {
+    focusOnOpenRef.current = true;
+    restoreLauncherFocusRef.current = true;
+    setIsOpen(true);
+  };
+
+  const closeChat = () => setIsOpen(false);
+
   if (!isAuthenticated || !activeAuctionIdRef.current) return null;
 
   return createPortal(isOpen ? (
-    <section className="post-auction-panel auction-conversation chat-dock global-chat-dock" role="dialog" aria-label={`${auction?.title ?? "Aukció"} privát beszélgetése`}>
+    <section className="post-auction-panel auction-conversation chat-dock global-chat-dock" role="dialog" aria-label={`${auction?.title ?? "Aukció"} privát beszélgetése`} onKeyDown={(event) => { if (event.key === "Escape") { event.preventDefault(); closeChat(); } }}>
       <header className="chat-dock-header">
         <div>
           <strong>Új aukciós üzenet</strong>
           {auction ? <Link to={`/auctions/${auction.id}#auction-conversation`} onClick={() => setIsOpen(false)}>{auction.title}</Link> : <small>Beszélgetés betöltése…</small>}
         </div>
-        <button className="chat-minimize-button" type="button" aria-label="Chat kis méretre zárása" onClick={() => setIsOpen(false)}>−</button>
+        <button ref={minimizeRef} className="chat-minimize-button" type="button" aria-label="Chat kis méretre zárása" onClick={closeChat}>−</button>
       </header>
       <div className="chat-boundary-note" role="note">A fizetést és az átadást egymással egyeztetitek.</div>
+      {auction ? <ChatTransactionPanel auctionId={auction.id} /> : null}
       <div className="message-list" ref={listRef} aria-live="polite" aria-label="Bejövő aukciós beszélgetés üzenetei">
         {messages.map((item) => <article className={item.sender_id === user?.id ? "message-row is-own" : "message-row"} key={item.id}>
           <div><strong>{item.sender?.full_name ?? (item.sender_id === user?.id ? "Te" : "Másik fél")}</strong><time>{formatLocalDateTime(item.created_at)}</time></div>
@@ -148,7 +178,7 @@ export function IncomingChatDock() {
       {auction?.chat_read_only ? <p className="chat-read-only-note" role="status">Ez az archivált beszélgetés csak olvasható.</p> : (
         <form className="chat-composer" onSubmit={submit}>
           <label className="visually-hidden" htmlFor="global-auction-message">Üzenet a felugró chatben</label>
-          <textarea id="global-auction-message" value={message} onChange={(event) => changeMessage(event.target.value)} onKeyDown={handleKeyDown} rows={2} maxLength={2000} placeholder="Írj egy üzenetet…" disabled={!auction} />
+          <textarea ref={composerRef} id="global-auction-message" value={message} onChange={(event) => changeMessage(event.target.value)} onKeyDown={handleKeyDown} rows={2} maxLength={2000} placeholder="Írj egy üzenetet…" disabled={!auction} />
           <button className="button button-primary" type="submit" disabled={!auction || isSending || !message.trim()}>{isSending ? "Küldés…" : "Küldés"}</button>
           <small>Enter: küldés · Shift+Enter: új sor</small>
           {feedback ? <p className="form-message" role="alert">{feedback}</p> : null}
@@ -156,6 +186,6 @@ export function IncomingChatDock() {
       )}
     </section>
   ) : (
-    <button className="button button-primary chat-launcher global-chat-launcher" type="button" aria-label="Legutóbbi aukciós chat megnyitása" onClick={() => setIsOpen(true)}>Üzenet</button>
+    <button ref={launcherRef} className="button button-primary chat-launcher global-chat-launcher" type="button" aria-label="Legutóbbi aukciós chat megnyitása" onClick={openFromLauncher}>Üzenet</button>
   ), document.body);
 }

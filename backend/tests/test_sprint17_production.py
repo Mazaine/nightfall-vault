@@ -6,6 +6,7 @@ from starlette.requests import Request
 from app.core.config import Settings
 from app.core.production import validate_production_settings
 from app.core.rate_limit import get_client_ip
+from app.main import developer_surface_enabled
 
 
 def production_settings(**overrides) -> Settings:
@@ -28,6 +29,11 @@ def request(remote_ip: str, forwarded_for: str | None = None) -> Request:
 
 def test_valid_production_configuration() -> None:
     validate_production_settings(production_settings())
+
+
+def test_developer_surface_is_disabled_in_production() -> None:
+    assert developer_surface_enabled("production") is False
+    assert developer_surface_enabled("development") is True
 
 
 @pytest.mark.parametrize("override", [

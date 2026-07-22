@@ -42,6 +42,10 @@ _scheduler_stop_event: asyncio.Event | None = None
 _scheduler_task: asyncio.Task | None = None
 
 
+def developer_surface_enabled(environment: str) -> bool:
+    return environment.strip().lower() != "production"
+
+
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     global _scheduler_stop_event, _scheduler_task
@@ -67,7 +71,14 @@ async def lifespan(_app: FastAPI):
                 pass
 
 
-app = FastAPI(title=settings.project_name, lifespan=lifespan)
+DEVELOPER_SURFACE_ENABLED = developer_surface_enabled(settings.environment)
+app = FastAPI(
+    title=settings.project_name,
+    lifespan=lifespan,
+    docs_url="/docs" if DEVELOPER_SURFACE_ENABLED else None,
+    redoc_url="/redoc" if DEVELOPER_SURFACE_ENABLED else None,
+    openapi_url="/openapi.json" if DEVELOPER_SURFACE_ENABLED else None,
+)
 app.mount(settings.media_url_prefix, ImmutableMediaFiles(directory=storage.root, follow_symlink=False), name="media")
 
 SECURITY_HEADERS = {
@@ -331,7 +342,8 @@ app.include_router(notifications_router)
 app.include_router(realtime_router)
 app.include_router(reports_router)
 app.include_router(searches_router)
-app.include_router(test_email_router)
+if DEVELOPER_SURFACE_ENABLED:
+    app.include_router(test_email_router)
 app.include_router(users_router)
 app.include_router(watchlist_router)
 app.include_router(transactions_router)

@@ -46,7 +46,7 @@ def active_user_statement():
 def get_active_user_or_404(db: Session, user_id: int) -> User:
     user = db.scalar(active_user_statement().where(User.id == user_id))
     if user is None:
-        raise HTTPException(status_code=404, detail="User not found")
+        raise HTTPException(status_code=404, detail="A felhasználó nem található.")
     return user
 
 
@@ -183,7 +183,7 @@ def list_admin_audit_logs(
 def get_admin_audit_log(audit_log_id: int, _current_user: User = Depends(require_admin), db: Session = Depends(get_db)) -> dict:
     log = db.get(AuditLog, audit_log_id)
     if log is None:
-        raise HTTPException(status_code=404, detail="Audit log not found")
+        raise HTTPException(status_code=404, detail="Az auditbejegyzés nem található.")
     return serialize_audit_log(log)
 
 
@@ -202,7 +202,7 @@ def suspend_admin_auction(
 ) -> AuctionStatusResponse:
     auction = db.scalar(get_auction_statement().where(Auction.id == auction_id))
     if auction is None:
-        raise HTTPException(status_code=404, detail="Auction not found")
+        raise HTTPException(status_code=404, detail="Az aukció nem található.")
     return AuctionStatusResponse.model_validate(suspend_auction(db, auction, current_user, moderation_request.reason))
 
 
@@ -215,7 +215,7 @@ def restore_admin_auction(
 ) -> AuctionStatusResponse:
     auction = db.scalar(get_auction_statement().where(Auction.id == auction_id))
     if auction is None:
-        raise HTTPException(status_code=404, detail="Auction not found")
+        raise HTTPException(status_code=404, detail="Az aukció nem található.")
     return AuctionStatusResponse.model_validate(restore_auction(db, auction, current_user, moderation_request.reason))
 
 
@@ -228,7 +228,7 @@ def delete_admin_auction(
 ) -> AuctionStatusResponse:
     auction = db.scalar(get_auction_statement().where(Auction.id == auction_id))
     if auction is None:
-        raise HTTPException(status_code=404, detail="Auction not found")
+        raise HTTPException(status_code=404, detail="Az aukció nem található.")
     return AuctionStatusResponse.model_validate(soft_delete_auction(db, auction, current_user, moderation_request.reason))
 
 

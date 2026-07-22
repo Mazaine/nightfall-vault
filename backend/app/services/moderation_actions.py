@@ -12,10 +12,28 @@ from app.services.security_audit import create_domain_audit_log
 
 
 FULL_BANS = {"temporary_ban", "permanent_ban"}
+MODERATION_ACTION_LABELS = {
+    "warning": "Figyelmeztetés",
+    "auction_creation_ban": "Aukció-létrehozási tiltás",
+    "bidding_ban": "Licitálási tiltás",
+    "chat_ban": "Chatküldési tiltás",
+    "temporary_ban": "Ideiglenes teljes tiltás",
+    "permanent_ban": "Végleges tiltás",
+}
+STRIKE_SEVERITY_LABELS = {
+    "low": "Alacsony",
+    "medium": "Közepes",
+    "high": "Magas",
+    "critical": "Kritikus",
+}
 
 
 def now_utc() -> datetime:
     return datetime.now(timezone.utc)
+
+
+def moderation_action_label(action_type: str) -> str:
+    return MODERATION_ACTION_LABELS.get(action_type, "Moderációs intézkedés")
 
 
 def active_action_statement(user_id: int, action_types: set[str]):
@@ -73,7 +91,7 @@ def issue_action(db: Session, admin: User, *, target: User, action_type: str, re
     db.flush()
     audit_action = "moderation_permanent_ban_applied" if action_type == "permanent_ban" else ("moderation_warning_issued" if action_type == "warning" else "moderation_restriction_applied")
     create_domain_audit_log(db, action=audit_action, user_id=admin.id, metadata={"target_user_id": target.id, "moderation_action_id": action.id, "type": action_type})
-    create_notification(db, user_id=target.id, notification_type="moderation_action", title="Moderációs intézkedés", message=f"{action_type}: {reason}", send_email=True)
+    create_notification(db, user_id=target.id, notification_type="moderation_action", title="Moderációs intézkedés", message=f"{moderation_action_label(action_type)}: {reason}", send_email=True)
     db.commit()
     db.refresh(action)
     return action
@@ -87,7 +105,8 @@ def issue_strike(db: Session, admin: User, *, target: User, reason: str, severit
     db.add(strike)
     db.flush()
     create_domain_audit_log(db, action="moderation_strike_issued", user_id=admin.id, metadata={"target_user_id": target.id, "strike_id": strike.id, "severity": severity})
-    create_notification(db, user_id=target.id, notification_type="moderation_strike", title="Moderációs strike", message=f"{severity}: {reason}", send_email=True)
+    severity_label = STRIKE_SEVERITY_LABELS.get(severity, "Ismeretlen")
+    create_notification(db, user_id=target.id, notification_type="moderation_strike", title="Moderációs figyelmeztető pont", message=f"Súlyosság: {severity_label}. Indok: {reason}", send_email=True)
     active_count = int(
         db.scalar(
             select(func.count()).select_from(UserStrike).where(
@@ -113,7 +132,7 @@ def revoke_action(db: Session, admin: User, action: ModerationAction) -> Moderat
         action.revoked_by_admin_id = admin.id
         db.add(action)
         create_domain_audit_log(db, action="moderation_permanent_ban_revoked" if action.action_type == "permanent_ban" else "moderation_restriction_revoked", user_id=admin.id, metadata={"target_user_id": action.target_user_id, "moderation_action_id": action.id})
-        create_notification(db, user_id=action.target_user_id, notification_type="moderation_revoked", title="Korlátozás visszavonva", message=f"A(z) {action.action_type} korlátozást visszavontuk.", send_email=True)
+        create_notification(db, user_id=action.target_user_id, notification_type="moderation_revoked", title="Korlátozás visszavonva", message=f"A(z) {moderation_action_label(action.action_type)} intézkedést visszavontuk.", send_email=True)
         db.commit()
         db.refresh(action)
     return action

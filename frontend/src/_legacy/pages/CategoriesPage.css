@@ -1,6 +1,0 @@
-﻿.category-overview-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 18px; }
-.category-overview-card { display: grid; gap: 12px; min-height: 210px; }
-.category-overview-card span { color: var(--color-gold); font-weight: 800; }
-.category-overview-card h2 { margin: 0; font-size: 1.25rem; }
-.category-overview-card p { margin: 0; color: var(--color-muted); }
-.category-overview-card a { align-self: end; color: var(--color-gold); font-weight: 800; }

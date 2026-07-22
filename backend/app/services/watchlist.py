@@ -22,7 +22,7 @@ def list_watchlist(db: Session, user: User) -> list[WatchlistItem]:
 def add_to_watchlist(db: Session, auction_id: int, user: User) -> WatchlistItem:
     auction = db.scalar(get_auction_statement().where(Auction.id == auction_id, Auction.deleted_at.is_(None)))
     if auction is None:
-        raise HTTPException(status_code=404, detail="Auction not found")
+        raise HTTPException(status_code=404, detail="Az aukció nem található.")
     require_can_view_auction(auction, user)
     existing = db.scalar(select(WatchlistItem).where(WatchlistItem.user_id == user.id, WatchlistItem.auction_id == auction.id))
     if existing is not None:

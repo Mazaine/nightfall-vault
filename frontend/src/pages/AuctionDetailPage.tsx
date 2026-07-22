@@ -10,7 +10,8 @@ import { useAuctionRealtime } from "../AuctionRealtimeContext";
 import { AuctionCountdown } from "../components/AuctionCountdown";
 import { ReportDialog } from "../components/ReportDialog";
 import { SafeImage } from "../components/SafeImage";
-import { addWatchlistItem, auctionStreamUrl, createAuctionMessage, createAuctionReview, getAuction, getAuctionPresence, listAuctionBids, listAuctionMessages, listRelatedAuctions, listSellerOtherAuctions, markAuctionMessagesRead, placeAuctionBid, listAuctionReviews, sendTyping, type Auction, type AuctionBid, type AuctionMessage, type AuctionRealtimeSnapshot, type AuctionReview } from "../api/auctions";
+import { ChatTransactionPanel } from "../components/ChatTransactionPanel";
+import { addWatchlistItem, auctionStreamUrl, createAuctionMessage, createAuctionReview, getAuction, getAuctionPresence, listAuctionBids, listAuctionMessages, listRelatedAuctions, listSellerOtherAuctions, markAuctionMessagesRead, placeAuctionBid, listAuctionReviews, sendTyping, type Auction, type AuctionBid, type AuctionMessage, type AuctionRealtimeSnapshot, type AuctionReview, type NotificationItem } from "../api/auctions";
 import { formatAuctionStatus, formatLocalDateTime, formatMoney, formatRemainingTime } from "../utils/format";
 
 function moneyToCents(value: string | null | undefined) {
@@ -59,6 +60,11 @@ export function AuctionDetailPage() {
   const presenceTimerRef = useRef<number | null>(null);
   const lastTypingSentRef = useRef(0);
   const messageSendingRef = useRef(false);
+  const chatLauncherRef = useRef<HTMLButtonElement>(null);
+  const chatMinimizeRef = useRef<HTMLButtonElement>(null);
+  const chatComposerRef = useRef<HTMLTextAreaElement>(null);
+  const focusChatOnOpenRef = useRef(location.hash === "#auction-conversation");
+  const restoreChatLauncherFocusRef = useRef(false);
 
   useEffect(() => {
     if (!auctionId || !/^\d+$/.test(auctionId)) {
@@ -118,7 +124,6 @@ export function AuctionDetailPage() {
       const incoming = event.payload as unknown as AuctionMessage;
       setMessages((items) => appendUniqueMessage(items, incoming));
       if (incoming.sender_id !== user?.id) {
-        setIsChatOpen(true);
         void markAuctionMessagesRead(auction.id);
       }
     } else if (event.type === "typing" && Number(event.payload.user_id) !== user?.id) {
@@ -149,8 +154,41 @@ export function AuctionDetailPage() {
   }, [isChatOpen, messages, typingUser]);
 
   useEffect(() => {
-    if (location.hash === "#auction-conversation") setIsChatOpen(true);
+    if (location.hash === "#auction-conversation") {
+      focusChatOnOpenRef.current = true;
+      setIsChatOpen(true);
+    }
   }, [location.hash]);
+
+  useEffect(() => {
+    if (isChatOpen && focusChatOnOpenRef.current) {
+      focusChatOnOpenRef.current = false;
+      window.requestAnimationFrame(() => (chatComposerRef.current ?? chatMinimizeRef.current)?.focus());
+    } else if (!isChatOpen && restoreChatLauncherFocusRef.current) {
+      restoreChatLauncherFocusRef.current = false;
+      window.requestAnimationFrame(() => chatLauncherRef.current?.focus());
+    }
+  }, [isChatOpen, auction]);
+
+  useEffect(() => {
+    const openIncomingChat = (event: Event) => {
+      const notification = (event as CustomEvent<NotificationItem>).detail;
+      if (notification.category === "chat" && notification.auction_id === auction?.id) setIsChatOpen(true);
+    };
+    window.addEventListener("nightfall:notification-received", openIncomingChat);
+    return () => window.removeEventListener("nightfall:notification-received", openIncomingChat);
+  }, [auction?.id]);
+
+  useEffect(() => {
+    const reviewSubmitted = (event: Event) => {
+      const submittedAuctionId = Number((event as CustomEvent<{ auctionId: number }>).detail.auctionId);
+      if (!auction || submittedAuctionId !== auction.id) return;
+      listAuctionReviews(auction.id, { limit: 20, sort: "newest" }).then((page) => setReviews(page.items)).catch(() => undefined);
+      setAuction((current) => current ? { ...current, can_review: false } : current);
+    };
+    window.addEventListener("nightfall:review-submitted", reviewSubmitted);
+    return () => window.removeEventListener("nightfall:review-submitted", reviewSubmitted);
+  }, [auction]);
 
   useEffect(() => () => {
     if (typingTimerRef.current) window.clearTimeout(typingTimerRef.current);
@@ -191,6 +229,14 @@ export function AuctionDetailPage() {
     if (!postAuctionMessage.trim() || isMessageSending || auction?.chat_read_only) return;
     event.currentTarget.form?.requestSubmit();
   };
+
+  const openChat = () => {
+    focusChatOnOpenRef.current = true;
+    restoreChatLauncherFocusRef.current = true;
+    setIsChatOpen(true);
+  };
+
+  const closeChat = () => setIsChatOpen(false);
 
   const placeBidAmount = async (amount: string) => {
     if (!auction || !amount.trim()) {
@@ -440,15 +486,16 @@ export function AuctionDetailPage() {
           )}
         </section>
 
-        {auction.can_chat && !isChatOpen ? createPortal(<button className="button button-primary chat-launcher" type="button" onClick={() => setIsChatOpen(true)} aria-controls="auction-conversation">Üzenetek megnyitása</button>, document.body) : null}
+        {auction.can_chat && !isChatOpen ? createPortal(<button ref={chatLauncherRef} className="button button-primary chat-launcher" type="button" onClick={openChat} aria-controls="auction-conversation" aria-expanded="false">Üzenetek megnyitása</button>, document.body) : null}
         {auction.can_chat && isChatOpen ? createPortal((
-          <section className="post-auction-panel auction-conversation chat-dock" id="auction-conversation" role="dialog" aria-label={`${auction.title} privát beszélgetése`}>
+          <section className="post-auction-panel auction-conversation chat-dock" id="auction-conversation" role="dialog" aria-label={`${auction.title} privát beszélgetése`} onKeyDown={(event) => { if (event.key === "Escape") { event.preventDefault(); closeChat(); } }}>
             <header className="chat-dock-header">
               <div><strong>Aukciós chat</strong><small>{auction.title}</small></div>
-              <p className={`presence-indicator${presence?.online ? " is-online" : ""}`}>{presence?.online ? "Online" : presence?.last_active_at ? `Utoljára aktív: ${formatLocalDateTime(presence.last_active_at)}` : "Offline"}</p>
-              <button className="chat-minimize-button" type="button" aria-label="Chat kis méretre zárása" onClick={() => setIsChatOpen(false)}>−</button>
+              <p className={`presence-indicator${presence?.online ? " is-online" : ""}`}>{presence?.online ? "Elérhető" : presence?.last_active_at ? `Utoljára aktív: ${formatLocalDateTime(presence.last_active_at)}` : "Nem elérhető"}</p>
+              <button ref={chatMinimizeRef} className="chat-minimize-button" type="button" aria-label="Chat kis méretre zárása" onClick={closeChat}>−</button>
             </header>
             <div className="chat-boundary-note" role="note">A fizetést és az átadást egymással egyeztetitek.</div>
+            <ChatTransactionPanel auctionId={auction.id} />
             <div className="message-list" ref={messageListRef} aria-live="polite" aria-label="Privát beszélgetés üzenetei">
               {messages.length === 0 ? <p className="empty-state">Még nincs üzenet. Írj a másik félnek az egyeztetés megkezdéséhez.</p> : null}
               {messages.map((message) => (
@@ -463,7 +510,7 @@ export function AuctionDetailPage() {
             {auction.chat_read_only ? <p className="chat-read-only-note" role="status">Ez az archivált beszélgetés csak olvasható.</p> : (
               <form className="chat-composer" onSubmit={sendMessage}>
                 <label className="visually-hidden" htmlFor="auction-message">Üzenet a másik félnek</label>
-                <textarea id="auction-message" aria-describedby="chat-keyboard-help" maxLength={2000} required value={postAuctionMessage} onChange={(event) => changeMessage(event.target.value)} onKeyDown={handleMessageKeyDown} rows={2} placeholder="Írj egy üzenetet…" />
+                <textarea ref={chatComposerRef} id="auction-message" aria-describedby="chat-keyboard-help" maxLength={2000} required value={postAuctionMessage} onChange={(event) => changeMessage(event.target.value)} onKeyDown={handleMessageKeyDown} rows={2} placeholder="Írj egy üzenetet…" />
                 <button className="button button-primary" type="submit" disabled={isMessageSending || !postAuctionMessage.trim()} aria-label="Üzenet küldése">{isMessageSending ? "Küldés..." : "Küldés"}</button>
                 <small id="chat-keyboard-help">Enter: küldés · Shift+Enter: új sor</small>
                 {messageFeedback ? <p className="form-message" role="status">{messageFeedback}</p> : null}

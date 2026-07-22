@@ -88,8 +88,11 @@ describe("AuctionDetailPage", () => {
     mocks.createAuctionMessage.mockResolvedValue(created);
 
     render(<MemoryRouter initialEntries={["/auctions/21"]}><Routes><Route path="/auctions/:auctionId" element={<AuctionDetailPage />} /></Routes></MemoryRouter>);
-    fireEvent.click(await screen.findByRole("button", { name: "Üzenetek megnyitása" }));
+    const launcher = await screen.findByRole("button", { name: "Üzenetek megnyitása" });
+    launcher.focus();
+    fireEvent.click(launcher);
     const input = screen.getByLabelText("Üzenet a másik félnek");
+    await waitFor(() => expect(input).toHaveFocus());
     fireEvent.change(input, { target: { value: "Szia!" } });
     fireEvent.keyDown(input, { key: "Enter", code: "Enter" });
     fireEvent.keyDown(input, { key: "Enter", code: "Enter" });
@@ -99,6 +102,9 @@ describe("AuctionDetailPage", () => {
     fireEvent.change(input, { target: { value: "Első sor\nMásodik sor" } });
     fireEvent.keyDown(input, { key: "Enter", code: "Enter", shiftKey: true });
     expect(mocks.createAuctionMessage).toHaveBeenCalledTimes(1);
+
+    fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
+    await waitFor(() => expect(screen.getByRole("button", { name: "Üzenetek megnyitása" })).toHaveFocus());
   });
 
   it("a POST-válasz és a realtime esemény ugyanazt az üzenetet nem duplázza", async () => {

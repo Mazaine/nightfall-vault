@@ -29,17 +29,46 @@ export function getStoredToken() {
   return window.localStorage.getItem(AUTH_TOKEN_STORAGE_KEY) ?? window.localStorage.getItem(LEGACY_AUTH_TOKEN_STORAGE_KEY);
 }
 
+function normalizeValidationMessage(value: unknown) {
+  const message = String(value ?? "").trim();
+  if (!message) return "Hibás érték.";
+  if (/field required|required field/i.test(message)) return "A mező kitöltése kötelező.";
+  const minimum = message.match(/at least (\d+) characters?/i);
+  if (minimum) return `Legalább ${minimum[1]} karakter szükséges.`;
+  const maximum = message.match(/at most (\d+) characters?/i);
+  if (maximum) return `Legfeljebb ${maximum[1]} karakter adható meg.`;
+  if (/valid email|email address|value is not a valid email/i.test(message)) return "Érvényes e-mail-címet adj meg.";
+  if (/valid integer|valid number|parsing input/i.test(message)) return "Érvényes számot adj meg.";
+  if (/greater than|less than|input should be/i.test(message)) return "Az érték kívül esik a megengedett tartományon.";
+  if (/validation error|value error|invalid value/i.test(message)) return "Hibás érték.";
+  return message;
+}
+
 function normalizeFieldErrors(value: unknown): Record<string, string> {
   if (!value || typeof value !== "object") return {};
   if (Array.isArray(value)) {
     return Object.fromEntries(value.flatMap((item) => {
       if (!item || typeof item !== "object") return [];
       const field = "field" in item ? String(item.field) : "request";
-      const message = "message" in item ? String(item.message) : "Hibás érték.";
+      const message = "message" in item ? normalizeValidationMessage(item.message) : "Hibás érték.";
       return [[field, message]];
     }));
   }
-  return Object.fromEntries(Object.entries(value).map(([field, message]) => [field, String(message)]));
+  return Object.fromEntries(Object.entries(value).map(([field, message]) => [field, normalizeValidationMessage(message)]));
+}
+
+function normalizeApiErrorMessage(value: unknown, status: number) {
+  const message = typeof value === "string" ? value.trim() : "";
+  const technicalMessage = /failed to fetch|networkerror|load failed|internal server error|unprocessable entity|validation error|unauthorized|forbidden|not found|traceback|exception|sql|cannot read propert|\bundefined\b|\bnull\b/i;
+
+  if (message && !technicalMessage.test(message)) return message;
+  if (status === 401) return "A munkameneted lejárt. Jelentkezz be újra.";
+  if (status === 403) return "Nincs jogosultságod ehhez a művelethez.";
+  if (status === 404) return "A keresett adat nem található.";
+  if (status === 409) return "A művelet az adat jelenlegi állapota miatt nem végezhető el.";
+  if (status === 422) return "Ellenőrizd a megadott adatokat.";
+  if (status >= 500) return "A kiszolgáló átmenetileg nem érhető el. Próbáld újra később.";
+  return "Nem sikerült kapcsolódni a kiszolgálóhoz. Ellenőrizd a kapcsolatot, majd próbáld újra.";
 }
 
 export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
@@ -54,17 +83,23 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
     headers.set("Authorization", `Bearer ${token}`);
   }
 
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    ...options,
-    headers,
-    cache: options.authenticated === false ? options.cache : "no-store",
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`, {
+      ...options,
+      headers,
+      cache: options.authenticated === false ? options.cache : "no-store",
+    });
+  } catch {
+    throw new ApiError(normalizeApiErrorMessage(null, 0), 0);
+  }
 
   if (!response.ok) {
     const errorBody = await response.json().catch(() => null);
-    const message = typeof errorBody?.detail === "string"
+    const rawMessage = typeof errorBody?.detail === "string"
       ? errorBody.detail
       : errorBody?.detail?.message ?? errorBody?.message ?? "A kérés nem sikerült.";
+    const message = normalizeApiErrorMessage(rawMessage, response.status);
     const fieldErrors = normalizeFieldErrors(errorBody?.detail?.errors ?? errorBody?.errors);
     if (response.status === 401 && options.authenticated !== false) {
       window.dispatchEvent(new CustomEvent(SESSION_EXPIRED_EVENT, { detail: { message } }));

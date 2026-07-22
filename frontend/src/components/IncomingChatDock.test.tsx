@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Auction, AuctionMessage } from "../api/auctions";
@@ -27,7 +27,7 @@ describe("IncomingChatDock", () => {
   it("másik oldalon automatikusan megnyitja a másik féltől érkező chatüzenetet", async () => {
     render(<MemoryRouter initialEntries={["/account/profile"]}><IncomingChatDock /></MemoryRouter>);
     await waitFor(() => expect(state.listener).not.toBeNull());
-    act(() => state.listener?.({ id: "chat-91", type: "auction_message", payload: incoming }));
+    act(() => state.listener?.({ id: "notification-91", type: "notification", payload: { auction_id: 81, category: "chat", in_app_enabled: true } }));
 
     expect(await screen.findByRole("dialog", { name: "Globális chat aukció privát beszélgetése" })).toBeInTheDocument();
     expect(screen.getByText(incoming.message)).toBeInTheDocument();
@@ -42,5 +42,29 @@ describe("IncomingChatDock", () => {
 
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(mocks.getAuction).not.toHaveBeenCalled();
+  });
+
+  it("kikapcsolt in-app chat kategóriánál nem nyit fel panelt", async () => {
+    render(<MemoryRouter initialEntries={["/account/profile"]}><IncomingChatDock /></MemoryRouter>);
+    await waitFor(() => expect(state.listener).not.toBeNull());
+    act(() => state.listener?.({ id: "notification-disabled", type: "notification", payload: { auction_id: 81, category: "chat", in_app_enabled: false } }));
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(mocks.getAuction).not.toHaveBeenCalled();
+  });
+
+  it("billentyűzettel megnyitható, Escape-re bezár és visszaadja a fókuszt", async () => {
+    render(<MemoryRouter initialEntries={["/account/profile"]}><IncomingChatDock /></MemoryRouter>);
+    await waitFor(() => expect(state.listener).not.toBeNull());
+    act(() => state.listener?.({ id: "notification-keyboard", type: "notification", payload: { auction_id: 81, category: "chat", in_app_enabled: true } }));
+    await screen.findByRole("dialog", { name: "Globális chat aukció privát beszélgetése" });
+    fireEvent.click(screen.getByRole("button", { name: "Chat kis méretre zárása" }));
+
+    const launcher = screen.getByRole("button", { name: "Legutóbbi aukciós chat megnyitása" });
+    launcher.focus();
+    fireEvent.click(launcher);
+    await waitFor(() => expect(screen.getByLabelText("Üzenet a felugró chatben")).toHaveFocus());
+    fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
+    await waitFor(() => expect(screen.getByRole("button", { name: "Legutóbbi aukciós chat megnyitása" })).toHaveFocus());
   });
 });

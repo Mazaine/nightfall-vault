@@ -26,7 +26,7 @@ class UserCreate(BaseModel):
     def normalize_username(cls, value: str) -> str:
         normalized_value = value.strip()
         if not normalized_value:
-            raise ValueError("Username is required.")
+            raise ValueError("A felhasználónév megadása kötelező.")
         return normalized_value
 
     @field_validator("full_name")
@@ -34,7 +34,7 @@ class UserCreate(BaseModel):
     def normalize_full_name(cls, value: str) -> str:
         normalized_value = " ".join(value.strip().split())
         if not normalized_value:
-            raise ValueError("Full name is required.")
+            raise ValueError("A teljes név megadása kötelező.")
         return normalized_value
 
 
@@ -117,7 +117,7 @@ class UserProfileUpdate(BaseModel):
             return None
         normalized_value = value.strip()
         if not normalized_value:
-            raise ValueError("Username is required")
+            raise ValueError("A felhasználónév megadása kötelező.")
         return normalized_value
 
     @field_validator("full_name")
@@ -127,7 +127,7 @@ class UserProfileUpdate(BaseModel):
             return None
         normalized_value = " ".join(value.strip().split())
         if not normalized_value:
-            raise ValueError("Full name is required")
+            raise ValueError("A teljes név megadása kötelező.")
         return normalized_value
 
 
@@ -205,7 +205,7 @@ class FollowRequest(BaseModel):
     def normalize_follow_username(cls, value: str) -> str:
         normalized_value = value.strip()
         if not normalized_value:
-            raise ValueError("Username is required")
+            raise ValueError("A felhasználónév megadása kötelező.")
         return normalized_value
 
 

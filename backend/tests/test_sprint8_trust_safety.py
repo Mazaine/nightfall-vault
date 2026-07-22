@@ -57,9 +57,11 @@ def test_report_creation_privacy_duplicate_and_admin_queue() -> None:
     assert own_auction.status_code == 409
     assert created.status_code == 201
     assert duplicate.status_code == 409
+    assert duplicate.json()["detail"] == "Ezt már korábban jelentetted. Ugyanazt az aukciót vagy felhasználót csak egyszer jelentheted."
     assert own_profile.status_code == 409
     assert user_report.status_code == 201
     assert duplicate_user_report.status_code == 409
+    assert duplicate_user_report.json()["detail"] == "Ezt már korábban jelentetted. Ugyanazt az aukciót vagy felhasználót csak egyszer jelentheted."
     assert invalid_target.status_code == 404
     assert "admin_note" not in created.json()
     assert "priority" not in created.json()

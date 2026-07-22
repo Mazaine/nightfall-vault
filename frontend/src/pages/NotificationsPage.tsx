@@ -4,6 +4,7 @@ import { listMyNotifications, markAllNotificationsRead, markNotificationRead, ty
 import { EmptyState, ErrorState, LoadingState } from "../components/AsyncStates";
 import { NotificationPreferencesPanel } from "../components/NotificationPreferencesPanel";
 import { publishUnreadNotificationCount } from "../utils/notificationEvents";
+import { localizeModerationMessage } from "../utils/moderationFormat";
 
 function unreadCount(items: NotificationItem[]) {
   return items.filter((item) => !item.is_read).length;
@@ -111,7 +112,7 @@ export function NotificationsPage() {
           <article className={`notification-row${item.is_read ? "" : " is-unread"}`} key={item.id}>
             <div>
               <strong>{item.title}</strong>
-              <p>{item.message}</p>
+              <p>{localizeModerationMessage(item.message)}</p>
               {item.target_url || item.auction_id ? <Link to={item.target_url || `/auctions/${item.auction_id}`}>Megnyitás</Link> : null}
             </div>
             {!item.is_read ? (

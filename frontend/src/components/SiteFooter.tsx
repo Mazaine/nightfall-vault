@@ -9,6 +9,10 @@ export function SiteFooter() {
             className="footer-logo"
             src="/assets/nightfall-vault-logo-transparent.png"
             alt="Nightfall Vault Auction House"
+            width="2172"
+            height="724"
+            loading="lazy"
+            decoding="async"
           />
         </Link>
 

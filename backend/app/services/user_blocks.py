@@ -10,7 +10,7 @@ from app.services.security_audit import create_domain_audit_log
 def get_active_user_by_username(db: Session, username: str) -> User:
     user = db.scalar(select(User).where(User.username == username, User.deleted_at.is_(None), User.is_active.is_(True)))
     if user is None:
-        raise HTTPException(status_code=404, detail="Felhaszn?l? nem tal?lhat?.")
+        raise HTTPException(status_code=404, detail="A felhasználó nem található.")
     return user
 
 
@@ -29,17 +29,17 @@ def is_blocked_by(db: Session, blocker_id: int, blocked_id: int) -> bool:
     return db.scalar(select(UserBlock.id).where(UserBlock.blocker_id == blocker_id, UserBlock.blocked_id == blocked_id)) is not None
 
 
-def ensure_not_blocked(db: Session, first_user_id: int, second_user_id: int, message: str = "A m?velet blokkol?s miatt nem enged?lyezett.") -> None:
+def ensure_not_blocked(db: Session, first_user_id: int, second_user_id: int, message: str = "A művelet blokkolás miatt nem engedélyezett.") -> None:
     if has_block_between(db, first_user_id, second_user_id):
         raise HTTPException(status_code=403, detail=message)
 
 
 def create_user_block(db: Session, blocker: User, blocked: User) -> UserBlock:
     if blocker.id == blocked.id:
-        raise HTTPException(status_code=409, detail="Saj?t profilt nem lehet blokkolni.")
+        raise HTTPException(status_code=409, detail="Saját profilt nem lehet blokkolni.")
     existing = db.scalar(select(UserBlock).where(UserBlock.blocker_id == blocker.id, UserBlock.blocked_id == blocked.id))
     if existing is not None:
-        raise HTTPException(status_code=409, detail="Ez a felhaszn?l? m?r blokkolva van.")
+        raise HTTPException(status_code=409, detail="Ez a felhasználó már blokkolva van.")
     db.execute(
         delete(SellerFollow).where(
             or_(
@@ -59,7 +59,7 @@ def create_user_block(db: Session, blocker: User, blocked: User) -> UserBlock:
 def delete_user_block(db: Session, blocker: User, blocked: User) -> None:
     block = db.scalar(select(UserBlock).where(UserBlock.blocker_id == blocker.id, UserBlock.blocked_id == blocked.id))
     if block is None:
-        raise HTTPException(status_code=404, detail="A blokkol?s nem tal?lhat?.")
+        raise HTTPException(status_code=404, detail="A blokkolás nem található.")
     db.delete(block)
     create_domain_audit_log(db, action="user_block_removed", user_id=blocker.id, metadata={"blocked_user_id": blocked.id})
     db.commit()

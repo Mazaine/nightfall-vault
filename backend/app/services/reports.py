@@ -38,14 +38,14 @@ def report_options():
 def get_report_or_404(db: Session, report_id: int) -> Report:
     report = db.scalar(select(Report).options(*report_options()).where(Report.id == report_id))
     if report is None:
-        raise HTTPException(status_code=404, detail="Jelent?s nem tal?lhat?.")
+        raise HTTPException(status_code=404, detail="A jelentés nem található.")
     return report
 
 
 def ensure_reason(target_type: str, reason: str) -> None:
     allowed = AUCTION_REPORT_REASONS if target_type == "auction" else USER_REPORT_REASONS
     if reason not in allowed:
-        raise HTTPException(status_code=422, detail="?rv?nytelen jelent?si ok.")
+        raise HTTPException(status_code=422, detail="Érvénytelen jelentési ok.")
 
 
 def ensure_no_duplicate(db: Session, reporter_id: int, target_type: str, auction_id: int | None, reported_user_id: int | None) -> None:
@@ -65,12 +65,12 @@ def create_auction_report(db: Session, reporter: User, auction_id: int, reason: 
     ensure_reason("auction", reason)
     auction = db.get(Auction, auction_id)
     if auction is None or auction.deleted_at is not None:
-        raise HTTPException(status_code=404, detail="Aukci? nem tal?lhat?.")
+        raise HTTPException(status_code=404, detail="Az aukció nem található.")
     auction = sync_auction_status(db, auction)
     if not can_view_auction(auction, reporter):
-        raise HTTPException(status_code=404, detail="Aukci? nem tal?lhat?.")
+        raise HTTPException(status_code=404, detail="Az aukció nem található.")
     if auction.seller_id == reporter.id:
-        raise HTTPException(status_code=409, detail="Saj?t aukci?t nem lehet jelenteni.")
+        raise HTTPException(status_code=409, detail="Saját aukciót nem lehet jelenteni.")
     ensure_no_duplicate(db, reporter.id, "auction", auction.id, auction.seller_id)
     report = Report(reporter_id=reporter.id, target_type="auction", auction_id=auction.id, reported_user_id=auction.seller_id, reason=reason, details=details, status="open", priority="normal")
     db.add(report)
@@ -84,9 +84,9 @@ def create_auction_report(db: Session, reporter: User, auction_id: int, reason: 
 def create_user_report(db: Session, reporter: User, reported_user: User, reason: str, details: str | None) -> Report:
     ensure_reason("user", reason)
     if reporter.id == reported_user.id:
-        raise HTTPException(status_code=409, detail="Saj?t profilt nem lehet jelenteni.")
+        raise HTTPException(status_code=409, detail="Saját profilt nem lehet jelenteni.")
     if reported_user.deleted_at is not None or not reported_user.is_active:
-        raise HTTPException(status_code=404, detail="Felhaszn?l? nem tal?lhat?.")
+        raise HTTPException(status_code=404, detail="A felhasználó nem található.")
     ensure_no_duplicate(db, reporter.id, "user", None, reported_user.id)
     report = Report(reporter_id=reporter.id, target_type="user", reported_user_id=reported_user.id, reason=reason, details=details, status="open", priority="normal")
     db.add(report)
@@ -99,7 +99,7 @@ def create_user_report(db: Session, reporter: User, reported_user: User, reason:
 
 def update_report_status(db: Session, report: Report, admin: User, next_status: str, public_resolution: str | None) -> Report:
     if next_status not in ALLOWED_STATUS_TRANSITIONS.get(report.status, set()):
-        raise HTTPException(status_code=409, detail="Tiltott jelent?s st?tuszv?lt?s.")
+        raise HTTPException(status_code=409, detail="A jelentés állapota így nem módosítható.")
     previous = report.status
     report.status = next_status
     report.assigned_admin_id = admin.id
@@ -113,8 +113,8 @@ def update_report_status(db: Session, report: Report, admin: User, next_status: 
             user_id=report.reporter_id,
             auction_id=report.auction_id,
             notification_type=notification_type,
-            title="Jelent?s lez?rva" if next_status == "resolved" else "Jelent?s elutas?tva",
-            message="A bek?ld?tt jelent?sed st?tusza friss?lt.",
+            title="Jelentés lezárva" if next_status == "resolved" else "Jelentés elutasítva",
+            message="A beküldött jelentésed állapota frissült.",
         )
     db.add(report)
     create_domain_audit_log(db, action="report_status_changed", user_id=admin.id, auction_id=report.auction_id, metadata={"report_id": report.id, "from": previous, "to": next_status})

@@ -14,24 +14,22 @@ type AuctionCountdownProps = {
 
 export function AuctionCountdown({ endsAt, status, fiveMinuteRuleEnabled = false, className = "", fallback }: AuctionCountdownProps) {
   const [now, setNow] = useState(() => Date.now());
-  const originalEndTime = useMemo(() => new Date(endsAt).getTime(), [endsAt]);
-  const effectiveEndTime = originalEndTime + (fiveMinuteRuleEnabled ? FIVE_MINUTES_MS : 0);
-  const remainingMs = effectiveEndTime - now;
+  const endTime = useMemo(() => new Date(endsAt).getTime(), [endsAt]);
+  const remainingMs = endTime - now;
   const isClosed = CLOSED_STATUSES.includes(status);
-  const isUrgent = status === "active" && fiveMinuteRuleEnabled && now >= originalEndTime && remainingMs > 0;
+  const isProtectedWindow = status === "active" && fiveMinuteRuleEnabled && remainingMs > 0 && remainingMs <= FIVE_MINUTES_MS;
 
   useEffect(() => {
-    if (isClosed || !Number.isFinite(effectiveEndTime) || remainingMs <= 0) return;
-    const untilUrgent = originalEndTime - now;
-    const delay = isUrgent
+    if (isClosed || !Number.isFinite(endTime) || remainingMs <= 0) return;
+    const delay = isProtectedWindow
       ? Math.max(100, 1000 - (Date.now() % 1000))
-      : Math.max(100, Math.min(60_000, untilUrgent > 0 ? untilUrgent : 60_000));
+      : Math.max(100, Math.min(60_000, remainingMs - FIVE_MINUTES_MS));
     const timer = window.setTimeout(() => setNow(Date.now()), delay);
     return () => window.clearTimeout(timer);
-  }, [effectiveEndTime, isClosed, isUrgent, now, originalEndTime, remainingMs]);
+  }, [endTime, isClosed, isProtectedWindow, now, remainingMs]);
 
   const regularText = remainingMs <= 0 ? "Lejárt" : fallback ?? formatRemainingTime(endsAt, status);
-  if (!isUrgent) {
+  if (!isProtectedWindow) {
     return <time className={`auction-countdown ${className}`.trim()} dateTime={endsAt}>{regularText}</time>;
   }
 
@@ -40,13 +38,8 @@ export function AuctionCountdown({ endsAt, status, fiveMinuteRuleEnabled = false
   const seconds = totalSeconds % 60;
   const clock = `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
   return (
-    <time
-      className={`auction-countdown auction-countdown-urgent ${className}`.trim()}
-      dateTime={new Date(effectiveEndTime).toISOString()}
-      role="timer"
-      aria-label={`Az aukció meghosszabbított szakaszából ${minutes} perc ${seconds} másodperc van hátra.`}
-    >
-      <span>+5 perc hosszabbítás</span>
+    <time className={`auction-countdown auction-countdown-urgent ${className}`.trim()} dateTime={endsAt} role="timer" aria-label={`Az ötperces licitvédelemből ${minutes} perc ${seconds} másodperc van hátra. Új licitnél a számláló ismét öt percről indul.`}>
+      <span>5 perces licitvédelem</span>
       <strong>{clock}</strong>
     </time>
   );

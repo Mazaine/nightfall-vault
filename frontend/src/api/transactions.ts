@@ -24,8 +24,10 @@ export type AuctionTransaction = {
 
 export type TransactionPage = { items: AuctionTransaction[]; total: number; limit: number; offset: number };
 
-export function listTransactions(status = "") {
-  const query = status ? `?status=${encodeURIComponent(status)}` : "";
+export function listTransactions(status = "", limit = 20) {
+  const params = new URLSearchParams({ limit: String(limit) });
+  if (status) params.set("status", status);
+  const query = `?${params.toString()}`;
   return apiRequest<TransactionPage>(`/api/transactions${query}`);
 }
 
