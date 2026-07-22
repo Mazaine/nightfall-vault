@@ -1,7 +1,10 @@
+from datetime import datetime, timedelta, timezone
+
 from sqlalchemy import select
 
 from app.db.session import SessionLocal
 from app.models.notification import Notification
+from app.models.transaction import AuctionTransaction
 from test_auction_domain import auth_headers, cleanup_test_data, client, create_sold_auction, create_test_user
 
 
@@ -59,6 +62,53 @@ def test_message_updates_conversation_preview_and_notifies_counterparty() -> Non
         assert notification.auction_id == sold["id"]
     finally:
         db.close()
+    cleanup_test_data()
+
+
+def test_archived_conversation_is_read_only_but_messages_remain_visible() -> None:
+    cleanup_test_data()
+    seller = create_test_user("seller-archived-chat@auction-test.local")
+    winner = create_test_user("winner-archived-chat@auction-test.local")
+    admin = create_test_user("admin-archived-chat@auction-test.local", role="admin")
+    sold = create_sold_auction(seller, winner, admin)
+    assert client.post(f"/api/auctions/{sold['id']}/messages", json={"message": "Archiválás előtti üzenet."}, headers=auth_headers(seller)).status_code == 201
+
+    db = SessionLocal()
+    try:
+        transaction = db.scalar(select(AuctionTransaction).where(AuctionTransaction.auction_id == sold["id"]))
+        assert transaction is not None
+        transaction.status = "archived"
+        transaction.archived_at = datetime.now(timezone.utc)
+        db.add(transaction)
+        db.commit()
+    finally:
+        db.close()
+
+    detail = client.get(f"/api/auctions/{sold['id']}", headers=auth_headers(seller))
+    messages = client.get(f"/api/auctions/{sold['id']}/messages", headers=auth_headers(seller))
+    blocked_send = client.post(f"/api/auctions/{sold['id']}/messages", json={"message": "Ezt már nem szabad elküldeni."}, headers=auth_headers(seller))
+    assert detail.status_code == 200 and detail.json()["can_chat"] is True and detail.json()["chat_read_only"] is True
+    assert messages.status_code == 200 and messages.json()[0]["message"] == "Archiválás előtti üzenet."
+    assert blocked_send.status_code == 409
+    assert blocked_send.json()["detail"] == "Az archivált tranzakció chatje csak olvasható."
+    cleanup_test_data()
+
+
+def test_chat_ban_is_enforced_by_message_endpoint() -> None:
+    cleanup_test_data()
+    seller = create_test_user("seller-chat-ban@auction-test.local")
+    winner = create_test_user("winner-chat-ban@auction-test.local")
+    admin = create_test_user("admin-chat-ban@auction-test.local", role="admin")
+    sold = create_sold_auction(seller, winner, admin)
+    restriction = client.post(
+        "/api/admin/moderation/actions",
+        json={"target_user_id": seller.id, "action_type": "chat_ban", "reason": "Chatküldés tesztkorlátozása", "expires_at": (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat()},
+        headers=auth_headers(admin),
+    )
+    blocked_send = client.post(f"/api/auctions/{sold['id']}/messages", json={"message": "Tiltott üzenet."}, headers=auth_headers(seller))
+    assert restriction.status_code == 201
+    assert blocked_send.status_code == 403
+    assert "moderációs korlátozása" in blocked_send.json()["detail"]
     cleanup_test_data()
 
 

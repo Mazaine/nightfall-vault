@@ -13,7 +13,7 @@ from app.models.notification import Notification
 from app.models.user import User
 from app.schemas.auction import AuctionConversationRead, AuctionCreate, AuctionFinalizeRequest, AuctionImageRead, AuctionListItem, AuctionListPage, AuctionMessageCreate, AuctionMessageRead, AuctionRealtimeSnapshot, AuctionResponse, AuctionReviewCreate, AuctionReviewPage, AuctionReviewRead, AuctionStatusResponse, AuctionUpdate, BidCreate, BidHistoryItem, BidRead, MyBidAuctionItem, NotificationRead, UserSummary
 from app.services.auction_images import add_auction_image, delete_auction_image, set_cover_image
-from app.services.auction_lifecycle import PUBLIC_AUCTION_STATUSES, activate_auction, can_access_post_auction_features, cancel_auction, create_auction, create_message, create_review, finalize_auction, get_auction_or_404, get_auction_statement, require_can_view_auction, require_post_auction_participant, sync_auction_status, update_auction
+from app.services.auction_lifecycle import PUBLIC_AUCTION_STATUSES, activate_auction, can_access_post_auction_features, cancel_auction, create_auction, create_message, create_review, finalize_auction, get_auction_or_404, get_auction_statement, is_chat_read_only, require_can_view_auction, require_post_auction_participant, sync_auction_status, update_auction
 from app.services.bidding import auction_realtime_snapshot, bid_to_history_item, bid_to_read, list_bid_history, place_bid
 from app.services.notifications import notify_followers_new_auction
 from app.services.recommendations import related_auctions, seller_other_auctions
@@ -121,6 +121,7 @@ def auction_response(auction: Auction, user: User | None = None, db: Session | N
         update={
             "is_owner": auction.seller_id == user.id,
             "can_chat": can_access_post_auction_features(auction, user.id),
+            "chat_read_only": bool(db is not None and can_access_post_auction_features(auction, user.id) and is_chat_read_only(db, auction)),
             "can_review": bool(db is not None and can_user_review_transaction(db, auction, user.id)),
         },
     )

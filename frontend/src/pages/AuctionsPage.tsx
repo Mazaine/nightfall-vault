@@ -1,10 +1,11 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { auctionListStreamUrl, listAuctions, type Auction, type AuctionListParams, type AuctionRealtimeSnapshot } from "../api/auctions";
+import { listAuctions, type Auction, type AuctionListParams } from "../api/auctions";
 import { createSavedSearch } from "../api/searches";
 import { useAuth } from "../AuthContext";
 import { AuctionCard } from "../components/AuctionCard";
 import { toAuctionCardItem } from "../utils/auctionPresentation";
+import { useAuctionRealtime } from "../AuctionRealtimeContext";
 
 const CATEGORY_OPTIONS = ["Hatalom Kártyái Kártyajáték", "Pokemon", "One Piece", "Star Wars TCG", "Yu-gi-oh", "Magic the Gathering", "Egyéb"];
 const CONDITION_OPTIONS = [
@@ -82,6 +83,7 @@ function toParams(filters: FilterState, offset: number): AuctionListParams {
 }
 
 export function AuctionsPage() {
+  const { subscribe } = useAuctionRealtime();
   const [searchParams] = useSearchParams();
   const { isAuthenticated } = useAuth();
   const initialFilters = useMemo(() => ({
@@ -99,15 +101,9 @@ export function AuctionsPage() {
   const [error, setError] = useState("");
   const [saveMessage, setSaveMessage] = useState("");
 
-  useEffect(() => {
-    if (typeof EventSource === "undefined") return;
-    const source = new EventSource(auctionListStreamUrl());
-    source.addEventListener("auction_update", (event) => {
-      const snapshot = JSON.parse((event as MessageEvent).data) as AuctionRealtimeSnapshot;
-      setAuctions((items) => items.map((item) => item.id === snapshot.auction_id ? { ...item, status: snapshot.status, current_price: snapshot.current_price, highest_bid_id: snapshot.highest_bid_id, winner_id: snapshot.winner_id, ends_at: snapshot.ends_at, bid_count: snapshot.bid_count } : item));
-    });
-    return () => source.close();
-  }, []);
+  useEffect(() => subscribe((snapshot) => {
+    setAuctions((items) => items.map((item) => item.id === snapshot.auction_id ? { ...item, status: snapshot.status, current_price: snapshot.current_price, highest_bid_id: snapshot.highest_bid_id, winner_id: snapshot.winner_id, ends_at: snapshot.ends_at, bid_count: snapshot.bid_count } : item));
+  }), [subscribe]);
 
   const params = useMemo(() => toParams(appliedFilters, offset), [appliedFilters, offset]);
 
@@ -154,7 +150,7 @@ export function AuctionsPage() {
           <h1>Aktív aukciók</h1>
           <p className="section-note">Keress kategória, állapot, licitszám, ár és lejárat szerint.</p>
         </div>
-        <Link className="button button-primary" to="/account">Aukció létrehozása</Link>
+        <Link className="button button-primary" to="/account/auctions">Aukció létrehozása</Link>
       </div>
 
       <form className="filter-panel side-panel" onSubmit={submitFilters}>

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { deleteAdminAuction, listAdminAuctions, restoreAdminAuction, suspendAdminAuction, type Auction } from "../../api/auctions";
+import { formatAuctionStatus } from "../../utils/format";
 
 export function AdminAuctionsPage() {
   const [items, setItems] = useState<Auction[]>([]);
@@ -40,7 +41,7 @@ export function AdminAuctionsPage() {
           <article className="admin-list-row" key={auction.id}>
             <div>
               <strong>{auction.title}</strong>
-              <span>{auction.status}{auction.deleted_at ? " | torolve" : ""}</span>
+              <span>{formatAuctionStatus(auction.status)}{auction.deleted_at ? " | törölve" : ""}</span>
               {auction.moderation_reason ? <small>{auction.moderation_reason}</small> : null}
             </div>
             <div className="row-actions">

@@ -82,4 +82,36 @@ describe("AuthPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Belépés" }));
     expect(await screen.findByText("Admin céloldal")).toBeInTheDocument();
   });
+
+  it("normál felhasználót alapértelmezetten a főoldalra irányít belépés után", async () => {
+    mocks.login.mockResolvedValue({ id: 2, email: "user@example.com", username: "user", full_name: "Teszt Felhasználó", role: "user" });
+    render(
+      <MemoryRouter initialEntries={["/login"]}>
+        <Routes>
+          <Route path="/login" element={<AuthPage mode="login" />} />
+          <Route path="/" element={<div>Főoldal céloldal</div>} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    fireEvent.change(screen.getByLabelText("E-mail-cím"), { target: { value: "user@example.com" } });
+    fireEvent.change(screen.getByLabelText("Jelszó", { selector: "input" }), { target: { value: "UserPassword123!" } });
+    fireEvent.click(screen.getByRole("button", { name: "Belépés" }));
+    expect(await screen.findByText("Főoldal céloldal")).toBeInTheDocument();
+  });
+
+  it("a rövid, megadott jelszót gyengének jelzi", () => {
+    render(<MemoryRouter><AuthPage mode="register" /></MemoryRouter>);
+    fireEvent.change(screen.getByLabelText("Jelszó", { selector: "input" }), { target: { value: "abc" } });
+    expect(screen.getByText("Gyenge")).toBeInTheDocument();
+    expect(screen.queryByText("Nincs megadva")).not.toBeInTheDocument();
+  });
+
+  it("Enter és Space billentyűvel is kapcsolja a jelszó láthatóságát", () => {
+    render(<MemoryRouter><AuthPage mode="login" /></MemoryRouter>);
+    const passwordInput = screen.getByLabelText("Jelszó", { selector: "input" });
+    fireEvent.keyDown(screen.getByRole("button", { name: "Jelszó megjelenítése" }), { key: "Enter" });
+    expect(passwordInput).toHaveAttribute("type", "text");
+    fireEvent.keyDown(screen.getByRole("button", { name: "Jelszó elrejtése" }), { key: " " });
+    expect(passwordInput).toHaveAttribute("type", "password");
+  });
 });

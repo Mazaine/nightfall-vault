@@ -1,3 +1,20 @@
+import type { AuctionStatus } from "../api/auctions";
+
+const AUCTION_STATUS_LABELS: Record<AuctionStatus, string> = {
+  draft: "Piszkozat",
+  scheduled: "Hamarosan indul",
+  active: "Aktív",
+  ended: "Lezárult",
+  sold: "Eladott",
+  unsold: "Eladatlan",
+  cancelled: "Megszakítva",
+  suspended: "Felfüggesztve",
+};
+
+export function formatAuctionStatus(status: AuctionStatus) {
+  return AUCTION_STATUS_LABELS[status];
+}
+
 export function formatHuf(amount: number) {
   return `${amount.toLocaleString("hu-HU")},00 Ft`;
 }

@@ -3,7 +3,7 @@ export function ContactPage() {
     <section className="container page-shell contact-layout">
       <div>
         <p className="eyebrow">Kapcsolat</p>
-        <h1>Kerdesed van?</h1>
+        <h1>Kérdésed van?</h1>
         <p className="hero-lead">
           Itt később valós ügyfélszolgálati űrlap, email integráció vagy
           jegykezelő modul kapcsolható be.

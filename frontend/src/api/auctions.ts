@@ -53,6 +53,7 @@ export type Auction = {
   winner?: AuctionUser | null;
   images: AuctionImage[];
   can_chat?: boolean;
+  chat_read_only?: boolean;
   can_review?: boolean;
   is_owner?: boolean;
   bid_count?: number;

@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
 from fastapi import HTTPException, status
@@ -16,6 +16,7 @@ SELLER_DECLARATION_VERSION = "2026-07-11"
 PUBLIC_AUCTION_STATUSES = {"scheduled", "active", "ended", "sold", "unsold"}
 EDITABLE_OWNER_STATUSES = {"draft", "scheduled", "active"}
 CRITICAL_AUCTION_FIELDS = {"starting_price", "bid_increment", "buy_now_price", "starts_at"}
+FIVE_MINUTE_EXTENSION = timedelta(minutes=5)
 
 ALLOWED_STATUS_TRANSITIONS: dict[str, set[str]] = {
     "draft": {"scheduled", "active", "cancelled"},
@@ -31,6 +32,11 @@ ALLOWED_STATUS_TRANSITIONS: dict[str, set[str]] = {
 
 def now_utc() -> datetime:
     return datetime.now(timezone.utc)
+
+
+def effective_auction_end(auction: Auction) -> datetime:
+    """Return the fixed closing time including the optional one-off extension."""
+    return auction.ends_at + FIVE_MINUTE_EXTENSION if auction.five_minute_rule_enabled else auction.ends_at
 
 
 def publish_auction_change(db: Session, auction: Auction) -> None:
@@ -60,7 +66,7 @@ def sync_auction_status(db: Session, auction: Auction) -> Auction:
     original_status = auction.status
     if auction.status == "scheduled" and auction.starts_at <= current_time:
         auction.status = "active"
-    if auction.status == "active" and auction.ends_at <= current_time:
+    if auction.status == "active" and effective_auction_end(auction) <= current_time:
         highest_bid = auction.highest_bid
         if highest_bid is None and auction.highest_bid_id is not None:
             highest_bid = db.get(Bid, auction.highest_bid_id)
@@ -83,7 +89,7 @@ def sync_auction_status(db: Session, auction: Auction) -> Auction:
 
 
 def close_ended_active_auction(db: Session, auction: Auction) -> Auction:
-    if auction.status != "active" or auction.ends_at > now_utc():
+    if auction.status != "active" or effective_auction_end(auction) > now_utc():
         return auction
     highest_bid = auction.highest_bid
     if highest_bid is None and auction.highest_bid_id is not None:
@@ -313,6 +319,13 @@ def can_access_post_auction_features(auction: Auction, user_id: int) -> bool:
     return is_successfully_closed(auction) and is_auction_participant(auction, user_id)
 
 
+def is_chat_read_only(db: Session, auction: Auction) -> bool:
+    from app.models.transaction import AuctionTransaction
+
+    transaction_status = db.scalar(select(AuctionTransaction.status).where(AuctionTransaction.auction_id == auction.id))
+    return transaction_status == "archived"
+
+
 def require_post_auction_participant(auction: Auction, user: User) -> None:
     if not can_access_post_auction_features(auction, user.id):
         raise HTTPException(status_code=403, detail="Closed auction participant access required.")
@@ -321,16 +334,13 @@ def require_post_auction_participant(auction: Auction, user: User) -> None:
 def create_message(db: Session, auction: Auction, sender: User, message: str) -> AuctionMessage:
     require_post_auction_participant(auction, sender)
     from app.services.moderation_actions import require_no_restriction
-    from app.models.transaction import AuctionTransaction
-
     require_no_restriction(db, sender.id, "chat_ban")
-    transaction = db.scalar(select(AuctionTransaction).where(AuctionTransaction.auction_id == auction.id))
-    if transaction is not None and transaction.status == "archived":
+    if is_chat_read_only(db, auction):
         raise HTTPException(status_code=409, detail="Az archivált tranzakció chatje csak olvasható.")
-    ensure_not_blocked(db, sender.id, get_auction_counterparty(auction, sender.id), "Blokkol?s miatt nem k?ldhet? ?j chat?zenet.")
+    ensure_not_blocked(db, sender.id, get_auction_counterparty(auction, sender.id), "Blokkolás miatt nem küldhető új chatüzenet.")
     normalized_message = message.strip()
     if not normalized_message:
-        raise HTTPException(status_code=422, detail="Message is required.")
+        raise HTTPException(status_code=422, detail="Az üzenet nem lehet üres.")
     if len(normalized_message) > 2000:
         raise HTTPException(status_code=422, detail="Message is too long.")
     auction_message = AuctionMessage(auction_id=auction.id, sender_id=sender.id, message=normalized_message)

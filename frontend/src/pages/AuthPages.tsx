@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, type KeyboardEvent, useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { register, resendVerification } from "../api/auth";
 import { ApiError } from "../api/client";
@@ -16,7 +16,7 @@ function passwordStrength(password: string) {
   if (/[a-z]/.test(password) && /[A-Z]/.test(password)) score += 1;
   if (/\d/.test(password)) score += 1;
   if (/[^\w\s]/.test(password)) score += 1;
-  return { score, label: ["Nincs megadva", "Gyenge", "Elfogadható", "Közepes", "Erős", "Nagyon erős"][score] };
+  return { score, label: password ? ["Gyenge", "Gyenge", "Elfogadható", "Közepes", "Erős", "Nagyon erős"][score] : "Nincs megadva" };
 }
 
 function safeNext(search: string) {
@@ -39,6 +39,12 @@ export function AuthPage({ mode }: AuthPageProps) {
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   const [registeredEmail, setRegisteredEmail] = useState("");
   const strength = passwordStrength(password);
+  const togglePasswordVisibility = () => setShowPassword((value) => !value);
+  const handlePasswordToggleKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    event.preventDefault();
+    togglePasswordVisibility();
+  };
 
   useEffect(() => {
     setMessage("");
@@ -62,7 +68,7 @@ export function AuthPage({ mode }: AuthPageProps) {
     try {
       if (isLogin) {
         const user = await auth.login(email, password, captchaToken);
-        navigate(safeNext(location.search) ?? (user.role === "admin" ? "/admin" : "/account"), { replace: true });
+        navigate(safeNext(location.search) ?? (user.role === "admin" ? "/admin" : "/"), { replace: true });
       } else {
         const acceptedTerms = formData.get("accepted_terms") === "on";
         const acceptedPrivacy = formData.get("accepted_privacy") === "on";
@@ -160,7 +166,7 @@ export function AuthPage({ mode }: AuthPageProps) {
           <label>E-mail-cím<input name="email" type="email" autoComplete="email" required aria-invalid={Boolean(fieldErrors.email)} aria-describedby={fieldErrors.email ? "email-error" : undefined} />{fieldError("email")}</label>
 
           <label>Jelszó
-            <span className="password-input-wrap"><input name="password" type={showPassword ? "text" : "password"} autoComplete={isLogin ? "current-password" : "new-password"} minLength={isLogin ? 1 : 8} maxLength={128} value={password} onChange={(event) => setPassword(event.target.value)} required aria-invalid={Boolean(fieldErrors.password)} aria-describedby={fieldErrors.password ? "password-error" : undefined} /><button type="button" onClick={() => setShowPassword((value) => !value)} aria-label={showPassword ? "Jelszó elrejtése" : "Jelszó megjelenítése"}>{showPassword ? "Elrejt" : "Mutat"}</button></span>
+            <span className="password-input-wrap"><input name="password" type={showPassword ? "text" : "password"} autoComplete={isLogin ? "current-password" : "new-password"} minLength={isLogin ? 1 : 8} maxLength={128} value={password} onChange={(event) => setPassword(event.target.value)} required aria-invalid={Boolean(fieldErrors.password)} aria-describedby={fieldErrors.password ? "password-error" : undefined} /><button type="button" onClick={togglePasswordVisibility} onKeyDown={handlePasswordToggleKeyDown} aria-label={showPassword ? "Jelszó elrejtése" : "Jelszó megjelenítése"}>{showPassword ? "Elrejt" : "Mutat"}</button></span>
             {fieldError("password")}
           </label>
 

@@ -1,4 +1,3 @@
-from datetime import timedelta
 from decimal import Decimal
 
 from fastapi import HTTPException, status
@@ -7,14 +6,11 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.models.auction import Auction, Bid
 from app.models.user import User
-from app.services.auction_lifecycle import can_view_auction, normalize_money, now_utc, sync_auction_status
+from app.services.auction_lifecycle import can_view_auction, effective_auction_end, normalize_money, now_utc, sync_auction_status
 from app.services.notifications import notify_auction_closed
 from app.services.notification_dispatcher import dispatch_notification
 from app.services.realtime import publish_auction_event
 from app.services.security_audit import create_domain_audit_log
-
-
-FIVE_MINUTE_EXTENSION_WINDOW = timedelta(minutes=5)
 
 
 def format_bid_amount(amount: Decimal) -> str:
@@ -78,7 +74,7 @@ def _sync_locked_auction_for_bidding(db: Session, auction: Auction) -> Auction:
     original_status = auction.status
     if auction.status == "scheduled" and auction.starts_at <= current_time:
         auction.status = "active"
-    if auction.status == "active" and auction.ends_at <= current_time:
+    if auction.status == "active" and effective_auction_end(auction) <= current_time:
         highest_bid = db.get(Bid, auction.highest_bid_id) if auction.highest_bid_id is not None else None
         if highest_bid is not None:
             auction.winner_id = highest_bid.bidder_id
@@ -131,6 +127,17 @@ def place_bid(db: Session, auction_id: int, bidder: User, amount: Decimal) -> tu
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=f"A licit összege legalább {format_bid_amount(minimum_bid)} legyen.",
         )
+    buy_now_price = normalize_money(auction.buy_now_price) if auction.buy_now_enabled and auction.buy_now_price is not None else None
+    if buy_now_price is not None and normalized_amount > buy_now_price:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Villámáras vásárlásnál pontosan {format_bid_amount(buy_now_price)} összeget adj meg.",
+        )
+    if normalized_amount != buy_now_price and (normalized_amount - minimum_bid) % auction.bid_increment != 0:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"A licit {format_bid_amount(minimum_bid)} összegtől {format_bid_amount(auction.bid_increment)} licitlépcsőkkel emelhető.",
+        )
 
     bid = Bid(auction_id=auction.id, bidder_id=bidder.id, amount=normalized_amount)
     db.add(bid)
@@ -144,8 +151,6 @@ def place_bid(db: Session, auction_id: int, bidder: User, amount: Decimal) -> tu
         auction.finalized_at = now_utc()
         notify_auction_closed(db, auction)
         create_domain_audit_log(db, action="auction_buy_now", user_id=bidder.id, auction_id=auction.id, metadata={"amount": str(normalized_amount)})
-    elif auction.five_minute_rule_enabled and auction.ends_at - now_utc() <= FIVE_MINUTE_EXTENSION_WINDOW:
-        auction.ends_at = now_utc() + FIVE_MINUTE_EXTENSION_WINDOW
     if previous_highest_bidder_id is not None and previous_highest_bidder_id != bidder.id:
         dispatch_notification(
             db,

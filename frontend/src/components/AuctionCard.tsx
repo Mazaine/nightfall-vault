@@ -1,6 +1,19 @@
-import { KeyboardEvent, MouseEvent } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { placeAuctionBid } from "../api/auctions";
+import { useAuth } from "../AuthContext";
+import { formatMoney } from "../utils/format";
+import { AuctionCountdown } from "./AuctionCountdown";
 import { SafeImage } from "./SafeImage";
+
+function moneyToCents(value: string | null | undefined) {
+  const amount = Number(value);
+  return Number.isFinite(amount) ? Math.round(amount * 100) : null;
+}
+
+function centsToAmount(cents: number) {
+  return (cents / 100).toFixed(2);
+}
 
 type AuctionCardProps = {
   item: {
@@ -9,11 +22,17 @@ type AuctionCardProps = {
     type: string;
     price: string;
     step: string;
+    currentAmount?: string;
+    bidIncrementAmount?: string;
     time: string;
+    endsAt?: string;
+    status?: string;
+    fiveMinuteRuleEnabled?: boolean;
     sellerName: string;
     sellerRating: number | string | null;
     sellerReviewCount?: number;
     buyNowPrice?: string | null;
+    buyNowAmount?: string | null;
     isClosed?: boolean;
     userIsOutbid?: boolean;
     sellerProfilePath?: string;
@@ -38,6 +57,14 @@ export function AuctionCard({
   showBidActions = true,
 }: AuctionCardProps) {
   const navigate = useNavigate();
+  const { isAuthenticated } = useAuth();
+  const initialCurrentCents = moneyToCents(item.currentAmount);
+  const incrementCents = moneyToCents(item.bidIncrementAmount);
+  const [displayPrice, setDisplayPrice] = useState(item.price);
+  const [nextBidAmount, setNextBidAmount] = useState(initialCurrentCents !== null && incrementCents !== null ? centsToAmount(initialCurrentCents + incrementCents) : "");
+  const [isActionPending, setIsActionPending] = useState(false);
+  const [isLocallyClosed, setIsLocallyClosed] = useState(Boolean(item.isClosed));
+  const [actionMessage, setActionMessage] = useState("");
   const parsedSellerRating = typeof item.sellerRating === "number"
     ? item.sellerRating
     : Number.parseFloat(String(item.sellerRating ?? "").replace(",", "."));
@@ -45,30 +72,46 @@ export function AuctionCard({
     ? parsedSellerRating
     : null;
   const filledStars = sellerRating === null ? 0 : Math.round(sellerRating);
-  const openDetail = () => navigate(detailPath);
-  const handleClick = (event: MouseEvent<HTMLElement>) => {
-    if (!(event.target as HTMLElement).closest("a, button")) openDetail();
-  };
-  const handleKeyDown = (event: KeyboardEvent<HTMLElement>) => {
-    if (event.key === "Enter" || event.key === " ") {
-      event.preventDefault();
-      openDetail();
+
+  useEffect(() => {
+    const currentCents = moneyToCents(item.currentAmount);
+    const stepCents = moneyToCents(item.bidIncrementAmount);
+    setDisplayPrice(item.price);
+    setNextBidAmount(currentCents !== null && stepCents !== null ? centsToAmount(currentCents + stepCents) : "");
+    setIsLocallyClosed(Boolean(item.isClosed));
+  }, [item.bidIncrementAmount, item.currentAmount, item.isClosed, item.price]);
+
+  const submitQuickAction = async (amount: string, isBuyNow = false) => {
+    if (!isAuthenticated) {
+      navigate(`/login?next=${encodeURIComponent(detailPath)}`);
+      return;
+    }
+    if (!amount || isActionPending) return;
+    setIsActionPending(true);
+    setActionMessage("");
+    try {
+      const bid = await placeAuctionBid(Number(item.id), amount);
+      setDisplayPrice(formatMoney(bid.amount));
+      const amountCents = moneyToCents(bid.amount);
+      if (amountCents !== null && incrementCents !== null) setNextBidAmount(centsToAmount(amountCents + incrementCents));
+      const closed = Boolean(bid.reaches_buy_now);
+      setIsLocallyClosed(closed);
+      setActionMessage(closed || isBuyNow ? "Megnyerted az aukciót villámáron." : `A licit sikeresen rögzítve: ${formatMoney(bid.amount)}.`);
+    } catch (error) {
+      setActionMessage(error instanceof Error ? error.message : "A művelet nem sikerült.");
+    } finally {
+      setIsActionPending(false);
     }
   };
 
   return (
-    <article
-      aria-label={`${item.title} aukció megnyitása`}
-      className={`auction-card auction-card-${index + 1}${item.isClosed ? " auction-card-closed" : ""}`}
-      onClick={handleClick}
-      onKeyDown={handleKeyDown}
-      role="link"
-      tabIndex={0}
-    >
-      <Link className="auction-image" to={detailPath} aria-label={`${item.title} részletei`}>
+    <article aria-label={`${item.title} aukció`} className={`auction-card auction-card-${index + 1}${isLocallyClosed ? " auction-card-closed" : ""}`}>
+      <div className="auction-image">
         <SafeImage src={item.imageUrl} alt={item.title} loading="lazy" decoding="async" width={700} height={700} />
-      </Link>
-      {showTimer && <div className="auction-time">{item.time}</div>}
+      </div>
+      {showTimer && item.endsAt && item.status
+        ? <AuctionCountdown className="auction-time" endsAt={item.endsAt} status={item.status} fiveMinuteRuleEnabled={item.fiveMinuteRuleEnabled} fallback={item.time} />
+        : showTimer ? <div className="auction-time">{item.time}</div> : null}
       {item.userIsOutbid && <div className="auction-alert">Rád licitáltak</div>}
 
       <div className="auction-content">
@@ -95,20 +138,21 @@ export function AuctionCard({
           </span>
         </div>
         <span>{priceLabel}</span>
-        <strong>{item.price}</strong>
+        <strong>{displayPrice}</strong>
         <small>Licitlépcső: {item.step}</small>
         {typeof item.bidCount === "number" ? <small>{item.bidCount} licit</small> : null}
 
         <div className="auction-actions">
-          {showBidActions && !item.isClosed && item.canBid !== false ? (
+          {showBidActions && !isLocallyClosed && item.canBid !== false ? (
             <>
-              <Link className="button button-secondary" to={`${detailPath}#bid-section`}>Licitálok</Link>
-              {item.buyNowPrice ? (
-                <Link className="button button-lightning" to={`${detailPath}#buy-now-section`}>⚡ Lecsapom</Link>
+              <button className="button button-secondary" type="button" disabled={isActionPending || !nextBidAmount} onClick={() => void submitQuickAction(nextBidAmount)}>{isActionPending ? "Feldolgozás..." : "Licitálok"}</button>
+              {item.buyNowAmount ? (
+                <button className="button button-lightning" type="button" disabled={isActionPending} onClick={() => void submitQuickAction(item.buyNowAmount ?? "", true)}>⚡ Lecsapom</button>
               ) : null}
             </>
           ) : null}
         </div>
+        {actionMessage ? <p className="form-message auction-action-message" role="status" aria-live="polite">{actionMessage}</p> : null}
       </div>
     </article>
   );

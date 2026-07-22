@@ -72,8 +72,10 @@ def close_expired_auctions(db: Session, limit: int = 50) -> int:
     )
     closed_count = 0
     for auction in db.scalars(statement).all():
+        previous_status = auction.status
         close_ended_active_auction(db, auction)
-        closed_count += 1
+        if previous_status == "active" and auction.status != "active":
+            closed_count += 1
     archive_due_transactions(db)
     send_due_watchlist_reminders(db)
     db.commit()

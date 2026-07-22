@@ -291,6 +291,7 @@ class AuctionResponse(AuctionListItem):
     updated_at: datetime
     winner: UserSummary | None = None
     can_chat: bool = False
+    chat_read_only: bool = False
     can_review: bool = False
     is_owner: bool = False
 

@@ -197,6 +197,7 @@ def test_scheduler_creates_close_notifications_and_audit_log() -> None:
     try:
         auction_row = db.get(Auction, auction["id"])
         assert auction_row is not None
+        auction_row.five_minute_rule_enabled = False
         auction_row.ends_at = datetime.now(timezone.utc) - timedelta(seconds=1)
         db.add(auction_row)
         db.commit()

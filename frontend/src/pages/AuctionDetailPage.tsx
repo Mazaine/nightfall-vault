@@ -1,19 +1,37 @@
-import { FormEvent, useEffect, useRef, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { FormEvent, KeyboardEvent as ReactKeyboardEvent, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { Link, useLocation, useParams } from "react-router-dom";
 import { apiAssetUrl } from "../api/client";
 import { ApiError } from "../api/client";
 import { auctionReportReasons, createAuctionReport } from "../api/reports";
 import { useAuth } from "../AuthContext";
 import { useNotifications } from "../NotificationContext";
+import { useAuctionRealtime } from "../AuctionRealtimeContext";
+import { AuctionCountdown } from "../components/AuctionCountdown";
 import { ReportDialog } from "../components/ReportDialog";
 import { SafeImage } from "../components/SafeImage";
 import { addWatchlistItem, auctionStreamUrl, createAuctionMessage, createAuctionReview, getAuction, getAuctionPresence, listAuctionBids, listAuctionMessages, listRelatedAuctions, listSellerOtherAuctions, markAuctionMessagesRead, placeAuctionBid, listAuctionReviews, sendTyping, type Auction, type AuctionBid, type AuctionMessage, type AuctionRealtimeSnapshot, type AuctionReview } from "../api/auctions";
-import { formatLocalDateTime, formatMoney, formatRemainingTime } from "../utils/format";
+import { formatAuctionStatus, formatLocalDateTime, formatMoney, formatRemainingTime } from "../utils/format";
+
+function moneyToCents(value: string | null | undefined) {
+  const amount = Number(value);
+  return Number.isFinite(amount) ? Math.round(amount * 100) : null;
+}
+
+function centsToAmount(cents: number) {
+  return (cents / 100).toFixed(2);
+}
+
+function appendUniqueMessage(items: AuctionMessage[], incoming: AuctionMessage) {
+  return items.some((item) => item.id === incoming.id) ? items : [...items, incoming];
+}
 
 export function AuctionDetailPage() {
   const { auctionId } = useParams();
+  const location = useLocation();
   const { isAuthenticated, user } = useAuth();
-  const { subscribe } = useNotifications();
+  const { subscribe: subscribeNotifications } = useNotifications();
+  const { subscribe: subscribeAuctionUpdates } = useAuctionRealtime();
   const [auction, setAuction] = useState<Auction | null>(null);
   const [messages, setMessages] = useState<AuctionMessage[]>([]);
   const [bidHistory, setBidHistory] = useState<AuctionBid[]>([]);
@@ -26,6 +44,7 @@ export function AuctionDetailPage() {
   const [postAuctionMessage, setPostAuctionMessage] = useState("");
   const [messageFeedback, setMessageFeedback] = useState("");
   const [isMessageSending, setIsMessageSending] = useState(false);
+  const [isChatOpen, setIsChatOpen] = useState(location.hash === "#auction-conversation");
   const [bidAmount, setBidAmount] = useState("");
   const [bidMessage, setBidMessage] = useState("");
   const [watchlistMessage, setWatchlistMessage] = useState("");
@@ -39,6 +58,7 @@ export function AuctionDetailPage() {
   const typingTimerRef = useRef<number | null>(null);
   const presenceTimerRef = useRef<number | null>(null);
   const lastTypingSentRef = useRef(0);
+  const messageSendingRef = useRef(false);
 
   useEffect(() => {
     if (!auctionId || !/^\d+$/.test(auctionId)) {
@@ -91,13 +111,16 @@ export function AuctionDetailPage() {
     return () => source.close();
   }, [auctionId]);
 
-  useEffect(() => subscribe((event) => {
+  useEffect(() => subscribeNotifications((event) => {
     const eventAuctionId = Number(event.payload.auction_id);
     if (!auction || eventAuctionId !== auction.id) return;
     if (event.type === "auction_message") {
       const incoming = event.payload as unknown as AuctionMessage;
-      setMessages((items) => items.some((item) => item.id === incoming.id) ? items : [...items, incoming]);
-      if (incoming.sender_id !== user?.id) void markAuctionMessagesRead(auction.id);
+      setMessages((items) => appendUniqueMessage(items, incoming));
+      if (incoming.sender_id !== user?.id) {
+        setIsChatOpen(true);
+        void markAuctionMessagesRead(auction.id);
+      }
     } else if (event.type === "typing" && Number(event.payload.user_id) !== user?.id) {
       setTypingUser(String(event.payload.username ?? "A másik fél"));
       if (typingTimerRef.current) window.clearTimeout(typingTimerRef.current);
@@ -110,11 +133,24 @@ export function AuctionDetailPage() {
       if (presenceTimerRef.current) window.clearTimeout(presenceTimerRef.current);
       presenceTimerRef.current = window.setTimeout(() => setPresence((value) => value ? { ...value, online: false } : value), 50000);
     }
-  }), [auction, subscribe, user?.id]);
+  }), [auction, subscribeNotifications, user?.id]);
+
+  useEffect(() => subscribeAuctionUpdates((snapshot) => {
+    const updateAuction = (item: Auction) => item.id === snapshot.auction_id
+      ? { ...item, status: snapshot.status, current_price: snapshot.current_price, highest_bid_id: snapshot.highest_bid_id, winner_id: snapshot.winner_id, ends_at: snapshot.ends_at, bid_count: snapshot.bid_count }
+      : item;
+    setRelatedAuctions((items) => items.map(updateAuction));
+    setSellerAuctions((items) => items.map(updateAuction));
+  }), [subscribeAuctionUpdates]);
 
   useEffect(() => {
-    messageListRef.current?.scrollTo({ top: messageListRef.current.scrollHeight, behavior: "smooth" });
-  }, [messages, typingUser]);
+    if (!isChatOpen || !messageListRef.current) return;
+    messageListRef.current.scrollTop = messageListRef.current.scrollHeight;
+  }, [isChatOpen, messages, typingUser]);
+
+  useEffect(() => {
+    if (location.hash === "#auction-conversation") setIsChatOpen(true);
+  }, [location.hash]);
 
   useEffect(() => () => {
     if (typingTimerRef.current) window.clearTimeout(typingTimerRef.current);
@@ -130,21 +166,30 @@ export function AuctionDetailPage() {
 
   const sendMessage = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!auction || !postAuctionMessage.trim()) {
+    if (!auction || !postAuctionMessage.trim() || auction.chat_read_only || messageSendingRef.current) {
       return;
     }
+    messageSendingRef.current = true;
     setIsMessageSending(true);
     setMessageFeedback("");
     try {
       const created = await createAuctionMessage(auction.id, postAuctionMessage);
-      setMessages((items) => [...items, created]);
+      setMessages((items) => appendUniqueMessage(items, created));
       setPostAuctionMessage("");
       setMessageFeedback("Az üzenet elküldve.");
     } catch (reason) {
       setMessageFeedback(reason instanceof Error ? reason.message : "Az üzenet küldése nem sikerült.");
     } finally {
+      messageSendingRef.current = false;
       setIsMessageSending(false);
     }
+  };
+
+  const handleMessageKeyDown = (event: ReactKeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing) return;
+    event.preventDefault();
+    if (!postAuctionMessage.trim() || isMessageSending || auction?.chat_read_only) return;
+    event.currentTarget.form?.requestSubmit();
   };
 
   const placeBidAmount = async (amount: string) => {
@@ -172,7 +217,30 @@ export function AuctionDetailPage() {
 
   const submitBid = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    await placeBidAmount(bidAmount);
+    if (!auction) return;
+    const currentCents = moneyToCents(auction.current_price ?? auction.starting_price);
+    const incrementCents = moneyToCents(auction.bid_increment);
+    if (currentCents === null || incrementCents === null || incrementCents <= 0) {
+      setBidMessage("A licitlépcső adatai nem érvényesek.");
+      return;
+    }
+    const minimumCents = currentCents + incrementCents;
+    const amount = bidAmount.trim() || centsToAmount(minimumCents);
+    const amountCents = moneyToCents(amount);
+    const buyNowCents = moneyToCents(auction.buy_now_enabled ? auction.buy_now_price : null);
+    if (amountCents === null || amountCents < minimumCents) {
+      setBidMessage(`A licit összege legalább ${formatMoney(centsToAmount(minimumCents))} legyen.`);
+      return;
+    }
+    if (buyNowCents !== null && amountCents > buyNowCents) {
+      setBidMessage(`A villámár legfeljebb ${formatMoney(centsToAmount(buyNowCents))} lehet.`);
+      return;
+    }
+    if (amountCents !== buyNowCents && (amountCents - minimumCents) % incrementCents !== 0) {
+      setBidMessage(`A licit ${formatMoney(centsToAmount(minimumCents))} összegtől ${formatMoney(auction.bid_increment)} licitlépcsőkkel emelhető.`);
+      return;
+    }
+    await placeBidAmount(amount);
   };
 
   const addToWatchlist = async () => {
@@ -221,6 +289,7 @@ export function AuctionDetailPage() {
   const galleryImages = [...auction.images].sort((left, right) => left.position - right.position);
   const selectedImageIndex = Math.max(0, galleryImages.findIndex((image) => image.id === selectedImageId));
   const selectedImage = galleryImages[selectedImageIndex];
+  const minimumBidAmount = Number(auction.current_price ?? auction.starting_price) + Number(auction.bid_increment);
   const selectRelativeImage = (direction: -1 | 1) => {
     if (galleryImages.length < 2) return;
     const nextIndex = (selectedImageIndex + direction + galleryImages.length) % galleryImages.length;
@@ -263,7 +332,7 @@ export function AuctionDetailPage() {
         ) : null}
       </div>
       <div className="side-panel detail-panel">
-        <p className="eyebrow">{auction.category} · {auction.status}</p>
+        <p className="eyebrow">{auction.category} · {formatAuctionStatus(auction.status)}</p>
         <h1>{auction.title}</h1>
         <p className="hero-lead">
           {auction.description}
@@ -272,7 +341,7 @@ export function AuctionDetailPage() {
           <div><dt>Aktuális licit</dt><dd>{formatMoney(auction.current_price ?? auction.starting_price)}</dd></div>
           <div><dt>Kezdőár</dt><dd>{formatMoney(auction.starting_price)}</dd></div>
           <div><dt>Licitlépcső</dt><dd>{formatMoney(auction.bid_increment)}</dd></div>
-          <div><dt>Hátralévő idő</dt><dd>{formatRemainingTime(auction.ends_at, auction.status)}</dd></div>
+          <div className={auction.five_minute_rule_enabled ? "detail-countdown-row" : undefined}><dt>Hátralévő idő</dt><dd><AuctionCountdown endsAt={auction.ends_at} status={auction.status} fiveMinuteRuleEnabled={auction.five_minute_rule_enabled} /></dd></div>
           <div><dt>Kezdés</dt><dd>{formatLocalDateTime(auction.starts_at)}</dd></div>
           <div><dt>Zárás</dt><dd>{formatLocalDateTime(auction.ends_at)}</dd></div>
           <div><dt>Eladó</dt><dd>{auction.seller?.username ? <Link className="seller-link" to={`/users/${auction.seller.username}`}>{auction.seller.full_name ?? auction.seller.username}</Link> : "Eladó"}</dd></div>
@@ -281,16 +350,17 @@ export function AuctionDetailPage() {
           ) : null}
         </dl>
         {auction.status === "active" && !auction.is_owner && isAuthenticated ? (
-          <form className="bid-panel" id="bid-section" onSubmit={submitBid}>
+          <form className="bid-panel" id="bid-section" onSubmit={submitBid} noValidate>
             <label>
               Licit összege
               <input
-                min="1"
-                step="1"
+                min={minimumBidAmount}
+                max={auction.buy_now_enabled && auction.buy_now_price ? auction.buy_now_price : undefined}
+                step={auction.bid_increment}
                 type="number"
                 value={bidAmount}
                 onChange={(event) => setBidAmount(event.target.value)}
-                placeholder={String(Number(auction.current_price ?? auction.starting_price) + Number(auction.bid_increment))}
+                placeholder={String(minimumBidAmount)}
               />
             </label>
             <button className="button button-primary" type="submit" disabled={isBidSubmitting}>
@@ -301,7 +371,7 @@ export function AuctionDetailPage() {
                 Villámár: {formatMoney(auction.buy_now_price)}
               </button>
             ) : null}
-            {bidMessage ? <p className="form-message">{bidMessage}</p> : null}
+            {bidMessage ? <p className="form-message" role="status" aria-live="polite">{bidMessage}</p> : null}
           </form>
         ) : null}
         {auction.status === "active" && !auction.is_owner && !isAuthenticated ? (
@@ -370,14 +440,15 @@ export function AuctionDetailPage() {
           )}
         </section>
 
-        {auction.can_chat ? (
-          <section className="post-auction-panel auction-conversation" id="auction-conversation">
-            <p className="eyebrow">Privát beszélgetés</p>
-            <h2>Kapcsolat a másik féllel</h2>
-            <div className="marketplace-boundary-note" role="note">
-              A Nightfall Vault nem kezel fizetést vagy szállítást. A részleteket egymással, saját felelősségre beszélitek meg.
-            </div>
-            <p className={`presence-indicator${presence?.online ? " is-online" : ""}`}>{presence?.online ? "Online" : presence?.last_active_at ? `Utoljára aktív: ${formatLocalDateTime(presence.last_active_at)}` : "Offline"}</p>
+        {auction.can_chat && !isChatOpen ? createPortal(<button className="button button-primary chat-launcher" type="button" onClick={() => setIsChatOpen(true)} aria-controls="auction-conversation">Üzenetek megnyitása</button>, document.body) : null}
+        {auction.can_chat && isChatOpen ? createPortal((
+          <section className="post-auction-panel auction-conversation chat-dock" id="auction-conversation" role="dialog" aria-label={`${auction.title} privát beszélgetése`}>
+            <header className="chat-dock-header">
+              <div><strong>Aukciós chat</strong><small>{auction.title}</small></div>
+              <p className={`presence-indicator${presence?.online ? " is-online" : ""}`}>{presence?.online ? "Online" : presence?.last_active_at ? `Utoljára aktív: ${formatLocalDateTime(presence.last_active_at)}` : "Offline"}</p>
+              <button className="chat-minimize-button" type="button" aria-label="Chat kis méretre zárása" onClick={() => setIsChatOpen(false)}>−</button>
+            </header>
+            <div className="chat-boundary-note" role="note">A fizetést és az átadást egymással egyeztetitek.</div>
             <div className="message-list" ref={messageListRef} aria-live="polite" aria-label="Privát beszélgetés üzenetei">
               {messages.length === 0 ? <p className="empty-state">Még nincs üzenet. Írj a másik félnek az egyeztetés megkezdéséhez.</p> : null}
               {messages.map((message) => (
@@ -389,14 +460,17 @@ export function AuctionDetailPage() {
               ))}
               {typingUser ? <p className="typing-indicator" aria-live="polite">{typingUser} ír…</p> : null}
             </div>
-            <form onSubmit={sendMessage}>
-              <label htmlFor="auction-message">Üzenet a másik félnek</label>
-              <textarea id="auction-message" maxLength={2000} required value={postAuctionMessage} onChange={(event) => changeMessage(event.target.value)} rows={4} />
-              <button className="button button-secondary" type="submit" disabled={isMessageSending || !postAuctionMessage.trim()}>{isMessageSending ? "Küldés..." : "Üzenet küldése"}</button>
-              {messageFeedback ? <p className="form-message" role="status">{messageFeedback}</p> : null}
-            </form>
+            {auction.chat_read_only ? <p className="chat-read-only-note" role="status">Ez az archivált beszélgetés csak olvasható.</p> : (
+              <form className="chat-composer" onSubmit={sendMessage}>
+                <label className="visually-hidden" htmlFor="auction-message">Üzenet a másik félnek</label>
+                <textarea id="auction-message" aria-describedby="chat-keyboard-help" maxLength={2000} required value={postAuctionMessage} onChange={(event) => changeMessage(event.target.value)} onKeyDown={handleMessageKeyDown} rows={2} placeholder="Írj egy üzenetet…" />
+                <button className="button button-primary" type="submit" disabled={isMessageSending || !postAuctionMessage.trim()} aria-label="Üzenet küldése">{isMessageSending ? "Küldés..." : "Küldés"}</button>
+                <small id="chat-keyboard-help">Enter: küldés · Shift+Enter: új sor</small>
+                {messageFeedback ? <p className="form-message" role="status">{messageFeedback}</p> : null}
+              </form>
+            )}
           </section>
-        ) : null}
+        ), document.body) : null}
 
         {auction.can_review ? (
           <section className="post-auction-panel">

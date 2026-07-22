@@ -24,7 +24,7 @@ def redis_client() -> redis.Redis:
 
 def publish_event(stream: str, event_type: str, payload: dict[str, Any]) -> str | None:
     try:
-        return str(redis_client().xadd(stream, {"event": event_type, "data": json.dumps(payload, ensure_ascii=False)}, maxlen=settings.realtime_stream_max_length, approximate=True))
+        return str(redis_client().xadd(stream, {"event": event_type, "data": json.dumps(payload, ensure_ascii=False, default=str)}, maxlen=settings.realtime_stream_max_length, approximate=True))
     except Exception:
         logger.exception("Realtime event publish failed: stream=%s event=%s", stream, event_type)
         return None

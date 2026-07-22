@@ -5,7 +5,8 @@ import { createUserReport, userReportReasons } from "../api/reports";
 import { followSeller, getPublicUserProfile, listPublicUserReviews, unfollowSeller, type PublicReview, type PublicUserProfile } from "../api/users";
 import { useAuth } from "../AuthContext";
 import { ReportDialog } from "../components/ReportDialog";
-import { formatLocalDateTime, formatMoney, formatRemainingTime } from "../utils/format";
+import { formatAuctionStatus, formatLocalDateTime, formatMoney, formatRemainingTime } from "../utils/format";
+import { useAuctionRealtime } from "../AuctionRealtimeContext";
 
 function Stars({ value }: { value: number | null }) {
   const rounded = value ? Math.round(value) : 0;
@@ -34,6 +35,7 @@ function ReviewList({ reviews }: { reviews: PublicReview[] }) {
 }
 
 export function UserProfilePage() {
+  const { subscribe } = useAuctionRealtime();
   const { username } = useParams();
   const { user, isAuthenticated } = useAuth();
   const [profile, setProfile] = useState<PublicUserProfile | null>(null);
@@ -56,6 +58,18 @@ export function UserProfilePage() {
       .catch((err: Error) => setError(err.message))
       .finally(() => setIsLoading(false));
   }, [username, reviewSort]);
+
+  useEffect(() => subscribe((snapshot) => {
+    setProfile((current) => current ? {
+      ...current,
+      active_auctions: current.active_auctions.map((auction) => auction.id === snapshot.auction_id
+        ? { ...auction, status: snapshot.status, current_price: snapshot.current_price, ends_at: snapshot.ends_at, bid_count: snapshot.bid_count }
+        : auction),
+      closed_auctions: current.closed_auctions.map((auction) => auction.id === snapshot.auction_id
+        ? { ...auction, status: snapshot.status, current_price: snapshot.current_price, ends_at: snapshot.ends_at, bid_count: snapshot.bid_count }
+        : auction),
+    } : current);
+  }), [subscribe]);
 
   const toggleFollow = async () => {
     if (!profile) return;
@@ -161,7 +175,7 @@ export function UserProfilePage() {
             {profile.closed_auctions.map((auction) => (
               <Link className="compact-auction-row is-closed" to={`/auctions/${auction.id}`} key={auction.id}>
                 <strong>{auction.title}</strong>
-                <span>{auction.status}</span>
+                <span>{formatAuctionStatus(auction.status)}</span>
                 <span>{formatMoney(auction.current_price)}</span>
                 <span>{auction.bid_count} licit</span>
               </Link>

@@ -133,14 +133,17 @@ def test_bid_validation_rejects_too_low_amount_and_respects_increment() -> None:
     auction = create_active_auction(seller)
 
     too_low = place_bid(auction["id"], bidder, "1000.00")
-    valid = place_bid(auction["id"], bidder, "1100.00")
-    next_too_low = place_bid(auction["id"], bidder, "1150.00")
+    off_step = place_bid(auction["id"], bidder, "1150.00")
+    valid = place_bid(auction["id"], bidder, "1300.00")
+    next_too_low = place_bid(auction["id"], bidder, "1350.00")
 
     assert too_low.status_code == 422
     assert too_low.json()["detail"] == "A licit összege legalább 1 100 Ft legyen."
+    assert off_step.status_code == 422
+    assert off_step.json()["detail"] == "A licit 1 100 Ft összegtől 100 Ft licitlépcsőkkel emelhető."
     assert valid.status_code == 201
     assert next_too_low.status_code == 422
-    assert next_too_low.json()["detail"] == "A licit összege legalább 1 200 Ft legyen."
+    assert next_too_low.json()["detail"] == "A licit összege legalább 1 400 Ft legyen."
 
 
 def test_seller_cannot_bid_on_own_auction() -> None:
@@ -228,6 +231,7 @@ def test_expired_active_auction_sets_winner_from_highest_bid() -> None:
     try:
         auction_row = db.get(Auction, auction["id"])
         assert auction_row is not None
+        auction_row.five_minute_rule_enabled = False
         auction_row.ends_at = datetime.now(timezone.utc) - timedelta(seconds=1)
         db.add(auction_row)
         db.commit()
@@ -251,6 +255,7 @@ def test_expired_active_auction_without_bid_becomes_unsold() -> None:
     try:
         auction_row = db.get(Auction, auction["id"])
         assert auction_row is not None
+        auction_row.five_minute_rule_enabled = False
         auction_row.ends_at = datetime.now(timezone.utc) - timedelta(seconds=1)
         db.add(auction_row)
         db.commit()
@@ -327,6 +332,7 @@ def test_scheduler_closes_expired_active_auction_as_sold() -> None:
     try:
         auction_row = db.get(Auction, auction["id"])
         assert auction_row is not None
+        auction_row.five_minute_rule_enabled = False
         auction_row.ends_at = datetime.now(timezone.utc) - timedelta(seconds=1)
         db.add(auction_row)
         db.commit()
@@ -349,6 +355,7 @@ def test_scheduler_closes_expired_active_auction_as_unsold() -> None:
     try:
         auction_row = db.get(Auction, auction["id"])
         assert auction_row is not None
+        auction_row.five_minute_rule_enabled = False
         auction_row.ends_at = datetime.now(timezone.utc) - timedelta(seconds=1)
         db.add(auction_row)
         db.commit()
@@ -361,11 +368,12 @@ def test_scheduler_closes_expired_active_auction_as_unsold() -> None:
         db.close()
 
 
-def test_five_minute_extension_prevents_scheduler_close() -> None:
+def test_five_minute_extension_starts_at_original_deadline_and_closes_afterwards() -> None:
     cleanup_test_data()
     seller = create_test_user("seller-extension@bid-test.local")
     bidder = create_test_user("bidder-extension@bid-test.local")
-    auction = create_active_auction(seller, ends_at=(datetime.now(timezone.utc) + timedelta(minutes=1)).isoformat())
+    original_end = datetime.now(timezone.utc) - timedelta(seconds=1)
+    auction = create_active_auction(seller, ends_at=original_end.isoformat())
 
     response = place_bid(auction["id"], bidder, "1100.00")
     db = SessionLocal()
@@ -376,7 +384,17 @@ def test_five_minute_extension_prevents_scheduler_close() -> None:
         assert response.status_code == 201
         assert closed_count == 0
         assert auction_row.status == "active"
-        assert auction_row.ends_at > datetime.now(timezone.utc)
+        assert auction_row.ends_at == original_end
+
+        auction_row.starts_at = datetime.now(timezone.utc) - timedelta(minutes=10)
+        auction_row.ends_at = datetime.now(timezone.utc) - timedelta(minutes=5, seconds=1)
+        db.add(auction_row)
+        db.commit()
+        closed_count = close_expired_auctions(db)
+        db.refresh(auction_row)
+        assert closed_count == 1
+        assert auction_row.status == "sold"
+        assert auction_row.winner_id == bidder.id
     finally:
         db.close()
 

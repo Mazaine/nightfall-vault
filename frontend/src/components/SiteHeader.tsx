@@ -103,6 +103,7 @@ export function SiteHeader() {
 
         <nav className={isMenuOpen ? "site-nav is-open" : "site-nav"} id="primary-navigation" aria-label="Elsődleges navigáció">
           {navItems.filter((item) => !item.authenticated || isAuthenticated).map((item) => <NavLink to={item.to} key={item.to} end={item.to === "/"}>{item.label}</NavLink>)}
+          {!isAuthenticated ? <div className="mobile-auth-links"><NavLink to="/login">Belépés</NavLink><NavLink to="/register">Regisztráció</NavLink></div> : null}
         </nav>
 
         <div className="header-actions" aria-label="Fiókműveletek">

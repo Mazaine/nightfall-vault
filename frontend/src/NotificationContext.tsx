@@ -7,6 +7,7 @@ import { useAuth } from "./AuthContext";
 export type RealtimeEvent = { id: string; type: string; payload: Record<string, unknown> };
 type Listener = (event: RealtimeEvent) => void;
 type Toast = { id: string; title: string; message: string; targetUrl: string };
+type ToastInput = Omit<Toast, "id">;
 
 type NotificationContextValue = {
   isRealtimeReady: boolean;
@@ -17,9 +18,10 @@ type NotificationContextValue = {
   markRead: (id: number) => Promise<void>;
   markAllRead: () => Promise<void>;
   subscribe: (listener: Listener) => () => void;
+  showToast: (toast: ToastInput) => void;
 };
 
-const EMPTY_CONTEXT: NotificationContextValue = { isRealtimeReady: false, notifications: [], unreadCount: 0, isLoading: false, reload: async () => undefined, markRead: async () => undefined, markAllRead: async () => undefined, subscribe: () => () => undefined };
+const EMPTY_CONTEXT: NotificationContextValue = { isRealtimeReady: false, notifications: [], unreadCount: 0, isLoading: false, reload: async () => undefined, markRead: async () => undefined, markAllRead: async () => undefined, subscribe: () => () => undefined, showToast: () => undefined };
 const NotificationContext = createContext<NotificationContextValue>(EMPTY_CONTEXT);
 const LAST_EVENT_KEY = "nightfall:last-realtime-event";
 
@@ -41,6 +43,12 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const listeners = useRef(new Set<Listener>());
   const seenEventIds = useRef(new Set<string>());
+
+  const showToast = useCallback((toast: ToastInput) => {
+    const item = { ...toast, id: `local-${Date.now()}-${Math.random().toString(36).slice(2)}` };
+    setToasts((items) => [...items, item].slice(-4));
+    window.setTimeout(() => setToasts((items) => items.filter((entry) => entry.id !== item.id)), 6500);
+  }, []);
 
   const reload = useCallback(async () => {
     if (!isAuthenticated) return;
@@ -145,7 +153,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   }, [reload]);
 
   const subscribe = useCallback((listener: Listener) => { listeners.current.add(listener); return () => { listeners.current.delete(listener); }; }, []);
-  const value = useMemo(() => ({ isRealtimeReady: true, notifications, unreadCount, isLoading, reload, markRead, markAllRead, subscribe }), [notifications, unreadCount, isLoading, reload, markRead, markAllRead, subscribe]);
+  const value = useMemo(() => ({ isRealtimeReady: true, notifications, unreadCount, isLoading, reload, markRead, markAllRead, subscribe, showToast }), [notifications, unreadCount, isLoading, reload, markRead, markAllRead, subscribe, showToast]);
 
   return <NotificationContext.Provider value={value}>{children}<div className="toast-region" aria-live="polite" aria-label="Értesítések">{toasts.map((toast) => <button className="nightfall-toast" type="button" key={toast.id} onClick={() => { navigate(toast.targetUrl); setToasts((items) => items.filter((item) => item.id !== toast.id)); }}><strong>{toast.title}</strong><span>{toast.message}</span></button>)}</div></NotificationContext.Provider>;
 }

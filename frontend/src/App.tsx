@@ -4,6 +4,8 @@ import { LoadingState } from "./components/AsyncStates";
 import { SiteFooter } from "./components/SiteFooter";
 import { SiteHeader } from "./components/SiteHeader";
 import { RouteMetadata } from "./components/RouteMetadata";
+import { ScrollToTop } from "./components/ScrollToTop";
+import { IncomingChatDock } from "./components/IncomingChatDock";
 import { useAuth } from "./AuthContext";
 import { AboutPage } from "./pages/AboutPage";
 import { AuctionDetailPage } from "./pages/AuctionDetailPage";
@@ -52,6 +54,7 @@ function ProtectedRoute() {
 function App() {
   return (
     <div className="app-shell">
+      <ScrollToTop />
       <RouteMetadata />
       <a className="skip-link" href="#main-content">Ugrás a fő tartalomhoz</a>
       <SiteHeader />
@@ -105,6 +108,7 @@ function App() {
         </Suspense>
       </main>
       <SiteFooter />
+      <IncomingChatDock />
     </div>
   );
 }

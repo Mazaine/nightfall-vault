@@ -1,4 +1,4 @@
-import { FormEvent, type ReactNode, useEffect, useState } from "react";
+import { FormEvent, type KeyboardEvent, type ReactNode, useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { forgotPassword, resetPassword, verifyEmail, type MessageResponse } from "../api/auth";
 import { CaptchaWidget } from "../components/security/CaptchaWidget";
@@ -71,6 +71,12 @@ export function ResetPasswordPage() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const togglePasswordVisibility = () => setShowPassword((value) => !value);
+  const handlePasswordToggleKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    event.preventDefault();
+    togglePasswordVisibility();
+  };
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -93,7 +99,7 @@ export function ResetPasswordPage() {
 
   return <RecoveryShell eyebrow="Fiókbiztonság" title="Új jelszó beállítása" lead="Adj meg egy legalább 8 karakteres új jelszót. A biztonsági link csak egyszer használható.">
     <form className="auth-form" onSubmit={submit}>
-      <label>Új jelszó<span className="password-input-wrap"><input type={showPassword ? "text" : "password"} autoComplete="new-password" minLength={8} maxLength={128} value={password} onChange={(event) => setPassword(event.target.value)} required /><button type="button" onClick={() => setShowPassword((value) => !value)}>{showPassword ? "Elrejt" : "Mutat"}</button></span></label>
+      <label>Új jelszó<span className="password-input-wrap"><input type={showPassword ? "text" : "password"} autoComplete="new-password" minLength={8} maxLength={128} value={password} onChange={(event) => setPassword(event.target.value)} required /><button type="button" onClick={togglePasswordVisibility} onKeyDown={handlePasswordToggleKeyDown} aria-label={showPassword ? "Jelszó elrejtése" : "Jelszó megjelenítése"}>{showPassword ? "Elrejt" : "Mutat"}</button></span></label>
       <label>Új jelszó megerősítése<input type={showPassword ? "text" : "password"} autoComplete="new-password" minLength={8} maxLength={128} value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} required aria-invalid={Boolean(confirmPassword && password !== confirmPassword)} /></label>
       {confirmPassword && password !== confirmPassword ? <p className="auth-field-error">A két jelszó nem egyezik.</p> : null}
       {error ? <p className="auth-message is-error" role="alert">{error}</p> : null}

@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta, timezone
 from urllib.parse import parse_qs, urlparse
 from uuid import uuid4
 
@@ -5,7 +6,9 @@ from fastapi.testclient import TestClient
 
 from app.core.security import create_access_token, hash_password
 from app.db.session import SessionLocal
+from app.api.auth import hash_reset_token
 from app.main import app
+from app.models.password_reset_token import PasswordResetToken
 from app.models.user import User
 
 
@@ -145,6 +148,61 @@ def test_forgot_password_is_non_enumerating_and_reset_is_single_use(monkeypatch)
     assert changed.status_code == 200
     assert reused.status_code == 400
     assert client.post("/api/auth/login", json={"email": user.email, "password": "NewPassword123!"}).status_code == 200
+
+
+def test_expired_password_reset_link_has_cultured_hungarian_error() -> None:
+    user = create_verified_user("expired-password-reset")
+    raw_token = f"expired-{uuid4().hex}"
+    db = SessionLocal()
+    try:
+        db.add(PasswordResetToken(
+            user_id=user.id,
+            token_hash=hash_reset_token(raw_token),
+            expires_at=datetime.now(timezone.utc) - timedelta(minutes=1),
+        ))
+        db.commit()
+    finally:
+        db.close()
+
+    response = client.post("/api/auth/reset-password", json={
+        "token": raw_token,
+        "new_password": "ExpiredPassword123!",
+        "confirm_password": "ExpiredPassword123!",
+    })
+
+    assert response.status_code == 400
+    assert response.json() == {"detail": "A jelszó-visszaállító link lejárt."}
+
+
+def test_disposable_account_deletion_revokes_session_and_prevents_relogin() -> None:
+    user = create_verified_user("disposable-account-delete")
+    original_email = user.email
+    original_username = user.username
+
+    logged_in = client.post("/api/auth/login", json={"email": original_email, "password": "OldPassword123!"})
+    assert logged_in.status_code == 200
+    headers = {"Authorization": f"Bearer {logged_in.json()['access_token']}"}
+    assert client.get("/api/auth/me", headers=headers).status_code == 200
+
+    deleted = client.request("DELETE", "/api/auth/me", json={"password": "OldPassword123!"}, headers=headers)
+    assert deleted.status_code == 200
+    assert deleted.json() == {"message": "A fiókod törlésre került."}
+    assert client.get("/api/auth/me", headers=headers).status_code == 401
+    assert client.post("/api/auth/login", json={"email": original_email, "password": "OldPassword123!"}).status_code == 401
+
+    db = SessionLocal()
+    try:
+        deleted_user = db.get(User, user.id)
+        assert deleted_user is not None
+        assert deleted_user.is_active is False
+        assert deleted_user.deleted_at is not None
+        assert deleted_user.email.startswith(f"deleted-{user.id}-")
+        assert deleted_user.username.startswith(f"deleted-{user.id}-")
+        assert deleted_user.email != original_email
+        assert deleted_user.username != original_username
+        assert deleted_user.full_name == f"Törölt felhasználó #{user.id}"
+    finally:
+        db.close()
 
 
 def test_admin_and_normal_user_are_separated_by_backend_guard() -> None:

@@ -35,7 +35,8 @@ describe("SiteHeader", () => {
 
   it("a kijelentkezett navigációt jeleníti meg", () => {
     render(<MemoryRouter><SiteHeader /></MemoryRouter>);
-    expect(screen.getByRole("link", { name: "Belépés" })).toBeInTheDocument();
+    expect(screen.getAllByRole("link", { name: "Belépés" })).toHaveLength(2);
+    expect(screen.getAllByRole("link", { name: "Regisztráció" })).toHaveLength(2);
     expect(screen.queryByRole("link", { name: "Kategóriák" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Felhasználói menü" })).not.toBeInTheDocument();
   });
