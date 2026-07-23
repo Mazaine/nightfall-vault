@@ -1,4 +1,4 @@
-import { FormEvent, KeyboardEvent as ReactKeyboardEvent, useEffect, useRef, useState } from "react";
+import { FormEvent, KeyboardEvent as ReactKeyboardEvent, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Link, useLocation, useParams } from "react-router-dom";
 import { apiAssetUrl } from "../api/client";
@@ -160,13 +160,13 @@ export function AuctionDetailPage() {
     }
   }, [location.hash]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (isChatOpen && focusChatOnOpenRef.current) {
       focusChatOnOpenRef.current = false;
-      window.requestAnimationFrame(() => (chatComposerRef.current ?? chatMinimizeRef.current)?.focus());
+      (chatComposerRef.current ?? chatMinimizeRef.current)?.focus();
     } else if (!isChatOpen && restoreChatLauncherFocusRef.current) {
       restoreChatLauncherFocusRef.current = false;
-      window.requestAnimationFrame(() => chatLauncherRef.current?.focus());
+      chatLauncherRef.current?.focus();
     }
   }, [isChatOpen, auction]);
 

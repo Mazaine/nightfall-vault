@@ -27,7 +27,7 @@ services:
     init: true
     read_only: true
     tmpfs: [/tmp, /var/cache/nginx, /var/run]
-    ports: ["${HTTP_PORT:-8080}:8080"]
+    ports: ["${HTTP_BIND:-127.0.0.1}:${HTTP_PORT:-8080}:8080"]
     volumes:
       - nightfall_media:/srv/nightfall-media:ro
     networks:
@@ -54,6 +54,8 @@ services:
       args:
         VITE_API_BASE_URL: ""
         VITE_CAPTCHA_ENABLED: ${CAPTCHA_ENABLED:-false}
+        VITE_CAPTCHA_PROVIDER: ${VITE_CAPTCHA_PROVIDER:-turnstile}
+        VITE_CAPTCHA_SITE_KEY: ${VITE_CAPTCHA_SITE_KEY:-}
         VITE_PUBLIC_SITE_URL: ${APP_FRONTEND_URL:?required}
         VITE_SUPPORT_EMAIL: ${VITE_SUPPORT_EMAIL:?required}
     restart: unless-stopped

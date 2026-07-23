@@ -21,6 +21,10 @@ compose() {
   docker compose --env-file "$PRODUCTION_ENV_FILE" -f "$PRODUCTION_COMPOSE_FILE" "$@"
 }
 
+docker_raw() {
+  MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*' docker "$@"
+}
+
 require_clean_worktree() {
   [[ -z "$(git -C "$ROOT_DIR" status --porcelain)" ]] || die "A Git munkafa nem tiszta. Deploy előtt commitold vagy tedd félre a módosításokat."
 }

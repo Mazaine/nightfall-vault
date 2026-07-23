@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Auction, AuctionMessage } from "../api/auctions";
@@ -118,7 +118,7 @@ describe("AuctionDetailPage", () => {
     fireEvent.change(input, { target: { value: created.message } });
     fireEvent.keyDown(input, { key: "Enter", code: "Enter" });
     await screen.findByText(created.message);
-    state.notificationListener?.({ id: "message-52", type: "auction_message", payload: { ...created, auction_id: 21 } });
+    act(() => state.notificationListener?.({ id: "message-52", type: "auction_message", payload: { ...created, auction_id: 21 } }));
     await waitFor(() => expect(screen.getAllByText(created.message)).toHaveLength(1));
   });
 

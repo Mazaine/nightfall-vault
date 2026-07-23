@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNotifications } from "../NotificationContext";
 import { confirmTransactionCompletion, listTransactions, type AuctionTransaction } from "../api/transactions";
 
@@ -7,17 +7,23 @@ export function ChatTransactionPanel({ auctionId }: { auctionId: number }) {
   const [transaction, setTransaction] = useState<AuctionTransaction | null>(null);
   const [feedback, setFeedback] = useState("");
   const [isConfirming, setIsConfirming] = useState(false);
+  const isMounted = useRef(false);
+
+  useEffect(() => {
+    isMounted.current = true;
+    return () => { isMounted.current = false; };
+  }, []);
 
   const refresh = useCallback(async () => {
     const page = await listTransactions("", 100);
-    setTransaction(page.items.find((item) => item.auction_id === auctionId) ?? null);
+    if (isMounted.current) setTransaction(page.items.find((item) => item.auction_id === auctionId) ?? null);
   }, [auctionId]);
 
-  useEffect(() => { void refresh().catch(() => setTransaction(null)); }, [refresh]);
+  useEffect(() => { void refresh().catch(() => { if (isMounted.current) setTransaction(null); }); }, [refresh]);
   useEffect(() => subscribe((event) => {
     if (event.type !== "notification" || Number(event.payload.auction_id) !== auctionId) return;
     if (!["transaction_confirmation", "transaction_completed"].includes(String(event.payload.type))) return;
-    void refresh();
+    void refresh().catch(() => undefined);
   }), [auctionId, refresh, subscribe]);
 
   if (!transaction) return null;

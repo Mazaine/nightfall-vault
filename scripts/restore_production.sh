@@ -12,7 +12,9 @@ log "Biztonsági mentés készül a visszaállítás előtt."
 compose stop backend auction-scheduler reverse-proxy
 compose exec -T postgres psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c 'DROP SCHEMA public CASCADE; CREATE SCHEMA public;'
 compose exec -T postgres pg_restore --exit-on-error --no-owner -U "$POSTGRES_USER" -d "$POSTGRES_DB" < "$backup/database.dump"
-docker run --rm -v "${MEDIA_VOLUME_NAME}:/target" -v "$backup:/backup:ro" alpine:3.20 sh -c 'find /target -mindepth 1 -delete && tar -C /target -xzf /backup/media.tar.gz'
+docker_raw run --rm -v "${MEDIA_VOLUME_NAME}:/target" -v "$backup:/backup:ro" alpine:3.20 sh -c 'find /target -mindepth 1 -delete && tar -C /target -xzf /backup/media.tar.gz'
 compose up -d
+compose exec -T backend alembic current
+compose exec -T backend python -m app.scripts.audit_media
 "$ROOT_DIR/scripts/smoke_test_production.sh"
 log "A visszaállítás és az ellenőrzés sikeres."

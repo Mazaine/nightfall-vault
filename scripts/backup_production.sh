@@ -17,9 +17,14 @@ mkdir -p "$work"
 
 log "Adatbázis- és média-mentés készül."
 compose exec -T postgres pg_dump -Fc -U "$POSTGRES_USER" -d "$POSTGRES_DB" > "$work/database.dump"
-docker run --rm -v "${MEDIA_VOLUME_NAME}:/source:ro" -v "$work:/backup" alpine:3.20 tar -C /source -czf /backup/media.tar.gz .
+docker_raw run --rm -v "${MEDIA_VOLUME_NAME}:/source:ro" -v "$work:/backup" alpine:3.20 tar -C /source -czf /backup/media.tar.gz .
 revision="$(compose exec -T postgres psql -At -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c 'select version_num from alembic_version limit 1')"
 commit="$(git -C "$ROOT_DIR" rev-parse HEAD 2>/dev/null || printf unknown)"
+users_count="$(compose exec -T postgres psql -At -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c 'select count(*) from users')"
+auctions_count="$(compose exec -T postgres psql -At -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c 'select count(*) from auctions')"
+media_sample="$(docker_raw run --rm -v "${MEDIA_VOLUME_NAME}:/source:ro" alpine:3.20 sh -c 'file="$(find /source -type f -print -quit)"; if [ -n "$file" ]; then printf "%s|%s\n" "${file#/source/}" "$(sha256sum "$file" | cut -d" " -f1)"; else printf "none|none\n"; fi')"
+media_sample_path="${media_sample%%|*}"
+media_sample_sha256="${media_sample#*|}"
 (cd "$work" && sha256sum database.dump media.tar.gz > SHA256SUMS)
 cat > "$work/manifest.txt" <<EOF
 format=nightfall-backup-v1
@@ -28,6 +33,10 @@ git_commit=$commit
 alembic_revision=$revision
 database_bytes=$(wc -c < "$work/database.dump")
 media_bytes=$(wc -c < "$work/media.tar.gz")
+users_count=$users_count
+auctions_count=$auctions_count
+media_sample_path=$media_sample_path
+media_sample_sha256=$media_sample_sha256
 EOF
 mv "$work" "$final"
 trap - EXIT

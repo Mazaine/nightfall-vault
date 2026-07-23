@@ -9,6 +9,7 @@ from app.core.security import create_access_token, hash_password
 from app.db.session import SessionLocal
 from app.main import app
 from app.models.auction import Auction, AuctionImage, AuctionMessage, AuctionReview, Bid, WatchlistItem
+from app.models.moderation import ModerationAction, Report, UserBlock, UserStrike
 from app.models.notification import Notification
 from app.models.security_log import AuditLog
 from app.models.user import User
@@ -48,6 +49,10 @@ def cleanup_test_data() -> None:
         db.query(Auction).update({Auction.highest_bid_id: None})
         db.commit()
         db.execute(delete(AuditLog))
+        db.execute(delete(ModerationAction))
+        db.execute(delete(UserStrike))
+        db.execute(delete(Report))
+        db.execute(delete(UserBlock))
         db.execute(delete(WatchlistItem))
         db.execute(delete(Notification))
         db.execute(delete(AuctionReview))
