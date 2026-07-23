@@ -248,6 +248,9 @@ def validate_activation_requirements(auction: Auction) -> None:
 def activate_auction(db: Session, auction: Auction, user: User) -> Auction:
     require_owner_or_admin(auction, user)
     validate_activation_requirements(auction)
+    if user.role != "admin":
+        from app.services.membership import require_available_auction_slot
+        require_available_auction_slot(db, user)
     next_status = "scheduled" if auction.starts_at > now_utc() else "active"
     ensure_transition_allowed(auction.status, next_status)
     auction.status = next_status

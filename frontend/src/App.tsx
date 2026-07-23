@@ -34,6 +34,7 @@ const AccountTransactionsPage = lazy(() => import("./pages/AccountTransactionsPa
 const NotificationsPage = lazy(() => import("./pages/NotificationsPage").then((module) => ({ default: module.NotificationsPage })));
 const SavedSearchesPage = lazy(() => import("./pages/SavedSearchesPage").then((module) => ({ default: module.SavedSearchesPage })));
 const WatchlistPage = lazy(() => import("./pages/WatchlistPage").then((module) => ({ default: module.WatchlistPage })));
+const VipMembershipPage = lazy(() => import("./pages/VipMembershipPage").then((module) => ({ default: module.VipMembershipPage })));
 const AdminLayout = lazy(() => import("./pages/admin/AdminLayout").then((module) => ({ default: module.AdminLayout })));
 const AdminDashboardPage = lazy(() => import("./pages/admin/AdminDashboardPage").then((module) => ({ default: module.AdminDashboardPage })));
 const AdminUsersPage = lazy(() => import("./pages/admin/AdminUsersPage").then((module) => ({ default: module.AdminUsersPage })));
@@ -41,6 +42,7 @@ const AdminAuctionsPage = lazy(() => import("./pages/admin/AdminAuctionsPage").t
 const AdminAuditLogsPage = lazy(() => import("./pages/admin/AdminAuditLogsPage").then((module) => ({ default: module.AdminAuditLogsPage })));
 const AdminReportsPage = lazy(() => import("./pages/admin/AdminReportsPage").then((module) => ({ default: module.AdminReportsPage })));
 const AdminModerationPage = lazy(() => import("./pages/admin/AdminModerationPage").then((module) => ({ default: module.AdminModerationPage })));
+const AdminVipCodesPage = lazy(() => import("./pages/admin/AdminVipCodesPage").then((module) => ({ default: module.AdminVipCodesPage })));
 
 function AdminRoute() {
   const { isAdmin, isAuthenticated, isLoading } = useAuth();
@@ -78,6 +80,7 @@ function App() {
                 <Route path="profile" element={<AccountProfilePage />} />
                 <Route path="bids" element={<AccountPage section="bids" />} />
                 <Route path="auctions" element={<AccountPage section="auctions" />} />
+                <Route path="vip" element={<VipMembershipPage />} />
                 <Route path="messages" element={<AccountConversationsPage />} />
                 <Route path="transactions" element={<AccountTransactionsPage />} />
                 <Route path="notifications" element={<NotificationsPage />} />
@@ -105,6 +108,7 @@ function App() {
               <Route path="audit-logs" element={<AdminAuditLogsPage />} />
               <Route path="reports" element={<AdminReportsPage />} />
               <Route path="moderation" element={<AdminModerationPage />} />
+              <Route path="vip-codes" element={<AdminVipCodesPage />} />
             </Route>
             <Route path="/terms" element={<TermsPage />} />
             <Route path="/privacy" element={<PrivacyPage />} />

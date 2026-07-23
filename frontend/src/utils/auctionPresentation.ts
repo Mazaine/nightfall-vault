@@ -28,5 +28,6 @@ export function toAuctionCardItem(auction: Auction) {
     statusLabel: formatAuctionStatus(auction.status),
     bidCount: auction.bid_count ?? 0,
     canBid: auction.status === "active",
+    isFeatured: auction.is_featured ?? false,
   };
 }

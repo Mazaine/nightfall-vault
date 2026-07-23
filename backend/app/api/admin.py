@@ -21,6 +21,7 @@ from app.services.email_service import send_newsletter_email
 from app.services.reports import get_report_or_404, related_report_counts, report_options, update_report_note, update_report_priority, update_report_status
 from app.services.auction_lifecycle import get_auction_statement, sync_auction_status
 from app.services.auction_moderation import restore_auction, soft_delete_auction, suspend_auction
+from app.services.membership import featured_auction_order
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
@@ -189,7 +190,7 @@ def get_admin_audit_log(audit_log_id: int, _current_user: User = Depends(require
 
 @router.get("/auctions", response_model=list[AuctionListItem])
 def list_admin_auctions(_current_user: User = Depends(require_admin), db: Session = Depends(get_db)) -> list[AuctionListItem]:
-    statement = get_auction_statement().order_by(Auction.created_at.desc(), Auction.id.desc()).limit(100)
+    statement = get_auction_statement().order_by(featured_auction_order(), Auction.created_at.desc(), Auction.id.desc()).limit(100)
     return [AuctionListItem.model_validate(sync_auction_status(db, auction)) for auction in db.scalars(statement).all()]
 
 

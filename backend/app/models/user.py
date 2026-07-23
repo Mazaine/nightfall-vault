@@ -1,7 +1,7 @@
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, Index, Integer, Numeric, String, UniqueConstraint, func
+from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, Index, Integer, Numeric, String, Text, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -19,6 +19,7 @@ class User(Base):
     role: Mapped[str] = mapped_column(String(20), nullable=False, default="user")
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     is_email_verified: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    vip_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
     notify_in_app: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     notify_email_outbid: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     notify_email_auction_result: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
@@ -69,3 +70,25 @@ class SavedSearch(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
     user = relationship("User")
+
+
+class VipActivationCode(Base):
+    __tablename__ = "vip_activation_codes"
+    __table_args__ = (
+        CheckConstraint("duration_months IN (1, 3)", name="ck_vip_activation_codes_duration"),
+        Index("ix_vip_activation_codes_batch_created", "batch_id", "created_at"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    code_digest: Mapped[str] = mapped_column(String(64), nullable=False, unique=True, index=True)
+    code_ciphertext: Mapped[str | None] = mapped_column(Text, nullable=True)
+    code_last_four: Mapped[str] = mapped_column(String(4), nullable=False)
+    duration_months: Mapped[int] = mapped_column(Integer, nullable=False)
+    batch_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    created_by_admin_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    redeemed_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    redeemed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+    created_by_admin = relationship("User", foreign_keys=[created_by_admin_id])
+    redeemed_by_user = relationship("User", foreign_keys=[redeemed_by_user_id])

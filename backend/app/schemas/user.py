@@ -1,7 +1,7 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, computed_field, field_validator
 
 
 class UserCreate(BaseModel):
@@ -56,10 +56,21 @@ class UserPublic(BaseModel):
     role: Literal["user", "admin"]
     is_active: bool
     is_email_verified: bool
+    vip_expires_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+    @computed_field
+    @property
+    def is_vip(self) -> bool:
+        if self.role == "admin":
+            return True
+        if self.vip_expires_at is None:
+            return False
+        expires_at = self.vip_expires_at if self.vip_expires_at.tzinfo is not None else self.vip_expires_at.replace(tzinfo=timezone.utc)
+        return expires_at > datetime.now(timezone.utc)
 
 
 class UserMeRead(BaseModel):
@@ -68,8 +79,19 @@ class UserMeRead(BaseModel):
     username: str
     full_name: str
     role: Literal["user", "admin"]
+    vip_expires_at: datetime | None = None
 
     model_config = ConfigDict(from_attributes=True)
+
+    @computed_field
+    @property
+    def is_vip(self) -> bool:
+        if self.role == "admin":
+            return True
+        if self.vip_expires_at is None:
+            return False
+        expires_at = self.vip_expires_at if self.vip_expires_at.tzinfo is not None else self.vip_expires_at.replace(tzinfo=timezone.utc)
+        return expires_at > datetime.now(timezone.utc)
 
 
 class NotificationPreferencesRead(BaseModel):

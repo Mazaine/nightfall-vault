@@ -40,6 +40,7 @@ type AuctionCardProps = {
     statusLabel?: string;
     bidCount?: number;
     canBid?: boolean;
+    isFeatured?: boolean;
   };
   index: number;
   detailPath: string;
@@ -105,7 +106,7 @@ export function AuctionCard({
   };
 
   return (
-    <article aria-label={`${item.title} aukció`} className={`auction-card auction-card-${index + 1}${isLocallyClosed ? " auction-card-closed" : ""}`}>
+    <article aria-label={`${item.title} aukció`} className={`auction-card auction-card-${index + 1}${isLocallyClosed ? " auction-card-closed" : ""}${item.isFeatured ? " auction-card-featured" : ""}`}>
       <div className="auction-image">
         <SafeImage src={item.imageUrl} alt={item.title} loading="lazy" decoding="async" width={700} height={700} />
       </div>
@@ -115,6 +116,7 @@ export function AuctionCard({
       {item.userIsOutbid && <div className="auction-alert">Rád licitáltak</div>}
 
       <div className="auction-content">
+        {item.isFeatured ? <span className="vip-featured-badge">VIP KIEMELT</span> : null}
         <h3>
           <Link className="auction-title-link" to={detailPath}>
             {item.title}
@@ -132,7 +134,7 @@ export function AuctionCard({
               title={sellerRating === null ? "Még nincs értékelés" : `${sellerRating.toLocaleString("hu-HU")} / 5`}
             >
               {Array.from({ length: 5 }, (_, starIndex) => (
-                <span aria-hidden="true" key={starIndex}>{starIndex < filledStars ? "★" : "☆"}</span>
+                <span className={starIndex < filledStars ? "star is-filled" : "star is-empty"} aria-hidden="true" key={starIndex}>{starIndex < filledStars ? "★" : "☆"}</span>
               ))}
             </span>
           </span>
@@ -143,14 +145,10 @@ export function AuctionCard({
         {typeof item.bidCount === "number" ? <small>{item.bidCount} licit</small> : null}
 
         <div className="auction-actions">
-          {showBidActions && !isLocallyClosed && item.canBid !== false ? (
-            <>
-              <button className="button button-secondary" type="button" disabled={isActionPending || !nextBidAmount} onClick={() => void submitQuickAction(nextBidAmount)}>{isActionPending ? "Feldolgozás..." : "Licitálok"}</button>
-              {item.buyNowAmount ? (
-                <button className="button button-lightning" type="button" disabled={isActionPending} onClick={() => void submitQuickAction(item.buyNowAmount ?? "", true)}>⚡ Lecsapom</button>
-              ) : null}
-            </>
-          ) : null}
+          {showBidActions ? !isLocallyClosed && item.canBid !== false ? <>
+            <button className="button button-secondary" type="button" disabled={isActionPending || !nextBidAmount} onClick={() => void submitQuickAction(nextBidAmount)}>{isActionPending ? "Feldolgozás..." : "Licitálok"}</button>
+            {item.buyNowAmount ? <button className="button button-lightning" type="button" disabled={isActionPending} onClick={() => void submitQuickAction(item.buyNowAmount ?? "", true)}>⚡ Lecsapom</button> : null}
+          </> : <Link className="button button-secondary" to={detailPath}>Aukció megnyitása</Link> : null}
         </div>
         {actionMessage ? <p className="form-message auction-action-message" role="status" aria-live="polite">{actionMessage}</p> : null}
       </div>

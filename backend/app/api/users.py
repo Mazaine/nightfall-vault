@@ -8,6 +8,7 @@ from app.models.auction import Auction, AuctionReview, Bid
 from app.models.user import SellerFollow, User
 from app.schemas.user import PublicAuctionSummary, PublicReviewPage, PublicReviewRead, PublicUserProfile, PublicUserStats
 from app.services.user_blocks import is_blocked_by
+from app.services.membership import featured_auction_order
 
 router = APIRouter(prefix="/api/users", tags=["users"])
 ACTIVE_STATUSES = {"scheduled", "active"}
@@ -83,8 +84,8 @@ def build_public_profile(db: Session, user: User, current_user: User | None = No
     follower_count = int(db.scalar(select(func.count()).select_from(SellerFollow).where(SellerFollow.seller_id == user.id)) or 0)
     following_count = int(db.scalar(select(func.count()).select_from(SellerFollow).where(SellerFollow.follower_id == user.id)) or 0)
 
-    active_auctions = db.scalars(select(Auction).where(Auction.seller_id == user.id, Auction.deleted_at.is_(None), Auction.status.in_(ACTIVE_STATUSES)).order_by(Auction.ends_at.asc(), Auction.id.asc()).limit(12)).all()
-    closed_auctions = db.scalars(select(Auction).where(Auction.seller_id == user.id, Auction.deleted_at.is_(None), Auction.status.in_(CLOSED_STATUSES)).order_by(Auction.ends_at.desc(), Auction.id.desc()).limit(12)).all()
+    active_auctions = db.scalars(select(Auction).where(Auction.seller_id == user.id, Auction.deleted_at.is_(None), Auction.status.in_(ACTIVE_STATUSES)).order_by(featured_auction_order(), Auction.ends_at.asc(), Auction.id.asc()).limit(12)).all()
+    closed_auctions = db.scalars(select(Auction).where(Auction.seller_id == user.id, Auction.deleted_at.is_(None), Auction.status.in_(CLOSED_STATUSES)).order_by(featured_auction_order(), Auction.ends_at.desc(), Auction.id.desc()).limit(12)).all()
     recent_reviews = _apply_review_sort(_review_query(db, user.id), "newest").limit(5).all()
     is_followed = False
     is_blocked = False

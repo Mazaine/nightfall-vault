@@ -473,12 +473,51 @@ h3 {
   margin-top: var(--space-5);
 }
 
+.home-auction-grid {
+  grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr));
+}
+
 .auction-card {
   position: relative;
   display: flex;
   flex-direction: column;
   overflow: hidden;
   border-radius: var(--radius-md);
+}
+
+.auction-card-featured {
+  border-color: #c69b35;
+  box-shadow: 0 0 0 1px rgb(198 155 53 / 24%), 0 18px 46px rgb(92 42 145 / 22%);
+}
+
+.vip-featured-badge {
+  align-self: flex-start;
+  border: 1px solid #d8b95d;
+  border-radius: 999px;
+  color: #f3d981;
+  font-size: .7rem;
+  font-weight: 800;
+  letter-spacing: .12em;
+  padding: .35rem .65rem;
+}
+
+.vip-membership-page { display: grid; gap: var(--space-5); }
+.vip-membership-page > h1 { max-width: 18ch; }
+.vip-status-card { display: grid; grid-template-columns: 1.2fr 1fr; gap: var(--space-6); padding: clamp(1.25rem, 4vw, 2.5rem); border: 1px solid var(--border); border-radius: var(--radius-lg); background: linear-gradient(135deg, #111019, #171020); }
+.vip-status-card.is-active { border-color: #c69b35; background: radial-gradient(circle at 85% 15%, rgb(126 58 237 / 30%), transparent 36%), linear-gradient(135deg, #111019, #1a1025); }
+.vip-status-card ul { margin: 0; display: grid; gap: .75rem; align-content: center; }
+.vip-activation-form { max-width: 38rem; }
+.vip-activation-form input { font-size: 1.35rem; letter-spacing: .16em; }
+.vip-generator-form { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); max-width: 52rem; }
+.vip-generator-form .button, .vip-generator-form .form-message { grid-column: 1 / -1; }
+.vip-batch-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
+.vip-code-archive { display: grid; gap: var(--space-4); margin-top: var(--space-7); }
+.vip-code-table td code { white-space: nowrap; }
+.vip-code-table td small { display: block; margin-top: .35rem; color: var(--muted); }
+.vip-code-table .button { min-height: 2.25rem; padding: .35rem .65rem; font-size: .78rem; }
+
+@media (max-width: 640px) {
+  .vip-status-card, .vip-generator-form { grid-template-columns: 1fr; }
 }
 
 .auction-image {
@@ -1497,6 +1536,14 @@ h3 {
   color: var(--color-accent-gold);
   display: inline-flex;
   gap: 0.25rem;
+}
+
+.auction-content .star-rating .star.is-filled {
+  color: #f5c451;
+}
+
+.auction-content .star-rating .star.is-empty {
+  color: var(--color-text-muted);
 }
 
 .stats-grid {

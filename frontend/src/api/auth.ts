@@ -6,6 +6,8 @@ export type AuthUser = {
   username: string;
   full_name: string;
   role: "user" | "admin";
+  is_vip?: boolean;
+  vip_expires_at?: string | null;
 };
 
 export type LoginResponse = {

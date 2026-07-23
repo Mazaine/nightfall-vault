@@ -20,7 +20,9 @@ export function HomeFeatured() {
         listAuctions({ status: "active", sort: "soon_ending", limit: 4 }),
         listAuctions({ status: "scheduled", sort: "oldest", limit: 4 }),
       ]);
-      setAuctions([...active.items, ...scheduled.items].slice(0, 4));
+      const combined = [...active.items, ...scheduled.items];
+      combined.sort((left, right) => Number(Boolean(right.is_featured)) - Number(Boolean(left.is_featured)));
+      setAuctions(combined.slice(0, 4));
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "A kiemelt aukciók betöltése nem sikerült.");
     } finally {
@@ -65,7 +67,7 @@ export function HomeFeatured() {
           </div>
         ) : null}
         {!isLoading && !error && auctions.length > 0 ? (
-          <div className="auction-grid">
+          <div className="auction-grid home-auction-grid">
             {auctions.map((auction, index) => (
               <AuctionCard item={toAuctionCardItem(auction)} index={index} detailPath={`/auctions/${auction.id}`} key={auction.id} />
             ))}

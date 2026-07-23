@@ -13,7 +13,7 @@ from app.models.shipping import ShippingMethod
 from app.models.stock_movement import StockMovement
 from app.models.security_log import AuditLog, LoginAttempt
 from app.models.transaction import AuctionTransaction
-from app.models.user import SavedSearch, SellerFollow, User
+from app.models.user import SavedSearch, SellerFollow, User, VipActivationCode
 
 __all__ = [
     "Category",
@@ -47,4 +47,5 @@ __all__ = [
     "User",
     "SellerFollow",
     "SavedSearch",
+    "VipActivationCode",
 ]

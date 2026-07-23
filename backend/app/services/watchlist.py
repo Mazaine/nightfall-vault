@@ -6,6 +6,7 @@ from app.models.auction import Auction, WatchlistItem
 from app.models.notification import WatchlistReminder
 from app.models.user import User
 from app.services.auction_lifecycle import get_auction_statement, require_can_view_auction
+from app.services.membership import featured_auction_order
 
 
 def list_watchlist(db: Session, user: User) -> list[WatchlistItem]:
@@ -14,7 +15,7 @@ def list_watchlist(db: Session, user: User) -> list[WatchlistItem]:
         .where(WatchlistItem.user_id == user.id)
         .join(WatchlistItem.auction)
         .where(Auction.deleted_at.is_(None))
-        .order_by(WatchlistItem.created_at.desc(), WatchlistItem.id.desc())
+        .order_by(featured_auction_order(), WatchlistItem.created_at.desc(), WatchlistItem.id.desc())
     )
     return list(db.scalars(statement).all())
 

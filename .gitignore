@@ -67,3 +67,6 @@ Thumbs.db
 *.db
 
 backups/
+
+# VIP activation exports contain redeemable codes and must never be versioned.
+nightfall-vip-*.csv

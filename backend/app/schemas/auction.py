@@ -262,6 +262,7 @@ class AuctionListItem(BaseModel):
     bid_count: int = 0
     seller_average_rating: float | None = None
     seller_review_count: int = 0
+    is_featured: bool = False
     seller: UserSummary | None = None
     images: list[AuctionImageRead] = []
 

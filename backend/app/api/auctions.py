@@ -16,6 +16,7 @@ from app.services.auction_images import add_auction_image, delete_auction_image,
 from app.services.auction_lifecycle import PUBLIC_AUCTION_STATUSES, activate_auction, can_access_post_auction_features, cancel_auction, create_auction, create_message, create_review, finalize_auction, get_auction_or_404, get_auction_statement, is_chat_read_only, require_can_view_auction, require_post_auction_participant, sync_auction_status, update_auction
 from app.services.bidding import auction_realtime_snapshot, bid_to_history_item, bid_to_read, list_bid_history, place_bid
 from app.services.notifications import notify_followers_new_auction
+from app.services.membership import featured_auction_order, is_vip
 from app.services.recommendations import related_auctions, seller_other_auctions
 from app.services.saved_searches import notify_saved_search_matches
 from app.services.transactions import can_user_review_transaction
@@ -48,6 +49,7 @@ def auction_list_item(
         "bid_count": count,
         "seller_average_rating": seller_average_rating,
         "seller_review_count": seller_review_count or 0,
+        "is_featured": bool(auction.seller and is_vip(auction.seller)),
     })
 
 
@@ -95,26 +97,27 @@ def _apply_auction_filters(query, *, query_text, title, description, seller, cat
 
 def _apply_auction_sort(query, sort: str):
     bid_count = func.count(Bid.id)
+    featured_first = featured_auction_order()
     if sort == "oldest":
-        return query.order_by(Auction.created_at.asc(), Auction.id.asc())
+        return query.order_by(featured_first, Auction.created_at.asc(), Auction.id.asc())
     if sort == "highest_price":
-        return query.order_by(Auction.current_price.desc(), Auction.id.desc())
+        return query.order_by(featured_first, Auction.current_price.desc(), Auction.id.desc())
     if sort == "lowest_price":
-        return query.order_by(Auction.current_price.asc(), Auction.id.asc())
+        return query.order_by(featured_first, Auction.current_price.asc(), Auction.id.asc())
     if sort == "most_bids":
-        return query.order_by(bid_count.desc(), Auction.id.desc())
+        return query.order_by(featured_first, bid_count.desc(), Auction.id.desc())
     if sort == "fewest_bids":
-        return query.order_by(bid_count.asc(), Auction.id.asc())
+        return query.order_by(featured_first, bid_count.asc(), Auction.id.asc())
     if sort == "soon_ending":
-        return query.order_by(Auction.ends_at.asc(), Auction.id.asc())
+        return query.order_by(featured_first, Auction.ends_at.asc(), Auction.id.asc())
     if sort == "buy_now_first":
-        return query.order_by(Auction.buy_now_enabled.desc(), Auction.created_at.desc(), Auction.id.desc())
-    return query.order_by(Auction.created_at.desc(), Auction.id.desc())
+        return query.order_by(featured_first, Auction.buy_now_enabled.desc(), Auction.created_at.desc(), Auction.id.desc())
+    return query.order_by(featured_first, Auction.created_at.desc(), Auction.id.desc())
 
 
 def auction_response(auction: Auction, user: User | None = None, db: Session | None = None) -> AuctionResponse:
     seller_average_rating, seller_review_count = seller_rating_summary(db, auction.seller_id) if db is not None else (None, 0)
-    response = AuctionResponse.model_validate(auction).model_copy(update={"seller_average_rating": seller_average_rating, "seller_review_count": seller_review_count})
+    response = AuctionResponse.model_validate(auction).model_copy(update={"seller_average_rating": seller_average_rating, "seller_review_count": seller_review_count, "is_featured": bool(auction.seller and is_vip(auction.seller))})
     if user is None:
         return response
     return response.model_copy(
@@ -150,7 +153,7 @@ def list_public_auctions(
 ) -> AuctionListPage:
     if sort not in AUCTION_SORTS:
         raise HTTPException(status_code=422, detail="Érvénytelen rendezés.")
-    base_query = db.query(Auction.id, func.count(Bid.id).label("bid_count")).join(User, User.id == Auction.seller_id).outerjoin(Bid, Bid.auction_id == Auction.id).group_by(Auction.id)
+    base_query = db.query(Auction.id, func.count(Bid.id).label("bid_count")).join(User, User.id == Auction.seller_id).outerjoin(Bid, Bid.auction_id == Auction.id).group_by(Auction.id, User.vip_expires_at)
     filtered_query = _apply_auction_filters(
         base_query,
         query_text=query_text,
@@ -207,7 +210,7 @@ def create_my_auction(
 
 @router.get("/me", response_model=list[AuctionListItem])
 def list_my_auctions(current_user: User = Depends(require_active_user), db: Session = Depends(get_db)) -> list[AuctionListItem]:
-    statement = get_auction_statement().where(Auction.seller_id == current_user.id, Auction.deleted_at.is_(None)).order_by(Auction.created_at.desc(), Auction.id.desc())
+    statement = get_auction_statement().where(Auction.seller_id == current_user.id, Auction.deleted_at.is_(None)).order_by(featured_auction_order(), Auction.created_at.desc(), Auction.id.desc())
     return [auction_list_item(sync_auction_status(db, auction), db=db) for auction in db.scalars(statement).all()]
 
 
@@ -257,7 +260,7 @@ def list_my_bid_auctions(current_user: User = Depends(require_active_user), db: 
     auction_ids = [row[0] for row in db.execute(bid_statement).all()]
     if not auction_ids:
         return []
-    statement = get_auction_statement().where(Auction.id.in_(auction_ids), Auction.deleted_at.is_(None)).order_by(Auction.ends_at.asc(), Auction.id.asc())
+    statement = get_auction_statement().where(Auction.id.in_(auction_ids), Auction.deleted_at.is_(None)).order_by(featured_auction_order(), Auction.ends_at.asc(), Auction.id.asc())
     items: list[MyBidAuctionItem] = []
     for auction in db.scalars(statement).all():
         auction = sync_auction_status(db, auction)
