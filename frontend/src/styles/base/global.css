@@ -474,7 +474,41 @@ h3 {
 }
 
 .home-auction-grid {
-  grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.home-featured-section {
+  display: grid;
+  gap: var(--space-8);
+}
+
+.home-featured-section > .side-stack {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.featured-carousel-heading-actions,
+.featured-carousel-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.featured-carousel-controls .button {
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  padding: 0;
+}
+
+.featured-carousel-controls span {
+  min-width: 3.5rem;
+  color: var(--color-text-secondary);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.auction-buy-now-price {
+  color: #f3d981 !important;
+  font-weight: 800;
 }
 
 .auction-card {
@@ -1328,6 +1362,10 @@ h3 {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .home-featured-section > .side-stack {
+    grid-template-columns: 1fr;
+  }
+
   .page-grid,
   .category-grid,
   .info-grid,
@@ -1362,6 +1400,12 @@ h3 {
   }
 
   .section-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .featured-carousel-heading-actions {
+    width: 100%;
     align-items: flex-start;
     flex-direction: column;
   }

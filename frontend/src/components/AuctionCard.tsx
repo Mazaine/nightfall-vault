@@ -141,6 +141,7 @@ export function AuctionCard({
         </div>
         <span>{priceLabel}</span>
         <strong>{displayPrice}</strong>
+        {item.buyNowPrice ? <small className="auction-buy-now-price">Villámár: {formatMoney(item.buyNowPrice)}</small> : null}
         <small>Licitlépcső: {item.step}</small>
         {typeof item.bidCount === "number" ? <small>{item.bidCount} licit</small> : null}
 
