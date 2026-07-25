@@ -62,6 +62,17 @@ const INITIAL_FILTERS: FilterState = {
   sort: "newest",
 };
 
+const PUBLIC_STATUS_ORDER: Partial<Record<Auction["status"], number>> = {
+  active: 0,
+  scheduled: 1,
+  ended: 2,
+  sold: 3,
+};
+
+function orderAuctionsByStatus(items: Auction[]) {
+  return [...items].sort((left, right) => (PUBLIC_STATUS_ORDER[left.status] ?? 4) - (PUBLIC_STATUS_ORDER[right.status] ?? 4));
+}
+
 function toParams(filters: FilterState, offset: number): AuctionListParams {
   return {
     q: filters.q || undefined,
@@ -103,7 +114,16 @@ export function AuctionsPage() {
   const [saveMessage, setSaveMessage] = useState("");
 
   useEffect(() => subscribe((snapshot) => {
-    setAuctions((items) => items.map((item) => item.id === snapshot.auction_id ? { ...item, status: snapshot.status, current_price: snapshot.current_price, highest_bid_id: snapshot.highest_bid_id, winner_id: snapshot.winner_id, ends_at: snapshot.ends_at, bid_count: snapshot.bid_count } : item));
+    setAuctions((items) => {
+      if (snapshot.is_listed === false || snapshot.status === "unsold") {
+        const nextItems = items.filter((item) => item.id !== snapshot.auction_id);
+        if (nextItems.length !== items.length) setTotal((current) => Math.max(0, current - 1));
+        return nextItems;
+      }
+      return orderAuctionsByStatus(items.map((item) => item.id === snapshot.auction_id
+        ? { ...item, status: snapshot.status, current_price: snapshot.current_price, highest_bid_id: snapshot.highest_bid_id, winner_id: snapshot.winner_id, ends_at: snapshot.ends_at, bid_count: snapshot.bid_count }
+        : item));
+    });
   }), [subscribe]);
 
   const params = useMemo(() => toParams(appliedFilters, offset), [appliedFilters, offset]);
@@ -154,7 +174,7 @@ export function AuctionsPage() {
       <p className="eyebrow">Aukciók</p>
       <div className="section-heading page-heading">
         <div>
-          <h1>Aktív aukciók</h1>
+          <h1>Aukciók</h1>
           <p className="section-note">Keress kategória, állapot, licitszám, ár és lejárat szerint.</p>
         </div>
         <Link className="button button-primary" to="/account/auctions">Aukció létrehozása</Link>
@@ -185,7 +205,7 @@ export function AuctionsPage() {
         <label>
           Aukció állapota
           <select value={filters.status} onChange={(event) => setFilters({ ...filters, status: event.target.value })}>
-            <option value="">Mind</option><option value="active">Aktív</option><option value="scheduled">Hamarosan indul</option><option value="sold">Eladott</option><option value="unsold">Eladatlan</option>
+            <option value="">Mind</option><option value="active">Aktív</option><option value="scheduled">Hamarosan indul</option><option value="sold">Eladott, egyeztetés alatt</option>
           </select>
         </label>
         <label>

@@ -23,11 +23,12 @@ export function AdminAuctionsPage() {
 
   useEffect(() => { void load(); }, []);
 
-  async function run(auctionId: number, action: () => Promise<unknown>) {
+  async function run(auctionId: number, action: () => Promise<unknown>, removeAfterSuccess = false) {
     setPendingId(auctionId);
     try {
       await action();
-      await load();
+      if (removeAfterSuccess) setItems((current) => current.filter((auction) => auction.id !== auctionId));
+      else await load();
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "A moderációs művelet nem sikerült.");
     } finally {
@@ -60,7 +61,7 @@ export function AdminAuctionsPage() {
               <div className="row-actions">
                 <button className="button button-ghost" type="button" disabled={isPending || auction.status === "suspended" || Boolean(auction.deleted_at)} onClick={() => void run(auction.id, () => suspendAdminAuction(auction.id, "Adminisztrátori ellenőrzés"))}>Felfüggesztés</button>
                 <button className="button button-secondary" type="button" disabled={isPending || auction.status !== "suspended" || Boolean(auction.deleted_at)} onClick={() => void run(auction.id, () => restoreAdminAuction(auction.id, "Adminisztrátori visszaállítás"))}>Visszaállítás</button>
-                <button className="button button-danger" type="button" disabled={isPending || Boolean(auction.deleted_at)} onClick={() => void run(auction.id, () => deleteAdminAuction(auction.id, "Adminisztrátori törlés"))}>Törlés</button>
+                <button className="button button-danger" type="button" disabled={isPending || Boolean(auction.deleted_at)} onClick={() => void run(auction.id, () => deleteAdminAuction(auction.id, "Adminisztrátori törlés"), true)}>Törlés</button>
               </div>
             </article>
           );

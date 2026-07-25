@@ -145,6 +145,9 @@ def confirm_completion(db: Session, transaction_id: int, user: User) -> AuctionT
             )
     db.add(transaction)
     db.commit()
+    if transaction.status == "completed":
+        from app.services.auction_lifecycle import publish_auction_change
+        publish_auction_change(db, transaction.auction)
     return get_participant_transaction(db, transaction.id, user.id)
 
 

@@ -128,6 +128,7 @@ export type AuctionRealtimeSnapshot = {
   bid_count: number;
   winner_id: number | null;
   ends_at: string;
+  is_listed?: boolean;
   bids: AuctionBid[];
 };
 

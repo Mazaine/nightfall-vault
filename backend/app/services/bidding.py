@@ -5,6 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from app.models.auction import Auction, Bid
+from app.models.transaction import AuctionTransaction
 from app.models.user import User
 from app.services.auction_lifecycle import FIVE_MINUTE_EXTENSION, can_view_auction, effective_auction_end, normalize_money, now_utc, sync_auction_status
 from app.services.notifications import notify_auction_closed
@@ -39,6 +40,8 @@ def bid_to_read(bid: Bid, auction: Auction) -> dict:
 
 def auction_realtime_snapshot(db: Session, auction: Auction) -> dict:
     history = list(db.scalars(select(Bid).where(Bid.auction_id == auction.id).order_by(Bid.amount.desc(), Bid.created_at.asc(), Bid.id.asc())).all())
+    transaction_status = db.scalar(select(AuctionTransaction.status).where(AuctionTransaction.auction_id == auction.id))
+    is_listed = auction.status in {"scheduled", "active", "ended"} or (auction.status == "sold" and transaction_status == "transaction_open")
     return {
         "auction_id": auction.id,
         "status": auction.status,
@@ -47,6 +50,7 @@ def auction_realtime_snapshot(db: Session, auction: Auction) -> dict:
         "bid_count": len(history),
         "winner_id": auction.winner_id,
         "ends_at": auction.ends_at.isoformat(),
+        "is_listed": is_listed,
         "bids": [bid_to_history_item(bid, auction) for bid in history],
     }
 

@@ -3,13 +3,14 @@ from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile, status
 from fastapi.responses import StreamingResponse
-from sqlalchemy import func, or_, select
+from sqlalchemy import and_, case, exists, func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.db.session import get_db
 from app.dependencies.auth import get_optional_current_user, require_active_user, require_admin
 from app.models.auction import Auction, AuctionMessage, AuctionReview, Bid
 from app.models.notification import Notification
+from app.models.transaction import AuctionTransaction
 from app.models.user import User
 from app.schemas.auction import AuctionConversationRead, AuctionCreate, AuctionFinalizeRequest, AuctionImageRead, AuctionListItem, AuctionListPage, AuctionMessageCreate, AuctionMessageRead, AuctionRealtimeSnapshot, AuctionResponse, AuctionReviewCreate, AuctionReviewPage, AuctionReviewRead, AuctionStatusResponse, AuctionUpdate, BidCreate, BidHistoryItem, BidRead, MyBidAuctionItem, NotificationRead, UserSummary
 from app.services.auction_images import add_auction_image, delete_auction_image, set_cover_image
@@ -59,7 +60,17 @@ def _escaped_contains(value: str) -> str:
 
 def _apply_auction_filters(query, *, query_text, title, description, seller, category, condition, status_filter, min_price, max_price, min_bids, max_bids, buy_now, soon_ending, new_only):
     now = datetime.now(timezone.utc)
-    query = query.filter(Auction.status.in_(PUBLIC_AUCTION_STATUSES), Auction.deleted_at.is_(None))
+    open_transaction = exists(select(AuctionTransaction.id).where(
+        AuctionTransaction.auction_id == Auction.id,
+        AuctionTransaction.status == "transaction_open",
+    ))
+    query = query.filter(
+        or_(
+            Auction.status.in_(("scheduled", "active", "ended")),
+            and_(Auction.status == "sold", open_transaction),
+        ),
+        Auction.deleted_at.is_(None),
+    )
     if query_text:
         pattern = _escaped_contains(query_text)
         query = query.filter(or_(Auction.title.ilike(pattern, escape="\\"), Auction.description.ilike(pattern, escape="\\"), User.username.ilike(pattern, escape="\\"), User.full_name.ilike(pattern, escape="\\")))
@@ -97,22 +108,29 @@ def _apply_auction_filters(query, *, query_text, title, description, seller, cat
 
 def _apply_auction_sort(query, sort: str):
     bid_count = func.count(Bid.id)
+    status_last = case(
+        (Auction.status == "active", 0),
+        (Auction.status == "scheduled", 1),
+        (Auction.status == "ended", 2),
+        (Auction.status == "sold", 3),
+        else_=4,
+    )
     featured_first = featured_auction_order()
     if sort == "oldest":
-        return query.order_by(featured_first, Auction.created_at.asc(), Auction.id.asc())
+        return query.order_by(status_last, featured_first, Auction.created_at.asc(), Auction.id.asc())
     if sort == "highest_price":
-        return query.order_by(featured_first, Auction.current_price.desc(), Auction.id.desc())
+        return query.order_by(status_last, featured_first, Auction.current_price.desc(), Auction.id.desc())
     if sort == "lowest_price":
-        return query.order_by(featured_first, Auction.current_price.asc(), Auction.id.asc())
+        return query.order_by(status_last, featured_first, Auction.current_price.asc(), Auction.id.asc())
     if sort == "most_bids":
-        return query.order_by(featured_first, bid_count.desc(), Auction.id.desc())
+        return query.order_by(status_last, featured_first, bid_count.desc(), Auction.id.desc())
     if sort == "fewest_bids":
-        return query.order_by(featured_first, bid_count.asc(), Auction.id.asc())
+        return query.order_by(status_last, featured_first, bid_count.asc(), Auction.id.asc())
     if sort == "soon_ending":
-        return query.order_by(featured_first, Auction.ends_at.asc(), Auction.id.asc())
+        return query.order_by(status_last, featured_first, Auction.ends_at.asc(), Auction.id.asc())
     if sort == "buy_now_first":
-        return query.order_by(featured_first, Auction.buy_now_enabled.desc(), Auction.created_at.desc(), Auction.id.desc())
-    return query.order_by(featured_first, Auction.created_at.desc(), Auction.id.desc())
+        return query.order_by(status_last, featured_first, Auction.buy_now_enabled.desc(), Auction.created_at.desc(), Auction.id.desc())
+    return query.order_by(status_last, featured_first, Auction.created_at.desc(), Auction.id.desc())
 
 
 def auction_response(auction: Auction, user: User | None = None, db: Session | None = None) -> AuctionResponse:

@@ -214,6 +214,7 @@ class AuctionRealtimeSnapshot(BaseModel):
     bid_count: int
     winner_id: int | None
     ends_at: datetime
+    is_listed: bool = True
     bids: list[BidHistoryItem]
 
 

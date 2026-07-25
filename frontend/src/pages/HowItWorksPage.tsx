@@ -1,31 +1,133 @@
-const steps = [
-  ["Regisztráció és belépés", "Aukciót csak aktív, ellenőrzött fiókkal lehet létrehozni, licitet pedig csak ilyen fiókkal lehet tenni."],
-  ["Aukció létrehozása", "Az eladó megadja a leírást, képeket, állapotot, kezdőárat, licitlépcsőt és az időzítést."],
-  ["Licitálás", "Az aktív aukción a rendszer ellenőrzi a legkisebb elfogadható licitet, a jogosultságot, a villámárat és a bekapcsolható 5 perces licitvédelmet."],
-  ["Aukció lezárása", "Nyertes nélkül az aukció eladatlanul zárul. Nyertes esetén pontosan egy, biztonságosan követett tranzakció nyílik."],
-  ["Privát egyeztetés", "Az eladó és a nyertes a privát aukciós chatben egyezteti a fizetést, az átadást vagy a szállítást. A Nightfall Vault ezeket nem kezeli."],
-  ["Kölcsönös megerősítés", "Mindkét fél külön erősíti meg, hogy az adásvétel megtörtént. Egyetlen fél nyilatkozata nem zárja le a tranzakciót."],
-  ["Értékelés és archiválás", "A kölcsönös teljesítés után a felek egyszer, 1–5 csillaggal értékelhetik egymást. A lezárt előzmények auditálhatóan megmaradnak."],
-  ["Moderáció", "A figyelmeztetés tájékoztatás, a figyelmeztető pont naplózott szabálysértési jelzés, a tiltás pedig meghatározott funkciót vagy a teljes fiókot korlátozza. Végleges tiltásról mindig adminisztrátor dönt."],
+import { Link } from "react-router-dom";
+
+const journeySteps = [
+  ["Hozd létre a fiókodat", "Regisztrálj, erősítsd meg az e-mail-címedet, majd jelentkezz be. Licitálni és aukciót indítani csak aktív, e-mailben megerősített fiókkal lehet."],
+  ["Találd meg a tételt", "Keress cím, leírás, eladó, kategória, állapot, ár, licitszám, villámár vagy lejárat szerint. Menthetsz keresést, követhetsz eladót és figyelőlistára tehetsz aukciót."],
+  ["Licitálj szabályosan", "A gyorslicit egy teljes licitlépcsővel emel. A részletes oldalon nagyobb összeget is megadhatsz, de csak a meghatározott licitlépcsők szerint."],
+  ["Nyerd meg az aukciót", "A legmagasabb érvényes licit nyer a lejáratkor. A villámár pontos elérése azonnal lezárja az aukciót, és a licitáló lesz a nyertes."],
+  ["Egyeztessetek közvetlenül", "Az eladó és a nyertes a privát aukciós chatben beszéli meg a fizetést, az átadást vagy a szállítást. Ezeket a Nightfall Vault nem kezeli."],
+  ["Zárjátok le és értékeljetek", "Mindkét fél külön megerősíti a teljesítést. Ezután egyszer, 1–5 csillaggal értékelhetik egymást az értékelési határidőn belül."],
 ] as const;
 
-export function HowItWorksPage() {
-  return <section className="container page-shell">
-    <p className="eyebrow">Folyamat</p><h1>Hogyan működik?</h1>
-    <div className="info-grid">{steps.map(([title, text], index) => <article className="side-panel info-card" key={title}><span>{index + 1}</span><h2>{title}</h2><p>{text}</p></article>)}</div>
-    <section className="side-panel rules-panel" aria-labelledby="bidding-rules-title">
-      <p className="eyebrow">Átlátható licitálás</p>
-      <h2 id="bidding-rules-title">Licitálási szabályok</h2>
-      <ul>
-        <li>Az aukciókártyán csak az aukció nevére kattintva nyílik meg a részletes licitoldal. A kép és a kártya többi része nem navigál.</li>
-        <li>A kártya <strong>Licitálok</strong> gombja oldalváltás nélkül az aktuális licithez ad egy teljes licitlépcsőt. Nem szükséges külön összeget beírni.</li>
-        <li>A részletes licitoldalon üresen hagyott összegmező szintén a következő teljes licitlépcsőt küldi be.</li>
-        <li>Egyedi összeg megadható, de nem lehet kisebb az aktuális licit és egy licitlépcső összegénél. A további emelés csak egész licitlépcsőkben történhet. Például 35 000 Ft-os aktuális licit és 1000 Ft-os licitlépcső esetén 36 000, 37 000 vagy 38 000 Ft érvényes.</li>
-        <li>A <strong>Lecsapom</strong> gomb a pontos villámárat küldi be. Sikeres művelet esetén a licitáló megnyeri az aukciót, az aukció pedig azonnal lezárul.</li>
-        <li>A rendszer minden licitnél újra ellenőrzi a jogosultságot, az aktuális legkisebb összeget, a licitlépcsőt és a villámárat. Ha közben más magasabb ajánlatot tett, magyar hibaüzenet jelzi az új szükséges összeget.</li>
-        <li>Bekapcsolt <strong>5 perces szabálynál</strong> az utolsó öt percben érkező minden érvényes licit után a hátralévő idő újra öt percre áll. Ha ezalatt újabb licit érkezik, a számláló ismét öt percről indul. Az aukció akkor zárul le, amikor öt teljes perc eltelik új licit nélkül.</li>
-      </ul>
+const accountRules = [
+  "Egy személy saját, valós adatokkal létrehozott fiókot használjon; a belépési adatokat nem szabad másnak átadni.",
+  "A normál tag korlátlan számú aukciót böngészhet és licitálhat, de egyszerre legfeljebb 3 saját aktív vagy időzített aukciója lehet.",
+  "A VIP-tagság 12 karakteres, egyszer használható alfanumerikus kóddal aktiválható 1 vagy 3 hónapra. A még aktív VIP-időszakhoz az új időtartam hozzáadódik.",
+  "A VIP-tag korlátlan számú saját aktív vagy időzített aukciót tarthat fenn, aukciói VIP-kiemelést kapnak, és a listák elején jelennek meg.",
+  "Lejárt VIP-tagságnál a már futó aukciók nem tűnnek el, de új aukció csak akkor aktiválható, ha a normál háromaukciós korlát ismét teljesül.",
+] as const;
+
+const creationRules = [
+  "Csak saját tulajdonú, jogszerűen értékesíthető tétel tölthető fel valós címmel, részletes leírással, megfelelő kategóriával és tényleges állapottal.",
+  "Az aktiváláshoz 1–5 kép szükséges, és pontosan egy képet borítóképként kell kijelölni. Az eladónak el kell fogadnia a tulajdonjogi és képhasználati nyilatkozatot.",
+  "A kezdőárnak és a licitlépcsőnek pozitívnak kell lennie. Bekapcsolt villámárnál kötelező összeget megadni, amelynek magasabbnak kell lennie a kezdőárnál.",
+  "A lejáratnak későbbinek kell lennie a kezdésnél. Jövőbeli kezdés esetén az aukció Időzített, már elérkezett kezdésnél Aktív állapotba kerül.",
+  "Piszkozatban minden adat javítható. Aktiválás után a kezdőár, a licitlépcső, a villámár összege és a kezdési idő már nem módosítható.",
+  "Az eladó a saját aktív aukciójára nem licitálhat. A lezárt, eladott, eladatlan vagy megszakított aukció adatai utólag nem írhatók át normál szerkesztéssel.",
+] as const;
+
+const biddingRules = [
+  "Licit kizárólag Aktív aukcióra, aktív és licitálástól el nem tiltott fiókkal adható le. Saját aukcióra nem lehet licitálni.",
+  "A következő legkisebb licit mindig az aktuális ár és egy teljes licitlépcső összege. A kártya Licitálok gombja ezt az összeget küldi be oldalváltás nélkül.",
+  "A részletes oldalon üresen hagyott összegmező szintén a következő teljes licitlépcsőt használja. Egyedi, magasabb összeg csak egész licitlépcsőkkel adható meg.",
+  "Példa: 35 000 Ft aktuális ár és 1000 Ft licitlépcső mellett 36 000, 37 000 vagy 38 000 Ft érvényes; 36 500 Ft nem érvényes.",
+  "Minden beküldéskor a szerver az éppen aktuális árból számol. Ha közben más licitált, magyar hibaüzenet jelzi az új minimumot; az elavult ajánlat nem írhatja felül a magasabbat.",
+  "A licitek és az aktuális ár valós időben frissülnek. A túllicitált felhasználó értesítést kap, a licittörténetben pedig a licitálók anonimizált azonosítóval szerepelnek.",
+] as const;
+
+const buyNowRules = [
+  "A villámár opcionális, és csak akkor használható, ha az eladó az aukció létrehozásakor megadta az összegét.",
+  "A Lecsapom gomb pontosan a feltüntetett villámárat küldi be. A villámárnál magasabb összeg nem adható meg.",
+  "Ha egy szabályos licit eléri a villámár összegét, az aukció azonnal Eladott állapotba kerül, a licitáló lesz a nyertes, és további licit nem tehető.",
+  "A villámáras lezárás nem indít ötperces hosszabbítást: a nyerés azonnali és végleges az adott aukción belül.",
+] as const;
+
+const extensionRules = [
+  "Az 5 perces szabály csak akkor működik, ha az eladó bekapcsolta az aukción.",
+  "Ha a lejárat előtti utolsó öt percben érvényes licit érkezik, az új lejárat a licit időpontjától számított öt perc lesz.",
+  "Minden további, az új lejárat előtti utolsó öt percben érkező érvényes licit ismét öt percre állítja a hátralévő időt.",
+  "Az aukció akkor zárul le, amikor öt teljes perc telik el új érvényes licit nélkül. Sikertelen licit és villámáras azonnali nyerés nem indít újabb öt percet.",
+] as const;
+
+const closingRules = [
+  "A kezdési idő elérésekor az Időzített aukció automatikusan Aktív lesz.",
+  "A lejáratkor a legmagasabb érvényes licit licitálója nyer, az aukció Eladott állapotba kerül. Licit nélkül Eladatlan állapottal zárul.",
+  "Eladott aukcióhoz pontosan egy tranzakció nyílik. Ezt kizárólag az eladó és a nyertes láthatja; külső felhasználó nem fér hozzá.",
+  "Az eladott aukció a nyilvános Aukciók oldalon az egyeztetés ideje alatt, a futó tételek mögött marad. A két fél kölcsönös teljesítési megerősítése után lekerül a nyilvános listáról; a saját tranzakciós előzményben továbbra is elérhető.",
+  "A Nightfall Vault nem szed be vételárat, nem tart pénzt letétben, és nem szervez csomagküldést. A fizetés, átadás és szállítás a két fél saját megállapodása és felelőssége.",
+] as const;
+
+const transactionRules = [
+  "Az eladó és a nyertes a lezárt aukció privát chatjében egyeztethet. A chathez más felhasználó nem fér hozzá.",
+  "Enter elküldi az üzenetet, Shift+Enter új sort készít. Az új üzenet valós időben megjelenik és értesítést küldhet a másik félnek.",
+  "Tiltott vagy blokkolt kapcsolatban, illetve chattiltás alatt az üzenetküldés szerveroldalon sem hajtható végre. Archivált chat csak olvasható.",
+  "A teljesítést mindkét fél külön erősíti meg. Az első megerősítés után a tranzakció nyitva marad, és a másik fél értesítést kap.",
+  "A második megerősítés a tranzakciót Teljesített állapotba helyezi. Az ismételt megerősítés nem hoz létre második tranzakciót és nem duplikálja az állapotot.",
+  "A teljesítés után az eladó és a vevő egyszer-egyszer, 1–5 csillaggal értékelheti egymást. Az értékelési időszak alapértelmezetten 30 nap; lejárat vagy mindkét értékelés után a tranzakció archiválható.",
+] as const;
+
+const discoveryRules = [
+  "A figyelőlista a kiválasztott aukciókat gyűjti össze, és a közelgő lejáratról emlékeztető érkezhet.",
+  "A mentett keresés az új, feltételeknek megfelelő aukciókról jelezhet. Az eladó követése az eladó új aukcióiról küldhet értesítést.",
+  "Az értesítések kategóriái: licitek, chat, követések, tranzakciók, értékelések, moderáció és rendszer. Kategóriánként külön állítható az alkalmazáson belüli, böngészős és e-mailes csatorna.",
+  "A kikapcsolt csatornára nem érkezik értesítés; a mentett beállítások oldalfrissítés után is megmaradnak.",
+] as const;
+
+const safetyRules = [
+  "Aukció vagy felhasználói profil jelenthető előre megadott indokkal és részletes leírással. Saját aukció vagy saját profil nem jelenthető.",
+  "Ugyanaz a felhasználó ugyanazt az aukciót vagy profilt csak egyszer jelentheti. Egy jelentés vagy strike önmagában nem okoz automatikus végleges tiltást.",
+  "Az admin figyelmeztetést, strike-ot, aukcióindítási, licitálási vagy chatkorlátozást, ideiglenes vagy végleges fióktiltást adhat ki. Az intézkedések naplózottak és indokolt esetben visszavonhatók.",
+  "Felhasználót blokkolva megszűnik az új követés és a tiltott aukciós üzenetküldés. A már lezárt tranzakció jogszerű rendezését a feleknek továbbra is felelősen kell kezelniük.",
+  "Gyanús fizetési kérés, hamis termék, zaklatás vagy fiókfeltörés gyanúja esetén ne folytasd az ügyletet: őrizd meg a bizonyítékokat, jelentsd az esetet, és szükség esetén fordulj az illetékes hatósághoz.",
+] as const;
+
+function RuleSection({ eyebrow, title, rules }: { eyebrow: string; title: string; rules: readonly string[] }) {
+  return (
+    <section className="side-panel rules-panel">
+      <p className="eyebrow">{eyebrow}</p>
+      <h2>{title}</h2>
+      <ul>{rules.map((rule) => <li key={rule}>{rule}</li>)}</ul>
     </section>
-    <section className="side-panel rules-panel"><p className="eyebrow">Biztonság és felelősség</p><h2>Piactéri szabályok</h2><p>A felhasználó csak saját tulajdonú, jogszerűen értékesíthető tételt tölthet fel valós leírással és használható képekkel. A moderáció a jelentéseket kivizsgálja; egy jelentés önmagában nem bizonyított szabálysértés, és nem okoz automatikus végleges tiltást.</p><p>A Nightfall Vault technikai aukciós piactér. Az adásvétel, a fizetés és az átadás lebonyolítása közvetlenül az eladó és a nyertes között történik.</p></section>
-  </section>;
+  );
+}
+
+export function HowItWorksPage() {
+  return (
+    <section className="container page-shell">
+      <p className="eyebrow">A Nightfall Vault szabályai</p>
+      <h1>Hogyan működik?</h1>
+      <p className="page-intro">Az aukció teljes útja a fiók létrehozásától a licitáláson át a kölcsönös lezárásig. Az alábbi szabályok minden felhasználóra és minden aukcióra érvényesek.</p>
+
+      <div className="info-grid">
+        {journeySteps.map(([title, text], index) => (
+          <article className="side-panel info-card" key={title}>
+            <span>{index + 1}</span><h2>{title}</h2><p>{text}</p>
+          </article>
+        ))}
+      </div>
+
+      <div className="rules-grid how-it-works-rules">
+        <RuleSection eyebrow="Fiók és tagság" title="Normál és VIP-tagság" rules={accountRules} />
+        <RuleSection eyebrow="Eladóknak" title="Aukció létrehozása és módosítása" rules={creationRules} />
+        <RuleSection eyebrow="Licitálóknak" title="Licit és licitlépcső" rules={biddingRules} />
+        <RuleSection eyebrow="Azonnali nyerés" title="Villámár" rules={buyNowRules} />
+        <RuleSection eyebrow="Igazságos hajrá" title="Az 5 perces szabály" rules={extensionRules} />
+        <RuleSection eyebrow="Automatikus folyamat" title="Kezdés és aukciózárás" rules={closingRules} />
+        <RuleSection eyebrow="Eladó és nyertes" title="Chat, tranzakció és értékelés" rules={transactionRules} />
+        <RuleSection eyebrow="Ne maradj le" title="Figyelések és értesítések" rules={discoveryRules} />
+        <RuleSection eyebrow="Biztonság" title="Jelentés, blokkolás és moderáció" rules={safetyRules} />
+      </div>
+
+      <section className="side-panel rules-panel">
+        <p className="eyebrow">Fontos felelősségi határ</p>
+        <h2>A Nightfall Vault aukciós piactér, nem webshop</h2>
+        <p>A platform az aukciót, a liciteket, az értesítéseket, a privát egyeztetést, a kölcsönös teljesítési visszaigazolást és az értékelést biztosítja. Nem kezel bankkártyás fizetést, pénzletétet, rendelést, kosarat, futárt vagy szállítási garanciát.</p>
+        <p>Mindig ellenőrizd a másik fél profilját és értékeléseit, nagyobb értéknél válassz nyomon követhető fizetési és átadási módot, és ne oszd meg a jelszavadat vagy aktiváló kódodat.</p>
+        <div className="hero-actions">
+          <Link className="button button-primary" to="/auctions">Aukciók böngészése</Link>
+          <Link className="button button-secondary" to="/account/auctions#auction-create">Saját aukció indítása</Link>
+        </div>
+      </section>
+    </section>
+  );
 }

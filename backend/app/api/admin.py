@@ -190,7 +190,7 @@ def get_admin_audit_log(audit_log_id: int, _current_user: User = Depends(require
 
 @router.get("/auctions", response_model=list[AuctionListItem])
 def list_admin_auctions(_current_user: User = Depends(require_admin), db: Session = Depends(get_db)) -> list[AuctionListItem]:
-    statement = get_auction_statement().order_by(featured_auction_order(), Auction.created_at.desc(), Auction.id.desc()).limit(100)
+    statement = get_auction_statement().where(Auction.deleted_at.is_(None)).order_by(featured_auction_order(), Auction.created_at.desc(), Auction.id.desc()).limit(100)
     return [AuctionListItem.model_validate(sync_auction_status(db, auction)) for auction in db.scalars(statement).all()]
 
 
