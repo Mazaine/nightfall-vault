@@ -116,7 +116,7 @@ def create_checkout_order(
     if not checkout_create.items:
         raise HTTPException(status_code=400, detail="Cart cannot be empty.")
 
-    verify_captcha(checkout_create.captcha_token or checkout_create.turnstile_token, action="checkout")
+    verify_captcha(checkout_create.captcha_token or checkout_create.turnstile_token, action="checkout", request=request)
 
     if checkout_create.payment_method not in SUPPORTED_PAYMENT_METHODS:
         raise HTTPException(status_code=400, detail="Only bank transfer is currently supported.")

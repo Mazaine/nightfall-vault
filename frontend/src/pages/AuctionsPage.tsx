@@ -1,5 +1,5 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router";
 import { listAuctions, type Auction, type AuctionListParams } from "../api/auctions";
 import { createSavedSearch } from "../api/searches";
 import { useAuth } from "../AuthContext";

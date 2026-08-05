@@ -38,6 +38,11 @@ class Settings(BaseSettings):
     forgot_password_rate_limit_per_minute: int = 3
     resend_verification_rate_limit_per_minute: int = 3
     newsletter_rate_limit_per_minute: int = 5
+    bid_rate_limit_per_minute: int = 30
+    chat_message_rate_limit_per_minute: int = 20
+    vip_activation_rate_limit_per_minute: int = 10
+    sse_connection_rate_limit_per_minute: int = 30
+    realtime_heartbeat_rate_limit_per_minute: int = 10
     order_admin_email: str | None = None
     log_level: str = "INFO"
     log_format: str = "text"
@@ -45,10 +50,10 @@ class Settings(BaseSettings):
     storage_backend: str = "local"
     media_root: str = Field(default="/data/media", validation_alias=AliasChoices("media_root", "MEDIA_ROOT", "STORAGE_UPLOAD_DIR"))
     media_url_prefix: str = "/media"
-    max_image_file_size_bytes: int = 5 * 1024 * 1024
-    max_image_pixels: int = 24_000_000
-    max_image_width: int = 2400
-    max_image_height: int = 2400
+    max_image_file_size_bytes: int = 20 * 1024 * 1024
+    max_image_pixels: int = 50_000_000
+    max_image_width: int = 10_000
+    max_image_height: int = 10_000
     auction_scheduler_mode: str = "embedded"
     auction_scheduler_interval_seconds: int = 10
     auction_scheduler_lock_key: int = 8711042

@@ -1,6 +1,6 @@
 import { FormEvent, KeyboardEvent as ReactKeyboardEvent, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Link, useLocation, useParams } from "react-router-dom";
+import { Link, useLocation, useParams } from "react-router";
 import { apiAssetUrl } from "../api/client";
 import { ApiError } from "../api/client";
 import { auctionReportReasons, createAuctionReport } from "../api/reports";

@@ -1,6 +1,7 @@
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
-from jose import ExpiredSignatureError, JWTError, jwt
+import jwt
+from jwt import ExpiredSignatureError, InvalidTokenError
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -38,11 +39,12 @@ def get_current_user(
         user_id = int(subject)
     except ExpiredSignatureError:
         raise expired_exception from None
-    except (JWTError, ValueError):
+    except (InvalidTokenError, ValueError):
         raise credentials_exception from None
 
     user = db.get(User, user_id)
-    if user is None or user.deleted_at is not None:
+    token_version = payload.get("ver")
+    if user is None or user.deleted_at is not None or not isinstance(token_version, int) or token_version != user.auth_version:
         raise credentials_exception
 
     return user
@@ -86,11 +88,18 @@ def get_optional_current_user(
         if subject is None:
             return None
         user_id = int(subject)
-    except (JWTError, ValueError):
+    except (InvalidTokenError, ValueError):
         return None
 
     user = db.get(User, user_id)
-    if user is None or not user.is_active or user.deleted_at is not None:
+    token_version = payload.get("ver")
+    if (
+        user is None
+        or not user.is_active
+        or user.deleted_at is not None
+        or not isinstance(token_version, int)
+        or token_version != user.auth_version
+    ):
         return None
 
     return user

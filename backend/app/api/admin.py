@@ -51,6 +51,14 @@ def get_active_user_or_404(db: Session, user_id: int) -> User:
     return user
 
 
+def require_manageable_user_account(current_admin: User, target: User) -> None:
+    if target.id == current_admin.id or target.role == "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Adminisztrátori fiók ezen a felületen nem módosítható vagy törölhető.",
+        )
+
+
 @router.get("/me", response_model=UserPublic)
 def get_admin_me(current_user: User = Depends(require_admin)) -> UserPublic:
     return UserPublic.model_validate(current_user)
@@ -385,19 +393,25 @@ def search_admin_users(query: str = Query(min_length=2, max_length=120), _curren
 
 
 @router.patch("/users/{user_id}", response_model=UserPublic)
-def update_admin_user(user_id: int, user_update: UserAdminUpdate, _current_user: User = Depends(require_admin), db: Session = Depends(get_db)) -> UserPublic:
+def update_admin_user(user_id: int, user_update: UserAdminUpdate, current_user: User = Depends(require_admin), db: Session = Depends(get_db)) -> UserPublic:
     user = get_active_user_or_404(db, user_id)
-    for field_name, value in user_update.model_dump(exclude_unset=True).items():
+    require_manageable_user_account(current_user, user)
+    update_data = user_update.model_dump(exclude_unset=True)
+    if any(field in update_data and update_data[field] != getattr(user, field) for field in ("role", "is_active")):
+        user.auth_version += 1
+    for field_name, value in update_data.items():
         setattr(user, field_name, value)
     db.add(user)
     db.commit()
     db.refresh(user)
     return UserPublic.model_validate(user)
 @router.delete("/users/{user_id}", response_model=UserPublic)
-def delete_admin_user(user_id: int, _current_user: User = Depends(require_admin), db: Session = Depends(get_db)) -> UserPublic:
+def delete_admin_user(user_id: int, current_user: User = Depends(require_admin), db: Session = Depends(get_db)) -> UserPublic:
     user = get_active_user_or_404(db, user_id)
+    require_manageable_user_account(current_user, user)
     user.deleted_at = datetime.now(timezone.utc)
     user.is_active = False
+    user.auth_version += 1
     db.add(user)
     db.commit()
     db.refresh(user)

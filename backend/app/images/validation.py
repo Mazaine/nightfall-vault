@@ -20,7 +20,8 @@ def validate_image_upload(content: bytes, declared_content_type: str | None) -> 
     if not content:
         raise HTTPException(status_code=400, detail="A feltöltött képfájl üres.")
     if len(content) > settings.max_image_file_size_bytes:
-        raise HTTPException(status_code=413, detail="A kép legfeljebb 5 MB méretű lehet.")
+        max_megabytes = settings.max_image_file_size_bytes // (1024 * 1024)
+        raise HTTPException(status_code=413, detail=f"A kép legfeljebb {max_megabytes} MB méretű lehet.")
     if declared_content_type not in ALLOWED_INPUT_FORMATS.values():
         raise HTTPException(status_code=400, detail="Csak JPEG, PNG vagy WEBP kép tölthető fel.")
     try:

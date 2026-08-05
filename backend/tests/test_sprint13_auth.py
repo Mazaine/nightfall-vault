@@ -118,6 +118,9 @@ def test_resend_verification_invalidates_the_previous_link(monkeypatch) -> None:
 
 def test_forgot_password_is_non_enumerating_and_reset_is_single_use(monkeypatch) -> None:
     user = create_verified_user("password-reset")
+    old_login = client.post("/api/auth/login", json={"email": user.email, "password": "OldPassword123!"})
+    assert old_login.status_code == 200
+    old_headers = {"Authorization": f"Bearer {old_login.json()['access_token']}"}
     sent_urls: list[str] = []
     monkeypatch.setattr("app.api.auth.send_password_reset_email", lambda _email, url: sent_urls.append(url) or True)
 
@@ -147,6 +150,7 @@ def test_forgot_password_is_non_enumerating_and_reset_is_single_use(monkeypatch)
     })
     assert changed.status_code == 200
     assert reused.status_code == 400
+    assert client.get("/api/auth/me", headers=old_headers).status_code == 401
     assert client.post("/api/auth/login", json={"email": user.email, "password": "NewPassword123!"}).status_code == 200
 
 
@@ -214,3 +218,13 @@ def test_admin_and_normal_user_are_separated_by_backend_guard() -> None:
     admin_response = client.get("/api/admin/me", headers=admin_headers)
     assert admin_response.status_code == 200
     assert admin_response.json()["role"] == "admin"
+
+
+def test_admin_accounts_cannot_be_disabled_demoted_or_deleted_from_user_management() -> None:
+    acting_admin = create_verified_user("acting-admin", role="admin")
+    target_admin = create_verified_user("target-admin", role="admin")
+    headers = {"Authorization": f"Bearer {create_access_token(acting_admin.id)}"}
+
+    assert client.patch(f"/api/admin/users/{acting_admin.id}", json={"is_active": False}, headers=headers).status_code == 403
+    assert client.patch(f"/api/admin/users/{target_admin.id}", json={"role": "user"}, headers=headers).status_code == 403
+    assert client.delete(f"/api/admin/users/{target_admin.id}", headers=headers).status_code == 403

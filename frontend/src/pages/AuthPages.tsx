@@ -1,5 +1,5 @@
 import { FormEvent, type KeyboardEvent, useEffect, useState } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router";
 import { register, resendVerification } from "../api/auth";
 import { ApiError } from "../api/client";
 import { useAuth } from "../AuthContext";

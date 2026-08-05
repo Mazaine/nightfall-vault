@@ -1,5 +1,5 @@
-﻿import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Link, useParams } from "react-router";
 import { blockUser, unblockUser } from "../api/blocks";
 import { createUserReport, userReportReasons } from "../api/reports";
 import { followSeller, getPublicUserProfile, listPublicUserReviews, unfollowSeller, type PublicReview, type PublicUserProfile } from "../api/users";

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 import { listMyNotifications, markAllNotificationsRead, markNotificationRead, type NotificationItem } from "../api/auctions";
 import { EmptyState, ErrorState, LoadingState } from "../components/AsyncStates";
 import { NotificationPreferencesPanel } from "../components/NotificationPreferencesPanel";

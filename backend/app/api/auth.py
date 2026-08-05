@@ -75,7 +75,7 @@ def register(
     db: Session = Depends(get_db),
 ) -> MessageResponse:
     check_rate_limit(request, "auth:register", settings.register_rate_limit_per_minute, user_create.email)
-    verify_captcha(user_create.captcha_token or user_create.turnstile_token, action="register")
+    verify_captcha(user_create.captcha_token or user_create.turnstile_token, action="register", request=request)
 
     errors: dict[str, str] = {}
     if get_user_by_email(db, user_create.email) is not None:
@@ -121,7 +121,7 @@ def login(
     db: Session = Depends(get_db),
 ) -> TokenResponse:
     check_rate_limit(request, "auth:login", settings.login_rate_limit_per_minute, login_request.email)
-    verify_captcha(login_request.captcha_token or login_request.turnstile_token, action="login")
+    verify_captcha(login_request.captcha_token or login_request.turnstile_token, action="login", request=request)
 
     ip_address = get_client_ip(request)
     user_agent = request.headers.get("user-agent")
@@ -187,7 +187,7 @@ def login(
         success=True,
     )
     db.commit()
-    access_token = create_access_token(subject=user.id)
+    access_token = create_access_token(subject=user.id, session_version=user.auth_version)
     return TokenResponse(access_token=access_token, user=UserMeRead.model_validate(user))
 
 
@@ -198,7 +198,7 @@ def forgot_password(
     db: Session = Depends(get_db),
 ) -> MessageResponse:
     check_rate_limit(request, "auth:forgot-password", settings.forgot_password_rate_limit_per_minute, forgot_request.email)
-    verify_captcha(forgot_request.captcha_token or forgot_request.turnstile_token, action="forgot-password")
+    verify_captcha(forgot_request.captcha_token or forgot_request.turnstile_token, action="forgot-password", request=request)
 
     user = get_user_by_email(db, forgot_request.email)
     if user is not None and user.is_active:
@@ -241,7 +241,7 @@ def resend_verification(
         settings.resend_verification_rate_limit_per_minute,
         resend_request.email,
     )
-    verify_captcha(resend_request.captcha_token or resend_request.turnstile_token, action="resend-verification")
+    verify_captcha(resend_request.captcha_token or resend_request.turnstile_token, action="resend-verification", request=request)
 
     user = get_user_by_email(db, resend_request.email)
     if user is not None and user.is_active and not user.is_email_verified:
@@ -281,6 +281,7 @@ def reset_password(
         raise HTTPException(status_code=400, detail="A jelszó-visszaállítás nem hajtható végre.")
 
     user.password_hash = hash_password(reset_request.new_password)
+    user.auth_version += 1
     user_tokens = db.scalars(
         select(PasswordResetToken).where(
             PasswordResetToken.user_id == user.id,
@@ -410,6 +411,7 @@ def change_my_password(
         raise HTTPException(status_code=422, detail="Az új jelszó nem lehet azonos a jelenlegi jelszóval.")
 
     current_user.password_hash = hash_password(password_change.new_password)
+    current_user.auth_version += 1
     db.add(current_user)
     db.commit()
     return MessageResponse(message="A jelszavad sikeresen módosult.")
@@ -425,6 +427,7 @@ def delete_me(
         raise HTTPException(status_code=403, detail="A megadott jelszó nem megfelelő.")
 
     current_user.is_active = False
+    current_user.auth_version += 1
     current_user.deleted_at = datetime.now(timezone.utc)
     current_user.email = f"deleted-{current_user.id}-{current_user.email}"
     current_user.username = f"deleted-{current_user.id}-{current_user.username}"

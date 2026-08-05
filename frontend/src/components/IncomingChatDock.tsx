@@ -1,6 +1,6 @@
 import { FormEvent, KeyboardEvent as ReactKeyboardEvent, useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation } from "react-router";
 import { useAuth } from "../AuthContext";
 import { useNotifications } from "../NotificationContext";
 import { createAuctionMessage, getAuction, listAuctionMessages, markAuctionMessagesRead, sendTyping, type Auction, type AuctionMessage } from "../api/auctions";

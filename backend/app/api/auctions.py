@@ -6,6 +6,8 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy import and_, case, exists, func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
+from app.core.config import settings
+from app.core.rate_limit import check_rate_limit
 from app.db.session import get_db
 from app.dependencies.auth import get_optional_current_user, require_active_user, require_admin
 from app.models.auction import Auction, AuctionMessage, AuctionReview, Bid
@@ -392,6 +394,7 @@ def list_auction_bids(
 
 @router.get("/realtime/stream")
 async def stream_auction_list_updates(request: Request) -> StreamingResponse:
+    check_rate_limit(request, "sse:auctions", settings.sse_connection_rate_limit_per_minute)
     async def events():
         async for event_id, event_type, payload in iter_stream("nightfall:realtime:auctions", request.headers.get("last-event-id", "$")):
             if await request.is_disconnected():
@@ -410,6 +413,7 @@ async def stream_auction_updates(
 ) -> StreamingResponse:
     auction = get_auction_or_404(db, auction_id)
     require_can_view_auction(auction, current_user)
+    check_rate_limit(request, "sse:auction", settings.sse_connection_rate_limit_per_minute)
 
     initial = AuctionRealtimeSnapshot.model_validate(auction_realtime_snapshot(db, auction)).model_dump(mode="json")
 
@@ -430,9 +434,11 @@ async def stream_auction_updates(
 def place_auction_bid(
     auction_id: int,
     bid_create: BidCreate,
+    request: Request,
     current_user: User = Depends(require_active_user),
     db: Session = Depends(get_db),
 ) -> BidRead:
+    check_rate_limit(request, "auction:bid", settings.bid_rate_limit_per_minute, str(current_user.id))
     bid, auction = place_bid(db=db, auction_id=auction_id, bidder=current_user, amount=bid_create.amount)
     return BidRead.model_validate(bid_to_read(bid, auction))
 
@@ -516,9 +522,11 @@ def list_auction_messages(
 def create_auction_message(
     auction_id: int,
     message_create: AuctionMessageCreate,
+    request: Request,
     current_user: User = Depends(require_active_user),
     db: Session = Depends(get_db),
 ) -> AuctionMessageRead:
+    check_rate_limit(request, "auction:message", settings.chat_message_rate_limit_per_minute, str(current_user.id))
     auction = get_auction_or_404(db, auction_id)
     message = create_message(db=db, auction=auction, sender=current_user, message=message_create.message)
     return AuctionMessageRead.model_validate(message)

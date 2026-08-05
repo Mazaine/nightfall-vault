@@ -9,12 +9,12 @@ class FakeRedisClient:
         self.values: dict[str, int] = {}
         self.expirations: dict[str, int] = {}
 
-    def incr(self, key: str) -> int:
+    def eval(self, _script: str, key_count: int, key: str, seconds: int) -> int:
+        assert key_count == 1
         self.values[key] = self.values.get(key, 0) + 1
+        if self.values[key] == 1:
+            self.expirations[key] = seconds
         return self.values[key]
-
-    def expire(self, key: str, seconds: int) -> None:
-        self.expirations[key] = seconds
 
 
 def test_memory_rate_limiter_blocks_after_limit() -> None:

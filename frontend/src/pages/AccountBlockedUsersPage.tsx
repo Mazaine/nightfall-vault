@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 import { listBlocks, unblockUser, type BlockRead } from "../api/blocks";
 import { EmptyState, ErrorState, LoadingState } from "../components/AsyncStates";
 import { formatLocalDateTime } from "../utils/format";

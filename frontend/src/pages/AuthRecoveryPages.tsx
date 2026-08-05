@@ -1,5 +1,5 @@
 import { FormEvent, type KeyboardEvent, type ReactNode, useEffect, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router";
 import { forgotPassword, resetPassword, verifyEmail, type MessageResponse } from "../api/auth";
 import { CaptchaWidget } from "../components/security/CaptchaWidget";
 

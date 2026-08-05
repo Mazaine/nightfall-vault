@@ -17,6 +17,8 @@ def production_settings(**overrides) -> Settings:
         app_frontend_url="https://example.invalid", app_backend_url="https://example.invalid",
         frontend_base_url="https://example.invalid", auction_scheduler_mode="external",
         trusted_proxy_cidrs=["172.16.0.0/12"], media_root="/data/media",
+        rate_limit_backend="redis", captcha_enabled=True, captcha_provider="turnstile",
+        turnstile_secret_key="test-turnstile-secret",
     )
     values.update(overrides)
     return Settings(**values)
@@ -39,6 +41,8 @@ def test_developer_surface_is_disabled_in_production() -> None:
 @pytest.mark.parametrize("override", [
     {"secret_key": "change-me"}, {"backend_cors_origins": ["*"]},
     {"app_frontend_url": "http://localhost:5173"}, {"development_admin_seed_enabled": True},
+    {"captcha_enabled": False}, {"captcha_provider": "recaptcha"},
+    {"turnstile_secret_key": None}, {"rate_limit_backend": "memory"},
 ])
 def test_unsafe_production_configuration_is_rejected(override) -> None:
     with pytest.raises(RuntimeError, match="Invalid production configuration"):

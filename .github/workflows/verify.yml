@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
       - name: Prepare isolated CI configuration
         run: |
           cp .env.example .env
@@ -30,6 +30,10 @@ jobs:
         run: docker compose exec -T backend pytest
       - name: Run frontend tests
         run: docker compose exec -T frontend npm run test
+      - name: Audit application dependencies and backend source
+        run: |
+          docker compose exec -T frontend npm audit --omit=dev
+          docker run --rm -v "$PWD/backend:/audit:ro" python:3.12-slim sh -c 'pip install --quiet pip-audit==2.10.1 bandit==1.9.4 && pip-audit -r /audit/requirements-prod.txt && bandit -q -r /audit/app -x /audit/app/scripts -s B105'
       - name: Build frontend
         run: docker compose exec -T frontend npm run build
       - name: Service diagnostics
@@ -40,7 +44,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
       - name: Validate scripts and tracked secrets
         run: |
           bash -n scripts/*.sh scripts/lib/*.sh

@@ -1,4 +1,5 @@
-from jose import JWTError, jwt
+import jwt
+from jwt import InvalidTokenError
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -35,7 +36,7 @@ def get_user_id_from_authorization_header(authorization: str | None) -> int | No
         payload = jwt.decode(token, settings.secret_key, algorithms=[settings.access_token_algorithm])
         subject = payload.get("sub")
         return int(subject) if subject is not None else None
-    except (JWTError, ValueError):
+    except (InvalidTokenError, ValueError):
         return None
 
 

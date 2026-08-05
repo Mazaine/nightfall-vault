@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 import { auctionReportReasons, listAdminReports, updateAdminReportNote, updateAdminReportPriority, updateAdminReportStatus, userReportReasons, type AdminReportRead, type ReportPriority, type ReportStatus } from "../../api/reports";
 import { formatLocalDateTime } from "../../utils/format";
 import { EmptyState, ErrorState, LoadingState } from "../../components/AsyncStates";

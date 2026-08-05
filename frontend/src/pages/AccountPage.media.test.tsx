@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AccountPage } from "./AccountPage";
 
@@ -160,7 +160,9 @@ describe("AccountPage media upload", () => {
   });
 
   it("a teljes aukcióadatokkal, módosítható alapadatokkal nyitja meg a szerkesztőt", async () => {
-    const listItem = { id: 92, seller_id: 2, title: "Aktív tesztaukció", category: "Pokemon", condition: "fresh", status: "active", starting_price: "1000", bid_increment: "100", current_price: "1200", buy_now_enabled: false, buy_now_price: null, starts_at: "2026-07-15T10:00:00Z", ends_at: "2026-07-27T10:00:00Z", five_minute_rule_enabled: true, winner_id: null, highest_bid_id: null, images: [] };
+    const futureStart = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+    const futureEnd = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString();
+    const listItem = { id: 92, seller_id: 2, title: "Aktív tesztaukció", category: "Pokemon", condition: "fresh", status: "active", starting_price: "1000", bid_increment: "100", current_price: "1200", buy_now_enabled: false, buy_now_price: null, starts_at: futureStart, ends_at: futureEnd, five_minute_rule_enabled: true, winner_id: null, highest_bid_id: null, images: [] };
     mocks.listMyAuctions.mockResolvedValue([listItem]);
     mocks.getAuction.mockResolvedValue({ ...listItem, description: "Régi, részletes leírás" });
     renderPage();

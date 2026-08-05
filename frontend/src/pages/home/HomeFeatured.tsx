@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type TouchEvent } from "react";
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 import { listAuctions, type Auction } from "../../api/auctions";
 import { AuctionCard } from "../../components/AuctionCard";
 import { toAuctionCardItem } from "../../utils/auctionPresentation";

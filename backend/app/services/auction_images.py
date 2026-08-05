@@ -3,6 +3,7 @@ from uuid import uuid4
 from fastapi import HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.images.processing import process_image
 from app.images.validation import ALLOWED_INPUT_FORMATS, safe_original_filename
 from app.models.auction import Auction, AuctionImage
@@ -32,7 +33,10 @@ async def add_auction_image(db: Session, auction: Auction, upload: UploadFile, u
     if upload.content_type not in ALLOWED_INPUT_FORMATS.values():
         raise HTTPException(status_code=400, detail="Csak JPEG, PNG vagy WEBP kép tölthető fel.")
 
-    content = await upload.read()
+    content = await upload.read(settings.max_image_file_size_bytes + 1)
+    if len(content) > settings.max_image_file_size_bytes:
+        max_megabytes = settings.max_image_file_size_bytes // (1024 * 1024)
+        raise HTTPException(status_code=413, detail=f"A kép legfeljebb {max_megabytes} MB méretű lehet.")
     processed = process_image(content, upload.content_type)
     keys = auction_image_keys(auction.id, auction.created_at, uuid4())
     storage.save_many_atomic({keys[name]: payload for name, payload in processed.variants.items()})

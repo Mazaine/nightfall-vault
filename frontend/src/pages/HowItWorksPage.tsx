@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 
 const journeySteps = [
   ["Hozd létre a fiókodat", "Regisztrálj, erősítsd meg az e-mail-címedet, majd jelentkezz be. Licitálni és aukciót indítani csak aktív, e-mailben megerősített fiókkal lehet."],
@@ -81,9 +81,9 @@ const safetyRules = [
   "Gyanús fizetési kérés, hamis termék, zaklatás vagy fiókfeltörés gyanúja esetén ne folytasd az ügyletet: őrizd meg a bizonyítékokat, jelentsd az esetet, és szükség esetén fordulj az illetékes hatósághoz.",
 ] as const;
 
-function RuleSection({ eyebrow, title, rules }: { eyebrow: string; title: string; rules: readonly string[] }) {
+function RuleSection({ eyebrow, title, rules, ariaLabel }: { eyebrow: string; title: string; rules: readonly string[]; ariaLabel?: string }) {
   return (
-    <section className="side-panel rules-panel">
+    <section className="side-panel rules-panel" aria-label={ariaLabel}>
       <p className="eyebrow">{eyebrow}</p>
       <h2>{title}</h2>
       <ul>{rules.map((rule) => <li key={rule}>{rule}</li>)}</ul>
@@ -109,7 +109,7 @@ export function HowItWorksPage() {
       <div className="rules-grid how-it-works-rules">
         <RuleSection eyebrow="Fiók és tagság" title="Normál és VIP-tagság" rules={accountRules} />
         <RuleSection eyebrow="Eladóknak" title="Aukció létrehozása és módosítása" rules={creationRules} />
-        <RuleSection eyebrow="Licitálóknak" title="Licit és licitlépcső" rules={biddingRules} />
+        <RuleSection eyebrow="Licitálóknak" title="Licit és licitlépcső" rules={biddingRules} ariaLabel="Licitálási szabályok" />
         <RuleSection eyebrow="Azonnali nyerés" title="Villámár" rules={buyNowRules} />
         <RuleSection eyebrow="Igazságos hajrá" title="Az 5 perces szabály" rules={extensionRules} />
         <RuleSection eyebrow="Automatikus folyamat" title="Kezdés és aukciózárás" rules={closingRules} />

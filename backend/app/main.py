@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import re
 from uuid import uuid4
 from contextlib import asynccontextmanager
 
@@ -87,7 +88,12 @@ SECURITY_HEADERS = {
     "X-Frame-Options": "DENY",
     "Referrer-Policy": "strict-origin-when-cross-origin",
     "Permissions-Policy": "camera=(), microphone=(), geolocation=(), payment=()",
+    "Cross-Origin-Opener-Policy": "same-origin",
+    "Cross-Origin-Resource-Policy": "same-origin",
+    "X-Permitted-Cross-Domain-Policies": "none",
 }
+
+SAFE_REQUEST_ID = re.compile(r"^[A-Za-z0-9._:-]{1,128}$")
 
 PRIVATE_API_PREFIXES = (
     "/api/admin",
@@ -252,7 +258,8 @@ def registration_validation_errors(exc: RequestValidationError) -> dict[str, str
 
 @app.middleware("http")
 async def request_id_middleware(request: Request, call_next):
-    request_id = request.headers.get("X-Request-ID") or uuid4().hex
+    supplied_request_id = request.headers.get("X-Request-ID", "")
+    request_id = supplied_request_id if SAFE_REQUEST_ID.fullmatch(supplied_request_id) else uuid4().hex
     request.state.request_id = request_id
     response = await call_next(request)
     response.headers["X-Request-ID"] = request_id
@@ -328,8 +335,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.backend_cors_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "Last-Event-ID", "X-Request-ID"],
 )
 
 app.include_router(health_router)

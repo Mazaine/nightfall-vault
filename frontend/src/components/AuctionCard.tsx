@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router";
 import { placeAuctionBid } from "../api/auctions";
 import { useAuth } from "../AuthContext";
 import { formatMoney } from "../utils/format";

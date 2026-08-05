@@ -1,5 +1,5 @@
-﻿import { ChangeEvent, FormEvent, useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { ChangeEvent, FormEvent, useEffect, useState } from "react";
+import { Link } from "react-router";
 import { activateAuction, cancelAuction, createAuction, deleteAuctionImage, getAuction, listMyAuctions, listMyBidAuctions, setAuctionCoverImage, updateAuction, uploadAuctionImage, type Auction, type AuctionCondition, type MyBidAuction } from "../api/auctions";
 import { ApiError, apiAssetUrl } from "../api/client";
 import { AuctionCard } from "../components/AuctionCard";
@@ -11,6 +11,7 @@ import { useNotifications } from "../NotificationContext";
 import { useAuctionRealtime } from "../AuctionRealtimeContext";
 
 const MAX_AUCTION_IMAGES = 5;
+const MAX_IMAGE_FILE_SIZE_BYTES = 20 * 1024 * 1024;
 
 const editableFields = [
   "név",
@@ -242,9 +243,9 @@ export function AccountPage({ section }: { section: "bids" | "auctions" }) {
 
   const handleImageChange = (event: ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = Array.from(event.target.files ?? []);
-    const invalidFile = selectedFiles.find((file) => !["image/jpeg", "image/png", "image/webp"].includes(file.type) || file.size > 5 * 1024 * 1024);
+    const invalidFile = selectedFiles.find((file) => !["image/jpeg", "image/png", "image/webp"].includes(file.type) || file.size > MAX_IMAGE_FILE_SIZE_BYTES);
     if (invalidFile) {
-      setImageMessage(`${invalidFile.name}: csak JPEG, PNG vagy WEBP kép tölthető fel, legfeljebb 5 MB méretben.`);
+      setImageMessage(`${invalidFile.name}: csak JPEG, PNG vagy WEBP kép tölthető fel, legfeljebb 20 MB méretben.`);
       event.target.value = "";
       return;
     }
@@ -377,10 +378,10 @@ export function AccountPage({ section }: { section: "bids" | "auctions" }) {
 
   const handleEditImageChange = (event: ChangeEvent<HTMLInputElement>, auction: Auction) => {
     const selectedFiles = Array.from(event.target.files ?? []);
-    const invalidFile = selectedFiles.find((file) => !["image/jpeg", "image/png", "image/webp"].includes(file.type) || file.size > 5 * 1024 * 1024);
+    const invalidFile = selectedFiles.find((file) => !["image/jpeg", "image/png", "image/webp"].includes(file.type) || file.size > MAX_IMAGE_FILE_SIZE_BYTES);
     if (invalidFile) {
       setEditAuctionImages([]);
-      setEditImageMessage(`${invalidFile.name}: csak JPEG, PNG vagy WEBP kép tölthető fel, legfeljebb 5 MB méretben.`);
+      setEditImageMessage(`${invalidFile.name}: csak JPEG, PNG vagy WEBP kép tölthető fel, legfeljebb 20 MB méretben.`);
       event.target.value = "";
       return;
     }
@@ -656,7 +657,7 @@ export function AccountPage({ section }: { section: "bids" | "auctions" }) {
                                     Új képek hozzáadása
                                     <input type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={(event) => handleEditImageChange(event, auction)} disabled={isUpdatingAuction || auction.images.length >= MAX_AUCTION_IMAGES} />
                                   </label>
-                                  <small>JPEG, PNG vagy WEBP; képenként legfeljebb 5 MB. Összesen maximum 5 kép.</small>
+                                  <small>JPEG, PNG vagy WEBP; képenként legfeljebb 20 MB. Összesen maximum 5 kép.</small>
                                   {editAuctionImages.length > 0 ? (
                                     <div className="cover-image-list" aria-label="Új képek beállítása">
                                       {editAuctionImages.map((file, imageIndex) => (
@@ -733,7 +734,7 @@ export function AccountPage({ section }: { section: "bids" | "auctions" }) {
               <input type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={handleImageChange} disabled={isCreatingAuction} />
             </label>
             <small>
-              JPEG, PNG vagy WEBP; képenként legfeljebb 5 MB. Minimum 1, maximum 5 kép tölthető fel. Válaszd ki a borítóképet.
+              JPEG, PNG vagy WEBP; képenként legfeljebb 20 MB. Minimum 1, maximum 5 kép tölthető fel. Válaszd ki a borítóképet.
             </small>
             {auctionImages.length > 0 ? (
               <div className="cover-image-list" aria-label="Borítókép kiválasztása">

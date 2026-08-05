@@ -34,7 +34,7 @@ def subscribe_public(
     db: Session = Depends(get_db),
 ) -> MessageResponse:
     check_rate_limit(request, "newsletter:subscribe", settings.newsletter_rate_limit_per_minute, str(subscriber_create.email))
-    verify_captcha(subscriber_create.captcha_token or subscriber_create.turnstile_token, action="newsletter-subscribe")
+    verify_captcha(subscriber_create.captcha_token or subscriber_create.turnstile_token, action="newsletter-subscribe", request=request)
 
     existing = db.scalar(select(NewsletterSubscriber).where(NewsletterSubscriber.email == subscriber_create.email))
     if existing is not None:
@@ -114,4 +114,3 @@ def update_my_newsletter_status(
         email=subscriber.email,
         full_name=subscriber.full_name,
     )
-

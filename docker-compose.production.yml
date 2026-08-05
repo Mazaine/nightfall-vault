@@ -11,6 +11,8 @@ x-app: &app
   init: true
   read_only: true
   tmpfs: [/tmp]
+  security_opt: [no-new-privileges:true]
+  cap_drop: [ALL]
   logging: &logging
     driver: json-file
     options: {max-size: "10m", max-file: "5"}
@@ -27,6 +29,8 @@ services:
     init: true
     read_only: true
     tmpfs: [/tmp, /var/cache/nginx, /var/run]
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
     ports: ["${HTTP_BIND:-127.0.0.1}:${HTTP_PORT:-8080}:8080"]
     volumes:
       - nightfall_media:/srv/nightfall-media:ro
@@ -53,15 +57,17 @@ services:
       dockerfile: Dockerfile.prod
       args:
         VITE_API_BASE_URL: ""
-        VITE_CAPTCHA_ENABLED: ${CAPTCHA_ENABLED:-false}
-        VITE_CAPTCHA_PROVIDER: ${VITE_CAPTCHA_PROVIDER:-turnstile}
-        VITE_CAPTCHA_SITE_KEY: ${VITE_CAPTCHA_SITE_KEY:-}
+        VITE_CAPTCHA_ENABLED: ${CAPTCHA_ENABLED:?required}
+        VITE_CAPTCHA_PROVIDER: ${VITE_CAPTCHA_PROVIDER:?required}
+        VITE_CAPTCHA_SITE_KEY: ${VITE_CAPTCHA_SITE_KEY:?required}
         VITE_PUBLIC_SITE_URL: ${APP_FRONTEND_URL:?required}
         VITE_SUPPORT_EMAIL: ${VITE_SUPPORT_EMAIL:?required}
     restart: unless-stopped
     init: true
     read_only: true
     tmpfs: [/tmp, /var/cache/nginx, /var/run]
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
     expose: ["8080"]
     networks: [core]
     healthcheck:
@@ -120,12 +126,14 @@ services:
     volumes:
       - nightfall_media:/data/media
     restart: "no"
+    security_opt: [no-new-privileges:true]
     networks: [core]
     logging: *logging
 
   postgres:
     image: postgres:16-alpine
     restart: unless-stopped
+    security_opt: [no-new-privileges:true]
     environment:
       POSTGRES_DB: ${POSTGRES_DB:?required}
       POSTGRES_USER: ${POSTGRES_USER:?required}
@@ -146,6 +154,7 @@ services:
   redis:
     image: redis:7-alpine
     restart: unless-stopped
+    security_opt: [no-new-privileges:true]
     command: [sh, -c, 'exec redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy noeviction --requirepass "$$REDIS_PASSWORD"']
     environment:
       REDIS_PASSWORD: ${REDIS_PASSWORD:?required}
@@ -168,6 +177,8 @@ services:
     restart: unless-stopped
     read_only: true
     user: "65534:65534"
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
     command: [--config.file=/etc/prometheus/prometheus.yml, --storage.tsdb.path=/prometheus]
     volumes:
       - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro

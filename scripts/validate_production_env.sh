@@ -14,7 +14,8 @@ required=(
   APP_FRONTEND_URL APP_BACKEND_URL FRONTEND_BASE_URL VITE_SUPPORT_EMAIL
   MEDIA_ROOT MEDIA_URL_PREFIX MEDIA_VOLUME_NAME DATABASE_VOLUME_NAME REDIS_VOLUME_NAME
   BACKUP_DIRECTORY BACKUP_RETENTION_DAYS OFFSITE_BACKUP_MODE
-  ENVIRONMENT DEVELOPMENT_ADMIN_SEED_ENABLED EMAIL_DELIVERY_ENABLED CAPTCHA_ENABLED NIGHTFALL_IMAGE_TAG
+  ENVIRONMENT DEVELOPMENT_ADMIN_SEED_ENABLED EMAIL_DELIVERY_ENABLED CAPTCHA_ENABLED CAPTCHA_PROVIDER
+  TURNSTILE_SECRET_KEY VITE_CAPTCHA_SITE_KEY NIGHTFALL_IMAGE_TAG
   HTTP_BIND HTTP_PORT
 )
 for name in "${required[@]}"; do
@@ -126,8 +127,12 @@ if email_enabled:
         fail("EMAIL_DELIVERY_ENABLED", "engedélyezve van, de nincs teljes Brevo- vagy SMTP-konfiguráció")
 
 captcha_enabled = value("CAPTCHA_ENABLED").lower() in {"true", "1", "yes"}
-if captcha_enabled and not (value("TURNSTILE_SECRET_KEY") and value("VITE_CAPTCHA_SITE_KEY")):
-    fail("CAPTCHA_ENABLED", "engedélyezve van, de hiányzik a privát vagy publikus Turnstile-kulcs")
+if not captcha_enabled:
+    fail("CAPTCHA_ENABLED", "productionben kötelezően engedélyezni kell")
+if value("CAPTCHA_PROVIDER").lower() != "turnstile":
+    fail("CAPTCHA_PROVIDER", "productionben turnstile szükséges")
+if not (value("TURNSTILE_SECRET_KEY") and value("VITE_CAPTCHA_SITE_KEY")):
+    fail("CAPTCHA_ENABLED", "hiányzik a privát vagy publikus Turnstile-kulcs")
 
 offsite = value("OFFSITE_BACKUP_MODE")
 if offsite not in {"disabled", "rclone", "rsync"}:

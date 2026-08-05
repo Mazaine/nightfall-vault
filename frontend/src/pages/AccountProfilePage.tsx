@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router";
 import { deleteProfile, updateProfile } from "../api/auth";
 import { useAuth } from "../AuthContext";
 import { NotificationPreferencesPanel } from "../components/NotificationPreferencesPanel";

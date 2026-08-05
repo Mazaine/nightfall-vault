@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 import { auctionReportReasons, listMyReports, userReportReasons, type ReportRead, type ReportStatus } from "../api/reports";
 import { EmptyState, ErrorState, LoadingState } from "../components/AsyncStates";
 import { formatLocalDateTime } from "../utils/format";

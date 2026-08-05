@@ -11,7 +11,7 @@ def read(path: str) -> str:
 compose = read("docker-compose.production.yml")
 assert "postgres-test" not in compose
 assert compose.count("ports:") == 1
-assert all(value in compose for value in ("restart: unless-stopped", "max-size:", "mem_limit:", "Dockerfile.prod"))
+assert all(value in compose for value in ("restart: unless-stopped", "max-size:", "mem_limit:", "Dockerfile.prod", "no-new-privileges:true", "cap_drop:"))
 assert all(value in compose for value in ("VITE_PUBLIC_SITE_URL", "VITE_SUPPORT_EMAIL"))
 
 backend = read("backend/Dockerfile.prod")
@@ -22,7 +22,7 @@ assert "npm run dev" not in frontend and "nginx-unprivileged" in frontend
 assert all(value in frontend for value in ("VITE_PUBLIC_SITE_URL", "VITE_SUPPORT_EMAIL"))
 
 proxy = read("nginx/default.conf")
-assert all(value in proxy for value in ("proxy_buffering off", "proxy_read_timeout 1h", "alias /srv/nightfall-media/", "Content-Security-Policy", "autoindex off"))
+assert all(value in proxy for value in ("proxy_buffering off", "proxy_read_timeout 1h", "alias /srv/nightfall-media/", "Content-Security-Policy", "autoindex off", "Strict-Transport-Security", "https://challenges.cloudflare.com"))
 assert "location = /health/metrics { return 404; }" in proxy
 assert '${HTTP_BIND:-127.0.0.1}' in compose
 
@@ -40,6 +40,7 @@ assert all(value in restore for value in ("--confirm-data-loss", "ALLOW_PRODUCTI
 env = read(".env.production.example")
 assert all(value in env for value in ("CHANGE_ME", "ENVIRONMENT=production", "DEVELOPMENT_ADMIN_SEED_ENABLED=false"))
 assert "CHANGE_ME_GIT_COMMIT_TAG" in env
+assert all(value in env for value in ("CAPTCHA_ENABLED=true", "CAPTCHA_PROVIDER=turnstile", "CHANGE_ME_TURNSTILE_SECRET_KEY", "CHANGE_ME_TURNSTILE_SITE_KEY"))
 assert all(value in read("scripts/rollback_production.sh") for value in ("docker image inspect", "ROLLBACK_CONFIRM", "rollback-state"))
 assert all(value in read("scripts/backup_production.sh") for value in ("users_count", "media_sample_sha256"))
 assert all(value in read("scripts/restore_smoke_test.sh") for value in ("expected_users", "restored_hash", "trap cleanup EXIT"))

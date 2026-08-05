@@ -29,7 +29,7 @@ Alapértelmezett cél: Ubuntu 24.04 LTS, Nginx reverse proxy + Let's Encrypt. A 
 3. `docker compose --env-file .env.production -f docker-compose.production.yml up -d postgres redis`.
 4. Várd meg a healthy állapotot; Redis: `docker compose --env-file .env.production -f docker-compose.production.yml exec -T redis sh -c 'redis-cli -a "$REDIS_PASSWORD" ping'`.
 5. Migráció: `docker compose --env-file .env.production -f docker-compose.production.yml run --rm backend alembic upgrade head`.
-6. Ellenőrzés: ugyanígy `run --rm backend alembic current`; eredmény: `0014_realtime_notifications (head)`. Downgrade nem fut.
+6. Ellenőrzés: ugyanígy `run --rm backend alembic current`; eredmény: `0017_auth_session_version (head)`. Downgrade nem fut.
 
 ## 4. Alkalmazásindítás
 

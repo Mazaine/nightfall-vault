@@ -33,7 +33,10 @@ BASE = {
     "ENVIRONMENT": "production",
     "DEVELOPMENT_ADMIN_SEED_ENABLED": "false",
     "EMAIL_DELIVERY_ENABLED": "false",
-    "CAPTCHA_ENABLED": "false",
+    "CAPTCHA_ENABLED": "true",
+    "CAPTCHA_PROVIDER": "turnstile",
+    "TURNSTILE_SECRET_KEY": "1x0000000000000000000000000000000AA",
+    "VITE_CAPTCHA_SITE_KEY": "1x00000000000000000000AA",
     "ALLOW_PRODUCTION_RESTORE": "NO",
     "NIGHTFALL_IMAGE_TAG": "c25cdc07e80a",
     "HTTP_BIND": "127.0.0.1",
@@ -61,14 +64,16 @@ def run(values: dict[str, str]) -> subprocess.CompletedProcess[str]:
 
 
 valid_result = run(BASE)
-assert valid_result.returncode == 0, valid_result.stderr
+assert valid_result.returncode == 0, f"{valid_result.stdout}\n{valid_result.stderr}"
 for name, replacement in (
     ("SECRET_KEY", "CHANGE_ME"),
     ("APP_FRONTEND_URL", "http://vault.test"),
     ("BACKEND_CORS_ORIGINS", '["*"]'),
     ("REDIS_PASSWORD", "short"),
     ("EMAIL_DELIVERY_ENABLED", "true"),
-    ("CAPTCHA_ENABLED", "true"),
+    ("CAPTCHA_ENABLED", "false"),
+    ("CAPTCHA_PROVIDER", "recaptcha"),
+    ("TURNSTILE_SECRET_KEY", ""),
     ("OFFSITE_BACKUP_MODE", "rclone"),
     ("ALLOW_PRODUCTION_RESTORE", "YES"),
     ("HTTP_BIND", "0.0.0.0"),

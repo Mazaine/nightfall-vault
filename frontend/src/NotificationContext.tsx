@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router";
 import { API_BASE_URL, getStoredToken } from "./api/client";
 import { getUnreadNotificationCount, listMyNotifications, markAllNotificationsRead, markNotificationRead, type NotificationItem } from "./api/auctions";
 import { useAuth } from "./AuthContext";

@@ -12,10 +12,16 @@ def validate_production_settings(settings: Settings) -> None:
     errors: list[str] = []
     if len(settings.secret_key) < 32 or settings.secret_key.lower() in UNSAFE_SECRETS:
         errors.append("SECRET_KEY must be a strong value of at least 32 characters.")
+    if settings.access_token_algorithm != "HS256":
+        errors.append("ACCESS_TOKEN_ALGORITHM must be HS256.")
+    if not 5 <= settings.access_token_expire_minutes <= 60:
+        errors.append("ACCESS_TOKEN_EXPIRE_MINUTES must be between 5 and 60.")
     if not settings.database_url.startswith(("postgresql://", "postgresql+psycopg://")):
         errors.append("DATABASE_URL must use PostgreSQL in production.")
     if not settings.redis_url.startswith(("redis://", "rediss://")):
         errors.append("REDIS_URL must use Redis in production.")
+    if settings.rate_limit_backend.lower() != "redis":
+        errors.append("RATE_LIMIT_BACKEND must use Redis in production.")
     if any(origin == "*" or "localhost" in origin or "127.0.0.1" in origin for origin in settings.backend_cors_origins):
         errors.append("BACKEND_CORS_ORIGINS must not contain wildcard or development hosts.")
     for name, value in (("APP_FRONTEND_URL", settings.app_frontend_url), ("APP_BACKEND_URL", settings.app_backend_url), ("FRONTEND_BASE_URL", settings.frontend_base_url)):
@@ -24,6 +30,12 @@ def validate_production_settings(settings: Settings) -> None:
             errors.append(f"{name} must be an absolute HTTPS URL.")
     if settings.development_admin_seed_enabled:
         errors.append("DEVELOPMENT_ADMIN_SEED_ENABLED must be false in production.")
+    if not settings.captcha_enabled:
+        errors.append("CAPTCHA_ENABLED must be true in production.")
+    if settings.captcha_provider.lower() != "turnstile":
+        errors.append("CAPTCHA_PROVIDER must be turnstile in production.")
+    if not settings.turnstile_secret_key:
+        errors.append("TURNSTILE_SECRET_KEY is required in production.")
     if settings.auction_scheduler_mode.lower() not in {"external", "worker"}:
         errors.append("AUCTION_SCHEDULER_MODE must be external or worker in production.")
     if settings.email_delivery_enabled:

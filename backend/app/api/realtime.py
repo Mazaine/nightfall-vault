@@ -6,6 +6,7 @@ from sqlalchemy import or_, select, update
 from sqlalchemy.orm import Session
 
 from app.core.rate_limit import check_rate_limit
+from app.core.config import settings
 from app.db.session import get_db
 from app.dependencies.auth import require_active_user
 from app.models.auction import Auction, AuctionMessage
@@ -23,6 +24,7 @@ def sse(event_id: str, event_type: str, payload: dict) -> str:
 
 @router.get("/stream")
 async def user_stream(request: Request, current_user: User = Depends(require_active_user)) -> StreamingResponse:
+    check_rate_limit(request, "sse:user", settings.sse_connection_rate_limit_per_minute, str(current_user.id))
     last_event_id = request.headers.get("last-event-id", "$")
 
     async def events():
@@ -35,7 +37,8 @@ async def user_stream(request: Request, current_user: User = Depends(require_act
 
 
 @router.post("/heartbeat")
-def heartbeat(current_user: User = Depends(require_active_user), db: Session = Depends(get_db)) -> dict:
+def heartbeat(request: Request, current_user: User = Depends(require_active_user), db: Session = Depends(get_db)) -> dict:
+    check_rate_limit(request, "realtime:heartbeat", settings.realtime_heartbeat_rate_limit_per_minute, str(current_user.id))
     presence = set_presence(current_user.id)
     auctions = db.scalars(select(Auction).where(Auction.status == "sold", or_(Auction.seller_id == current_user.id, Auction.winner_id == current_user.id))).all()
     for auction in auctions:

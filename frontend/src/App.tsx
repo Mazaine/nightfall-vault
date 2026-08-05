@@ -1,5 +1,5 @@
 import { lazy, Suspense } from "react";
-import { Navigate, Outlet, Route, Routes, useLocation } from "react-router-dom";
+import { Navigate, Outlet, Route, Routes, useLocation } from "react-router";
 import { useAuth } from "./AuthContext";
 import { LoadingState } from "./components/AsyncStates";
 import { IncomingChatDock } from "./components/IncomingChatDock";

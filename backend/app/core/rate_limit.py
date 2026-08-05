@@ -1,5 +1,6 @@
 import logging
 import ipaddress
+import hashlib
 from collections import defaultdict, deque
 from typing import Protocol
 from time import monotonic
@@ -11,6 +12,13 @@ from app.core.config import settings
 logger = logging.getLogger(__name__)
 
 RATE_LIMIT_MESSAGE = "Túl sok próbálkozás. Kérlek várj egy kicsit, majd próbáld újra."
+REDIS_RATE_LIMIT_SCRIPT = """
+local current = redis.call('INCR', KEYS[1])
+if current == 1 then
+  redis.call('EXPIRE', KEYS[1], ARGV[1])
+end
+return current
+"""
 
 
 class RateLimiterBackend(Protocol):
@@ -71,9 +79,7 @@ class RedisRateLimiter:
             return
 
         try:
-            current_count = int(client.incr(namespaced_key))
-            if current_count == 1:
-                client.expire(namespaced_key, window_seconds)
+            current_count = int(client.eval(REDIS_RATE_LIMIT_SCRIPT, 1, namespaced_key, window_seconds))
         except Exception as exc:
             self._handle_redis_error(exc, "A Redis rate limiter nem elérhető.")
             self._fallback_limiter.check(key, limit, window_seconds)
@@ -151,4 +157,5 @@ def get_client_ip(request: Request) -> str:
 def check_rate_limit(request: Request, scope: str, limit: int, identifier: str | None = None) -> None:
     client_ip = get_client_ip(request)
     normalized_identifier = identifier.strip().lower() if identifier else ""
-    get_rate_limiter().check(f"{scope}:{client_ip}:{normalized_identifier}", limit=limit)
+    identifier_digest = hashlib.sha256(normalized_identifier.encode("utf-8")).hexdigest()[:24] if normalized_identifier else "anonymous"
+    get_rate_limiter().check(f"{scope}:{client_ip}:{identifier_digest}", limit=limit)

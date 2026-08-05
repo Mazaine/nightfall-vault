@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 import { apiAssetUrl } from "../api/client";
 import { listMyAuctionConversations, type AuctionConversation } from "../api/auctions";
 import { ErrorState, LoadingState } from "../components/AsyncStates";

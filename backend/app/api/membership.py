@@ -1,8 +1,10 @@
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
+from app.core.config import settings
+from app.core.rate_limit import check_rate_limit
 from app.dependencies.auth import require_active_user, require_admin
 from app.models.user import User, VipActivationCode
 from app.schemas.membership import VipActivateRequest, VipActivationRead, VipCodeAdminRead, VipCodeBatchRead, VipCodeGenerateRequest, VipGeneratedCode, VipStatusRead
@@ -28,7 +30,8 @@ def get_membership(current_user: User = Depends(require_active_user), db: Sessio
 
 
 @router.post("/api/membership/activate", response_model=VipActivationRead)
-def activate_membership(payload: VipActivateRequest, current_user: User = Depends(require_active_user), db: Session = Depends(get_db)) -> VipActivationRead:
+def activate_membership(payload: VipActivateRequest, request: Request, current_user: User = Depends(require_active_user), db: Session = Depends(get_db)) -> VipActivationRead:
+    check_rate_limit(request, "membership:activate", settings.vip_activation_rate_limit_per_minute, str(current_user.id))
     expires_at = activate_code(db, current_user, payload.code)
     status = membership_status(db, current_user)
     return VipActivationRead(**status.model_dump(), message="A VIP-tagság sikeresen aktiválva lett.")
