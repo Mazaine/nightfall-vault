@@ -97,7 +97,7 @@ services:
       timeout: 5s
       retries: 10
     mem_limit: 768m
-    cpus: 1.50
+    cpus: 1.00
     pids_limit: 256
 
   auction-scheduler:
@@ -148,7 +148,7 @@ services:
       retries: 10
     logging: *logging
     mem_limit: 768m
-    cpus: 1.50
+    cpus: 1.00
     pids_limit: 256
 
   redis:
