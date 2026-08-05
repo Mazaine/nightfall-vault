@@ -46,7 +46,11 @@ def test_supported_uploads_create_four_immutable_webp_variants(filename: str, co
     assert all(key.endswith(".webp") for key in keys)
     assert all(f"/{auction['id']}/" in key for key in keys)
     assert all(storage.exists(key) for key in keys)
-    assert data["url"].startswith("/media/auctions/")
+    assert data["url"] == f"/media/{data['storage_key']}"
+    assert data["detail_url"] == f"/media/{data['detail_storage_key']}"
+    assert data["list_url"] == f"/media/{data['list_storage_key']}"
+    assert data["thumbnail_url"] == f"/media/{data['thumbnail_storage_key']}"
+    assert all(f"/{auction['id']}/" in data[field] for field in ("url", "detail_url", "list_url", "thumbnail_url"))
     for key in keys:
         with Image.open(BytesIO(storage.read_bytes(key))) as generated:
             assert generated.format == "WEBP"
