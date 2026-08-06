@@ -7,6 +7,7 @@ export function toAuctionCardItem(auction: Auction) {
   const coverImage = auction.images.find((image) => image.is_cover) ?? auction.images[0];
   return {
     id: auction.id,
+    sellerId: auction.seller_id,
     title: auction.title,
     type: auction.category,
     price: formatMoney(auction.current_price ?? auction.starting_price),
@@ -29,5 +30,10 @@ export function toAuctionCardItem(auction: Auction) {
     bidCount: auction.bid_count ?? 0,
     canBid: auction.status === "active",
     isFeatured: auction.is_featured ?? false,
+    personalStatus: auction.viewer_personal_status ?? (auction.viewer_is_leading ? "leading" as const : undefined),
+    topBidId: auction.viewer_top_bid_id,
+    canWithdraw: auction.viewer_can_withdraw,
+    withdrawalBlockReason: auction.viewer_withdrawal_block_reason,
+    isWatched: auction.viewer_is_watched ?? auction.viewer_personal_status === "watched",
   };
 }

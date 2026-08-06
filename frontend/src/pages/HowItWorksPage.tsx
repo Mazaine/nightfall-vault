@@ -20,7 +20,7 @@ const accountRules = [
 const creationRules = [
   "Csak saját tulajdonú, jogszerűen értékesíthető tétel tölthető fel valós címmel, részletes leírással, megfelelő kategóriával és tényleges állapottal.",
   "Az aktiváláshoz 1–5 kép szükséges, és pontosan egy képet borítóképként kell kijelölni. Az eladónak el kell fogadnia a tulajdonjogi és képhasználati nyilatkozatot.",
-  "A kezdőárnak és a licitlépcsőnek pozitívnak kell lennie. Bekapcsolt villámárnál kötelező összeget megadni, amelynek magasabbnak kell lennie a kezdőárnál.",
+  "A kezdőár 0 Ft is lehet, negatív azonban nem. A licitlépcsőnek pozitívnak kell lennie. Bekapcsolt villámárnál kötelező összeget megadni, amelynek magasabbnak kell lennie a kezdőárnál.",
   "A lejáratnak későbbinek kell lennie a kezdésnél. Jövőbeli kezdés esetén az aukció Időzített, már elérkezett kezdésnél Aktív állapotba kerül.",
   "Piszkozatban minden adat javítható. Aktiválás után a kezdőár, a licitlépcső, a villámár összege és a kezdési idő már nem módosítható.",
   "Az eladó a saját aktív aukciójára nem licitálhat. A lezárt, eladott, eladatlan vagy megszakított aukció adatai utólag nem írhatók át normál szerkesztéssel.",
@@ -137,7 +137,7 @@ export function HowItWorksPage() {
         <p>Mindig ellenőrizd a másik fél profilját és értékeléseit, nagyobb értéknél válassz nyomon követhető fizetési és átadási módot, és ne oszd meg a jelszavadat vagy aktiváló kódodat.</p>
         <div className="hero-actions">
           <Link className="button button-primary" to="/auctions">Aukciók böngészése</Link>
-          <Link className="button button-secondary" to="/account/auctions#auction-create">Saját aukció indítása</Link>
+          <Link className="button button-secondary" to="/auctions/create">Saját aukció indítása</Link>
         </div>
       </section>
     </section>

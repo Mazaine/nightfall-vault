@@ -48,14 +48,35 @@ describe("AuctionDetailPage", () => {
     render(<MemoryRouter initialEntries={["/auctions/21"]}><Routes><Route path="/auctions/:auctionId" element={<AuctionDetailPage />} /></Routes></MemoryRouter>);
     const bidButton = await screen.findByRole("button", { name: "Licitálok" });
 
-    fireEvent.click(bidButton);
-    fireEvent.click(await screen.findByRole("button", { name: "Licit véglegesítése" }));
-    await waitFor(() => expect(mocks.placeAuctionBid).toHaveBeenCalledWith(21, "1300.00"));
-
     fireEvent.change(screen.getByLabelText("Licit összege"), { target: { value: "1350" } });
     fireEvent.click(bidButton);
     expect(await screen.findByText("A licit 1300 Ft összegtől 100 Ft licitlépcsőkkel emelhető.")).toBeInTheDocument();
-    expect(mocks.placeAuctionBid).toHaveBeenCalledTimes(1);
+    expect(mocks.placeAuctionBid).not.toHaveBeenCalled();
+
+    fireEvent.change(screen.getByLabelText("Licit összege"), { target: { value: "" } });
+    fireEvent.click(bidButton);
+    fireEvent.click(await screen.findByRole("button", { name: "Licit véglegesítése" }));
+    await waitFor(() => expect(mocks.placeAuctionBid).toHaveBeenCalledWith(21, "1300.00"));
+  });
+
+  it("vezető licitálóként a licitmező helyett Kiszállok műveletet mutat", async () => {
+    state.isAuthenticated = true;
+    mocks.getAuction.mockResolvedValue({
+      ...auction,
+      highest_bid_id: 31,
+      viewer_is_leading: true,
+      viewer_top_bid_id: 31,
+      viewer_can_withdraw: false,
+      viewer_withdrawal_block_reason: "A licit visszavonására rendelkezésre álló 1 perc lejárt.",
+    });
+    mocks.listAuctionBids.mockResolvedValue([{ id: 31, amount: "1200.00", created_at: new Date().toISOString(), bidder_label: "Te", is_highest: true }]);
+
+    render(<MemoryRouter initialEntries={["/auctions/21"]}><Routes><Route path="/auctions/:auctionId" element={<AuctionDetailPage />} /></Routes></MemoryRouter>);
+
+    expect(await screen.findByRole("heading", { name: "Te vezetsz" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Licitálok" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Kiszállok" })).toBeDisabled();
+    expect(screen.getByText("A licit visszavonására rendelkezésre álló 1 perc lejárt.")).toBeInTheDocument();
   });
 
   it("a teljes képet mutatja és a galéria további képei között lapoz", async () => {

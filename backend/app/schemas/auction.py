@@ -43,7 +43,7 @@ class AuctionBase(BaseModel):
     description: str = Field(min_length=10, max_length=5000)
     category: str = Field(min_length=2, max_length=80)
     condition: AuctionCondition
-    starting_price: Decimal = Field(gt=0, max_digits=12, decimal_places=2)
+    starting_price: Decimal = Field(ge=0, max_digits=12, decimal_places=2)
     bid_increment: Decimal = Field(gt=0, max_digits=12, decimal_places=2)
     buy_now_enabled: bool = False
     buy_now_price: Decimal | None = Field(default=None, gt=0, max_digits=12, decimal_places=2)
@@ -92,7 +92,7 @@ class AuctionUpdate(BaseModel):
     description: str | None = Field(default=None, min_length=10, max_length=5000)
     category: str | None = Field(default=None, min_length=2, max_length=80)
     condition: AuctionCondition | None = None
-    starting_price: Decimal | None = Field(default=None, gt=0, max_digits=12, decimal_places=2)
+    starting_price: Decimal | None = Field(default=None, ge=0, max_digits=12, decimal_places=2)
     bid_increment: Decimal | None = Field(default=None, gt=0, max_digits=12, decimal_places=2)
     buy_now_enabled: bool | None = None
     buy_now_price: Decimal | None = Field(default=None, gt=0, max_digits=12, decimal_places=2)
@@ -301,6 +301,12 @@ class AuctionListItem(BaseModel):
     seller_average_rating: float | None = None
     seller_review_count: int = 0
     is_featured: bool = False
+    viewer_is_leading: bool = False
+    viewer_top_bid_id: int | None = None
+    viewer_can_withdraw: bool = False
+    viewer_withdrawal_block_reason: str | None = None
+    viewer_personal_status: Literal["leading", "outbid", "watched", "exited"] | None = None
+    viewer_is_watched: bool = False
     seller: UserSummary | None = None
     images: list[AuctionImageRead] = []
 

@@ -8,7 +8,7 @@ import { useAuctionRealtime } from "../../AuctionRealtimeContext";
 type Task = { label: string; detail: string; to: string; tone?: "warning" | "success" };
 
 const memberActions = [
-  ["Aukció indítása", "/account/auctions#auction-create", "Új tétel felvétele"],
+  ["Aukció indítása", "/auctions/create", "Új tétel felvétele"],
   ["Saját aukcióim", "/account/auctions", "Piszkozatok és futó tételek"],
   ["Licitjeim", "/my-bids", "Vezető és túllicitált ajánlatok"],
   ["Aukciók böngészése", "/auctions", "Fedezd fel az aktuális kínálatot"],

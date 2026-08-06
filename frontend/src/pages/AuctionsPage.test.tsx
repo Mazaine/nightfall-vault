@@ -16,7 +16,7 @@ describe("AuctionsPage", () => {
   it("backend találatot navigálható kártyán jelenít meg", async () => {
     mocks.listAuctions.mockResolvedValue({ items: [auction], total: 1, limit: 24, offset: 0 });
     render(<MemoryRouter><AuctionsPage /></MemoryRouter>);
-    expect(screen.getByRole("link", { name: "Aukció létrehozása" })).toHaveAttribute("href", "/account/auctions");
+    expect(screen.getByRole("link", { name: "Aukció létrehozása" })).toHaveAttribute("href", "/auctions/create");
     expect(await screen.findByRole("link", { name: "Publikus aukció" })).toHaveAttribute("href", "/auctions/12");
     expect(screen.getByRole("button", { name: "Licitálok" })).toBeInTheDocument();
   });

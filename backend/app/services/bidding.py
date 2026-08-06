@@ -344,6 +344,11 @@ def place_bid(db: Session, auction_id: int, bidder: User, amount: Decimal) -> tu
     if previous_highest_bidder_id is None and previous_highest_bid_id is not None:
         previous_highest = db.get(Bid, previous_highest_bid_id)
         previous_highest_bidder_id = previous_highest.bidder_id if previous_highest is not None else None
+    if previous_highest_bidder_id == bidder.id:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Már te vezeted ezt az aukciót. Újabb licitet csak akkor adhatsz, ha egy másik felhasználó túllicitált.",
+        )
 
     current_price = normalize_money(auction.current_price)
     minimum_bid = normalize_money(current_price + auction.bid_increment)

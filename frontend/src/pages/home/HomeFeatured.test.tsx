@@ -38,12 +38,15 @@ describe("HomeFeatured", () => {
     expect(await screen.findByRole("heading", { name: "Jelenleg nincs aktív vagy hamarosan induló kiemelt aukció" })).toBeInTheDocument();
   });
 
-  it("desktopon legfeljebb öt kiemelt aukciót jelenít meg oldalanként", async () => {
+  it("desktopon négy szélesebb kiemelt aukciót jelenít meg oldalanként és lapozható", async () => {
     mocks.listAuctions
       .mockResolvedValueOnce({ items: [1, 2, 3].map((id) => auction(id)), total: 3, limit: 4, offset: 0 })
       .mockResolvedValueOnce({ items: [4, 5].map((id) => auction(id, "scheduled")), total: 2, limit: 4, offset: 0 });
     render(<MemoryRouter><HomeFeatured /></MemoryRouter>);
     expect(await screen.findByRole("link", { name: "Kiemelt 1" })).toHaveAttribute("href", "/auctions/1");
+    expect(screen.getByText("Kiemelt 4")).toBeInTheDocument();
+    expect(screen.queryByText("Kiemelt 5")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Következő kiemelt aukciók" }));
     expect(screen.getByText("Kiemelt 5")).toBeInTheDocument();
     expect(mocks.listAuctions).toHaveBeenNthCalledWith(1, expect.objectContaining({ status: "active", limit: 100 }));
   });

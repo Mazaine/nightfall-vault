@@ -6,13 +6,15 @@ import { toAuctionCardItem } from "../../utils/auctionPresentation";
 import { HomeTrustPanel } from "./HomeTrustPanel";
 import { useAuctionRealtime } from "../../AuctionRealtimeContext";
 
-const FEATURED_PAGE_SIZE = 5;
+const FEATURED_PAGE_SIZE = 4;
+const TABLET_FEATURED_PAGE_SIZE = 2;
 const MOBILE_FEATURED_PAGE_SIZE = 1;
 
 function getFeaturedPageSize() {
-  return typeof window !== "undefined" && window.matchMedia?.("(max-width: 760px)").matches
-    ? MOBILE_FEATURED_PAGE_SIZE
-    : FEATURED_PAGE_SIZE;
+  if (typeof window === "undefined" || !window.matchMedia) return FEATURED_PAGE_SIZE;
+  if (window.matchMedia("(max-width: 760px)").matches) return MOBILE_FEATURED_PAGE_SIZE;
+  if (window.matchMedia("(max-width: 1100px)").matches) return TABLET_FEATURED_PAGE_SIZE;
+  return FEATURED_PAGE_SIZE;
 }
 
 export function HomeFeatured() {
@@ -24,8 +26,8 @@ export function HomeFeatured() {
   const [error, setError] = useState("");
   const touchStartX = useRef<number | null>(null);
 
-  const loadFeatured = useCallback(async () => {
-    setIsLoading(true);
+  const loadFeatured = useCallback(async (showLoading = true, resetPage = true) => {
+    if (showLoading) setIsLoading(true);
     setError("");
     try {
       const [active, scheduled] = await Promise.all([
@@ -35,7 +37,7 @@ export function HomeFeatured() {
       const combined = [...active.items, ...scheduled.items];
       combined.sort((left, right) => Number(Boolean(right.is_featured)) - Number(Boolean(left.is_featured)));
       setAuctions(combined.filter((auction) => auction.is_featured));
-      setPageIndex(0);
+      if (resetPage) setPageIndex(0);
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "A kiemelt aukciók betöltése nem sikerült.");
     } finally {
@@ -53,17 +55,23 @@ export function HomeFeatured() {
       .map((item) => item.id === snapshot.auction_id
         ? { ...item, status: snapshot.status, current_price: snapshot.current_price, highest_bid_id: snapshot.highest_bid_id, winner_id: snapshot.winner_id, ends_at: snapshot.ends_at, bid_count: snapshot.bid_count }
         : item));
-  }), [subscribe]);
+    void loadFeatured(false, false);
+  }), [loadFeatured, subscribe]);
 
   useEffect(() => {
-    const mediaQuery = window.matchMedia("(max-width: 760px)");
+    const mobileQuery = window.matchMedia("(max-width: 760px)");
+    const tabletQuery = window.matchMedia("(max-width: 1100px)");
     const updatePageSize = () => {
-      setPageSize(mediaQuery.matches ? MOBILE_FEATURED_PAGE_SIZE : FEATURED_PAGE_SIZE);
+      setPageSize(mobileQuery.matches ? MOBILE_FEATURED_PAGE_SIZE : tabletQuery.matches ? TABLET_FEATURED_PAGE_SIZE : FEATURED_PAGE_SIZE);
       setPageIndex(0);
     };
     updatePageSize();
-    mediaQuery.addEventListener("change", updatePageSize);
-    return () => mediaQuery.removeEventListener("change", updatePageSize);
+    mobileQuery.addEventListener("change", updatePageSize);
+    tabletQuery.addEventListener("change", updatePageSize);
+    return () => {
+      mobileQuery.removeEventListener("change", updatePageSize);
+      tabletQuery.removeEventListener("change", updatePageSize);
+    };
   }, []);
 
   const pageCount = Math.max(1, Math.ceil(auctions.length / pageSize));

@@ -177,7 +177,7 @@ export function AuctionsPage() {
           <h1>Aukciók</h1>
           <p className="section-note">Keress kategória, állapot, licitszám, ár és lejárat szerint.</p>
         </div>
-        <Link className="button button-primary" to="/account/auctions">Aukció létrehozása</Link>
+        <Link className="button button-primary" to="/auctions/create">Aukció létrehozása</Link>
       </div>
 
       <form className="filter-panel side-panel" onSubmit={submitFilters}>

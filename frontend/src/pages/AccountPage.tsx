@@ -73,6 +73,12 @@ function toCardAuction(auction: Auction) {
   };
 }
 
+function openFacebookShare(auctionId: number) {
+  const auctionUrl = new URL(`/auctions/${auctionId}`, window.location.origin).href;
+  const shareUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(auctionUrl)}`;
+  window.open(shareUrl, "nightfall-facebook-share", "popup=yes,width=720,height=640,noopener,noreferrer");
+}
+
 function localDateTimeToIso(value: FormDataEntryValue | null) {
   const textValue = String(value ?? "");
   if (!textValue) {
@@ -116,7 +122,7 @@ function validateAuctionFields(formData: FormData) {
   else if (title.length > 180) errors.title = "A név legfeljebb 180 karakter hosszú lehet.";
   if (description.length < 10) errors.description = "A leírás legalább 10 karakter hosszú legyen.";
   else if (description.length > 5000) errors.description = "A leírás legfeljebb 5000 karakter hosszú lehet.";
-  if (!Number.isFinite(startingPrice) || startingPrice <= 0) errors.starting_price = "A kezdőár 0 Ft-nál nagyobb összeg legyen.";
+  if (!Number.isFinite(startingPrice) || startingPrice < 0) errors.starting_price = "A kezdőár legalább 0 Ft legyen.";
   if (!Number.isFinite(bidIncrement) || bidIncrement <= 0) errors.bid_increment = "A licitlépcső 0 Ft-nál nagyobb összeg legyen.";
   if (buyNowEnabled && (!Number.isFinite(buyNowPrice) || buyNowPrice <= startingPrice)) errors.buy_now_price = "A villámárnak nagyobbnak kell lennie a kezdőárnál.";
   if (formData.get("seller_declaration_accepted") !== "on") errors.seller_declaration_accepted = "Az aukció létrehozásához el kell fogadnod az értékesítői nyilatkozatot.";
@@ -155,7 +161,7 @@ function validateAuctionEditDates(formData: FormData, auction: Auction) {
   return errors;
 }
 
-export function AccountPage({ section }: { section: "bids" | "auctions" }) {
+export function AccountPage({ section }: { section: "bids" | "auctions" | "create" }) {
   const { subscribe: subscribeNotifications, showToast } = useNotifications();
   const { subscribe: subscribeAuctionUpdates } = useAuctionRealtime();
   const [myAuctions, setMyAuctions] = useState<Auction[]>([]);
@@ -559,12 +565,18 @@ export function AccountPage({ section }: { section: "bids" | "auctions" }) {
       <div className="section-heading page-heading">
         <div>
           <p className="eyebrow">{section === "bids" ? "Licitjeim" : "Eladói fiók"}</p>
-          <h1>{section === "bids" ? "Licitjeim" : "Saját aukcióim"}</h1>
+          <h1>{section === "bids" ? "Licitjeim" : section === "create" ? "Aukció létrehozása" : "Saját aukcióim"}</h1>
           <p className="hero-lead">
-            {section === "bids" ? "Kövesd az aktív, megnyert és elvesztett aukcióidat." : "Kezeld az aktív, időzített, piszkozat és lezárt aukcióidat."}
+            {section === "bids"
+              ? "Kövesd az aktív, megnyert és elvesztett aukcióidat."
+              : section === "create"
+                ? "Töltsd ki az adatokat, adj hozzá képeket, majd mentsd piszkozatként vagy indítsd el az aukciót."
+                : "Kezeld az aktív, időzített, piszkozat és lezárt aukcióidat."}
           </p>
         </div>
-        {section === "auctions" ? <a className="button button-primary" href="#auction-create">Új aukció</a> : <Link className="button button-primary" to="/auctions">Aukciók böngészése</Link>}
+        {section === "auctions" ? <Link className="button button-primary" to="/auctions/create">Új aukció</Link> : null}
+        {section === "create" ? <Link className="button button-secondary" to="/account/auctions">Saját aukcióim</Link> : null}
+        {section === "bids" ? <Link className="button button-primary" to="/auctions">Aukciók böngészése</Link> : null}
       </div>
 
       {section === "bids" ? <section className="account-section" aria-labelledby="watched-auctions-title">
@@ -598,7 +610,7 @@ export function AccountPage({ section }: { section: "bids" | "auctions" }) {
         <div>
           {isLoadingMyAuctions ? <LoadingState label="Saját aukciók betöltése" /> : null}
           {myAuctionsError ? <ErrorState message={myAuctionsError} onRetry={() => void refreshMyAuctions()} /> : null}
-          {!isLoadingMyAuctions && !myAuctionsError && myAuctions.length === 0 ? <EmptyState title="Még nincs saját aukciód" action={<a className="button button-primary" href="#auction-create">Első aukció létrehozása</a>} /> : null}
+          {!isLoadingMyAuctions && !myAuctionsError && myAuctions.length === 0 ? <EmptyState title="Még nincs saját aukciód" action={<Link className="button button-primary" to="/auctions/create">Első aukció létrehozása</Link>} /> : null}
           {!isLoadingMyAuctions && !myAuctionsError && myAuctions.length > 0 ? (
             <div className="auction-status-sections">
               {auctionGroups.map((group, groupIndex) => (
@@ -610,10 +622,15 @@ export function AccountPage({ section }: { section: "bids" | "auctions" }) {
                         const isEditing = editingAuctionId === auction.id;
                         const isDraft = auction.status === "draft";
                         const canEdit = ["draft", "scheduled", "active"].includes(auction.status);
+                        const canShare = ["scheduled", "active"].includes(auction.status);
                         return (
                           <div className={isEditing ? "own-auction-card is-editing" : "own-auction-card"} key={auction.id}>
                             <AuctionCard item={toCardAuction(auction)} index={index} detailPath={`/auctions/${auction.id}`} showBidActions={false} />
                             <div className="owner-actions">
+                              {canShare ? <button className="button button-secondary owner-share-button" type="button" aria-label={`${auction.title} megosztása Facebookon`} onClick={() => {
+                                openFacebookShare(auction.id);
+                                setEditPageMessage("A Facebook megosztó megnyitása elindult. Ha nem jelenik meg, engedélyezd a felugró ablakokat, majd próbáld újra.");
+                              }}><span aria-hidden="true">f</span> Megosztás Facebookon</button> : null}
                               {canEdit ? <button className="button button-secondary" type="button" onClick={() => isEditing ? stopEditingAuction() : void beginEditingAuction(auction)}>{isEditing ? "Szerkesztő bezárása" : "Módosítás"}</button> : null}
                               {canEdit ? <button className="button button-danger" type="button" onClick={() => handleCancelAuction(auction)}>Megszakítás</button> : null}
                             </div>
@@ -653,7 +670,7 @@ export function AccountPage({ section }: { section: "bids" | "auctions" }) {
                                 </label>
                                 <label>
                                   Kezdőár
-                                  <input name="starting_price" type="number" min="1" defaultValue={auction.starting_price} required disabled={!isDraft} />
+                                  <input name="starting_price" type="number" min="0" defaultValue={auction.starting_price} required disabled={!isDraft} />
                                   {!isDraft ? <small>Zárolt érték.</small> : null}
                                 </label>
                                 <label>
@@ -754,11 +771,11 @@ export function AccountPage({ section }: { section: "bids" | "auctions" }) {
         </div>
       </section> : null}
 
-      {section === "auctions" ? <section className="account-section" id="auction-create" aria-labelledby="auction-create-title">
+      {section === "create" ? <section className="account-section" id="auction-create" aria-labelledby="auction-create-title">
         <div className="section-heading">
           <div>
             <p className="eyebrow">Új feltöltés</p>
-            <h2 id="auction-create-title">Aukció létrehozása</h2>
+            <h2 id="auction-create-title">Aukció adatai</h2>
           </div>
           <Link className="text-link" to="/how-it-works">Szabályok részletesen</Link>
         </div>
@@ -818,7 +835,7 @@ export function AccountPage({ section }: { section: "bids" | "auctions" }) {
           </label>
           <label>
             Kezdőár
-            <input name="starting_price" type="number" min="1" placeholder="0" required aria-invalid={Boolean(auctionFieldErrors.starting_price)} aria-describedby={auctionFieldErrors.starting_price ? "auction-starting-price-error" : undefined} onChange={() => clearAuctionFieldError("starting_price")} />
+            <input name="starting_price" type="number" min="0" placeholder="0" required aria-invalid={Boolean(auctionFieldErrors.starting_price)} aria-describedby={auctionFieldErrors.starting_price ? "auction-starting-price-error" : undefined} onChange={() => clearAuctionFieldError("starting_price")} />
             {auctionFieldErrors.starting_price ? <small className="auth-field-error" id="auction-starting-price-error">{auctionFieldErrors.starting_price}</small> : <small>Ezt később nem módosíthatod.</small>}
           </label>
           <label>

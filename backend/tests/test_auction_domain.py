@@ -183,7 +183,8 @@ def test_price_and_time_validation_reject_invalid_payloads() -> None:
     seller = create_test_user("seller-validation@auction-test.local")
     now = datetime.now(timezone.utc)
 
-    bad_price = client.post("/api/auctions", json=auction_payload(starting_price="0.00"), headers=auth_headers(seller))
+    zero_price = client.post("/api/auctions", json=auction_payload(starting_price="0.00"), headers=auth_headers(seller))
+    bad_price = client.post("/api/auctions", json=auction_payload(starting_price="-0.01"), headers=auth_headers(seller))
     bad_time = client.post(
         "/api/auctions",
         json=auction_payload(starts_at=now.isoformat(), ends_at=now.isoformat()),
@@ -195,6 +196,7 @@ def test_price_and_time_validation_reject_invalid_payloads() -> None:
         headers=auth_headers(seller),
     )
 
+    assert zero_price.status_code == 201
     assert bad_price.status_code == 422
     assert bad_time.status_code == 422
     assert bad_buy_now.status_code == 422

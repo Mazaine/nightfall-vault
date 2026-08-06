@@ -3,6 +3,8 @@ import { Link } from "react-router";
 import { listMyNotifications, markAllNotificationsRead, markNotificationRead, type NotificationItem } from "../api/auctions";
 import { EmptyState, ErrorState, LoadingState } from "../components/AsyncStates";
 import { NotificationPreferencesPanel } from "../components/NotificationPreferencesPanel";
+import { useNotifications } from "../NotificationContext";
+import { isBidConfirmationDisabled, resetBidConfirmation } from "../utils/bidConfirmation";
 import { publishUnreadNotificationCount } from "../utils/notificationEvents";
 import { localizeModerationMessage } from "../utils/moderationFormat";
 
@@ -11,12 +13,15 @@ function unreadCount(items: NotificationItem[]) {
 }
 
 export function NotificationsPage() {
+  const { showToast } = useNotifications();
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [pendingNotificationId, setPendingNotificationId] = useState<number | null>(null);
   const [isMarkingAll, setIsMarkingAll] = useState(false);
   const [category, setCategory] = useState("all");
+  const [bidConfirmationDisabled, setBidConfirmationDisabled] = useState(() => isBidConfirmationDisabled());
+  const [bidConfirmationMessage, setBidConfirmationMessage] = useState("");
 
   const load = useCallback(async () => {
     setIsLoading(true);
@@ -124,6 +129,33 @@ export function NotificationsPage() {
         ))}
       </div>
       <NotificationPreferencesPanel />
+      <section className="side-panel profile-settings-card" aria-labelledby="notification-bid-confirmation-title">
+        <div className="section-heading">
+          <div>
+            <p className="eyebrow">Licitálás</p>
+            <h2 id="notification-bid-confirmation-title">Licitmegerősítés</h2>
+          </div>
+          <span className={`status-badge${bidConfirmationDisabled ? "" : " is-success"}`}>
+            {bidConfirmationDisabled ? "Kikapcsolva" : "Bekapcsolva"}
+          </span>
+        </div>
+        <p>A normál „Licitálok” művelet előtt megjelenő megerősítő ablak ezen az eszközön kapcsolható vissza. A villámvásárlás mindig külön megerősítést kér.</p>
+        <button
+          className="button button-secondary"
+          type="button"
+          disabled={!bidConfirmationDisabled}
+          onClick={() => {
+            resetBidConfirmation();
+            setBidConfirmationDisabled(false);
+            const successMessage = "A licitálás előtti megerősítő ablakot visszakapcsoltad ezen az eszközön.";
+            setBidConfirmationMessage(successMessage);
+            showToast({ title: "Licitmegerősítés bekapcsolva", message: successMessage, targetUrl: "/account/notifications" });
+          }}
+        >
+          {bidConfirmationDisabled ? "Megerősítés visszakapcsolása" : "A megerősítés be van kapcsolva"}
+        </button>
+        {bidConfirmationMessage ? <p className="form-message" role="status">{bidConfirmationMessage}</p> : null}
+      </section>
     </>
   );
 }

@@ -126,16 +126,35 @@ def test_successful_bid_updates_current_price_and_highest_bid() -> None:
     assert refreshed.json()["highest_bid_id"] == response.json()["id"]
 
 
+def test_current_leader_cannot_raise_own_bid_and_list_marks_leading_state() -> None:
+    cleanup_test_data()
+    seller = create_test_user("seller-leading-lock@bid-test.local")
+    bidder = create_test_user("bidder-leading-lock@bid-test.local")
+    auction = create_active_auction(seller)
+
+    first = place_bid(auction["id"], bidder, "1100.00")
+    repeated = place_bid(auction["id"], bidder, "1200.00")
+    listing = client.get("/api/auctions?limit=100", headers=auth_headers(bidder))
+    listed = next(item for item in listing.json()["items"] if item["id"] == auction["id"])
+
+    assert first.status_code == 201
+    assert repeated.status_code == 409
+    assert repeated.json()["detail"] == "Már te vezeted ezt az aukciót. Újabb licitet csak akkor adhatsz, ha egy másik felhasználó túllicitált."
+    assert listed["viewer_is_leading"] is True
+    assert listed["viewer_top_bid_id"] == first.json()["id"]
+
+
 def test_bid_validation_rejects_too_low_amount_and_respects_increment() -> None:
     cleanup_test_data()
     seller = create_test_user("seller-increment@bid-test.local")
     bidder = create_test_user("bidder-increment@bid-test.local")
+    other_bidder = create_test_user("other-bidder-increment@bid-test.local")
     auction = create_active_auction(seller)
 
     too_low = place_bid(auction["id"], bidder, "1000.00")
     off_step = place_bid(auction["id"], bidder, "1150.00")
     valid = place_bid(auction["id"], bidder, "1300.00")
-    next_too_low = place_bid(auction["id"], bidder, "1350.00")
+    next_too_low = place_bid(auction["id"], other_bidder, "1350.00")
 
     assert too_low.status_code == 422
     assert too_low.json()["detail"] == "A licit összege legalább 1 100 Ft legyen."

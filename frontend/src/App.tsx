@@ -14,6 +14,7 @@ import { HomePage } from "./pages/HomePage";
 const AboutPage = lazy(() => import("./pages/AboutPage").then((module) => ({ default: module.AboutPage })));
 const AuctionDetailPage = lazy(() => import("./pages/AuctionDetailPage").then((module) => ({ default: module.AuctionDetailPage })));
 const AuctionsPage = lazy(() => import("./pages/AuctionsPage").then((module) => ({ default: module.AuctionsPage })));
+const AuctionCreatePage = lazy(() => import("./pages/AuctionCreatePage").then((module) => ({ default: module.AuctionCreatePage })));
 const AuthPage = lazy(() => import("./pages/AuthPages").then((module) => ({ default: module.AuthPage })));
 const ContactPage = lazy(() => import("./pages/ContactPage").then((module) => ({ default: module.ContactPage })));
 const HowItWorksPage = lazy(() => import("./pages/HowItWorksPage").then((module) => ({ default: module.HowItWorksPage })));
@@ -76,6 +77,7 @@ function App() {
             <Route path="/users/:username" element={<UserProfilePage />} />
             <Route path="/categories" element={<Navigate to="/auctions" replace />} />
             <Route element={<ProtectedRoute />}>
+              <Route path="/auctions/create" element={<AuctionCreatePage />} />
               <Route path="/account" element={<AccountLayout />}>
                 <Route index element={<Navigate to="profile" replace />} />
                 <Route path="profile" element={<AccountProfilePage />} />

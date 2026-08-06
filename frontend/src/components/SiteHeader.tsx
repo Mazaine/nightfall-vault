@@ -9,7 +9,7 @@ const navItems = [
   { label: "Kezdőlap", to: "/" },
   { label: "Aukciók", to: "/auctions" },
   { label: "Licitjeim", to: "/my-bids", authenticated: true },
-  { label: "Aukció indítása", to: "/account/auctions#auction-create", authenticated: true, primary: true },
+  { label: "Aukció indítása", to: "/auctions/create", authenticated: true, primary: true },
   { label: "Saját aukcióim", to: "/account/auctions", authenticated: true },
   { label: "Hogyan működik?", to: "/how-it-works" },
 ];

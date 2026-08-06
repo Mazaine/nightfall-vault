@@ -60,6 +60,12 @@ export type Auction = {
   seller_average_rating?: number | null;
   seller_review_count?: number;
   is_featured?: boolean;
+  viewer_is_leading?: boolean;
+  viewer_top_bid_id?: number | null;
+  viewer_can_withdraw?: boolean;
+  viewer_withdrawal_block_reason?: string | null;
+  viewer_personal_status?: "leading" | "outbid" | "watched" | "exited" | null;
+  viewer_is_watched?: boolean;
 };
 
 export type AuctionCreatePayload = {
@@ -237,7 +243,7 @@ function toQuery(params: Record<string, string | number | boolean | undefined | 
 }
 
 export function listAuctions(params: AuctionListParams = {}) {
-  return apiRequest<AuctionPage>(`/api/auctions${toQuery(params)}`, { authenticated: false });
+  return apiRequest<AuctionPage>(`/api/auctions${toQuery(params)}`);
 }
 
 export function getAuction(auctionId: string | number) {

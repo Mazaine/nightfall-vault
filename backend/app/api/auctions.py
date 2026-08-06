@@ -44,15 +44,28 @@ def auction_list_item(
     db: Session | None = None,
     seller_average_rating: float | None = None,
     seller_review_count: int | None = None,
+    viewer: User | None = None,
+    viewer_personal_status: str | None = None,
+    viewer_is_watched: bool | None = None,
 ) -> AuctionListItem:
     count = sum(1 for bid in auction.bids if bid.status == "active") if bid_count is None else bid_count
     if db is not None and seller_review_count is None:
         seller_average_rating, seller_review_count = seller_rating_summary(db, auction.seller_id)
+    viewer_is_leading = bool(viewer is not None and auction.highest_bid is not None and auction.highest_bid.bidder_id == viewer.id)
+    if viewer_is_watched is None:
+        viewer_is_watched = bool(db is not None and viewer is not None and db.scalar(select(WatchlistItem.id).where(WatchlistItem.auction_id == auction.id, WatchlistItem.user_id == viewer.id).limit(1)))
+    withdrawal = bid_withdrawal_state(auction.highest_bid, auction, viewer) if viewer_is_leading and auction.highest_bid is not None else {"can_withdraw": False, "withdrawal_block_reason": None}
     return AuctionListItem.model_validate(auction).model_copy(update={
         "bid_count": count,
         "seller_average_rating": seller_average_rating,
         "seller_review_count": seller_review_count or 0,
         "is_featured": bool(auction.seller and is_vip(auction.seller)),
+        "viewer_is_leading": viewer_is_leading,
+        "viewer_top_bid_id": auction.highest_bid_id if viewer_is_leading else None,
+        "viewer_can_withdraw": withdrawal["can_withdraw"],
+        "viewer_withdrawal_block_reason": withdrawal["withdrawal_block_reason"],
+        "viewer_personal_status": viewer_personal_status or ("leading" if viewer_is_leading else "watched" if viewer_is_watched else None),
+        "viewer_is_watched": viewer_is_watched,
     })
 
 
@@ -140,12 +153,18 @@ def auction_response(auction: Auction, user: User | None = None, db: Session | N
     response = AuctionResponse.model_validate(auction).model_copy(update={"seller_average_rating": seller_average_rating, "seller_review_count": seller_review_count, "is_featured": bool(auction.seller and is_vip(auction.seller))})
     if user is None:
         return response
+    viewer_is_leading = bool(auction.highest_bid is not None and auction.highest_bid.bidder_id == user.id)
+    withdrawal = bid_withdrawal_state(auction.highest_bid, auction, user) if viewer_is_leading and auction.highest_bid is not None else {"can_withdraw": False, "withdrawal_block_reason": None}
     return response.model_copy(
         update={
             "is_owner": auction.seller_id == user.id,
             "can_chat": can_access_post_auction_features(auction, user.id),
             "chat_read_only": bool(db is not None and can_access_post_auction_features(auction, user.id) and is_chat_read_only(db, auction)),
             "can_review": bool(db is not None and can_user_review_transaction(db, auction, user.id)),
+            "viewer_is_leading": viewer_is_leading,
+            "viewer_top_bid_id": auction.highest_bid_id if viewer_is_leading else None,
+            "viewer_can_withdraw": withdrawal["can_withdraw"],
+            "viewer_withdrawal_block_reason": withdrawal["withdrawal_block_reason"],
         },
     )
 
@@ -169,6 +188,7 @@ def list_public_auctions(
     sort: str = Query(default="newest"),
     limit: int = Query(default=24, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
+    current_user: User | None = Depends(get_optional_current_user),
     db: Session = Depends(get_db),
 ) -> AuctionListPage:
     if sort not in AUCTION_SORTS:
@@ -197,7 +217,7 @@ def list_public_auctions(
     bid_counts = {row.id: int(row.bid_count or 0) for row in rows}
     if not auction_ids:
         return AuctionListPage(items=[], total=total, limit=limit, offset=offset)
-    list_statement = select(Auction).options(selectinload(Auction.seller), selectinload(Auction.images)).where(Auction.id.in_(auction_ids))
+    list_statement = select(Auction).options(selectinload(Auction.seller), selectinload(Auction.images), selectinload(Auction.highest_bid)).where(Auction.id.in_(auction_ids))
     auctions_by_id = {auction.id: auction for auction in db.scalars(list_statement).all()}
     seller_ids = {auction.seller_id for auction in auctions_by_id.values()}
     rating_rows = db.query(
@@ -206,6 +226,13 @@ def list_public_auctions(
         func.count(AuctionReview.id),
     ).filter(AuctionReview.reviewed_user_id.in_(seller_ids)).group_by(AuctionReview.reviewed_user_id).all() if seller_ids else []
     seller_ratings = {user_id: (round(float(average), 2), int(count)) for user_id, average, count in rating_rows}
+    viewer_bid_auction_ids: set[int] = set()
+    viewer_watched_auction_ids: set[int] = set()
+    viewer_exited_auction_ids: set[int] = set()
+    if current_user is not None:
+        viewer_bid_auction_ids = set(db.scalars(select(Bid.auction_id).where(Bid.auction_id.in_(auction_ids), Bid.bidder_id == current_user.id, Bid.status == "active").distinct()).all())
+        viewer_watched_auction_ids = set(db.scalars(select(WatchlistItem.auction_id).where(WatchlistItem.auction_id.in_(auction_ids), WatchlistItem.user_id == current_user.id)).all())
+        viewer_exited_auction_ids = set(db.scalars(select(AuctionBidExclusion.auction_id).where(AuctionBidExclusion.auction_id.in_(auction_ids), AuctionBidExclusion.user_id == current_user.id)).all())
     items: list[AuctionListItem] = []
     for auction_id in auction_ids:
         auction = auctions_by_id.get(auction_id)
@@ -214,7 +241,17 @@ def list_public_auctions(
         auction = sync_auction_status(db, auction)
         if auction.status in PUBLIC_AUCTION_STATUSES:
             average, review_count = seller_ratings.get(auction.seller_id, (None, 0))
-            items.append(auction_list_item(auction, bid_counts.get(auction.id, 0), seller_average_rating=average, seller_review_count=review_count))
+            viewer_personal_status = None
+            if current_user is not None:
+                if auction.highest_bid is not None and auction.highest_bid.bidder_id == current_user.id:
+                    viewer_personal_status = "leading"
+                elif auction.id in viewer_exited_auction_ids:
+                    viewer_personal_status = "exited"
+                elif auction.id in viewer_bid_auction_ids:
+                    viewer_personal_status = "outbid"
+                elif auction.id in viewer_watched_auction_ids:
+                    viewer_personal_status = "watched"
+            items.append(auction_list_item(auction, bid_counts.get(auction.id, 0), seller_average_rating=average, seller_review_count=review_count, viewer=current_user, viewer_personal_status=viewer_personal_status, viewer_is_watched=auction.id in viewer_watched_auction_ids))
     return AuctionListPage(items=items, total=total, limit=limit, offset=offset)
 
 
@@ -410,14 +447,14 @@ def activate_my_auction(
 def list_related_auctions(auction_id: int, current_user: User | None = Depends(get_optional_current_user), db: Session = Depends(get_db)) -> list[AuctionListItem]:
     auction = get_auction_or_404(db, auction_id)
     require_can_view_auction(auction, current_user)
-    return [auction_list_item(item, sum(1 for bid in item.bids if bid.status == "active"), db=db) for item in related_auctions(db, auction)]
+    return [auction_list_item(item, sum(1 for bid in item.bids if bid.status == "active"), db=db, viewer=current_user) for item in related_auctions(db, auction)]
 
 
 @router.get("/{auction_id}/seller-auctions", response_model=list[AuctionListItem])
 def list_seller_other_auctions(auction_id: int, current_user: User | None = Depends(get_optional_current_user), db: Session = Depends(get_db)) -> list[AuctionListItem]:
     auction = get_auction_or_404(db, auction_id)
     require_can_view_auction(auction, current_user)
-    return [auction_list_item(item, sum(1 for bid in item.bids if bid.status == "active"), db=db) for item in seller_other_auctions(db, auction, limit=6)]
+    return [auction_list_item(item, sum(1 for bid in item.bids if bid.status == "active"), db=db, viewer=current_user) for item in seller_other_auctions(db, auction, limit=6)]
 
 
 @router.post("/{auction_id}/cancel", response_model=AuctionStatusResponse)

@@ -125,6 +125,7 @@ export function AuctionDetailPage() {
             status: snapshot.status,
             current_price: snapshot.current_price,
             highest_bid_id: snapshot.highest_bid_id,
+            viewer_is_leading: current.viewer_top_bid_id ? current.viewer_top_bid_id === snapshot.highest_bid_id : false,
             winner_id: snapshot.winner_id,
             ends_at: snapshot.ends_at,
           }
@@ -450,7 +451,7 @@ export function AuctionDetailPage() {
             <div><dt>Villámár</dt><dd>{formatMoney(auction.buy_now_price)}</dd></div>
           ) : null}
         </dl>
-        {auction.status === "active" && !auction.is_owner && isAuthenticated ? (
+        {auction.status === "active" && !auction.is_owner && isAuthenticated && !auction.viewer_is_leading ? (
           <form className="bid-panel" id="bid-section" onSubmit={submitBid} noValidate>
             <label>
               Licit összege
@@ -474,6 +475,26 @@ export function AuctionDetailPage() {
             ) : null}
             {bidMessage ? <p className="form-message" role="status" aria-live="polite">{bidMessage}</p> : null}
           </form>
+        ) : null}
+        {auction.status === "active" && !auction.is_owner && isAuthenticated && auction.viewer_is_leading ? (
+          <div className="side-panel bid-panel" id="bid-section">
+            <h2>Te vezetsz</h2>
+            <p>Amíg a te licited a legmagasabb, nem emelhetsz rá újra. Ha egy másik felhasználó túllicitál, ismét licitálhatsz.</p>
+            <button
+              className="button button-secondary"
+              type="button"
+              disabled={isWithdrawingBid || !auction.viewer_can_withdraw}
+              title={auction.viewer_withdrawal_block_reason ?? undefined}
+              onClick={() => {
+                const target = bidHistory.find((bid) => bid.id === auction.viewer_top_bid_id);
+                if (target) setWithdrawBidTarget(target);
+              }}
+            >
+              {isWithdrawingBid ? "Feldolgozás..." : "Kiszállok"}
+            </button>
+            {!auction.viewer_can_withdraw && auction.viewer_withdrawal_block_reason ? <p className="section-note">{auction.viewer_withdrawal_block_reason}</p> : null}
+            {bidMessage ? <p className="form-message" role="status" aria-live="polite">{bidMessage}</p> : null}
+          </div>
         ) : null}
         {auction.status === "active" && !auction.is_owner && !isAuthenticated ? (
           <div className="side-panel bid-panel" id="bid-section">

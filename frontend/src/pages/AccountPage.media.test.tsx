@@ -29,8 +29,8 @@ function file(name: string, type = "image/png") {
   return new File(["image"], name, { type });
 }
 
-function renderPage() {
-  render(<MemoryRouter><AccountPage section="auctions" /></MemoryRouter>);
+function renderPage(section: "auctions" | "create" = "create") {
+  render(<MemoryRouter><AccountPage section={section} /></MemoryRouter>);
 }
 
 function fillRequiredForm() {
@@ -162,7 +162,7 @@ describe("AccountPage media upload", () => {
   it("meglévő piszkozatnál backend művelettel állít borítót és töröl képet", async () => {
     vi.spyOn(window, "confirm").mockReturnValue(true);
     mocks.listMyAuctions.mockResolvedValue([{ id: 91, seller_id: 2, title: "Képes piszkozat", description: "Leírás", category: "Pokemon", condition: "fresh", status: "draft", starting_price: "1000", bid_increment: "100", current_price: "1000", buy_now_enabled: false, buy_now_price: null, starts_at: "2026-07-16T10:00:00Z", ends_at: "2026-07-17T10:00:00Z", five_minute_rule_enabled: true, winner_id: null, highest_bid_id: null, images: [{ id: 10, auction_id: 91, storage_key: "original.webp", url: "/media/original.webp", thumbnail_url: "/media/thumb.webp", original_filename: "one.png", content_type: "image/webp", file_size: 10, position: 0, is_cover: false, created_at: "2026-07-15T10:00:00Z" }] }]);
-    renderPage();
+    renderPage("auctions");
     fireEvent.click(await screen.findByRole("button", { name: "Módosítás" }));
     fireEvent.click(await screen.findByRole("button", { name: "Legyen borítókép" }));
     await waitFor(() => expect(mocks.setAuctionCoverImage).toHaveBeenCalledWith(91, 10));
@@ -176,7 +176,7 @@ describe("AccountPage media upload", () => {
     const listItem = { id: 92, seller_id: 2, title: "Aktív tesztaukció", category: "Pokemon", condition: "fresh", status: "active", starting_price: "1000", bid_increment: "100", current_price: "1200", buy_now_enabled: false, buy_now_price: null, starts_at: futureStart, ends_at: futureEnd, five_minute_rule_enabled: true, winner_id: null, highest_bid_id: null, images: [] };
     mocks.listMyAuctions.mockResolvedValue([listItem]);
     mocks.getAuction.mockResolvedValue({ ...listItem, description: "Régi, részletes leírás" });
-    renderPage();
+    renderPage("auctions");
 
     fireEvent.click(await screen.findByRole("button", { name: "Módosítás" }));
     const form = await screen.findByRole("form", { name: "Aktív tesztaukció módosítása" });
@@ -208,7 +208,7 @@ describe("AccountPage media upload", () => {
     const auction = { id: 93, seller_id: 2, title: "Tesztaukció", description: "Eredeti, részletes leírás", category: "Pokemon", condition: "fresh", status: "active", starting_price: "1000", bid_increment: "100", current_price: "1200", buy_now_enabled: false, buy_now_price: null, starts_at: "2026-07-15T10:00:00Z", ends_at: "2026-07-27T10:00:00Z", five_minute_rule_enabled: true, winner_id: null, highest_bid_id: null, images: [] };
     mocks.listMyAuctions.mockResolvedValue([auction]);
     mocks.getAuction.mockResolvedValue(auction);
-    renderPage();
+    renderPage("auctions");
 
     fireEvent.click(await screen.findByRole("button", { name: "Módosítás" }));
     const editor = within(await screen.findByRole("form", { name: "Tesztaukció módosítása" }));

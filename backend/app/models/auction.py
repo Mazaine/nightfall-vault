@@ -17,7 +17,7 @@ class Auction(Base):
     __table_args__ = (
         CheckConstraint(f"status IN {AUCTION_STATUSES}", name="ck_auctions_status"),
         CheckConstraint(f"condition IN {AUCTION_CONDITIONS}", name="ck_auctions_condition"),
-        CheckConstraint("starting_price > 0", name="ck_auctions_starting_price_positive"),
+        CheckConstraint("starting_price >= 0", name="ck_auctions_starting_price_positive"),
         CheckConstraint("bid_increment > 0", name="ck_auctions_bid_increment_positive"),
         CheckConstraint("(buy_now_enabled = false AND buy_now_price IS NULL) OR (buy_now_enabled = true AND buy_now_price > starting_price)", name="ck_auctions_buy_now_price"),
         CheckConstraint("ends_at > starts_at", name="ck_auctions_time_window"),

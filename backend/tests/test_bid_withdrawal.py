@@ -70,7 +70,8 @@ def test_top_bid_withdrawal_preserves_history_and_restores_price(monkeypatch) ->
     assert lost.status_code == 200
     assert lost.json()["items"][0]["has_exited"] is True
     assert lost.json()["items"][0]["participation_note"] == "Kiszálltál ebből az aukcióból."
-    assert place_bid(auction["id"], first, "1300.00").status_code == 201
+    third = create_test_user("third-withdraw-success@bid-test.local")
+    assert place_bid(auction["id"], third, "1300.00").status_code == 201
 
 
 def test_stack_only_allows_current_top_and_successive_owner_withdrawals() -> None:
@@ -83,11 +84,11 @@ def test_stack_only_allows_current_top_and_successive_owner_withdrawals() -> Non
         place_bid(auction["id"], bidder_a, "1100.00").json(),
         place_bid(auction["id"], bidder_b, "1200.00").json(),
         place_bid(auction["id"], bidder_a, "1300.00").json(),
-        place_bid(auction["id"], bidder_a, "1400.00").json(),
+        place_bid(auction["id"], bidder_b, "1400.00").json(),
     ]
 
     assert withdraw(bids[2]["id"], bidder_a).status_code == 409
-    first = withdraw(bids[3]["id"], bidder_a)
+    first = withdraw(bids[3]["id"], bidder_b)
     second = withdraw(bids[2]["id"], bidder_a)
 
     assert first.status_code == 200 and first.json()["current_price"] == "1300.00"

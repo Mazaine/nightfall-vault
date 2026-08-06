@@ -259,7 +259,7 @@ def validate_activation_requirements(auction: Auction) -> None:
         raise HTTPException(status_code=422, detail="Az aukció adatai hiányosak.")
     if auction.ends_at <= auction.starts_at:
         raise HTTPException(status_code=422, detail="Az aukció kezdési vagy lejárati időpontja érvénytelen.")
-    if auction.starting_price <= 0 or auction.bid_increment <= 0:
+    if auction.starting_price < 0 or auction.bid_increment <= 0:
         raise HTTPException(status_code=422, detail="Az aukció árai érvénytelenek.")
     if auction.buy_now_enabled and (auction.buy_now_price is None or auction.buy_now_price <= auction.starting_price):
         raise HTTPException(status_code=422, detail="A villámár érvénytelen.")
