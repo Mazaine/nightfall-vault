@@ -12,6 +12,7 @@ from app.dependencies.auth import require_active_user
 from app.models.auction import Auction, AuctionMessage
 from app.models.user import User
 from app.services.auction_lifecycle import get_auction_counterparty, get_auction_or_404, require_post_auction_participant
+from app.services.demo_visibility import auction_visibility_clause
 from app.services.notifications import now_utc
 from app.services.realtime import get_presence, iter_stream, publish_user_event, set_presence
 
@@ -23,13 +24,26 @@ def sse(event_id: str, event_type: str, payload: dict) -> str:
 
 
 @router.get("/stream")
-async def user_stream(request: Request, current_user: User = Depends(require_active_user)) -> StreamingResponse:
+async def user_stream(
+    request: Request,
+    current_user: User = Depends(require_active_user),
+    db: Session = Depends(get_db),
+) -> StreamingResponse:
     check_rate_limit(request, "sse:user", settings.sse_connection_rate_limit_per_minute, str(current_user.id))
     last_event_id = request.headers.get("last-event-id", "$")
+    session_version = current_user.auth_version
 
     async def events():
         async for event_id, event_type, payload in iter_stream(f"nightfall:realtime:user:{current_user.id}", last_event_id):
             if await request.is_disconnected():
+                break
+            still_valid = db.scalar(select(User.id).where(
+                User.id == current_user.id,
+                User.auth_version == session_version,
+                User.deleted_at.is_(None),
+                User.is_active.is_(True),
+            ))
+            if still_valid is None:
                 break
             yield sse(event_id, event_type, payload)
 
@@ -40,7 +54,11 @@ async def user_stream(request: Request, current_user: User = Depends(require_act
 def heartbeat(request: Request, current_user: User = Depends(require_active_user), db: Session = Depends(get_db)) -> dict:
     check_rate_limit(request, "realtime:heartbeat", settings.realtime_heartbeat_rate_limit_per_minute, str(current_user.id))
     presence = set_presence(current_user.id)
-    auctions = db.scalars(select(Auction).where(Auction.status == "sold", or_(Auction.seller_id == current_user.id, Auction.winner_id == current_user.id))).all()
+    auctions = db.scalars(select(Auction).where(
+        Auction.status == "sold",
+        or_(Auction.seller_id == current_user.id, Auction.winner_id == current_user.id),
+        auction_visibility_clause(current_user),
+    )).all()
     for auction in auctions:
         counterpart_id = auction.winner_id if auction.seller_id == current_user.id else auction.seller_id
         if counterpart_id is not None:

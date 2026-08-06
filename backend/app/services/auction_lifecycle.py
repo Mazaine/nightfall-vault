@@ -362,6 +362,9 @@ def is_chat_read_only(db: Session, auction: Auction) -> bool:
 
 
 def require_post_auction_participant(auction: Auction, user: User) -> None:
+    from app.services.demo_visibility import require_demo_auction_access
+
+    require_demo_auction_access(auction, user)
     if not can_access_post_auction_features(auction, user.id):
         raise HTTPException(status_code=403, detail="A lezárt aukciót csak az eladó és a nyertes érheti el.")
 

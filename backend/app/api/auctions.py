@@ -365,7 +365,11 @@ def list_my_bid_auctions_page(
     candidate_ids.update(exited_ids)
     if not candidate_ids:
         return MyBidAuctionPage(items=[], total=0, limit=limit, offset=offset, server_time=datetime.now(timezone.utc))
-    auctions = list(db.scalars(get_auction_statement().where(Auction.id.in_(candidate_ids), Auction.deleted_at.is_(None))).unique().all())
+    auctions = list(db.scalars(get_auction_statement().where(
+        Auction.id.in_(candidate_ids),
+        Auction.deleted_at.is_(None),
+        auction_visibility_clause(current_user),
+    )).unique().all())
     transaction_ids = dict(db.execute(select(AuctionTransaction.auction_id, AuctionTransaction.id).where(
         AuctionTransaction.auction_id.in_(candidate_ids),
         or_(AuctionTransaction.seller_id == current_user.id, AuctionTransaction.buyer_id == current_user.id),
@@ -494,14 +498,28 @@ def list_auction_bids(
 
 
 @router.get("/realtime/stream")
-async def stream_auction_list_updates(request: Request, current_user: User | None = Depends(get_optional_current_user)) -> StreamingResponse:
+async def stream_auction_list_updates(
+    request: Request,
+    current_user: User | None = Depends(get_optional_current_user),
+    db: Session = Depends(get_db),
+) -> StreamingResponse:
     check_rate_limit(request, "sse:auctions", settings.sse_connection_rate_limit_per_minute)
+    session_version = current_user.auth_version if current_user is not None else None
     async def events():
         async for event_id, event_type, payload in iter_stream("nightfall:realtime:auctions", request.headers.get("last-event-id", "$")):
             if await request.is_disconnected():
                 break
-            if payload.get("is_demo") and not can_access_demo_auctions(current_user):
-                continue
+            if payload.get("is_demo"):
+                if current_user is None:
+                    continue
+                access = db.scalar(select(User.role).where(
+                    User.id == current_user.id,
+                    User.auth_version == session_version,
+                    User.deleted_at.is_(None),
+                    User.is_active.is_(True),
+                ))
+                if access not in {"tester", "admin"}:
+                    continue
             yield f"id: {event_id}\nevent: {event_type}\ndata: {json.dumps(payload, ensure_ascii=False)}\n\n"
     return StreamingResponse(events(), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
@@ -519,6 +537,7 @@ async def stream_auction_updates(
     check_rate_limit(request, "sse:auction", settings.sse_connection_rate_limit_per_minute)
 
     initial = AuctionRealtimeSnapshot.model_validate(auction_realtime_snapshot(db, auction)).model_dump(mode="json")
+    session_version = current_user.auth_version if current_user is not None else None
 
     async def event_generator():
         yield f"event: auction_update\ndata: {json.dumps(initial, ensure_ascii=False)}\n\n"
@@ -528,6 +547,15 @@ async def stream_auction_updates(
         async for event_id, event_type, payload in iter_stream(f"nightfall:realtime:auction:{auction_id}", last_event_id):
             if await request.is_disconnected():
                 break
+            if auction.demo_batch_id is not None:
+                access = db.scalar(select(User.role).where(
+                    User.id == current_user.id,
+                    User.auth_version == session_version,
+                    User.deleted_at.is_(None),
+                    User.is_active.is_(True),
+                )) if current_user is not None else None
+                if access not in {"tester", "admin"}:
+                    break
             yield f"id: {event_id}\nevent: {event_type}\ndata: {json.dumps(payload, ensure_ascii=False)}\n\n"
 
     return StreamingResponse(event_generator(), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
