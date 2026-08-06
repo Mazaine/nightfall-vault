@@ -63,6 +63,7 @@ export type Auction = {
 };
 
 export type AuctionCreatePayload = {
+  creation_key?: string;
   title: string;
   description: string;
   category: string;
@@ -157,7 +158,12 @@ export type MyBidAuction = {
   is_leading: boolean;
   has_won: boolean;
   is_outbid: boolean;
+  my_last_bid_at?: string | null;
+  transaction_id?: number | null;
 };
+
+export type MyBidAuctionState = "all" | "outbid" | "leading" | "active" | "closed" | "won";
+export type MyBidAuctionPage = { items: MyBidAuction[]; total: number; limit: number; offset: number; server_time: string };
 
 export type NotificationItem = {
   id: number;
@@ -246,6 +252,10 @@ export function listMyAuctions() {
 
 export function listMyBidAuctions() {
   return apiRequest<MyBidAuction[]>("/api/auctions/my-bids");
+}
+
+export function listMyBidAuctionsPage(state: MyBidAuctionState = "all", limit = 12, offset = 0) {
+  return apiRequest<MyBidAuctionPage>(`/api/auctions/my-bids/page${toQuery({ state, limit, offset })}`);
 }
 
 export function listMyNotifications(category = "all") {

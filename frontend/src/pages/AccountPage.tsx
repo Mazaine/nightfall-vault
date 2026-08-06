@@ -13,6 +13,12 @@ import { useAuctionRealtime } from "../AuctionRealtimeContext";
 
 const MAX_AUCTION_IMAGES = 5;
 const MAX_IMAGE_FILE_SIZE_BYTES = 20 * 1024 * 1024;
+const newCreationKey = () => typeof crypto !== "undefined" && "randomUUID" in crypto
+  ? crypto.randomUUID()
+  : "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (character) => {
+      const random = Math.floor(Math.random() * 16);
+      return (character === "x" ? random : (random & 0x3) | 0x8).toString(16);
+    });
 
 const editableFields = [
   "név",
@@ -165,6 +171,11 @@ export function AccountPage({ section }: { section: "bids" | "auctions" }) {
   const [auctionDateErrors, setAuctionDateErrors] = useState<{ startsAt?: string; endsAt?: string }>({});
   const [auctionFieldErrors, setAuctionFieldErrors] = useState<Record<string, string>>({});
   const [isCreatingAuction, setIsCreatingAuction] = useState(false);
+  const [createDraftId, setCreateDraftId] = useState<number | null>(null);
+  const [createDraftImageCount, setCreateDraftImageCount] = useState(0);
+  const [creationKey, setCreationKey] = useState(newCreationKey);
+  const [createBuyNowPrice, setCreateBuyNowPrice] = useState("");
+  const [createBuyNowEnabled, setCreateBuyNowEnabled] = useState(false);
   const [uploadProgress, setUploadProgress] = useState("");
   const [editingAuctionId, setEditingAuctionId] = useState<number | null>(null);
   const [isUpdatingAuction, setIsUpdatingAuction] = useState(false);
@@ -177,6 +188,8 @@ export function AccountPage({ section }: { section: "bids" | "auctions" }) {
   const [editAuctionDateErrors, setEditAuctionDateErrors] = useState<{ startsAt?: string; endsAt?: string }>({});
   const [editFormMessage, setEditFormMessage] = useState("");
   const [editPageMessage, setEditPageMessage] = useState("");
+  const [editBuyNowPrice, setEditBuyNowPrice] = useState("");
+  const [editBuyNowEnabled, setEditBuyNowEnabled] = useState(false);
   const clearAuctionFieldError = (field: string) => setAuctionFieldErrors((current) => {
     if (!current[field]) return current;
     const next = { ...current };
@@ -276,6 +289,8 @@ export function AccountPage({ section }: { section: "bids" | "auctions" }) {
     setFormMessage("");
 
     const form = event.currentTarget;
+    const submitter = (event.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
+    const saveAsDraft = submitter?.value === "draft";
     const formData = new FormData(form);
     const fieldErrors = validateAuctionFields(formData);
     const dateErrors = validateAuctionDates(formData.get("starts_at"), formData.get("ends_at"));
@@ -286,7 +301,8 @@ export function AccountPage({ section }: { section: "bids" | "auctions" }) {
       return;
     }
 
-    if (auctionImages.length === 0) {
+    const storedDraft = createDraftId ? myAuctions.find((item) => item.id === createDraftId) : null;
+    if (!saveAsDraft && auctionImages.length === 0 && !storedDraft?.images.length && createDraftImageCount === 0) {
       setImageMessage("Legalább 1 képet kötelező feltölteni az aukcióhoz.");
       return;
     }
@@ -294,7 +310,7 @@ export function AccountPage({ section }: { section: "bids" | "auctions" }) {
     setIsCreatingAuction(true);
     setUploadProgress("Az aukció mentése folyamatban...");
     try {
-      const auction = await createAuction({
+      const payload = {
         title: String(formData.get("title") ?? ""),
         description: String(formData.get("description") ?? ""),
         category: String(formData.get("category") ?? categories[0]),
@@ -307,32 +323,46 @@ export function AccountPage({ section }: { section: "bids" | "auctions" }) {
         ends_at: localDateTimeToIso(formData.get("ends_at")),
         five_minute_rule_enabled: formData.get("five_minute_rule_enabled") === "on",
         seller_declaration_accepted: formData.get("seller_declaration_accepted") === "on",
-      });
+      };
+      const auction = createDraftId
+        ? await updateAuction(createDraftId, payload)
+        : await createAuction({ ...payload, creation_key: creationKey });
+      setCreateDraftId(auction.id);
 
       for (const [index, file] of auctionImages.entries()) {
         setUploadProgress(`${index + 1}/${auctionImages.length}: ${file.name} feltöltése és feldolgozása...`);
         try {
           await uploadAuctionImage(auction.id, file, index === coverImageIndex);
+          setCreateDraftImageCount((current) => current + 1);
         } catch (error) {
+          setAuctionImages(auctionImages.slice(index));
+          setCoverImageIndex(Math.max(0, coverImageIndex - index));
           throw new Error(`${file.name}: ${error instanceof Error ? error.message : "a feltöltés nem sikerült."}`);
         }
       }
 
-      await activateAuction(auction.id);
+      if (!saveAsDraft) await activateAuction(auction.id);
       await refreshMyAuctions();
       await refreshMyBids();
       setAuctionImages([]);
       setImageMessage("");
       setAuctionDateErrors({});
       setAuctionFieldErrors({});
-      setFormMessage("Az aukció létrejött, a képek feltöltődtek, és az aktiválás/időzítés sikeres.");
-      setUploadProgress("Minden kép feltöltése és feldolgozása sikeres.");
+      setFormMessage(saveAsDraft ? "A piszkozatot elmentettük. Innen folytathatod, új példány nem jött létre." : "Az aukció létrejött, a képek feltöltődtek, és az aktiválás/időzítés sikeres.");
+      setUploadProgress(saveAsDraft ? "A piszkozat mentése sikeres." : "Minden kép feltöltése és feldolgozása sikeres.");
       showToast({
-        title: "Aukció létrehozva",
-        message: "A képek feltöltése és az aukció aktiválása vagy időzítése sikeres.",
+        title: saveAsDraft ? "Piszkozat elmentve" : "Aukció létrehozva",
+        message: saveAsDraft ? "A mentést később ugyaninnen folytathatod." : "A képek feltöltése és az aukció aktiválása vagy időzítése sikeres.",
         targetUrl: "/account/auctions",
       });
-      form.reset();
+      if (!saveAsDraft) {
+        form.reset();
+        setCreateDraftId(null);
+        setCreateDraftImageCount(0);
+        setCreationKey(newCreationKey());
+        setCreateBuyNowPrice("");
+        setCreateBuyNowEnabled(false);
+      }
     } catch (error) {
       if (error instanceof ApiError && Object.keys(error.fieldErrors).length > 0) {
         const { starts_at, ends_at, request, ...fieldErrors } = error.fieldErrors;
@@ -361,6 +391,8 @@ export function AccountPage({ section }: { section: "bids" | "auctions" }) {
     try {
       const detailedAuction = await getAuction(auction.id) || auction;
       setMyAuctions((items) => items.map((item) => item.id === detailedAuction.id ? detailedAuction : item));
+      setEditBuyNowPrice(detailedAuction.buy_now_price ?? "");
+      setEditBuyNowEnabled(detailedAuction.buy_now_enabled);
       setEditingAuctionId(detailedAuction.id);
     } catch (error) {
       setEditPageMessage(error instanceof Error ? error.message : "Az aukció adatainak betöltése nem sikerült.");
@@ -376,6 +408,8 @@ export function AccountPage({ section }: { section: "bids" | "auctions" }) {
     setEditAuctionFieldErrors({});
     setEditAuctionDateErrors({});
     setEditFormMessage("");
+    setEditBuyNowPrice("");
+    setEditBuyNowEnabled(false);
   };
 
   const handleEditImageChange = (event: ChangeEvent<HTMLInputElement>, auction: Auction) => {
@@ -629,25 +663,22 @@ export function AccountPage({ section }: { section: "bids" | "auctions" }) {
                                 </label>
                                 <label>
                                   Villámár
-                                  <input name="buy_now_price" type="number" min="1" defaultValue={auction.buy_now_price ?? ""} disabled={!isDraft} />
+                                  <input name="buy_now_price" type="number" min="1" value={editBuyNowPrice} disabled={!isDraft} onChange={(event) => { const value = event.target.value; setEditBuyNowPrice(value); setEditBuyNowEnabled(Number(value) > 0); }} />
                                   {!isDraft ? <small>A már rögzített összeg nem módosítható.</small> : null}
                                 </label>
                                 <label>
                                   Kezdési dátum
                                   <input name="starts_at" type="datetime-local" defaultValue={isoToLocalDateTime(auction.starts_at)} required disabled={!isDraft} aria-invalid={Boolean(editAuctionDateErrors.startsAt)} aria-describedby={editAuctionDateErrors.startsAt ? `edit-starts-at-error-${auction.id}` : undefined} onChange={() => setEditAuctionDateErrors((current) => ({ ...current, startsAt: undefined }))} />
-                                  {editAuctionDateErrors.startsAt ? <small className="auth-field-error" id={`edit-starts-at-error-${auction.id}`}>{editAuctionDateErrors.startsAt}</small> : !isDraft ? <small>A kezdés után zárolt.</small> : null}
+                                  {editAuctionDateErrors.startsAt ? <small className="auth-field-error" id={`edit-starts-at-error-${auction.id}`}>{editAuctionDateErrors.startsAt}</small> : <small>{!isDraft ? "A kezdés után zárolt. " : ""}Helyi idő: Europe/Budapest.</small>}
                                 </label>
                                 <label>
                                   Lejárati dátum
                                   <input name="ends_at" type="datetime-local" defaultValue={isoToLocalDateTime(auction.ends_at)} required aria-invalid={Boolean(editAuctionDateErrors.endsAt)} aria-describedby={editAuctionDateErrors.endsAt ? `edit-ends-at-error-${auction.id}` : undefined} onChange={() => setEditAuctionDateErrors((current) => ({ ...current, endsAt: undefined }))} />
-                                  {editAuctionDateErrors.endsAt ? <small className="auth-field-error" id={`edit-ends-at-error-${auction.id}`}>{editAuctionDateErrors.endsAt}</small> : null}
+                                  {editAuctionDateErrors.endsAt ? <small className="auth-field-error" id={`edit-ends-at-error-${auction.id}`}>{editAuctionDateErrors.endsAt}</small> : <small>Helyi idő: Europe/Budapest.</small>}
                                 </label>
+                                <aside className="form-wide auction-rule-note"><strong>Az utolsó 5 perc szabályai</strong><p>A legutolsó aktív licit az utolsó 5 percben nem vonható vissza. Bekapcsolt hosszabbításnál minden késői érvényes licit a licit pillanatától újabb 5 percre állítja a zárást.</p><label className="toggle-row"><input name="five_minute_rule_enabled" type="checkbox" defaultChecked={auction.five_minute_rule_enabled} />5 perces automatikus hosszabbítás bekapcsolása</label></aside>
                                 <label className="toggle-row">
-                                  <input name="five_minute_rule_enabled" type="checkbox" defaultChecked={auction.five_minute_rule_enabled} />
-                                  5 perces szabály bekapcsolása
-                                </label>
-                                <label className="toggle-row">
-                                  <input name="buy_now_enabled" type="checkbox" defaultChecked={auction.buy_now_enabled} disabled={!isDraft && !auction.buy_now_price} />
+                                  <input name="buy_now_enabled" type="checkbox" checked={editBuyNowEnabled} onChange={(event) => setEditBuyNowEnabled(event.target.checked)} disabled={!isDraft && !auction.buy_now_price} />
                                   Villámár bekapcsolása
                                   {!isDraft && !auction.buy_now_price ? <small>Korábban megadott villámár nélkül nem kapcsolható be.</small> : null}
                                 </label>
@@ -798,26 +829,28 @@ export function AccountPage({ section }: { section: "bids" | "auctions" }) {
           </label>
           <label>
             Villámár
-            <input name="buy_now_price" type="number" min="1" placeholder="Opcionális" aria-invalid={Boolean(auctionFieldErrors.buy_now_price)} aria-describedby={auctionFieldErrors.buy_now_price ? "auction-buy-now-error" : undefined} onChange={() => clearAuctionFieldError("buy_now_price")} />
+            <input name="buy_now_price" type="number" min="1" placeholder="Opcionális" value={createBuyNowPrice} aria-invalid={Boolean(auctionFieldErrors.buy_now_price)} aria-describedby={auctionFieldErrors.buy_now_price ? "auction-buy-now-error" : undefined} onChange={(event) => { const value = event.target.value; setCreateBuyNowPrice(value); setCreateBuyNowEnabled(Number(value) > 0); clearAuctionFieldError("buy_now_price"); }} />
             {auctionFieldErrors.buy_now_price ? <small className="auth-field-error" id="auction-buy-now-error">{auctionFieldErrors.buy_now_price}</small> : <small>Az összeget később nem módosíthatod.</small>}
           </label>
           <label>
             Kezdési dátum
             <input name="starts_at" type="datetime-local" required aria-invalid={Boolean(auctionDateErrors.startsAt)} aria-describedby={auctionDateErrors.startsAt ? "auction-starts-at-error" : undefined} onChange={() => setAuctionDateErrors((current) => ({ ...current, startsAt: undefined }))} />
-            {auctionDateErrors.startsAt ? <small className="auth-field-error" id="auction-starts-at-error">{auctionDateErrors.startsAt}</small> : null}
+            {auctionDateErrors.startsAt ? <small className="auth-field-error" id="auction-starts-at-error">{auctionDateErrors.startsAt}</small> : <small>Helyi idő: Europe/Budapest.</small>}
           </label>
           <label>
             Lejárati dátum
             <input name="ends_at" type="datetime-local" required aria-invalid={Boolean(auctionDateErrors.endsAt)} aria-describedby={auctionDateErrors.endsAt ? "auction-ends-at-error" : undefined} onChange={() => setAuctionDateErrors((current) => ({ ...current, endsAt: undefined }))} />
-            {auctionDateErrors.endsAt ? <small className="auth-field-error" id="auction-ends-at-error">{auctionDateErrors.endsAt}</small> : null}
+            {auctionDateErrors.endsAt ? <small className="auth-field-error" id="auction-ends-at-error">{auctionDateErrors.endsAt}</small> : <small>Helyi idő: Europe/Budapest.</small>}
           </label>
+          <aside className="form-wide auction-rule-note" aria-label="Az utolsó öt perc szabályai">
+            <strong>Az utolsó 5 perc fontos szabályai</strong>
+            <p>Az aukció utolsó 5 percében a legutolsó aktív licit már nem vonható vissza. Bekapcsolt hosszabbításnál minden, az aktuális zárás előtti utolsó 5 percben érkező érvényes licit a licit pillanatától újabb 5 percre állítja a zárást.</p>
+            <label className="toggle-row"><input name="five_minute_rule_enabled" type="checkbox" defaultChecked />5 perces automatikus hosszabbítás bekapcsolása</label>
+          </aside>
           <label className="toggle-row">
-            <input name="five_minute_rule_enabled" type="checkbox" defaultChecked />
-            5 perces szabály bekapcsolása
-          </label>
-          <label className="toggle-row">
-            <input name="buy_now_enabled" type="checkbox" onChange={() => clearAuctionFieldError("buy_now_price")} />
+            <input name="buy_now_enabled" type="checkbox" checked={createBuyNowEnabled} onChange={(event) => { setCreateBuyNowEnabled(event.target.checked); clearAuctionFieldError("buy_now_price"); }} />
             Villámár bekapcsolása
+            <small>Érvényes összeg megadásakor automatikusan bekapcsol. Kikapcsoláskor az összeg megmaradhat.</small>
           </label>
           <label className="toggle-row form-wide">
             <input name="seller_declaration_accepted" type="checkbox" required aria-invalid={Boolean(auctionFieldErrors.seller_declaration_accepted)} aria-describedby={auctionFieldErrors.seller_declaration_accepted ? "auction-declaration-error" : undefined} onChange={() => clearAuctionFieldError("seller_declaration_accepted")} />
@@ -825,9 +858,10 @@ export function AccountPage({ section }: { section: "bids" | "auctions" }) {
             {auctionFieldErrors.seller_declaration_accepted ? <small className="auth-field-error" id="auction-declaration-error">{auctionFieldErrors.seller_declaration_accepted}</small> : null}
           </label>
           {formMessage ? <p className="form-message form-wide">{formMessage}</p> : null}
-          <button className="button button-primary form-wide" type="submit" disabled={isCreatingAuction}>
-            {isCreatingAuction ? "Feltöltés és feldolgozás..." : "Aukció létrehozása"}
-          </button>
+          <div className="form-wide create-form-actions">
+            <button className="button button-secondary" type="submit" name="submit_intent" value="draft" disabled={isCreatingAuction}>{isCreatingAuction ? "Mentés..." : createDraftId ? "Piszkozat frissítése" : "Mentés piszkozatként"}</button>
+            <button className="button button-primary" type="submit" name="submit_intent" value="publish" disabled={isCreatingAuction}>{isCreatingAuction ? "Feltöltés és feldolgozás..." : "Aukció indítása vagy ütemezése"}</button>
+          </div>
         </form>
       </section> : null}
     </>

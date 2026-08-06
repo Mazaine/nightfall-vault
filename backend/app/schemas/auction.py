@@ -76,6 +76,7 @@ class AuctionBase(BaseModel):
 
 
 class AuctionCreate(AuctionBase):
+    creation_key: str | None = Field(default=None, min_length=36, max_length=36, pattern=r"^[0-9a-fA-F-]{36}$")
     seller_declaration_accepted: bool
     seller_declaration_version: str = Field(default="2026-07-11", min_length=4, max_length=20)
 
@@ -312,6 +313,16 @@ class MyBidAuctionItem(BaseModel):
     is_leading: bool
     has_won: bool
     is_outbid: bool
+    my_last_bid_at: datetime | None = None
+    transaction_id: int | None = None
+
+
+class MyBidAuctionPage(BaseModel):
+    items: list[MyBidAuctionItem]
+    total: int
+    limit: int
+    offset: int
+    server_time: datetime
 
 
 class WatchlistItemRead(BaseModel):

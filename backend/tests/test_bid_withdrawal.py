@@ -104,7 +104,7 @@ def test_withdrawal_rejects_other_user_and_duplicate_request() -> None:
 
 def test_withdrawal_time_boundaries_are_explicit(monkeypatch) -> None:
     cleanup_test_data()
-    fixed_now = datetime(2026, 8, 6, 12, 0, tzinfo=timezone.utc)
+    fixed_now = datetime.now(timezone.utc).replace(microsecond=0)
     seller = create_test_user("seller-withdraw-boundary@bid-test.local")
     bidder = create_test_user("bidder-withdraw-boundary@bid-test.local")
     auction = create_active_auction(seller)

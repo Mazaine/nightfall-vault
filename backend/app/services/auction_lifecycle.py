@@ -3,6 +3,7 @@ from decimal import Decimal
 
 from fastapi import HTTPException, status
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
 from app.models.auction import Auction, AuctionImage, AuctionMessage, AuctionReview, Bid
@@ -156,8 +157,20 @@ def create_auction(db: Session, auction_create: AuctionCreate, seller: User) -> 
     require_no_restriction(db, seller.id, "auction_creation_ban")
     if seller.deleted_at is not None or not seller.is_active:
         raise HTTPException(status_code=403, detail="Ez a felhasználói fiók inaktív.")
+    if auction_create.creation_key:
+        existing = db.scalar(select(Auction).where(
+            Auction.seller_id == seller.id,
+            Auction.creation_key == auction_create.creation_key,
+            Auction.deleted_at.is_(None),
+        ))
+        if existing is not None:
+            if existing.status == "draft":
+                retry_update = AuctionUpdate(**auction_create.model_dump(exclude={"creation_key", "seller_declaration_accepted", "seller_declaration_version"}))
+                return update_auction(db, existing, retry_update, seller)
+            return existing
     auction = Auction(
         seller_id=seller.id,
+        creation_key=auction_create.creation_key,
         title=auction_create.title,
         description=auction_create.description,
         category=auction_create.category,
@@ -175,7 +188,19 @@ def create_auction(db: Session, auction_create: AuctionCreate, seller: User) -> 
         seller_declaration_version=auction_create.seller_declaration_version or SELLER_DECLARATION_VERSION,
     )
     db.add(auction)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        if auction_create.creation_key:
+            existing = db.scalar(select(Auction).where(
+                Auction.seller_id == seller.id,
+                Auction.creation_key == auction_create.creation_key,
+                Auction.deleted_at.is_(None),
+            ))
+            if existing is not None:
+                return existing
+        raise
     db.refresh(auction)
     create_domain_audit_log(db, action="auction_created", user_id=seller.id, auction_id=auction.id, metadata={"title": auction.title})
     db.commit()

@@ -41,8 +41,8 @@ function fillRequiredForm() {
   fireEvent.change(screen.getByLabelText(/^Leírás/), { target: { value: "Részletes leírás" } });
   fireEvent.change(screen.getByLabelText(/Kezdőár/), { target: { value: "1000" } });
   fireEvent.change(screen.getByLabelText(/Licitlépcső/), { target: { value: "100" } });
-  fireEvent.change(screen.getByLabelText("Kezdési dátum"), { target: { value: localValue(futureStart) } });
-  fireEvent.change(screen.getByLabelText("Lejárati dátum"), { target: { value: localValue(futureEnd) } });
+  fireEvent.change(screen.getByLabelText(/^Kezdési dátum/), { target: { value: localValue(futureStart) } });
+  fireEvent.change(screen.getByLabelText(/^Lejárati dátum/), { target: { value: localValue(futureEnd) } });
   fireEvent.click(screen.getByText(/Elfogadom, hogy jogosult/).closest("label")!.querySelector("input")!);
 }
 
@@ -52,7 +52,7 @@ describe("AccountPage media upload", () => {
     mocks.listMyAuctions.mockResolvedValue([]);
     mocks.listMyBidAuctions.mockResolvedValue([]);
     mocks.createAuction.mockResolvedValue({ id: 91 });
-    mocks.updateAuction.mockResolvedValue({});
+    mocks.updateAuction.mockResolvedValue({ id: 91, images: [] });
     mocks.uploadAuctionImage.mockResolvedValue({});
     mocks.activateAuction.mockResolvedValue({ id: 91, status: "scheduled" });
     mocks.setAuctionCoverImage.mockResolvedValue({});
@@ -92,7 +92,7 @@ describe("AccountPage media upload", () => {
     renderPage();
     fireEvent.change(await screen.findByLabelText("Képek"), { target: { files: [file("card.png")] } });
     fillRequiredForm();
-    fireEvent.click(screen.getByRole("button", { name: "Aukció létrehozása" }));
+    fireEvent.click(screen.getByRole("button", { name: "Aukció indítása vagy ütemezése" }));
     expect(await screen.findByRole("button", { name: "Feltöltés és feldolgozás..." })).toBeDisabled();
     expect(screen.getByRole("status")).toHaveTextContent("card.png feltöltése és feldolgozása");
   });
@@ -101,7 +101,7 @@ describe("AccountPage media upload", () => {
     renderPage();
     fireEvent.change(await screen.findByLabelText("Képek"), { target: { files: [file("card.png")] } });
     fillRequiredForm();
-    fireEvent.click(screen.getByRole("button", { name: "Aukció létrehozása" }));
+    fireEvent.click(screen.getByRole("button", { name: "Aukció indítása vagy ütemezése" }));
 
     await waitFor(() => expect(mocks.showToast).toHaveBeenCalledWith({
       title: "Aukció létrehozva",
@@ -112,12 +112,23 @@ describe("AccountPage media upload", () => {
     expect(screen.queryByText(/Cannot read properties of null/)).not.toBeInTheDocument();
   });
 
+  it("a piszkozat ismételt mentése ugyanazt az aukciót folytatja", async () => {
+    renderPage();
+    fillRequiredForm();
+    fireEvent.click(screen.getByRole("button", { name: "Mentés piszkozatként" }));
+    await waitFor(() => expect(mocks.createAuction).toHaveBeenCalledTimes(1));
+    expect(mocks.createAuction.mock.calls[0][0].creation_key).toMatch(/^[0-9a-f-]{36}$/i);
+    fireEvent.click(await screen.findByRole("button", { name: "Piszkozat frissítése" }));
+    await waitFor(() => expect(mocks.updateAuction).toHaveBeenCalledWith(91, expect.any(Object)));
+    expect(mocks.createAuction).toHaveBeenCalledTimes(1);
+  });
+
   it("a backend képfeltöltési hibáját a konkrét fájlnévvel jeleníti meg", async () => {
     mocks.uploadAuctionImage.mockRejectedValue(new Error("A kép pixelszáma túl nagy."));
     renderPage();
     fireEvent.change(await screen.findByLabelText("Képek"), { target: { files: [file("huge.png")] } });
     fillRequiredForm();
-    fireEvent.click(screen.getByRole("button", { name: "Aukció létrehozása" }));
+    fireEvent.click(screen.getByRole("button", { name: "Aukció indítása vagy ütemezése" }));
     await waitFor(() => expect(screen.getByText("huge.png: A kép pixelszáma túl nagy.")).toBeInTheDocument());
   });
 
@@ -127,9 +138,9 @@ describe("AccountPage media upload", () => {
     const past = new Date(Date.now() - 24 * 60 * 60 * 1000);
     const future = new Date(Date.now() + 24 * 60 * 60 * 1000);
     const localValue = (date: Date) => new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
-    fireEvent.change(screen.getByLabelText("Kezdési dátum"), { target: { value: localValue(past) } });
-    fireEvent.change(screen.getByLabelText("Lejárati dátum"), { target: { value: localValue(future) } });
-    fireEvent.click(screen.getByRole("button", { name: "Aukció létrehozása" }));
+    fireEvent.change(screen.getByLabelText(/^Kezdési dátum/), { target: { value: localValue(past) } });
+    fireEvent.change(screen.getByLabelText(/^Lejárati dátum/), { target: { value: localValue(future) } });
+    fireEvent.click(screen.getByRole("button", { name: "Aukció indítása vagy ütemezése" }));
 
     expect(await screen.findByText("A kezdési dátum nem lehet korábbi a jelenlegi időpontnál.")).toBeInTheDocument();
     expect(document.querySelector('input[name="starts_at"]')).toHaveAttribute("aria-invalid", "true");
@@ -141,7 +152,7 @@ describe("AccountPage media upload", () => {
     fireEvent.change(await screen.findByLabelText("Képek"), { target: { files: [file("card.png")] } });
     fillRequiredForm();
     fireEvent.change(screen.getByLabelText(/^Név/), { target: { value: "A".repeat(181) } });
-    fireEvent.click(screen.getByRole("button", { name: "Aukció létrehozása" }));
+    fireEvent.click(screen.getByRole("button", { name: "Aukció indítása vagy ütemezése" }));
 
     expect(await screen.findByText("A név legfeljebb 180 karakter hosszú lehet.")).toBeInTheDocument();
     expect(screen.getByLabelText(/^Név/)).toHaveAttribute("aria-invalid", "true");

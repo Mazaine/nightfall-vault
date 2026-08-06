@@ -64,6 +64,13 @@
   color: var(--color-text-primary);
 }
 
+.site-nav a.nav-primary-action {
+  border: 1px solid rgb(168 85 247 / .72);
+  background: linear-gradient(135deg, #7c3aed, #5b21b6);
+  color: #fff;
+  box-shadow: 0 8px 22px rgb(124 58 237 / .24);
+}
+
 .mobile-auth-links { display: none; }
 
 .menu-toggle {

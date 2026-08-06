@@ -7,17 +7,15 @@ import { UNREAD_NOTIFICATION_COUNT_CHANGED } from "../utils/notificationEvents";
 
 const navItems = [
   { label: "Kezdőlap", to: "/" },
-  { label: "Licitjeim", to: "/account/bids", authenticated: true },
   { label: "Aukciók", to: "/auctions" },
+  { label: "Licitjeim", to: "/my-bids", authenticated: true },
+  { label: "Aukció indítása", to: "/account/auctions#auction-create", authenticated: true, primary: true },
+  { label: "Saját aukcióim", to: "/account/auctions", authenticated: true },
   { label: "Hogyan működik?", to: "/how-it-works" },
-  { label: "Rólunk", to: "/about" },
-  { label: "Kapcsolat", to: "/contact" },
 ];
 
 const accountItems = [
   ["Profilbeállítások", "/account/profile"],
-  ["Licitjeim", "/account/bids"],
-  ["Saját aukcióim", "/account/auctions"],
   ["Mentett keresések", "/account/saved-searches"],
   ["Figyelőlista", "/account/watchlist"],
   ["Értesítések", "/account/notifications"],
@@ -124,7 +122,7 @@ export function SiteHeader() {
         {isMenuOpen ? <div className="menu-backdrop" aria-hidden="true" onClick={closeMobileMenu} /> : null}
 
         <nav ref={primaryNavRef} className={isMenuOpen ? "site-nav is-open" : "site-nav"} id="primary-navigation" aria-label="Elsődleges navigáció">
-          {navItems.filter((item) => !item.authenticated || isAuthenticated).map((item) => <NavLink to={item.to} key={item.to} end={item.to === "/"}>{item.label}</NavLink>)}
+          {navItems.filter((item) => !item.authenticated || isAuthenticated).map((item) => <NavLink className={item.primary ? "nav-primary-action" : undefined} to={item.to} key={item.to} end={item.to === "/"}>{item.label}</NavLink>)}
           {!isAuthenticated ? <div className="mobile-auth-links"><NavLink to="/login">Belépés</NavLink><NavLink to="/register">Regisztráció</NavLink></div> : null}
         </nav>
 

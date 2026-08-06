@@ -41,12 +41,12 @@ describe("SiteHeader", () => {
     expect(screen.queryByRole("button", { name: "Felhasználói menü" })).not.toBeInTheDocument();
   });
 
-  it("a profilikon menüjében a profil és a Licitjeim külön cél", async () => {
+  it("a Licitjeim elsődleges cél, a profilbeállítás pedig a profilikon menüjében marad", async () => {
     authenticate();
     render(<MemoryRouter><SiteHeader /></MemoryRouter>);
     fireEvent.click(screen.getByRole("button", { name: "Felhasználói menü" }));
     expect(screen.getByRole("menuitem", { name: "Profilbeállítások" })).toHaveAttribute("href", "/account/profile");
-    expect(screen.getByRole("menuitem", { name: "Licitjeim" })).toHaveAttribute("href", "/account/bids");
+    expect(screen.getByRole("link", { name: "Licitjeim" })).toHaveAttribute("href", "/my-bids");
     await waitFor(() => expect(screen.getByRole("menuitem", { name: "Profilbeállítások" })).toHaveFocus());
   });
 
@@ -66,7 +66,7 @@ describe("SiteHeader", () => {
     render(<MemoryRouter><SiteHeader /></MemoryRouter>);
     fireEvent.click(screen.getByRole("button", { name: "Felhasználói menü" }));
     const firstItem = screen.getByRole("menuitem", { name: "Profilbeállítások" });
-    const secondItem = screen.getByRole("menuitem", { name: "Licitjeim" });
+    const secondItem = screen.getByRole("menuitem", { name: "Mentett keresések" });
     await waitFor(() => expect(firstItem).toHaveFocus());
     fireEvent.keyDown(firstItem, { key: "ArrowDown" });
     expect(secondItem).toHaveFocus();

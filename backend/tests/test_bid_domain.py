@@ -433,6 +433,15 @@ def test_outbid_notification_and_my_bids_endpoint() -> None:
     assert my_bids.json()[0]["is_outbid"] is True
     assert my_bids.json()[0]["auction"]["current_price"] == "1200.00"
 
+    outbid_page = client.get("/api/auctions/my-bids/page?state=outbid&limit=10&offset=0", headers=auth_headers(bidder_one))
+    leading_page = client.get("/api/auctions/my-bids/page?state=leading&limit=10&offset=0", headers=auth_headers(bidder_one))
+    assert outbid_page.status_code == 200
+    assert outbid_page.json()["total"] == 1
+    assert outbid_page.json()["items"][0]["auction"]["id"] == auction["id"]
+    assert outbid_page.json()["items"][0]["my_last_bid_at"] is not None
+    assert leading_page.status_code == 200
+    assert leading_page.json()["total"] == 0
+
 
 def test_realtime_stream_returns_auction_snapshot() -> None:
     cleanup_test_data()

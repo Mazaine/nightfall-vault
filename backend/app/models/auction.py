@@ -24,11 +24,13 @@ class Auction(Base):
         CheckConstraint("winner_id IS NULL OR winner_id <> seller_id", name="ck_auctions_winner_not_seller"),
         CheckConstraint("(status = 'sold' AND winner_id IS NOT NULL) OR status <> 'sold'", name="ck_auctions_sold_has_winner"),
         CheckConstraint("(status = 'unsold' AND winner_id IS NULL) OR status <> 'unsold'", name="ck_auctions_unsold_has_no_winner"),
+        UniqueConstraint("seller_id", "creation_key", name="uq_auctions_seller_creation_key"),
         Index("ix_auctions_status_ends_at", "status", "ends_at"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     seller_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    creation_key: Mapped[str | None] = mapped_column(String(36), nullable=True)
     title: Mapped[str] = mapped_column(String(180), nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=False)
     category: Mapped[str] = mapped_column(String(80), nullable=False, index=True)

@@ -22,6 +22,7 @@ const routeMeta: RouteMeta[] = [
   { matches: (path) => path === "/login", title: "Belépés", description: "Belépés a Nightfall Vault fiókba.", indexable: false },
   { matches: (path) => path === "/register", title: "Regisztráció", description: "Nightfall Vault felhasználói fiók létrehozása.", indexable: false },
   { matches: (path) => path.startsWith("/forgot-password") || path.startsWith("/reset-password") || path.startsWith("/auth/"), title: "Fiók-helyreállítás", description: "Nightfall Vault fiók biztonságos helyreállítása.", indexable: false },
+  { matches: (path) => path === "/my-bids", title: "Licitjeim", description: "Saját aktív és lezárt Nightfall Vault licitek.", indexable: false },
   { matches: (path) => path.startsWith("/account") || path.startsWith("/admin") || path.startsWith("/notifications") || path.startsWith("/watchlist") || path.startsWith("/saved-searches"), title: "Saját fiók", description: "Személyes Nightfall Vault fiókfelület.", indexable: false },
   { matches: (path) => path === "/categories", title: "Aukciók", description: "Böngéssz a Nightfall Vault aktív aukciói között.", indexable: false },
 ];

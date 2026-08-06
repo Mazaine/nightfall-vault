@@ -7,6 +7,7 @@ import { RouteMetadata } from "./components/RouteMetadata";
 import { ScrollToTop } from "./components/ScrollToTop";
 import { SiteFooter } from "./components/SiteFooter";
 import { SiteHeader } from "./components/SiteHeader";
+import { MobileBottomNav } from "./components/MobileBottomNav";
 import { TransactionReviewPrompt } from "./components/TransactionReviewPrompt";
 import { HomePage } from "./pages/HomePage";
 
@@ -26,6 +27,7 @@ const ForgotPasswordPage = lazy(() => import("./pages/AuthRecoveryPages").then((
 const ResetPasswordPage = lazy(() => import("./pages/AuthRecoveryPages").then((module) => ({ default: module.ResetPasswordPage })));
 const AccountLayout = lazy(() => import("./components/AccountLayout").then((module) => ({ default: module.AccountLayout })));
 const AccountPage = lazy(() => import("./pages/AccountPage").then((module) => ({ default: module.AccountPage })));
+const MyBidsPage = lazy(() => import("./pages/MyBidsPage").then((module) => ({ default: module.MyBidsPage })));
 const AccountBlockedUsersPage = lazy(() => import("./pages/AccountBlockedUsersPage").then((module) => ({ default: module.AccountBlockedUsersPage })));
 const AccountProfilePage = lazy(() => import("./pages/AccountProfilePage").then((module) => ({ default: module.AccountProfilePage })));
 const AccountReportsPage = lazy(() => import("./pages/AccountReportsPage").then((module) => ({ default: module.AccountReportsPage })));
@@ -78,7 +80,7 @@ function App() {
               <Route path="/account" element={<AccountLayout />}>
                 <Route index element={<Navigate to="profile" replace />} />
                 <Route path="profile" element={<AccountProfilePage />} />
-                <Route path="bids" element={<AccountPage section="bids" />} />
+                <Route path="bids" element={<Navigate to="/my-bids" replace />} />
                 <Route path="auctions" element={<AccountPage section="auctions" />} />
                 <Route path="vip" element={<VipMembershipPage />} />
                 <Route path="messages" element={<AccountConversationsPage />} />
@@ -90,6 +92,7 @@ function App() {
                 <Route path="blocked-users" element={<AccountBlockedUsersPage />} />
               </Route>
               <Route path="/notifications" element={<Navigate to="/account/notifications" replace />} />
+              <Route path="/my-bids" element={<MyBidsPage />} />
               <Route path="/watchlist" element={<Navigate to="/account/watchlist" replace />} />
               <Route path="/saved-searches" element={<Navigate to="/account/saved-searches" replace />} />
             </Route>
@@ -118,6 +121,7 @@ function App() {
         </Suspense>
       </main>
       <SiteFooter />
+      <MobileBottomNav />
       <IncomingChatDock />
       <TransactionReviewPrompt />
     </div>

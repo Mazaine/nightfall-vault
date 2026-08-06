@@ -4,7 +4,7 @@ const accountItems = [
   { to: "/account/transactions", label: "Tranzakcióim" },
   { to: "/account/messages", label: "Üzeneteim" },
   { to: "/account/profile", label: "Profilbeállítások" },
-  { to: "/account/bids", label: "Licitjeim" },
+  { to: "/my-bids", label: "Licitjeim" },
   { to: "/account/auctions", label: "Saját aukcióim" },
   { to: "/account/vip", label: "VIP tagság" },
   { to: "/account/notifications", label: "Értesítések" },

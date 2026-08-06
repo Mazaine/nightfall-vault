@@ -153,6 +153,25 @@ def test_authenticated_user_can_create_auction_and_seller_is_current_user() -> N
     assert data["status"] == "draft"
 
 
+def test_auction_creation_key_reuses_the_same_logical_draft() -> None:
+    cleanup_test_data()
+    seller = create_test_user("seller-idempotent@auction-test.local")
+    creation_key = "7d35128b-e2cc-4e50-9fb8-5c73149444e8"
+    payload = auction_payload(creation_key=creation_key)
+
+    first = client.post("/api/auctions", json=payload, headers=auth_headers(seller))
+    second = client.post("/api/auctions", json=payload, headers=auth_headers(seller))
+
+    assert first.status_code == 201
+    assert second.status_code == 201
+    assert second.json()["id"] == first.json()["id"]
+    db = SessionLocal()
+    try:
+        assert db.query(Auction).filter(Auction.seller_id == seller.id, Auction.creation_key == creation_key).count() == 1
+    finally:
+        db.close()
+
+
 def test_anonymous_user_cannot_create_auction() -> None:
     response = client.post("/api/auctions", json=auction_payload())
 

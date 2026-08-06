@@ -14,7 +14,7 @@ from app.models.auction import Auction, AuctionMessage, AuctionReview, Bid
 from app.models.notification import Notification
 from app.models.transaction import AuctionTransaction
 from app.models.user import User
-from app.schemas.auction import AuctionConversationRead, AuctionCreate, AuctionFinalizeRequest, AuctionImageRead, AuctionListItem, AuctionListPage, AuctionMessageCreate, AuctionMessageRead, AuctionRealtimeSnapshot, AuctionResponse, AuctionReviewCreate, AuctionReviewPage, AuctionReviewRead, AuctionStatusResponse, AuctionUpdate, BidCreate, BidHistoryItem, BidRead, MyBidAuctionItem, NotificationRead, UserSummary
+from app.schemas.auction import AuctionConversationRead, AuctionCreate, AuctionFinalizeRequest, AuctionImageRead, AuctionListItem, AuctionListPage, AuctionMessageCreate, AuctionMessageRead, AuctionRealtimeSnapshot, AuctionResponse, AuctionReviewCreate, AuctionReviewPage, AuctionReviewRead, AuctionStatusResponse, AuctionUpdate, BidCreate, BidHistoryItem, BidRead, MyBidAuctionItem, MyBidAuctionPage, NotificationRead, UserSummary
 from app.services.auction_images import add_auction_image, delete_auction_image, set_cover_image
 from app.services.auction_lifecycle import PUBLIC_AUCTION_STATUSES, activate_auction, can_access_post_auction_features, cancel_auction, create_auction, create_message, create_review, finalize_auction, get_auction_or_404, get_auction_statement, is_chat_read_only, require_can_view_auction, require_post_auction_participant, sync_auction_status, update_auction
 from app.services.bidding import auction_realtime_snapshot, bid_history_item_for_user, bid_to_read, list_bid_history, place_bid
@@ -287,6 +287,11 @@ def list_my_bid_auctions(current_user: User = Depends(require_active_user), db: 
         my_highest_bid = db.scalar(select(Bid.amount).where(Bid.auction_id == auction.id, Bid.bidder_id == current_user.id, Bid.status == "active").order_by(Bid.amount.desc()).limit(1))
         if my_highest_bid is None:
             continue
+        my_last_bid_at = db.scalar(select(Bid.created_at).where(Bid.auction_id == auction.id, Bid.bidder_id == current_user.id, Bid.status == "active").order_by(Bid.created_at.desc(), Bid.id.desc()).limit(1))
+        transaction_id = db.scalar(select(AuctionTransaction.id).where(
+            AuctionTransaction.auction_id == auction.id,
+            or_(AuctionTransaction.seller_id == current_user.id, AuctionTransaction.buyer_id == current_user.id),
+        ).limit(1))
         is_leading = auction.highest_bid is not None and auction.highest_bid.bidder_id == current_user.id
         has_won = auction.status == "sold" and auction.winner_id == current_user.id
         items.append(
@@ -296,9 +301,86 @@ def list_my_bid_auctions(current_user: User = Depends(require_active_user), db: 
                 is_leading=is_leading,
                 has_won=has_won,
                 is_outbid=not is_leading and auction.status in {"active", "scheduled", "ended"},
+                my_last_bid_at=my_last_bid_at,
+                transaction_id=transaction_id,
             ),
         )
     return items
+
+
+@router.get("/my-bids/page", response_model=MyBidAuctionPage)
+def list_my_bid_auctions_page(
+    state: str = Query(default="all"),
+    limit: int = Query(default=12, ge=1, le=50),
+    offset: int = Query(default=0, ge=0),
+    current_user: User = Depends(require_active_user),
+    db: Session = Depends(get_db),
+) -> MyBidAuctionPage:
+    if state not in {"all", "outbid", "leading", "active", "closed", "won"}:
+        raise HTTPException(status_code=422, detail="Érvénytelen licitállapot-szűrő.")
+    bid_summary = (
+        select(
+            Bid.auction_id.label("auction_id"),
+            func.max(Bid.amount).label("my_highest_bid"),
+            func.max(Bid.created_at).label("my_last_bid_at"),
+        )
+        .where(Bid.bidder_id == current_user.id, Bid.status == "active")
+        .group_by(Bid.auction_id)
+        .subquery()
+    )
+    is_leading_expr = exists(select(Bid.id).where(
+        Bid.id == Auction.highest_bid_id,
+        Bid.bidder_id == current_user.id,
+        Bid.status == "active",
+    ))
+    conditions = [Auction.deleted_at.is_(None)]
+    if state == "outbid":
+        conditions.extend([Auction.status.in_({"scheduled", "active", "ended"}), ~is_leading_expr])
+    elif state == "leading":
+        conditions.extend([Auction.status.in_({"scheduled", "active", "ended"}), is_leading_expr])
+    elif state == "active":
+        conditions.append(Auction.status.in_({"scheduled", "active", "ended"}))
+    elif state == "closed":
+        conditions.append(Auction.status.in_({"sold", "unsold", "cancelled", "suspended"}))
+    elif state == "won":
+        conditions.extend([Auction.status == "sold", Auction.winner_id == current_user.id])
+    count_statement = select(func.count(Auction.id)).join(bid_summary, bid_summary.c.auction_id == Auction.id).where(*conditions)
+    total = int(db.scalar(count_statement) or 0)
+    priority = case(
+        (and_(Auction.status.in_({"scheduled", "active", "ended"}), ~is_leading_expr), 0),
+        (and_(Auction.status.in_({"scheduled", "active", "ended"}), is_leading_expr), 1),
+        (and_(Auction.status == "sold", Auction.winner_id == current_user.id), 2),
+        else_=3,
+    )
+    statement = (
+        get_auction_statement()
+        .add_columns(bid_summary.c.my_highest_bid, bid_summary.c.my_last_bid_at)
+        .join(bid_summary, bid_summary.c.auction_id == Auction.id)
+        .where(*conditions)
+        .order_by(priority, Auction.ends_at.asc(), Auction.id.asc())
+        .offset(offset)
+        .limit(limit)
+    )
+    rows = db.execute(statement).unique().all()
+    auction_ids = [auction.id for auction, _, _ in rows]
+    transaction_ids = dict(db.execute(select(AuctionTransaction.auction_id, AuctionTransaction.id).where(
+        AuctionTransaction.auction_id.in_(auction_ids),
+        or_(AuctionTransaction.seller_id == current_user.id, AuctionTransaction.buyer_id == current_user.id),
+    )).all()) if auction_ids else {}
+    items: list[MyBidAuctionItem] = []
+    for auction, my_highest_bid, my_last_bid_at in rows:
+        auction = sync_auction_status(db, auction)
+        is_leading = auction.highest_bid is not None and auction.highest_bid.bidder_id == current_user.id
+        items.append(MyBidAuctionItem(
+            auction=auction_list_item(auction, db=db),
+            my_highest_bid=my_highest_bid,
+            is_leading=is_leading,
+            has_won=auction.status == "sold" and auction.winner_id == current_user.id,
+            is_outbid=not is_leading and auction.status in {"scheduled", "active", "ended"},
+            my_last_bid_at=my_last_bid_at,
+            transaction_id=transaction_ids.get(auction.id),
+        ))
+    return MyBidAuctionPage(items=items, total=total, limit=limit, offset=offset, server_time=datetime.now(timezone.utc))
 
 
 @router.get("/notifications", response_model=list[NotificationRead])
