@@ -252,6 +252,7 @@ class AuctionRealtimeSnapshot(BaseModel):
     winner_id: int | None
     ends_at: datetime
     is_listed: bool = True
+    is_demo: bool = False
     bids: list[BidHistoryItem]
 
 
@@ -268,6 +269,7 @@ class NotificationRead(BaseModel):
     email_enabled: bool = False
     is_read: bool
     created_at: datetime
+    is_demo: bool = False
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -301,6 +303,7 @@ class AuctionListItem(BaseModel):
     seller_average_rating: float | None = None
     seller_review_count: int = 0
     is_featured: bool = False
+    is_demo: bool = False
     viewer_is_leading: bool = False
     viewer_top_bid_id: int | None = None
     viewer_can_withdraw: bool = False
@@ -368,6 +371,7 @@ class AuctionStatusResponse(BaseModel):
     current_price: Decimal
     highest_bid_id: int | None
     finalized_at: datetime | None
+    is_demo: bool = False
 
     model_config = ConfigDict(from_attributes=True)
 

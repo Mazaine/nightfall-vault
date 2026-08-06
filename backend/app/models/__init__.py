@@ -12,6 +12,7 @@ from app.models.product_variant import ProductVariant
 from app.models.shipping import ShippingMethod
 from app.models.stock_movement import StockMovement
 from app.models.security_log import AuditLog, LoginAttempt
+from app.models.demo_auction import DemoAuctionBatch
 from app.models.refresh_session import RefreshSession
 from app.models.transaction import AuctionTransaction
 from app.models.user import SavedSearch, SellerFollow, User, VipActivationCode
@@ -45,6 +46,7 @@ __all__ = [
     "StockMovement",
     "AuditLog",
     "LoginAttempt",
+    "DemoAuctionBatch",
     "RefreshSession",
     "AuctionTransaction",
     "User",

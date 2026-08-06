@@ -20,7 +20,7 @@ describe("MyBidsPage", () => {
   it("szűrhető, személyes állapotot és közös aukciókártyát jelenít meg", async () => {
     mocks.list.mockResolvedValue({ items: [{ auction, my_highest_bid: "1600", is_leading: false, has_won: false, is_outbid: true, transaction_id: null }], total: 1, limit: 12, offset: 0, server_time: new Date().toISOString() });
     render(<MemoryRouter><MyBidsPage /></MemoryRouter>);
-    expect(await screen.findByText("Rád licitáltak")).toBeInTheDocument();
+    expect(await screen.findByText("Túllicitáltak")).toBeInTheDocument();
     expect(screen.getByText("1800 Ft")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Licitálok" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("tab", { name: "Én vezetek" }));

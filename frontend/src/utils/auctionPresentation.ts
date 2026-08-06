@@ -30,6 +30,7 @@ export function toAuctionCardItem(auction: Auction) {
     bidCount: auction.bid_count ?? 0,
     canBid: auction.status === "active",
     isFeatured: auction.is_featured ?? false,
+    isDemo: auction.is_demo ?? false,
     personalStatus: auction.viewer_personal_status ?? (auction.viewer_is_leading ? "leading" as const : undefined),
     topBidId: auction.viewer_top_bid_id,
     canWithdraw: auction.viewer_can_withdraw,

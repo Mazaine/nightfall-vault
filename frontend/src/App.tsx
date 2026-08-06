@@ -45,6 +45,7 @@ const AdminAuditLogsPage = lazy(() => import("./pages/admin/AdminAuditLogsPage")
 const AdminReportsPage = lazy(() => import("./pages/admin/AdminReportsPage").then((module) => ({ default: module.AdminReportsPage })));
 const AdminModerationPage = lazy(() => import("./pages/admin/AdminModerationPage").then((module) => ({ default: module.AdminModerationPage })));
 const AdminVipCodesPage = lazy(() => import("./pages/admin/AdminVipCodesPage").then((module) => ({ default: module.AdminVipCodesPage })));
+const AdminDemoAuctionsPage = lazy(() => import("./pages/admin/AdminDemoAuctionsPage").then((module) => ({ default: module.AdminDemoAuctionsPage })));
 
 function AdminRoute() {
   const { isAdmin, isAuthenticated, isLoading } = useAuth();
@@ -113,6 +114,7 @@ function App() {
               <Route path="reports" element={<AdminReportsPage />} />
               <Route path="moderation" element={<AdminModerationPage />} />
               <Route path="vip-codes" element={<AdminVipCodesPage />} />
+              <Route path="demo-auctions" element={<AdminDemoAuctionsPage />} />
             </Route>
             <Route path="/terms" element={<TermsPage />} />
             <Route path="/privacy" element={<PrivacyPage />} />

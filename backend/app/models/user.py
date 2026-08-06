@@ -9,7 +9,7 @@ from app.db.base import Base
 
 class User(Base):
     __tablename__ = "users"
-    __table_args__ = (CheckConstraint("role IN ('user', 'admin')", name="ck_users_role"),)
+    __table_args__ = (CheckConstraint("role IN ('user', 'tester', 'admin')", name="ck_users_role"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     email: Mapped[str] = mapped_column(String(255), nullable=False, unique=True, index=True)
@@ -18,6 +18,7 @@ class User(Base):
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     auth_version: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     role: Mapped[str] = mapped_column(String(20), nullable=False, default="user")
+    demo_batch_id: Mapped[int | None] = mapped_column(ForeignKey("demo_auction_batches.id", ondelete="SET NULL"), nullable=True, index=True)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     is_email_verified: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     vip_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)

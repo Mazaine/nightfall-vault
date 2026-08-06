@@ -5,7 +5,7 @@ export type AuthUser = {
   email: string;
   username: string;
   full_name: string;
-  role: "user" | "admin";
+  role: "user" | "tester" | "admin";
   is_vip?: boolean;
   vip_expires_at?: string | null;
 };

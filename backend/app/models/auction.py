@@ -30,6 +30,7 @@ class Auction(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     seller_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    demo_batch_id: Mapped[int | None] = mapped_column(ForeignKey("demo_auction_batches.id", ondelete="SET NULL"), nullable=True, index=True)
     creation_key: Mapped[str | None] = mapped_column(String(36), nullable=True)
     title: Mapped[str] = mapped_column(String(180), nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=False)
@@ -67,6 +68,10 @@ class Auction(Base):
     reviews = relationship("AuctionReview", back_populates="auction", cascade="all, delete-orphan")
     watchlist_entries = relationship("WatchlistItem", back_populates="auction", cascade="all, delete-orphan")
     bid_exclusions = relationship("AuctionBidExclusion", back_populates="auction", cascade="all, delete-orphan")
+
+    @property
+    def is_demo(self) -> bool:
+        return self.demo_batch_id is not None
 
 
 class AuctionImage(Base):

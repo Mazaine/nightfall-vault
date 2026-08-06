@@ -60,6 +60,7 @@ export type Auction = {
   seller_average_rating?: number | null;
   seller_review_count?: number;
   is_featured?: boolean;
+  is_demo?: boolean;
   viewer_is_leading?: boolean;
   viewer_top_bid_id?: number | null;
   viewer_can_withdraw?: boolean;
@@ -190,6 +191,7 @@ export type NotificationItem = {
   email_enabled: boolean;
   is_read: boolean;
   created_at: string;
+  is_demo?: boolean;
 };
 
 export type WatchlistItem = {

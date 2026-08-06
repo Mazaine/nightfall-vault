@@ -1,13 +1,13 @@
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
 from app.dependencies.auth import require_admin
 from app.models.auction import Auction, Bid
-from app.models.moderation import Report
+from app.models.moderation import ModerationAction, Report
 from app.models.newsletter import NewsletterCampaign, NewsletterSubscriber
 from app.models.password_reset_token import PasswordResetToken
 from app.models.security_log import AuditLog
@@ -15,7 +15,9 @@ from app.models.user import User
 from app.schemas.moderation import AdminReportPage, AdminReportRead, ReportNoteUpdate, ReportPriorityUpdate, ReportStatusUpdate
 from app.schemas.newsletter import NewsletterBulkSendResponse, NewsletterCampaignCreate, NewsletterCampaignRead, NewsletterCampaignUpdate, NewsletterSendBulkRequest, NewsletterSendTestRequest, NewsletterSubscriberCreate, NewsletterSubscriberRead, NewsletterSubscriberUpdate
 from app.schemas.auction import AuctionListItem, AuctionModerationRequest, AuctionStatusResponse
-from app.schemas.user import UserAdminUpdate, UserPublic
+from app.schemas.user import TesterRoleUpdate, UserAdminUpdate, UserPublic
+from app.core.rate_limit import check_rate_limit
+from app.services.security_audit import create_domain_audit_log
 from app.services.email import send_test_newsletter_email
 from app.services.email_service import send_newsletter_email
 from app.services.reports import get_report_or_404, related_report_counts, report_options, update_report_note, update_report_priority, update_report_status
@@ -70,6 +72,10 @@ def require_manageable_user_account(current_admin: User, target: User) -> None:
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Adminisztrátori fiók ezen a felületen nem módosítható vagy törölhető.",
         )
+
+
+TESTER_GRANT_CONFIRMATION = "Biztosan tesztelői szerepkört adsz ennek a felhasználónak? A felhasználó látni és használni fogja a production rendszer demóaukcióit, de adminisztrátori jogosultságot nem kap."
+TESTER_REVOKE_CONFIRMATION = "Biztosan visszavonod a tesztelői szerepkört? A felhasználó többé nem fogja látni a demóaukciókat."
 
 
 @router.get("/me", response_model=UserPublic)
@@ -410,6 +416,8 @@ def update_admin_user(user_id: int, user_update: UserAdminUpdate, current_user: 
     user = get_active_user_or_404(db, user_id)
     require_manageable_user_account(current_user, user)
     update_data = user_update.model_dump(exclude_unset=True)
+    if "role" in update_data:
+        raise HTTPException(status_code=422, detail="A szerepkört a célzott szerepkörkezelő művelettel módosítsd.")
     if any(field in update_data and update_data[field] != getattr(user, field) for field in ("role", "is_active")):
         user.auth_version += 1
     for field_name, value in update_data.items():
@@ -418,6 +426,32 @@ def update_admin_user(user_id: int, user_update: UserAdminUpdate, current_user: 
     db.commit()
     db.refresh(user)
     return UserPublic.model_validate(user)
+
+
+@router.patch("/users/{user_id}/role", response_model=UserPublic)
+def update_tester_role(user_id: int, payload: TesterRoleUpdate, request: Request, current_user: User = Depends(require_admin), db: Session = Depends(get_db)) -> UserPublic:
+    check_rate_limit(request, "admin:user-role", limit=20, identifier=str(current_user.id))
+    user = get_active_user_or_404(db, user_id)
+    require_manageable_user_account(current_user, user)
+    expected = TESTER_GRANT_CONFIRMATION if payload.role == "tester" else TESTER_REVOKE_CONFIRMATION
+    if " ".join(payload.confirmation.split()) != expected:
+        raise HTTPException(status_code=422, detail="A megerősítő szöveg nem megfelelő.")
+    if payload.role == "tester" and db.scalar(select(ModerationAction.id).where(
+        ModerationAction.target_user_id == user.id,
+        ModerationAction.action_type == "permanent_ban",
+        ModerationAction.revoked_at.is_(None),
+    ).limit(1)) is not None:
+        raise HTTPException(status_code=409, detail="Véglegesen tiltott fiók nem kaphat tesztelői szerepkört.")
+    previous_role = user.role
+    if previous_role == payload.role:
+        return admin_user_read(db, user)
+    user.role = payload.role
+    user.auth_version += 1
+    create_domain_audit_log(db, action="tester_role_granted" if payload.role == "tester" else "tester_role_revoked", user_id=current_user.id, metadata={"target_user_id": user.id, "previous_role": previous_role, "new_role": payload.role})
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return admin_user_read(db, user)
 @router.delete("/users/{user_id}", response_model=UserPublic)
 def delete_admin_user(user_id: int, current_user: User = Depends(require_admin), db: Session = Depends(get_db)) -> UserPublic:
     user = get_active_user_or_404(db, user_id)

@@ -24,6 +24,7 @@ from app.services.recommendations import related_auctions, seller_other_auctions
 from app.services.saved_searches import notify_saved_search_matches
 from app.services.transactions import can_user_review_transaction
 from app.services.realtime import iter_stream
+from app.services.demo_visibility import auction_visibility_clause, can_access_demo_auctions
 from app.storage.paths import media_url
 
 router = APIRouter(prefix="/api/auctions", tags=["auctions"])
@@ -211,6 +212,7 @@ def list_public_auctions(
         soon_ending=soon_ending,
         new_only=new_only,
     )
+    filtered_query = filtered_query.filter(auction_visibility_clause(current_user))
     total = filtered_query.count()
     rows = _apply_auction_sort(filtered_query, sort).offset(offset).limit(limit).all()
     auction_ids = [row.id for row in rows]
@@ -268,7 +270,7 @@ def create_my_auction(
 @router.get("/me", response_model=list[AuctionListItem])
 def list_my_auctions(current_user: User = Depends(require_active_user), db: Session = Depends(get_db)) -> list[AuctionListItem]:
     statement = get_auction_statement().where(Auction.seller_id == current_user.id, Auction.deleted_at.is_(None)).order_by(featured_auction_order(), Auction.created_at.desc(), Auction.id.desc())
-    return [auction_list_item(sync_auction_status(db, auction), db=db) for auction in db.scalars(statement).all()]
+    return [auction_list_item(sync_auction_status(db, auction), db=db, viewer=current_user) for auction in db.scalars(statement).all() if auction.demo_batch_id is None or can_access_demo_auctions(current_user)]
 
 
 @router.get("/me/conversations", response_model=list[AuctionConversationRead])
@@ -283,6 +285,7 @@ def list_my_auction_conversations(
             Auction.finalized_at.is_not(None),
             Auction.deleted_at.is_(None),
             or_(Auction.seller_id == current_user.id, Auction.winner_id == current_user.id),
+            auction_visibility_clause(current_user),
         )
         .order_by(Auction.finalized_at.desc(), Auction.id.desc())
     )
@@ -317,7 +320,7 @@ def list_my_bid_auctions(current_user: User = Depends(require_active_user), db: 
     auction_ids = [row[0] for row in db.execute(bid_statement).all()]
     if not auction_ids:
         return []
-    statement = get_auction_statement().where(Auction.id.in_(auction_ids), Auction.deleted_at.is_(None)).order_by(featured_auction_order(), Auction.ends_at.asc(), Auction.id.asc())
+    statement = get_auction_statement().where(Auction.id.in_(auction_ids), Auction.deleted_at.is_(None), auction_visibility_clause(current_user)).order_by(featured_auction_order(), Auction.ends_at.asc(), Auction.id.asc())
     items: list[MyBidAuctionItem] = []
     for auction in db.scalars(statement).all():
         auction = sync_auction_status(db, auction)
@@ -401,8 +404,8 @@ def list_my_bid_auctions_page(
 
 @router.get("/notifications", response_model=list[NotificationRead])
 def list_my_notifications(current_user: User = Depends(require_active_user), db: Session = Depends(get_db)) -> list[NotificationRead]:
-    statement = select(Notification).where(Notification.user_id == current_user.id).order_by(Notification.created_at.desc(), Notification.id.desc())
-    return [NotificationRead.model_validate(notification) for notification in db.scalars(statement).all()]
+    statement = select(Notification).outerjoin(Auction, Auction.id == Notification.auction_id).where(Notification.user_id == current_user.id, (Notification.auction_id.is_(None)) | auction_visibility_clause(current_user)).order_by(Notification.created_at.desc(), Notification.id.desc())
+    return [NotificationRead.model_validate(notification).model_copy(update={"is_demo": bool(notification.auction and notification.auction.demo_batch_id is not None)}) for notification in db.scalars(statement).all()]
 
 
 @router.get("/{auction_id}", response_model=AuctionResponse)
@@ -447,14 +450,14 @@ def activate_my_auction(
 def list_related_auctions(auction_id: int, current_user: User | None = Depends(get_optional_current_user), db: Session = Depends(get_db)) -> list[AuctionListItem]:
     auction = get_auction_or_404(db, auction_id)
     require_can_view_auction(auction, current_user)
-    return [auction_list_item(item, sum(1 for bid in item.bids if bid.status == "active"), db=db, viewer=current_user) for item in related_auctions(db, auction)]
+    return [auction_list_item(item, sum(1 for bid in item.bids if bid.status == "active"), db=db, viewer=current_user) for item in related_auctions(db, auction, current_user)]
 
 
 @router.get("/{auction_id}/seller-auctions", response_model=list[AuctionListItem])
 def list_seller_other_auctions(auction_id: int, current_user: User | None = Depends(get_optional_current_user), db: Session = Depends(get_db)) -> list[AuctionListItem]:
     auction = get_auction_or_404(db, auction_id)
     require_can_view_auction(auction, current_user)
-    return [auction_list_item(item, sum(1 for bid in item.bids if bid.status == "active"), db=db, viewer=current_user) for item in seller_other_auctions(db, auction, limit=6)]
+    return [auction_list_item(item, sum(1 for bid in item.bids if bid.status == "active"), db=db, viewer=current_user) for item in seller_other_auctions(db, auction, current_user, limit=6)]
 
 
 @router.post("/{auction_id}/cancel", response_model=AuctionStatusResponse)
@@ -491,12 +494,14 @@ def list_auction_bids(
 
 
 @router.get("/realtime/stream")
-async def stream_auction_list_updates(request: Request) -> StreamingResponse:
+async def stream_auction_list_updates(request: Request, current_user: User | None = Depends(get_optional_current_user)) -> StreamingResponse:
     check_rate_limit(request, "sse:auctions", settings.sse_connection_rate_limit_per_minute)
     async def events():
         async for event_id, event_type, payload in iter_stream("nightfall:realtime:auctions", request.headers.get("last-event-id", "$")):
             if await request.is_disconnected():
                 break
+            if payload.get("is_demo") and not can_access_demo_auctions(current_user):
+                continue
             yield f"id: {event_id}\nevent: {event_type}\ndata: {json.dumps(payload, ensure_ascii=False)}\n\n"
     return StreamingResponse(events(), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 

@@ -117,6 +117,7 @@ export function NotificationsPage() {
           <article className={`notification-row${item.is_read ? "" : " is-unread"}`} key={item.id}>
             <div>
               <strong>{item.title}</strong>
+              {item.is_demo ? <span className="demo-auction-badge">TESZT AUKCIÓ</span> : null}
               <p>{localizeModerationMessage(item.message)}</p>
               {item.target_url || item.auction_id ? <Link to={item.target_url || `/auctions/${item.auction_id}`}>Megnyitás</Link> : null}
             </div>

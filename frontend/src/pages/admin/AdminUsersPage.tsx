@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useState } from "react";
 import { Link } from "react-router";
-import { listAdminUsers, searchAdminUsers, updateBidWithdrawalRestriction, type AdminUser } from "../../api/admin";
+import { listAdminUsers, searchAdminUsers, updateBidWithdrawalRestriction, updateTesterRole, type AdminUser } from "../../api/admin";
 import { formatLocalDateTime } from "../../utils/format";
 import { EmptyState, ErrorState, LoadingState } from "../../components/AsyncStates";
 
@@ -9,6 +9,7 @@ export function AdminUsersPage() {
   const [query, setQuery] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
 
   const load = async (search = "") => {
     setIsLoading(true);
@@ -20,6 +21,17 @@ export function AdminUsersPage() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const changeTesterRole = async (user: AdminUser) => {
+    const granting = user.role !== "tester";
+    const confirmation = granting
+      ? "Biztosan tesztelői szerepkört adsz ennek a felhasználónak? A felhasználó látni és használni fogja a production rendszer demóaukcióit, de adminisztrátori jogosultságot nem kap."
+      : "Biztosan visszavonod a tesztelői szerepkört? A felhasználó többé nem fogja látni a demóaukciókat.";
+    if (!window.confirm(confirmation.replace("? ", "?\n\n"))) return;
+    setError(""); setMessage("");
+    try { await updateTesterRole(user.id, granting ? "tester" : "user", confirmation); setMessage(granting ? "A tesztelői szerepkört megadtuk." : "A tesztelői szerepkört visszavontuk."); await load(query); }
+    catch (reason) { setError(reason instanceof Error ? reason.message : "A tesztelői szerepkör módosítása nem sikerült."); }
   };
 
   useEffect(() => { void load(); }, []);
@@ -69,6 +81,7 @@ export function AdminUsersPage() {
       </form>
 
       {error ? <ErrorState message={error} onRetry={() => void load(query)} /> : null}
+      {message ? <p className="form-message" role="status">{message}</p> : null}
       {isLoading ? <LoadingState label="Felhasználók betöltése" cards={2} /> : null}
       {!isLoading && !error && users.length === 0 ? <EmptyState title="Nincs a keresésnek megfelelő felhasználó" action={<button className="button button-secondary" type="button" onClick={() => { setQuery(""); void load(); }}>Keresés törlése</button>} /> : null}
 
@@ -82,7 +95,7 @@ export function AdminUsersPage() {
                   <span>@{user.username} · #{user.id}</span>
                 </div>
                 <div className="admin-badge-row">
-                  <span className="status-pill">{user.role === "admin" ? "Admin" : "Felhasználó"}</span>
+                  <span className="status-pill">{user.role === "admin" ? "Admin" : user.role === "tester" ? "Tesztelő" : "Felhasználó"}</span>
                   <span className="status-pill">{user.is_active ? "Aktív" : "Inaktív"}</span>
                   <span className="status-pill">{user.is_email_verified ? "E-mail megerősítve" : "E-mail nincs megerősítve"}</span>
                 </div>
@@ -101,6 +114,7 @@ export function AdminUsersPage() {
                 <label>Ideiglenes tiltás lejárata<input name="disabled_until" type="datetime-local" /></label>
                 <div className="form-actions"><button className="button button-secondary" name="action" value="temporary" type="submit">Ideiglenes tiltás</button><button className="button button-danger" name="action" value="permanent" type="submit">Végleges tiltás</button><button className="button button-ghost" name="action" value="clear" type="submit">Korlátozás feloldása</button></div>
               </form> : null}
+              {user.role !== "admin" ? <button className="button button-secondary" type="button" onClick={() => void changeTesterRole(user)}>{user.role === "tester" ? "Tesztelői szerepkör visszavonása" : "Tesztelői szerepkör megadása"}</button> : null}
               <Link className="button button-secondary" to={`/users/${user.username}`}>Profil megnyitása</Link>
             </article>
           ))}

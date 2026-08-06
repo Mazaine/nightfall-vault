@@ -11,6 +11,7 @@ const adminMocks = vi.hoisted(() => ({
   listAdminUsers: vi.fn(),
   searchAdminUsers: vi.fn(),
   listAuditLogs: vi.fn(),
+  updateTesterRole: vi.fn(),
 }));
 const reportMocks = vi.hoisted(() => ({
   listAdminReports: vi.fn(),
@@ -40,6 +41,7 @@ describe("admin felületek", () => {
     adminMocks.listAdminUsers.mockReset().mockResolvedValue([user]);
     adminMocks.searchAdminUsers.mockReset().mockResolvedValue([user]);
     adminMocks.listAuditLogs.mockReset().mockResolvedValue({ items: [{ id: 1, action: "report_status_changed", user_id: 2, auction_id: 1001, created_at: "2026-07-20T10:00:00Z", path: "/api/admin/reports/11/status", method: "PUT", status_code: 200, metadata_json: null }], limit: 100, offset: 0 });
+    adminMocks.updateTesterRole.mockReset().mockResolvedValue({ ...user, role: "tester" });
     reportMocks.listAdminReports.mockReset().mockResolvedValue({ items: [report], total: 1, limit: 50, offset: 0 });
     reportMocks.updateAdminReportStatus.mockReset().mockResolvedValue({ ...report, status: "under_review" });
     reportMocks.updateAdminReportPriority.mockReset().mockResolvedValue({ ...report, priority: "high" });
@@ -59,6 +61,13 @@ describe("admin felületek", () => {
     fireEvent.change(screen.getByLabelText("Keresés név, felhasználónév vagy e-mail alapján"), { target: { value: "Anna" } });
     fireEvent.submit(screen.getByRole("search"));
     await waitFor(() => expect(adminMocks.searchAdminUsers).toHaveBeenCalledWith("Anna"));
+  });
+
+  it("megerősítés után tesztelői szerepkört ad", async () => {
+    vi.spyOn(window, "confirm").mockReturnValueOnce(true);
+    render(<MemoryRouter><AdminUsersPage /></MemoryRouter>);
+    fireEvent.click(await screen.findByRole("button", { name: "Tesztelői szerepkör megadása" }));
+    await waitFor(() => expect(adminMocks.updateTesterRole).toHaveBeenCalledWith(7, "tester", expect.stringContaining("adminisztrátori jogosultságot nem kap")));
   });
 
   it("az API oldalszerkezetéből jeleníti meg az auditnaplót", async () => {

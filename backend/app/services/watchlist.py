@@ -7,6 +7,7 @@ from app.models.notification import WatchlistReminder
 from app.models.user import User
 from app.services.auction_lifecycle import get_auction_statement, require_can_view_auction
 from app.services.membership import featured_auction_order
+from app.services.demo_visibility import auction_visibility_clause
 
 
 def list_watchlist(db: Session, user: User) -> list[WatchlistItem]:
@@ -15,6 +16,7 @@ def list_watchlist(db: Session, user: User) -> list[WatchlistItem]:
         .where(WatchlistItem.user_id == user.id)
         .join(WatchlistItem.auction)
         .where(Auction.deleted_at.is_(None))
+        .where(auction_visibility_clause(user))
         .order_by(featured_auction_order(), WatchlistItem.created_at.desc(), WatchlistItem.id.desc())
     )
     return list(db.scalars(statement).all())
@@ -39,6 +41,10 @@ def add_to_watchlist(db: Session, auction_id: int, user: User) -> WatchlistItem:
 
 
 def remove_from_watchlist(db: Session, auction_id: int, user: User) -> None:
+    auction = db.get(Auction, auction_id)
+    if auction is None:
+        raise HTTPException(status_code=404, detail="Az aukció nem található.")
+    require_can_view_auction(auction, user)
     item = db.scalar(select(WatchlistItem).where(WatchlistItem.user_id == user.id, WatchlistItem.auction_id == auction_id))
     if item is None:
         raise HTTPException(status_code=404, detail="A figyelőlista-elem nem található.")

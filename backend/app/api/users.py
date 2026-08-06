@@ -9,6 +9,7 @@ from app.models.user import SellerFollow, User
 from app.schemas.user import PublicAuctionSummary, PublicReviewPage, PublicReviewRead, PublicUserProfile, PublicUserStats
 from app.services.user_blocks import is_blocked_by
 from app.services.membership import featured_auction_order
+from app.services.demo_visibility import auction_visibility_clause, can_access_demo_auctions
 
 router = APIRouter(prefix="/api/users", tags=["users"])
 ACTIVE_STATUSES = {"scheduled", "active"}
@@ -73,10 +74,11 @@ def build_public_profile(db: Session, user: User, current_user: User | None = No
         func.sum(case((AuctionReview.rating <= 2, 1), else_=0)),
     ).filter(AuctionReview.reviewed_user_id == user.id).one()
     review_count, average_rating, positive_reviews, negative_reviews = ratings
-    active_count = int(db.scalar(select(func.count()).select_from(Auction).where(Auction.seller_id == user.id, Auction.deleted_at.is_(None), Auction.status.in_(ACTIVE_STATUSES))) or 0)
-    closed_count = int(db.scalar(select(func.count()).select_from(Auction).where(Auction.seller_id == user.id, Auction.deleted_at.is_(None), Auction.status.in_(CLOSED_STATUSES))) or 0)
-    sold_count = int(db.scalar(select(func.count()).select_from(Auction).where(Auction.seller_id == user.id, Auction.deleted_at.is_(None), Auction.status == "sold")) or 0)
-    won_count = int(db.scalar(select(func.count()).select_from(Auction).where(Auction.winner_id == user.id, Auction.status == "sold", Auction.deleted_at.is_(None))) or 0)
+    visibility = auction_visibility_clause(current_user)
+    active_count = int(db.scalar(select(func.count()).select_from(Auction).where(Auction.seller_id == user.id, Auction.deleted_at.is_(None), Auction.status.in_(ACTIVE_STATUSES), visibility)) or 0)
+    closed_count = int(db.scalar(select(func.count()).select_from(Auction).where(Auction.seller_id == user.id, Auction.deleted_at.is_(None), Auction.status.in_(CLOSED_STATUSES), visibility)) or 0)
+    sold_count = int(db.scalar(select(func.count()).select_from(Auction).where(Auction.seller_id == user.id, Auction.deleted_at.is_(None), Auction.status == "sold", visibility)) or 0)
+    won_count = int(db.scalar(select(func.count()).select_from(Auction).where(Auction.winner_id == user.id, Auction.status == "sold", Auction.deleted_at.is_(None), visibility)) or 0)
     total_bids = int(db.scalar(select(func.count()).select_from(Bid).where(Bid.bidder_id == user.id)) or 0)
     participated_auctions = select(Bid.auction_id).where(Bid.bidder_id == user.id, Bid.status == "active").distinct().subquery()
     lost_count = int(db.scalar(select(func.count()).select_from(Auction).where(Auction.id.in_(select(participated_auctions.c.auction_id)), Auction.status == "sold", Auction.winner_id != user.id, Auction.deleted_at.is_(None))) or 0)
@@ -84,8 +86,8 @@ def build_public_profile(db: Session, user: User, current_user: User | None = No
     follower_count = int(db.scalar(select(func.count()).select_from(SellerFollow).where(SellerFollow.seller_id == user.id)) or 0)
     following_count = int(db.scalar(select(func.count()).select_from(SellerFollow).where(SellerFollow.follower_id == user.id)) or 0)
 
-    active_auctions = db.scalars(select(Auction).where(Auction.seller_id == user.id, Auction.deleted_at.is_(None), Auction.status.in_(ACTIVE_STATUSES)).order_by(featured_auction_order(), Auction.ends_at.asc(), Auction.id.asc()).limit(12)).all()
-    closed_auctions = db.scalars(select(Auction).where(Auction.seller_id == user.id, Auction.deleted_at.is_(None), Auction.status.in_(CLOSED_STATUSES)).order_by(featured_auction_order(), Auction.ends_at.desc(), Auction.id.desc()).limit(12)).all()
+    active_auctions = db.scalars(select(Auction).where(Auction.seller_id == user.id, Auction.deleted_at.is_(None), Auction.status.in_(ACTIVE_STATUSES), visibility).order_by(featured_auction_order(), Auction.ends_at.asc(), Auction.id.asc()).limit(12)).all()
+    closed_auctions = db.scalars(select(Auction).where(Auction.seller_id == user.id, Auction.deleted_at.is_(None), Auction.status.in_(CLOSED_STATUSES), visibility).order_by(featured_auction_order(), Auction.ends_at.desc(), Auction.id.desc()).limit(12)).all()
     recent_reviews = _apply_review_sort(_review_query(db, user.id), "newest").limit(5).all()
     is_followed = False
     is_blocked = False
@@ -127,6 +129,8 @@ def build_public_profile(db: Session, user: User, current_user: User | None = No
 @router.get("/{username}", response_model=PublicUserProfile)
 def get_public_user_profile(username: str, current_user: User | None = Depends(get_optional_current_user), db: Session = Depends(get_db)) -> PublicUserProfile:
     user = _public_user_or_404(db, username)
+    if user.demo_batch_id is not None and not can_access_demo_auctions(current_user):
+        raise HTTPException(status_code=404, detail="A felhasználó nem található.")
     return build_public_profile(db, user, current_user)
 
 
@@ -136,11 +140,14 @@ def list_public_user_reviews(
     limit: int = Query(default=20, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
     sort: str = Query(default="newest"),
+    current_user: User | None = Depends(get_optional_current_user),
     db: Session = Depends(get_db),
 ) -> PublicReviewPage:
     if sort not in REVIEW_SORTS:
         raise HTTPException(status_code=422, detail="Érvénytelen rendezés.")
     user = _public_user_or_404(db, username)
+    if user.demo_batch_id is not None and not can_access_demo_auctions(current_user):
+        raise HTTPException(status_code=404, detail="A felhasználó nem található.")
     query = _review_query(db, user.id)
     total = query.count()
     reviews = _apply_review_sort(query, sort).offset(offset).limit(limit).all()

@@ -8,6 +8,7 @@ from app.models.auction import Auction
 from app.models.user import User
 from app.services.auction_lifecycle import PUBLIC_AUCTION_STATUSES
 from app.services.membership import featured_auction_order, is_vip
+from app.services.demo_visibility import auction_visibility_clause
 
 
 def public_auction_options():
@@ -18,7 +19,7 @@ def _title_words(title: str) -> set[str]:
     return {word for word in re.findall(r"[\w-]+", title.casefold()) if len(word) >= 3}
 
 
-def related_auctions(db: Session, source: Auction, limit: int = 12) -> list[Auction]:
+def related_auctions(db: Session, source: Auction, viewer: User | None = None, limit: int = 12) -> list[Auction]:
     statement = (
         select(Auction)
         .options(*public_auction_options())
@@ -26,6 +27,7 @@ def related_auctions(db: Session, source: Auction, limit: int = 12) -> list[Auct
             Auction.id != source.id,
             Auction.deleted_at.is_(None),
             Auction.status.in_(PUBLIC_AUCTION_STATUSES),
+            auction_visibility_clause(viewer),
         )
         .order_by(featured_auction_order(), Auction.created_at.desc(), Auction.id.desc())
         .limit(200)
@@ -52,7 +54,7 @@ def related_auctions(db: Session, source: Auction, limit: int = 12) -> list[Auct
     return candidates[:limit]
 
 
-def seller_other_auctions(db: Session, source: Auction, limit: int = 6) -> list[Auction]:
+def seller_other_auctions(db: Session, source: Auction, viewer: User | None = None, limit: int = 6) -> list[Auction]:
     statement = (
         select(Auction)
         .options(*public_auction_options())
@@ -61,6 +63,7 @@ def seller_other_auctions(db: Session, source: Auction, limit: int = 6) -> list[
             Auction.seller_id == source.seller_id,
             Auction.deleted_at.is_(None),
             Auction.status.in_(PUBLIC_AUCTION_STATUSES),
+            auction_visibility_clause(viewer),
         )
         .order_by(featured_auction_order(), Auction.ends_at.asc(), Auction.created_at.desc())
         .limit(min(limit, 6))

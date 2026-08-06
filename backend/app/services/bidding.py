@@ -15,6 +15,7 @@ from app.services.notifications import notify_auction_closed
 from app.services.notification_dispatcher import dispatch_notification
 from app.services.realtime import publish_auction_event
 from app.services.security_audit import create_domain_audit_log
+from app.services.demo_visibility import require_demo_auction_access
 
 logger = logging.getLogger(__name__)
 ACTIVE_BID_STATUS = "active"
@@ -53,6 +54,7 @@ def auction_realtime_snapshot(db: Session, auction: Auction) -> dict:
     is_listed = auction.status in {"scheduled", "active", "ended"} or (auction.status == "sold" and transaction_status == "transaction_open")
     return {
         "auction_id": auction.id,
+        "is_demo": auction.is_demo,
         "status": auction.status,
         "current_price": str(auction.current_price),
         "highest_bid_id": auction.highest_bid_id,
@@ -324,6 +326,7 @@ def place_bid(db: Session, auction_id: int, bidder: User, amount: Decimal) -> tu
     if auction is None:
         raise HTTPException(status_code=404, detail="Az aukció nem található.")
 
+    require_demo_auction_access(auction, bidder)
     auction = _sync_locked_auction_for_bidding(db, auction)
     if auction.status != "active":
         db.add(auction)

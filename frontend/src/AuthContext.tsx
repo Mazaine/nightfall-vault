@@ -32,7 +32,7 @@ function readStoredUser(): AuthUser | null {
       email: parsed.email,
       username: parsed.username ?? parsed.email.split("@", 1)[0],
       full_name: parsed.full_name ?? parsed.fullName ?? parsed.name ?? parsed.email,
-      role: parsed.role === "admin" || parsed.isAdmin ? "admin" : "user",
+      role: parsed.role === "admin" || parsed.isAdmin ? "admin" : parsed.role === "tester" ? "tester" : "user",
       is_vip: Boolean(parsed.is_vip),
       vip_expires_at: parsed.vip_expires_at ?? null,
     };

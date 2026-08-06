@@ -435,6 +435,7 @@ export function AuctionDetailPage() {
       </div>
       <div className="side-panel detail-panel">
         <p className="eyebrow">{auction.category} · {formatAuctionStatus(auction.status)}</p>
+        {auction.is_demo ? <span className="demo-auction-badge">TESZT AUKCIÓ</span> : null}
         <h1>{auction.title}</h1>
         <p className="hero-lead">
           {auction.description}

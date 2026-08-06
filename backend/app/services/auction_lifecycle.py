@@ -134,6 +134,9 @@ def get_auction_or_404(db: Session, auction_id: int) -> Auction:
 
 
 def can_view_auction(auction: Auction, user: User | None) -> bool:
+    from app.services.demo_visibility import can_access_demo_auctions
+    if auction.demo_batch_id is not None and not can_access_demo_auctions(user):
+        return False
     if auction.status in PUBLIC_AUCTION_STATUSES:
         return True
     if user is None:

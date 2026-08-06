@@ -7,6 +7,8 @@ from app.models.notification import Notification, NotificationPreference
 from app.models.user import User
 from app.services.notification_email import send_notification_email
 from app.services.realtime import publish_user_event
+from app.models.auction import Auction
+from app.services.demo_visibility import can_access_demo_auctions
 
 TYPE_CATEGORY = {
     "outbid": "bids",
@@ -47,9 +49,13 @@ def dispatch_notification(
     target_url: str | None = None,
     event_key: str | None = None,
     send_email: bool = True,
-) -> Notification:
+) -> Notification | None:
     category = TYPE_CATEGORY.get(notification_type, "system")
     preference = preference_for(db, user_id, category)
+    user = db.get(User, user_id)
+    auction = db.get(Auction, auction_id) if auction_id is not None else None
+    if auction is not None and auction.demo_batch_id is not None and not can_access_demo_auctions(user):
+        return None
     if event_key:
         existing = db.scalar(select(Notification).where(Notification.event_key == event_key))
         if existing is not None:
@@ -70,7 +76,6 @@ def dispatch_notification(
         "created_at": notification.created_at.isoformat() if notification.created_at else None,
     }
     publish_user_event(user_id, "notification", payload)
-    user = db.get(User, user_id)
     if user is not None and notification.email_enabled:
         send_notification_email(user, notification)
     return notification

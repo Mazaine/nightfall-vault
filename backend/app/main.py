@@ -11,6 +11,7 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.api.admin import router as admin_router
+from app.api.admin_demo_auctions import router as admin_demo_auctions_router
 from app.api.auctions import router as auctions_router
 from app.api.auth import router as auth_router
 from app.api.blocks import router as blocks_router
@@ -348,6 +349,7 @@ app.include_router(auth_router)
 app.include_router(blocks_router)
 app.include_router(bids_router)
 app.include_router(admin_router)
+app.include_router(admin_demo_auctions_router)
 app.include_router(auctions_router)
 app.include_router(categories_router)
 app.include_router(follow_router)

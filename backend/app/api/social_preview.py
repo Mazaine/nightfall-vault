@@ -19,6 +19,7 @@ def auction_social_preview(auction_id: int, db: Session = Depends(get_db)) -> HT
         Auction.id == auction_id,
         Auction.deleted_at.is_(None),
         Auction.status.notin_({"draft", "cancelled", "suspended"}),
+        Auction.demo_batch_id.is_(None),
     ).options(selectinload(Auction.images)))
     if auction is None:
         raise HTTPException(status_code=404, detail="Az aukció nem található.")

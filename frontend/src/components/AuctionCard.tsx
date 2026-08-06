@@ -48,6 +48,7 @@ type AuctionCardProps = {
     bidCount?: number;
     canBid?: boolean;
     isFeatured?: boolean;
+    isDemo?: boolean;
     personalStatus?: "leading" | "outbid" | "watched" | "exited";
     topBidId?: number | null;
     canWithdraw?: boolean;
@@ -220,6 +221,7 @@ export function AuctionCard({
 
       <div className="auction-content">
         {item.isFeatured ? <span className="vip-featured-badge">VIP KIEMELT</span> : null}
+        {item.isDemo ? <span className="demo-auction-badge">TESZT AUKCIÓ</span> : null}
         <h3>
           <Link className="auction-title-link" to={detailPath}>
             {item.title}

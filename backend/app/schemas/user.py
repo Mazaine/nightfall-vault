@@ -53,7 +53,7 @@ class UserPublic(BaseModel):
     email: str
     username: str
     full_name: str
-    role: Literal["user", "admin"]
+    role: Literal["user", "tester", "admin"]
     is_active: bool
     is_email_verified: bool
     vip_expires_at: datetime | None = None
@@ -87,7 +87,7 @@ class UserMeRead(BaseModel):
     email: str
     username: str
     full_name: str
-    role: Literal["user", "admin"]
+    role: Literal["user", "tester", "admin"]
     vip_expires_at: datetime | None = None
 
     model_config = ConfigDict(from_attributes=True)
@@ -163,9 +163,14 @@ class UserProfileUpdate(BaseModel):
 
 
 class UserAdminUpdate(BaseModel):
-    role: Literal["user", "admin"] | None = None
+    role: Literal["user", "tester", "admin"] | None = None
     is_active: bool | None = None
     is_email_verified: bool | None = None
+
+
+class TesterRoleUpdate(BaseModel):
+    role: Literal["user", "tester"]
+    confirmation: str = Field(min_length=10, max_length=500)
 
 
 class PublicAuctionSummary(BaseModel):

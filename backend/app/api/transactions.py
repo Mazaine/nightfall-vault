@@ -5,9 +5,11 @@ from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.dependencies.auth import require_active_user
 from app.models.transaction import AuctionTransaction
+from app.models.auction import Auction
 from app.models.user import User
 from app.schemas.transaction import AuctionTransactionPage, AuctionTransactionRead
 from app.services.transactions import confirm_completion, get_participant_transaction, serialize_transaction, transaction_options
+from app.services.demo_visibility import auction_visibility_clause, require_demo_auction_access
 
 
 router = APIRouter(prefix="/api/transactions", tags=["transactions"])
@@ -21,9 +23,9 @@ def list_my_transactions(
     current_user: User = Depends(require_active_user),
     db: Session = Depends(get_db),
 ) -> AuctionTransactionPage:
-    query = db.query(AuctionTransaction).options(*transaction_options()).filter(
+    query = db.query(AuctionTransaction).join(Auction, Auction.id == AuctionTransaction.auction_id).options(*transaction_options()).filter(
         or_(AuctionTransaction.seller_id == current_user.id, AuctionTransaction.buyer_id == current_user.id)
-    )
+    ).filter(auction_visibility_clause(current_user))
     if status_filter:
         query = query.filter(AuctionTransaction.status == status_filter)
     total = query.count()
@@ -34,10 +36,12 @@ def list_my_transactions(
 @router.get("/{transaction_id}", response_model=AuctionTransactionRead)
 def get_my_transaction(transaction_id: int, current_user: User = Depends(require_active_user), db: Session = Depends(get_db)) -> AuctionTransactionRead:
     transaction = get_participant_transaction(db, transaction_id, current_user.id)
+    require_demo_auction_access(transaction.auction, current_user)
     return AuctionTransactionRead.model_validate(serialize_transaction(transaction, current_user.id))
 
 
 @router.post("/{transaction_id}/confirm-completion", response_model=AuctionTransactionRead)
 def confirm_my_transaction(transaction_id: int, current_user: User = Depends(require_active_user), db: Session = Depends(get_db)) -> AuctionTransactionRead:
     transaction = confirm_completion(db, transaction_id, current_user)
+    require_demo_auction_access(transaction.auction, current_user)
     return AuctionTransactionRead.model_validate(serialize_transaction(transaction, current_user.id))

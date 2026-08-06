@@ -5,7 +5,8 @@ from sqlalchemy.orm import Session
 
 from app.models.auction import Auction, Bid
 from app.models.notification import Notification
-from app.models.user import SellerFollow
+from app.models.user import SellerFollow, User
+from app.services.demo_visibility import auction_visibility_clause
 from app.services.notification_dispatcher import dispatch_notification
 from app.services.realtime import publish_user_event
 
@@ -23,7 +24,7 @@ def create_notification(
     message: str,
     auction_id: int | None = None,
     send_email: bool = True,
-) -> Notification:
+) -> Notification | None:
     return dispatch_notification(
         db, user_id=user_id, auction_id=auction_id, notification_type=notification_type,
         title=title, message=message, send_email=send_email,
@@ -53,7 +54,9 @@ def mark_all_notifications_read(db: Session, user_id: int) -> int:
 
 
 def count_unread_notifications(db: Session, user_id: int) -> int:
-    return int(db.scalar(select(func.count()).select_from(Notification).where(Notification.user_id == user_id, Notification.in_app_enabled.is_(True), Notification.is_read.is_(False))) or 0)
+    user = db.get(User, user_id)
+    statement = select(func.count()).select_from(Notification).outerjoin(Auction, Auction.id == Notification.auction_id).where(Notification.user_id == user_id, Notification.in_app_enabled.is_(True), Notification.is_read.is_(False), (Notification.auction_id.is_(None)) | auction_visibility_clause(user))
+    return int(db.scalar(statement) or 0)
 
 
 def notify_auction_closed(db: Session, auction: Auction) -> None:
