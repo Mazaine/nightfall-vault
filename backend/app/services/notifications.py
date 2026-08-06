@@ -89,7 +89,7 @@ def notify_auction_closed(db: Session, auction: Auction) -> None:
         )
         losing_bidder_ids = {
             bidder_id
-            for (bidder_id,) in db.execute(select(Bid.bidder_id).where(Bid.auction_id == auction.id, Bid.bidder_id != auction.winner_id).distinct()).all()
+            for (bidder_id,) in db.execute(select(Bid.bidder_id).where(Bid.auction_id == auction.id, Bid.status == "active", Bid.bidder_id != auction.winner_id).distinct()).all()
         }
         for bidder_id in losing_bidder_ids:
             create_notification(

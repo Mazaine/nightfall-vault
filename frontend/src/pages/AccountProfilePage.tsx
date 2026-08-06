@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router";
 import { deleteProfile, updateProfile } from "../api/auth";
 import { useAuth } from "../AuthContext";
 import { NotificationPreferencesPanel } from "../components/NotificationPreferencesPanel";
+import { resetBidConfirmation } from "../utils/bidConfirmation";
 
 export function AccountProfilePage() {
   const { user, refreshMe, logout } = useAuth();
@@ -55,6 +56,11 @@ export function AccountProfilePage() {
         {message ? <p className="form-message" role="status">{message}</p> : null}
       </section>
       <NotificationPreferencesPanel />
+      <section className="side-panel profile-settings-card" aria-labelledby="bid-confirmation-title">
+        <h2 id="bid-confirmation-title">Licitmegerősítés</h2>
+        <p>A normál licitek megerősítő kérdése ezen az eszközön kikapcsolható. A Villámvásárlás mindig külön megerősítést kér.</p>
+        <button className="button button-secondary" type="button" onClick={() => { resetBidConfirmation(); setMessage("A licit leadása előtti megerősítést visszakapcsoltad ezen az eszközön."); }}>Megerősítés visszakapcsolása</button>
+      </section>
       <section className="side-panel danger-zone" aria-labelledby="delete-account-title">
         <p className="eyebrow">Veszélyes művelet</p><h2 id="delete-account-title">Profil törlése</h2><p>A törlés deaktiválja és anonimizálja a fiókot. Ez a művelet nem vonható vissza.</p>
         {!showDelete ? <button className="button button-danger" type="button" onClick={() => setShowDelete(true)}>Profil törlésének megkezdése</button> : <form className="stack-form" onSubmit={removeAccount}>

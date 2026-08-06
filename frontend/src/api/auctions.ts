@@ -118,6 +118,25 @@ export type AuctionBid = {
   bidder_label: string;
   is_highest: boolean;
   reaches_buy_now?: boolean;
+  status?: "active" | "withdrawn";
+  withdrawn_at?: string | null;
+  can_withdraw?: boolean;
+  withdrawable_until?: string | null;
+  withdrawal_block_reason?: string | null;
+  is_top_active_bid?: boolean;
+};
+
+export type BidWithdrawalReason = "accidental" | "wrong_amount" | "technical_issue" | "other";
+export type BidWithdrawalResponse = {
+  bid_id: number;
+  status: "withdrawn";
+  auction_id: number;
+  auction_status: AuctionStatus;
+  highest_bid_id: number | null;
+  current_price: string;
+  next_minimum_bid: string;
+  leading_bidder_label: string | null;
+  next_withdrawable_bid: AuctionBid | null;
 };
 
 export type AuctionRealtimeSnapshot = {
@@ -327,13 +346,20 @@ export function cancelAuction(auctionId: number) {
 }
 
 export function listAuctionBids(auctionId: number) {
-  return apiRequest<AuctionBid[]>(`/api/auctions/${auctionId}/bids`, { authenticated: false });
+  return apiRequest<AuctionBid[]>(`/api/auctions/${auctionId}/bids`);
 }
 
 export function placeAuctionBid(auctionId: number, amount: string) {
   return apiRequest<AuctionBid>(`/api/auctions/${auctionId}/bids`, {
     method: "POST",
     body: JSON.stringify({ amount }),
+  });
+}
+
+export function withdrawAuctionBid(bidId: number, reasonCode: BidWithdrawalReason, reasonText: string | null) {
+  return apiRequest<BidWithdrawalResponse>(`/api/bids/${bidId}/withdraw`, {
+    method: "POST",
+    body: JSON.stringify({ reason_code: reasonCode, reason_text: reasonText }),
   });
 }
 

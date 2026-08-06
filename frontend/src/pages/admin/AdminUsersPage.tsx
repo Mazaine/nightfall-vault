@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useState } from "react";
 import { Link } from "react-router";
-import { listAdminUsers, searchAdminUsers, type AdminUser } from "../../api/admin";
+import { listAdminUsers, searchAdminUsers, updateBidWithdrawalRestriction, type AdminUser } from "../../api/admin";
 import { formatLocalDateTime } from "../../utils/format";
 import { EmptyState, ErrorState, LoadingState } from "../../components/AsyncStates";
 
@@ -27,6 +27,26 @@ export function AdminUsersPage() {
   const submitSearch = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     void load(query);
+  };
+
+  const changeWithdrawalRestriction = async (event: FormEvent<HTMLFormElement>, user: AdminUser) => {
+    event.preventDefault();
+    const submitter = (event.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
+    const action = submitter?.value;
+    const data = new FormData(event.currentTarget);
+    const reason = String(data.get("reason") ?? "").trim();
+    if (reason.length < 3) { setError("A licit-visszavonási korlátozáshoz legalább 3 karakteres admini indok szükséges."); return; }
+    const localExpiry = String(data.get("disabled_until") ?? "");
+    if (action === "temporary" && !localExpiry) { setError("Ideiglenes korlátozáshoz adj meg lejárati időt."); return; }
+    if (action === "permanent" && !window.confirm(`Biztosan végleg letiltod ${user.full_name} licit-visszavonási jogát?`)) return;
+    try {
+      await updateBidWithdrawalRestriction(user.id, {
+        disabled_until: action === "temporary" ? new Date(localExpiry).toISOString() : null,
+        permanently_disabled: action === "permanent",
+        reason,
+      });
+      await load(query);
+    } catch (reasonValue) { setError(reasonValue instanceof Error ? reasonValue.message : "A korlátozás módosítása nem sikerült."); }
   };
 
   return (
@@ -70,7 +90,17 @@ export function AdminUsersPage() {
               <dl className="admin-user-meta">
                 <div><dt>E-mail</dt><dd>{user.email}</dd></div>
                 <div><dt>Regisztrált</dt><dd>{formatLocalDateTime(user.created_at)}</dd></div>
+                <div><dt>Összes / aktív / visszavont licit</dt><dd>{user.total_bids} / {user.active_bids} / {user.withdrawn_bids}</dd></div>
+                <div><dt>Sikeres visszavonások</dt><dd>{user.bid_withdrawal_count}</dd></div>
+                <div><dt>Figyelmeztetési szint</dt><dd>{user.bid_withdrawal_warning_level || "Nincs"}</dd></div>
+                <div><dt>Utolsó visszavonás</dt><dd>{user.last_bid_withdrawal_at ? formatLocalDateTime(user.last_bid_withdrawal_at) : "Nincs"}</dd></div>
+                <div><dt>Visszavonási korlátozás</dt><dd>{user.bid_withdrawal_permanently_disabled ? "Végleges" : user.bid_withdrawal_disabled_until ? `Eddig: ${formatLocalDateTime(user.bid_withdrawal_disabled_until)}` : "Nincs"}</dd></div>
               </dl>
+              {user.role !== "admin" ? <form className="stack-form admin-withdrawal-restriction" onSubmit={(event) => void changeWithdrawalRestriction(event, user)}>
+                <label>Admini indok<input name="reason" minLength={3} maxLength={1000} required /></label>
+                <label>Ideiglenes tiltás lejárata<input name="disabled_until" type="datetime-local" /></label>
+                <div className="form-actions"><button className="button button-secondary" name="action" value="temporary" type="submit">Ideiglenes tiltás</button><button className="button button-danger" name="action" value="permanent" type="submit">Végleges tiltás</button><button className="button button-ghost" name="action" value="clear" type="submit">Korlátozás feloldása</button></div>
+              </form> : null}
               <Link className="button button-secondary" to={`/users/${user.username}`}>Profil megnyitása</Link>
             </article>
           ))}

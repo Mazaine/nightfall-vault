@@ -59,6 +59,15 @@ class UserPublic(BaseModel):
     vip_expires_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
+    total_bids: int = 0
+    active_bids: int = 0
+    withdrawn_bids: int = 0
+    bid_withdrawal_count: int = 0
+    bid_withdrawal_warning_level: int = 0
+    bid_withdrawal_first_warning_sent_at: datetime | None = None
+    last_bid_withdrawal_at: datetime | None = None
+    bid_withdrawal_disabled_until: datetime | None = None
+    bid_withdrawal_permanently_disabled: bool = False
 
     model_config = ConfigDict(from_attributes=True)
 

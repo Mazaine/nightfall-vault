@@ -17,7 +17,7 @@ from app.models.user import User
 from app.schemas.auction import AuctionConversationRead, AuctionCreate, AuctionFinalizeRequest, AuctionImageRead, AuctionListItem, AuctionListPage, AuctionMessageCreate, AuctionMessageRead, AuctionRealtimeSnapshot, AuctionResponse, AuctionReviewCreate, AuctionReviewPage, AuctionReviewRead, AuctionStatusResponse, AuctionUpdate, BidCreate, BidHistoryItem, BidRead, MyBidAuctionItem, NotificationRead, UserSummary
 from app.services.auction_images import add_auction_image, delete_auction_image, set_cover_image
 from app.services.auction_lifecycle import PUBLIC_AUCTION_STATUSES, activate_auction, can_access_post_auction_features, cancel_auction, create_auction, create_message, create_review, finalize_auction, get_auction_or_404, get_auction_statement, is_chat_read_only, require_can_view_auction, require_post_auction_participant, sync_auction_status, update_auction
-from app.services.bidding import auction_realtime_snapshot, bid_to_history_item, bid_to_read, list_bid_history, place_bid
+from app.services.bidding import auction_realtime_snapshot, bid_history_item_for_user, bid_to_read, list_bid_history, place_bid
 from app.services.notifications import notify_followers_new_auction
 from app.services.membership import featured_auction_order, is_vip
 from app.services.recommendations import related_auctions, seller_other_auctions
@@ -45,7 +45,7 @@ def auction_list_item(
     seller_average_rating: float | None = None,
     seller_review_count: int | None = None,
 ) -> AuctionListItem:
-    count = len(auction.bids) if bid_count is None else bid_count
+    count = sum(1 for bid in auction.bids if bid.status == "active") if bid_count is None else bid_count
     if db is not None and seller_review_count is None:
         seller_average_rating, seller_review_count = seller_rating_summary(db, auction.seller_id)
     return AuctionListItem.model_validate(auction).model_copy(update={
@@ -173,7 +173,7 @@ def list_public_auctions(
 ) -> AuctionListPage:
     if sort not in AUCTION_SORTS:
         raise HTTPException(status_code=422, detail="Érvénytelen rendezés.")
-    base_query = db.query(Auction.id, func.count(Bid.id).label("bid_count")).join(User, User.id == Auction.seller_id).outerjoin(Bid, Bid.auction_id == Auction.id).group_by(Auction.id, User.vip_expires_at)
+    base_query = db.query(Auction.id, func.count(Bid.id).label("bid_count")).join(User, User.id == Auction.seller_id).outerjoin(Bid, and_(Bid.auction_id == Auction.id, Bid.status == "active")).group_by(Auction.id, User.vip_expires_at)
     filtered_query = _apply_auction_filters(
         base_query,
         query_text=query_text,
@@ -276,7 +276,7 @@ def list_my_auction_conversations(
 
 @router.get("/my-bids", response_model=list[MyBidAuctionItem])
 def list_my_bid_auctions(current_user: User = Depends(require_active_user), db: Session = Depends(get_db)) -> list[MyBidAuctionItem]:
-    bid_statement = select(Bid.auction_id).where(Bid.bidder_id == current_user.id).distinct()
+    bid_statement = select(Bid.auction_id).where(Bid.bidder_id == current_user.id, Bid.status == "active").distinct()
     auction_ids = [row[0] for row in db.execute(bid_statement).all()]
     if not auction_ids:
         return []
@@ -284,7 +284,7 @@ def list_my_bid_auctions(current_user: User = Depends(require_active_user), db: 
     items: list[MyBidAuctionItem] = []
     for auction in db.scalars(statement).all():
         auction = sync_auction_status(db, auction)
-        my_highest_bid = db.scalar(select(Bid.amount).where(Bid.auction_id == auction.id, Bid.bidder_id == current_user.id).order_by(Bid.amount.desc()).limit(1))
+        my_highest_bid = db.scalar(select(Bid.amount).where(Bid.auction_id == auction.id, Bid.bidder_id == current_user.id, Bid.status == "active").order_by(Bid.amount.desc()).limit(1))
         if my_highest_bid is None:
             continue
         is_leading = auction.highest_bid is not None and auction.highest_bid.bidder_id == current_user.id
@@ -349,14 +349,14 @@ def activate_my_auction(
 def list_related_auctions(auction_id: int, current_user: User | None = Depends(get_optional_current_user), db: Session = Depends(get_db)) -> list[AuctionListItem]:
     auction = get_auction_or_404(db, auction_id)
     require_can_view_auction(auction, current_user)
-    return [auction_list_item(item, len(item.bids), db=db) for item in related_auctions(db, auction)]
+    return [auction_list_item(item, sum(1 for bid in item.bids if bid.status == "active"), db=db) for item in related_auctions(db, auction)]
 
 
 @router.get("/{auction_id}/seller-auctions", response_model=list[AuctionListItem])
 def list_seller_other_auctions(auction_id: int, current_user: User | None = Depends(get_optional_current_user), db: Session = Depends(get_db)) -> list[AuctionListItem]:
     auction = get_auction_or_404(db, auction_id)
     require_can_view_auction(auction, current_user)
-    return [auction_list_item(item, len(item.bids), db=db) for item in seller_other_auctions(db, auction, limit=6)]
+    return [auction_list_item(item, sum(1 for bid in item.bids if bid.status == "active"), db=db) for item in seller_other_auctions(db, auction, limit=6)]
 
 
 @router.post("/{auction_id}/cancel", response_model=AuctionStatusResponse)
@@ -389,7 +389,7 @@ def list_auction_bids(
 ) -> list[BidHistoryItem]:
     auction = get_auction_or_404(db, auction_id)
     bids = list_bid_history(db=db, auction=auction, user=current_user)
-    return [BidHistoryItem.model_validate(bid_to_history_item(bid, auction)) for bid in bids]
+    return [BidHistoryItem.model_validate(bid_history_item_for_user(bid, auction, current_user)) for bid in bids]
 
 
 @router.get("/realtime/stream")

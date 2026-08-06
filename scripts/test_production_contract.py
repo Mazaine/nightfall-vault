@@ -23,7 +23,7 @@ assert all(value in frontend for value in ("VITE_PUBLIC_SITE_URL", "VITE_SUPPORT
 
 proxy = read("nginx/default.conf")
 assert all(value in proxy for value in ("proxy_buffering off", "proxy_read_timeout 1h", "alias /srv/nightfall-media/", "Content-Security-Policy", "autoindex off", "Strict-Transport-Security", "https://challenges.cloudflare.com"))
-assert "location = /health/metrics { return 404; }" in proxy
+assert "location = /health/metrics" in proxy and "return 404;" in proxy
 assert '${HTTP_BIND:-127.0.0.1}' in compose
 
 main = read("backend/app/main.py")

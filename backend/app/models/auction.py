@@ -98,18 +98,26 @@ class Bid(Base):
     __tablename__ = "bids"
     __table_args__ = (
         CheckConstraint("amount > 0", name="ck_bids_amount_positive"),
+        CheckConstraint("status IN ('active', 'withdrawn')", name="ck_bids_status"),
         Index("ix_bids_auction_amount", "auction_id", "amount"),
         Index("ix_bids_auction_created", "auction_id", "created_at"),
+        Index("ix_bids_auction_status_rank", "auction_id", "status", "amount", "created_at", "id"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     auction_id: Mapped[int] = mapped_column(ForeignKey("auctions.id", ondelete="CASCADE"), nullable=False, index=True)
     bidder_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
     amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="active", server_default="active", index=True)
+    withdrawn_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    withdrawal_reason_code: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    withdrawal_reason_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    withdrawn_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
     auction = relationship("Auction", back_populates="bids", foreign_keys=[auction_id])
-    bidder = relationship("User")
+    bidder = relationship("User", foreign_keys=[bidder_id])
+    withdrawn_by_user = relationship("User", foreign_keys=[withdrawn_by_user_id])
 
 
 class AuctionMessage(Base):

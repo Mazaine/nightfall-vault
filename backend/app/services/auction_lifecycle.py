@@ -67,9 +67,10 @@ def sync_auction_status(db: Session, auction: Auction) -> Auction:
     if auction.status == "scheduled" and auction.starts_at <= current_time:
         auction.status = "active"
     if auction.status == "active" and effective_auction_end(auction) <= current_time:
-        highest_bid = auction.highest_bid
-        if highest_bid is None and auction.highest_bid_id is not None:
-            highest_bid = db.get(Bid, auction.highest_bid_id)
+        highest_bid = db.scalar(
+            select(Bid).where(Bid.auction_id == auction.id, Bid.status == "active")
+            .order_by(Bid.amount.desc(), Bid.created_at.asc(), Bid.id.asc()).limit(1)
+        )
         if highest_bid is not None:
             auction.winner_id = highest_bid.bidder_id
             auction.status = "sold"
@@ -91,9 +92,12 @@ def sync_auction_status(db: Session, auction: Auction) -> Auction:
 def close_ended_active_auction(db: Session, auction: Auction) -> Auction:
     if auction.status != "active" or effective_auction_end(auction) > now_utc():
         return auction
-    highest_bid = auction.highest_bid
-    if highest_bid is None and auction.highest_bid_id is not None:
-        highest_bid = db.get(Bid, auction.highest_bid_id)
+    highest_bid = db.scalar(
+        select(Bid).where(Bid.auction_id == auction.id, Bid.status == "active")
+        .order_by(Bid.amount.desc(), Bid.created_at.asc(), Bid.id.asc()).limit(1)
+    )
+    auction.highest_bid_id = highest_bid.id if highest_bid is not None else None
+    auction.current_price = normalize_money(highest_bid.amount if highest_bid is not None else auction.starting_price)
     if highest_bid is not None:
         auction.winner_id = highest_bid.bidder_id
         auction.status = "sold"

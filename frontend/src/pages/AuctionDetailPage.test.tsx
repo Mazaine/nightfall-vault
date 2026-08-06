@@ -49,6 +49,7 @@ describe("AuctionDetailPage", () => {
     const bidButton = await screen.findByRole("button", { name: "Licitálok" });
 
     fireEvent.click(bidButton);
+    fireEvent.click(await screen.findByRole("button", { name: "Licit véglegesítése" }));
     await waitFor(() => expect(mocks.placeAuctionBid).toHaveBeenCalledWith(21, "1300.00"));
 
     fireEvent.change(screen.getByLabelText("Licit összege"), { target: { value: "1350" } });

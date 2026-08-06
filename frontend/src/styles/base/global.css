@@ -1208,13 +1208,40 @@ h3 {
 }
 
 .cover-image-option {
-  grid-template-columns: auto auto minmax(0, 1fr) auto auto;
+  grid-template-columns: 5rem auto auto minmax(0, 1fr) auto auto;
   align-items: center;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   background: rgb(255 255 255 / 0.045);
   padding: var(--space-3);
 }
+
+.file-image-preview {
+  aspect-ratio: 4 / 3;
+  background: var(--color-surface-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  display: block;
+  object-fit: contain;
+  width: 5rem;
+}
+
+.bid-history-list .is-withdrawn { opacity: .72; }
+.bid-history-list .is-withdrawn strong { text-decoration: line-through; }
+.bid-withdraw-button { margin-inline-start: auto; }
+.bid-withdrawal-countdown { font-variant-numeric: tabular-nums; }
+.bid-action-dialog .toggle-row { margin-top: 0; }
+
+.home-update { padding-block: var(--space-5); }
+.home-update-card {
+  align-items: center;
+  display: grid;
+  gap: var(--space-5);
+  grid-template-columns: minmax(0, 1.5fr) minmax(14rem, 1fr) auto;
+}
+.home-update-card h2 { margin-bottom: var(--space-2); }
+.home-update-card p { margin-bottom: 0; }
+.home-update-card ul { margin: 0; padding-inline-start: 1.25rem; }
 
 .image-fallback,
 .auction-image > .image-fallback {
@@ -1984,6 +2011,8 @@ h3 {
   .admin-report-layout {
     grid-template-columns: 1fr;
   }
+  .home-update-card { align-items: stretch; grid-template-columns: 1fr; }
+  .home-update-card .button { justify-self: start; }
 }
 
 /* Sprint 9 marketplace UX */
@@ -2255,7 +2284,8 @@ h3 {
 }
 
 @media (max-width: 520px) {
-  .cover-image-option { grid-template-columns: auto minmax(0, 1fr); }
+  .cover-image-option { grid-template-columns: 4.5rem minmax(0, 1fr); }
+  .cover-image-option .file-image-preview { grid-row: span 3; width: 4.5rem; }
   .cover-image-option .button { grid-column: 1 / -1; width: 100%; }
   .moderation-form-grid { grid-template-columns: 1fr; }
   .account-bid-row { grid-template-columns: 4.5rem minmax(0, 1fr); gap: var(--space-3); }

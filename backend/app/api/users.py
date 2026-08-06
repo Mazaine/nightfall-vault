@@ -24,7 +24,7 @@ def _public_user_or_404(db: Session, username: str) -> User:
 
 
 def _auction_summary(db: Session, auction: Auction) -> PublicAuctionSummary:
-    bid_count = int(db.scalar(select(func.count()).select_from(Bid).where(Bid.auction_id == auction.id)) or 0)
+    bid_count = int(db.scalar(select(func.count()).select_from(Bid).where(Bid.auction_id == auction.id, Bid.status == "active")) or 0)
     return PublicAuctionSummary(
         id=auction.id,
         title=auction.title,
@@ -78,7 +78,7 @@ def build_public_profile(db: Session, user: User, current_user: User | None = No
     sold_count = int(db.scalar(select(func.count()).select_from(Auction).where(Auction.seller_id == user.id, Auction.deleted_at.is_(None), Auction.status == "sold")) or 0)
     won_count = int(db.scalar(select(func.count()).select_from(Auction).where(Auction.winner_id == user.id, Auction.status == "sold", Auction.deleted_at.is_(None))) or 0)
     total_bids = int(db.scalar(select(func.count()).select_from(Bid).where(Bid.bidder_id == user.id)) or 0)
-    participated_auctions = select(Bid.auction_id).where(Bid.bidder_id == user.id).distinct().subquery()
+    participated_auctions = select(Bid.auction_id).where(Bid.bidder_id == user.id, Bid.status == "active").distinct().subquery()
     lost_count = int(db.scalar(select(func.count()).select_from(Auction).where(Auction.id.in_(select(participated_auctions.c.auction_id)), Auction.status == "sold", Auction.winner_id != user.id, Auction.deleted_at.is_(None))) or 0)
     completed_bid_auctions = won_count + lost_count
     follower_count = int(db.scalar(select(func.count()).select_from(SellerFollow).where(SellerFollow.seller_id == user.id)) or 0)

@@ -153,3 +153,39 @@ def moderation_overview(db: Session) -> tuple[list[ModerationAction], list[UserS
     actions = list(db.scalars(select(ModerationAction).options(joinedload(ModerationAction.target_user)).order_by(ModerationAction.created_at.desc(), ModerationAction.id.desc()).limit(200)).all())
     strikes = list(db.scalars(select(UserStrike).options(joinedload(UserStrike.user)).order_by(UserStrike.issued_at.desc(), UserStrike.id.desc()).limit(200)).all())
     return actions, strikes
+
+
+def update_bid_withdrawal_restriction(
+    db: Session,
+    admin: User,
+    *,
+    target: User,
+    disabled_until: datetime | None,
+    permanently_disabled: bool,
+    reason: str,
+) -> User:
+    validate_target(admin, target)
+    if disabled_until is not None and disabled_until <= now_utc():
+        raise HTTPException(status_code=422, detail="A lejáratnak jövőbeli időpontnak kell lennie.")
+    if permanently_disabled and disabled_until is not None:
+        raise HTTPException(status_code=422, detail="Végleges tiltásnál ne adj meg lejárati időt.")
+    target.bid_withdrawal_permanently_disabled = permanently_disabled
+    target.bid_withdrawal_disabled_until = None if permanently_disabled else disabled_until
+    action = "bid_withdrawal_restriction_applied" if permanently_disabled or disabled_until else "bid_withdrawal_restriction_revoked"
+    create_domain_audit_log(
+        db, action=action, user_id=admin.id,
+        metadata={
+            "target_user_id": target.id, "permanently_disabled": permanently_disabled,
+            "disabled_until": disabled_until.isoformat() if disabled_until else None, "reason": reason,
+        },
+    )
+    create_notification(
+        db, user_id=target.id, notification_type="moderation_action",
+        title="Licit-visszavonási jogosultság módosult",
+        message=("A licit-visszavonási lehetőségedet korlátoztuk." if permanently_disabled or disabled_until else "A licit-visszavonási korlátozásodat feloldottuk."),
+        send_email=True,
+    )
+    db.add(target)
+    db.commit()
+    db.refresh(target)
+    return target

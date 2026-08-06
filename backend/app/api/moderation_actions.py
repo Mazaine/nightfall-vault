@@ -5,8 +5,9 @@ from app.db.session import get_db
 from app.dependencies.auth import require_admin
 from app.models.moderation import ModerationAction, UserStrike
 from app.models.user import User
-from app.schemas.moderation_actions import ModerationActionCreate, ModerationActionRead, ModerationOverview, StrikeCreate, UserStrikeRead
-from app.services.moderation_actions import issue_action, issue_strike, moderation_overview, revoke_action, revoke_strike
+from app.schemas.moderation_actions import BidWithdrawalRestrictionUpdate, ModerationActionCreate, ModerationActionRead, ModerationOverview, StrikeCreate, UserStrikeRead
+from app.schemas.user import UserPublic
+from app.services.moderation_actions import issue_action, issue_strike, moderation_overview, revoke_action, revoke_strike, update_bid_withdrawal_restriction
 
 
 router = APIRouter(prefix="/api/admin/moderation", tags=["admin-moderation"])
@@ -51,3 +52,18 @@ def revoke_user_strike(strike_id: int, admin: User = Depends(require_admin), db:
     if strike is None:
         raise HTTPException(status_code=404, detail="A figyelmeztető pont nem található.")
     return UserStrikeRead.model_validate(revoke_strike(db, admin, strike))
+
+
+@router.put("/users/{user_id}/bid-withdrawal-restriction", response_model=UserPublic)
+def set_bid_withdrawal_restriction(
+    user_id: int,
+    payload: BidWithdrawalRestrictionUpdate,
+    admin: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> UserPublic:
+    target = target_or_404(db, user_id)
+    updated = update_bid_withdrawal_restriction(
+        db, admin, target=target, disabled_until=payload.disabled_until,
+        permanently_disabled=payload.permanently_disabled, reason=payload.reason,
+    )
+    return UserPublic.model_validate(updated)

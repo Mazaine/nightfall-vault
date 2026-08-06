@@ -16,7 +16,7 @@ def _contains(value: str, search: str | None) -> bool:
 def auction_matches_saved_search(db: Session, auction: Auction, saved: SavedSearch) -> bool:
     seller_name = auction.seller.username if auction.seller is not None else ""
     combined = f"{auction.title} {auction.description} {seller_name}"
-    bid_count = int(db.scalar(select(func.count()).select_from(Bid).where(Bid.auction_id == auction.id)) or 0)
+    bid_count = int(db.scalar(select(func.count()).select_from(Bid).where(Bid.auction_id == auction.id, Bid.status == "active")) or 0)
     now = datetime.now(timezone.utc)
     checks = (
         _contains(combined, saved.query),

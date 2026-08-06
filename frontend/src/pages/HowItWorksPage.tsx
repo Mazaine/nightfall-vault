@@ -33,6 +33,17 @@ const biddingRules = [
   "Példa: 35 000 Ft aktuális ár és 1000 Ft licitlépcső mellett 36 000, 37 000 vagy 38 000 Ft érvényes; 36 500 Ft nem érvényes.",
   "Minden beküldéskor a szerver az éppen aktuális árból számol. Ha közben más licitált, magyar hibaüzenet jelzi az új minimumot; az elavult ajánlat nem írhatja felül a magasabbat.",
   "A licitek és az aktuális ár valós időben frissülnek. A túllicitált felhasználó értesítést kap, a licittörténetben pedig a licitálók anonimizált azonosítóval szerepelnek.",
+  "Normál licit előtt megerősítő kérdés jelenik meg. Ez eszközönként kikapcsolható, majd a Profilbeállítások oldalon visszakapcsolható. A Villámvásárlás mindig külön megerősítést kér.",
+] as const;
+
+const withdrawalRules = [
+  "A licitek alapvetően kötelező érvényűek. Téves licit esetén kizárólag az aukció legutolsó és legmagasabb aktív licitje vonható vissza, a leadásától számított legfeljebb 1 percen belül.",
+  "A visszavonás csak akkor engedélyezett, ha az aukció végéig legalább 5 perc van hátra. Pontosan 60 másodpercnél és pontosan 5 perc hátralévő időnél a művelet még engedélyezett.",
+  "A működés veremelvű: 1000, 2000, 3000 és 4000 Ft aktív licit esetén először csak a 4000 Ft-os vonható vissza. Ezután a 3000 Ft-os válik legfelsővé, és külön műveletben visszavonható, ha a többi feltétel még teljesül.",
+  "A visszavont licit nem törlődik. Visszavont állapottal megmarad a licittörténetben és az auditnaplóban, de nem számít bele az aktuális árba, a következő minimumba, a vezetőbe, a nyertesbe vagy a tranzakcióba.",
+  "A visszavonáshoz indokot kell választani. Az Egyéb indokhoz rövid szöveges magyarázat is szükséges. A backend a kattintás pillanatában újra ellenőrzi a tulajdonost, az időablakot, az aukcióállapotot és a licitsor tetejét.",
+  "Minden sikeres visszavonást naplózunk. Az 5. sikeres visszavonás után egyszeri automatikus figyelmeztetés érkezik; visszaélésszerű használat esetén az admin ideiglenesen vagy végleg korlátozhatja ezt a lehetőséget.",
+  "A projekt jelenlegi licitmotorja közvetlen, licitlépcső-alapú ajánlatokat kezel; külön rejtett proxy/max-bid keret nincs. A visszavonás után a következő legmagasabb aktív licit lesz a vezető.",
 ] as const;
 
 const buyNowRules = [
@@ -110,6 +121,7 @@ export function HowItWorksPage() {
         <RuleSection eyebrow="Fiók és tagság" title="Normál és VIP-tagság" rules={accountRules} />
         <RuleSection eyebrow="Eladóknak" title="Aukció létrehozása és módosítása" rules={creationRules} />
         <RuleSection eyebrow="Licitálóknak" title="Licit és licitlépcső" rules={biddingRules} ariaLabel="Licitálási szabályok" />
+        <div id="bid-withdrawal"><RuleSection eyebrow="Kivételes lehetőség" title="Licit visszavonása" rules={withdrawalRules} ariaLabel="Licit-visszavonási szabályok" /></div>
         <RuleSection eyebrow="Azonnali nyerés" title="Villámár" rules={buyNowRules} />
         <RuleSection eyebrow="Igazságos hajrá" title="Az 5 perces szabály" rules={extensionRules} />
         <RuleSection eyebrow="Automatikus folyamat" title="Kezdés és aukciózárás" rules={closingRules} />

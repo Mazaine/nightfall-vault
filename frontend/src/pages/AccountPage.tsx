@@ -4,6 +4,7 @@ import { activateAuction, cancelAuction, createAuction, deleteAuctionImage, getA
 import { ApiError, apiAssetUrl } from "../api/client";
 import { AuctionCard } from "../components/AuctionCard";
 import { SafeImage } from "../components/SafeImage";
+import { FileImagePreview } from "../components/FileImagePreview";
 import { EmptyState, ErrorState, LoadingState } from "../components/AsyncStates";
 import { categories, conditionOptions } from "../data/content";
 import { formatAuctionStatus, formatMoney, formatRemainingTime } from "../utils/format";
@@ -167,6 +168,7 @@ export function AccountPage({ section }: { section: "bids" | "auctions" }) {
   const [uploadProgress, setUploadProgress] = useState("");
   const [editingAuctionId, setEditingAuctionId] = useState<number | null>(null);
   const [isUpdatingAuction, setIsUpdatingAuction] = useState(false);
+  const [storedImageActionId, setStoredImageActionId] = useState<number | null>(null);
   const [editAuctionImages, setEditAuctionImages] = useState<File[]>([]);
   const [editCoverImageIndex, setEditCoverImageIndex] = useState<number | null>(null);
   const [editImageMessage, setEditImageMessage] = useState("");
@@ -478,23 +480,31 @@ export function AccountPage({ section }: { section: "bids" | "auctions" }) {
   };
 
   const handleSetCoverImage = async (auctionId: number, imageId: number) => {
+    if (storedImageActionId !== null) return;
+    setStoredImageActionId(imageId);
     try {
       await setAuctionCoverImage(auctionId, imageId);
       await refreshMyAuctions();
       setFormMessage("A borítókép frissült.");
     } catch (error) {
       setFormMessage(error instanceof Error ? error.message : "A borítókép módosítása nem sikerült.");
+    } finally {
+      setStoredImageActionId(null);
     }
   };
 
   const handleDeleteStoredImage = async (auctionId: number, imageId: number) => {
     if (!window.confirm("Biztosan törlöd ezt a képet és minden méretváltozatát?")) return;
+    if (storedImageActionId !== null) return;
+    setStoredImageActionId(imageId);
     try {
       await deleteAuctionImage(auctionId, imageId);
       await refreshMyAuctions();
       setFormMessage("A kép és minden méretváltozata törlődött.");
     } catch (error) {
       setFormMessage(error instanceof Error ? error.message : "A kép törlése nem sikerült.");
+    } finally {
+      setStoredImageActionId(null);
     }
   };
 
@@ -648,8 +658,8 @@ export function AccountPage({ section }: { section: "bids" | "auctions" }) {
                                     {auction.images.map((image) => (
                                       <div className="owner-image-row" key={image.id}>
                                         <SafeImage src={apiAssetUrl(image.thumbnail_url ?? image.list_url ?? image.url)} alt="" width={320} height={320} />
-                                        {image.is_cover ? <span className="status-badge">Borítókép</span> : <button className="button button-secondary" type="button" onClick={() => void handleSetCoverImage(auction.id, image.id)}>Legyen borítókép</button>}
-                                        <button className="button button-danger" type="button" onClick={() => void handleDeleteStoredImage(auction.id, image.id)}>Kép törlése</button>
+                                        {image.is_cover ? <span className="status-badge">Borítókép</span> : <button className="button button-secondary" type="button" disabled={storedImageActionId !== null} onClick={() => void handleSetCoverImage(auction.id, image.id)}>{storedImageActionId === image.id ? "Mentés…" : "Legyen borítókép"}</button>}
+                                        <button className="button button-danger" type="button" disabled={storedImageActionId !== null} onClick={() => void handleDeleteStoredImage(auction.id, image.id)}>{storedImageActionId === image.id ? "Feldolgozás…" : "Kép törlése"}</button>
                                       </div>
                                     ))}
                                   </div>
@@ -662,6 +672,7 @@ export function AccountPage({ section }: { section: "bids" | "auctions" }) {
                                     <div className="cover-image-list" aria-label="Új képek beállítása">
                                       {editAuctionImages.map((file, imageIndex) => (
                                         <label className="cover-image-option" key={`${file.name}-${file.lastModified}`}>
+                                          <FileImagePreview file={file} alt={`${file.name} előnézete`} />
                                           <input type="radio" name="editCoverImage" checked={editCoverImageIndex === imageIndex} onChange={() => setEditCoverImageIndex(imageIndex)} />
                                           <span>{imageIndex + 1}. új kép</span>
                                           <strong>{file.name}</strong>
@@ -740,6 +751,7 @@ export function AccountPage({ section }: { section: "bids" | "auctions" }) {
               <div className="cover-image-list" aria-label="Borítókép kiválasztása">
                 {auctionImages.map((file, index) => (
                   <label className="cover-image-option" key={`${file.name}-${file.lastModified}`}>
+                    <FileImagePreview file={file} alt={`${file.name} előnézete`} />
                     <input
                       type="radio"
                       name="coverImage"

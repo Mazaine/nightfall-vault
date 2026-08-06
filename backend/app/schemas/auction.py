@@ -130,6 +130,23 @@ class BidCreate(BaseModel):
     amount: Decimal = Field(gt=0, max_digits=12, decimal_places=2)
 
 
+class BidWithdrawalRequest(BaseModel):
+    reason_code: Literal["accidental", "wrong_amount", "technical_issue", "other"]
+    reason_text: str | None = Field(default=None, max_length=500)
+
+    @model_validator(mode="after")
+    def validate_reason_text(self):
+        if self.reason_text is not None:
+            self.reason_text = " ".join(self.reason_text.strip().split()) or None
+        if self.reason_text and ("<" in self.reason_text or ">" in self.reason_text):
+            raise ValueError("HTML jelölés nem engedélyezett.")
+        if self.reason_code == "other" and (self.reason_text is None or len(self.reason_text) < 10):
+            raise ValueError("Az Egyéb indoklás legalább 10 karakter hosszú legyen.")
+        if self.reason_code != "other":
+            self.reason_text = None
+        return self
+
+
 class AuctionMessageCreate(BaseModel):
     message: str = Field(min_length=1, max_length=2000)
 
@@ -196,6 +213,7 @@ class BidRead(BaseModel):
     bidder_label: str
     is_highest: bool = False
     reaches_buy_now: bool = False
+    status: str = "active"
 
 
 class BidHistoryItem(BaseModel):
@@ -204,6 +222,24 @@ class BidHistoryItem(BaseModel):
     created_at: datetime
     bidder_label: str
     is_highest: bool = False
+    status: str = "active"
+    withdrawn_at: datetime | None = None
+    can_withdraw: bool = False
+    withdrawable_until: datetime | None = None
+    withdrawal_block_reason: str | None = None
+    is_top_active_bid: bool = False
+
+
+class BidWithdrawalResponse(BaseModel):
+    bid_id: int
+    status: str
+    auction_id: int
+    auction_status: str
+    highest_bid_id: int | None
+    current_price: Decimal
+    next_minimum_bid: Decimal
+    leading_bidder_label: str | None
+    next_withdrawable_bid: BidHistoryItem | None = None
 
 
 class AuctionRealtimeSnapshot(BaseModel):

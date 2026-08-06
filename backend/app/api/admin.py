@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.db.session import get_db
 from app.dependencies.auth import require_admin
-from app.models.auction import Auction
+from app.models.auction import Auction, Bid
 from app.models.moderation import Report
 from app.models.newsletter import NewsletterCampaign, NewsletterSubscriber
 from app.models.password_reset_token import PasswordResetToken
@@ -24,6 +24,19 @@ from app.services.auction_moderation import restore_auction, soft_delete_auction
 from app.services.membership import featured_auction_order
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
+
+
+def admin_user_read(db: Session, user: User) -> UserPublic:
+    total_bids, active_bids, withdrawn_bids = db.query(
+        func.count(Bid.id),
+        func.count(Bid.id).filter(Bid.status == "active"),
+        func.count(Bid.id).filter(Bid.status == "withdrawn"),
+    ).filter(Bid.bidder_id == user.id).one()
+    return UserPublic.model_validate(user).model_copy(update={
+        "total_bids": int(total_bids or 0),
+        "active_bids": int(active_bids or 0),
+        "withdrawn_bids": int(withdrawn_bids or 0),
+    })
 
 
 def serialize_audit_log(log: AuditLog) -> dict:
@@ -382,14 +395,14 @@ def delete_admin_newsletter_subscriber(subscriber_id: int, _current_user: User =
 
 @router.get("/users", response_model=list[UserPublic])
 def list_admin_users(_current_user: User = Depends(require_admin), db: Session = Depends(get_db)) -> list[UserPublic]:
-    return list(db.scalars(active_user_statement().order_by(User.created_at.desc(), User.id.desc())).all())
+    return [admin_user_read(db, user) for user in db.scalars(active_user_statement().order_by(User.created_at.desc(), User.id.desc())).all()]
 
 
 @router.get("/users/search", response_model=list[UserPublic])
 def search_admin_users(query: str = Query(min_length=2, max_length=120), _current_user: User = Depends(require_admin), db: Session = Depends(get_db)) -> list[UserPublic]:
     search_pattern = f"%{query.strip()}%"
     statement = active_user_statement().where(User.email.ilike(search_pattern) | User.username.ilike(search_pattern) | User.full_name.ilike(search_pattern)).order_by(User.created_at.desc(), User.id.desc()).limit(20)
-    return list(db.scalars(statement).all())
+    return [admin_user_read(db, user) for user in db.scalars(statement).all()]
 
 
 @router.patch("/users/{user_id}", response_model=UserPublic)

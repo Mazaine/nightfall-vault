@@ -14,6 +14,7 @@ from app.api.admin import router as admin_router
 from app.api.auctions import router as auctions_router
 from app.api.auth import router as auth_router
 from app.api.blocks import router as blocks_router
+from app.api.bids import router as bids_router
 from app.api.categories import router as categories_router
 from app.api.follow import router as follow_router
 from app.api.health import router as health_router
@@ -99,6 +100,7 @@ PRIVATE_API_PREFIXES = (
     "/api/admin",
     "/api/auth/me",
     "/api/blocks",
+    "/api/bids",
     "/api/notifications",
     "/api/reports",
     "/api/realtime",
@@ -342,6 +344,7 @@ app.add_middleware(
 app.include_router(health_router)
 app.include_router(auth_router)
 app.include_router(blocks_router)
+app.include_router(bids_router)
 app.include_router(admin_router)
 app.include_router(auctions_router)
 app.include_router(categories_router)

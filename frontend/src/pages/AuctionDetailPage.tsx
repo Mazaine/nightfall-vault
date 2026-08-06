@@ -11,8 +11,10 @@ import { AuctionCountdown } from "../components/AuctionCountdown";
 import { ReportDialog } from "../components/ReportDialog";
 import { SafeImage } from "../components/SafeImage";
 import { ChatTransactionPanel } from "../components/ChatTransactionPanel";
-import { addWatchlistItem, auctionStreamUrl, createAuctionMessage, createAuctionReview, getAuction, getAuctionPresence, listAuctionBids, listAuctionMessages, listRelatedAuctions, listSellerOtherAuctions, markAuctionMessagesRead, placeAuctionBid, listAuctionReviews, sendTyping, type Auction, type AuctionBid, type AuctionMessage, type AuctionRealtimeSnapshot, type AuctionReview, type NotificationItem } from "../api/auctions";
+import { BidConfirmationDialog, BidWithdrawalDialog } from "../components/BidDialogs";
+import { addWatchlistItem, auctionStreamUrl, createAuctionMessage, createAuctionReview, getAuction, getAuctionPresence, listAuctionBids, listAuctionMessages, listRelatedAuctions, listSellerOtherAuctions, markAuctionMessagesRead, placeAuctionBid, listAuctionReviews, sendTyping, withdrawAuctionBid, type Auction, type AuctionBid, type AuctionMessage, type AuctionRealtimeSnapshot, type AuctionReview, type BidWithdrawalReason, type NotificationItem } from "../api/auctions";
 import { formatAuctionStatus, formatLocalDateTime, formatMoney, formatRemainingTime } from "../utils/format";
+import { disableBidConfirmation, isBidConfirmationDisabled } from "../utils/bidConfirmation";
 
 function moneyToCents(value: string | null | undefined) {
   const amount = Number(value);
@@ -25,6 +27,17 @@ function centsToAmount(cents: number) {
 
 function appendUniqueMessage(items: AuctionMessage[], incoming: AuctionMessage) {
   return items.some((item) => item.id === incoming.id) ? items : [...items, incoming];
+}
+
+function WithdrawBidButton({ until, onClick }: { until: string; onClick: () => void }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+  const seconds = Math.max(0, Math.ceil((new Date(until).getTime() - now) / 1000));
+  if (seconds === 0) return null;
+  return <button className="button button-danger bid-withdraw-button" type="button" onClick={onClick}>Licit visszavonása <span className="bid-withdrawal-countdown" aria-live="polite">{seconds} mp</span></button>;
 }
 
 export function AuctionDetailPage() {
@@ -50,6 +63,9 @@ export function AuctionDetailPage() {
   const [bidMessage, setBidMessage] = useState("");
   const [watchlistMessage, setWatchlistMessage] = useState("");
   const [isBidSubmitting, setIsBidSubmitting] = useState(false);
+  const [pendingBid, setPendingBid] = useState<{ amount: string; isBuyNow: boolean } | null>(null);
+  const [withdrawBidTarget, setWithdrawBidTarget] = useState<AuctionBid | null>(null);
+  const [isWithdrawingBid, setIsWithdrawingBid] = useState(false);
   const [showReportDialog, setShowReportDialog] = useState(false);
   const [reportMessage, setReportMessage] = useState("");
   const [selectedImageId, setSelectedImageId] = useState<number | null>(null);
@@ -60,6 +76,7 @@ export function AuctionDetailPage() {
   const presenceTimerRef = useRef<number | null>(null);
   const lastTypingSentRef = useRef(0);
   const messageSendingRef = useRef(false);
+  const bidSubmittingRef = useRef(false);
   const chatLauncherRef = useRef<HTMLButtonElement>(null);
   const chatMinimizeRef = useRef<HTMLButtonElement>(null);
   const chatComposerRef = useRef<HTMLTextAreaElement>(null);
@@ -112,7 +129,7 @@ export function AuctionDetailPage() {
             ends_at: snapshot.ends_at,
           }
         : current);
-      setBidHistory(snapshot.bids);
+      void listAuctionBids(snapshot.auction_id).then(setBidHistory).catch(() => setBidHistory(snapshot.bids));
     });
     return () => source.close();
   }, [auctionId]);
@@ -239,9 +256,10 @@ export function AuctionDetailPage() {
   const closeChat = () => setIsChatOpen(false);
 
   const placeBidAmount = async (amount: string) => {
-    if (!auction || !amount.trim()) {
+    if (!auction || !amount.trim() || bidSubmittingRef.current) {
       return;
     }
+    bidSubmittingRef.current = true;
     setIsBidSubmitting(true);
     setBidMessage("");
     try {
@@ -257,7 +275,44 @@ export function AuctionDetailPage() {
     } catch (error) {
       setBidMessage(error instanceof Error ? error.message : "A licit rögzítése nem sikerült.");
     } finally {
+      bidSubmittingRef.current = false;
       setIsBidSubmitting(false);
+    }
+  };
+
+  const requestBidConfirmation = async (amount: string, isBuyNow: boolean) => {
+    if (!isBuyNow && isBidConfirmationDisabled()) {
+      await placeBidAmount(amount);
+      return;
+    }
+    setPendingBid({ amount, isBuyNow });
+  };
+
+  const confirmPendingBid = async (disableFuture: boolean) => {
+    if (!pendingBid || isBidSubmitting) return;
+    const selected = pendingBid;
+    if (!selected.isBuyNow && disableFuture) disableBidConfirmation();
+    await placeBidAmount(selected.amount);
+    setPendingBid(null);
+  };
+
+  const confirmWithdrawal = async (reasonCode: BidWithdrawalReason, reasonText: string | null) => {
+    if (!auction || !withdrawBidTarget || isWithdrawingBid) return;
+    setIsWithdrawingBid(true);
+    setBidMessage("");
+    try {
+      await withdrawAuctionBid(withdrawBidTarget.id, reasonCode, reasonText);
+      const [refreshedAuction, refreshedBids] = await Promise.all([getAuction(auction.id), listAuctionBids(auction.id)]);
+      setAuction(refreshedAuction);
+      setBidHistory(refreshedBids);
+      setWithdrawBidTarget(null);
+      setBidMessage("A licit visszavonása sikerült.");
+    } catch (reason) {
+      setBidMessage(reason instanceof Error ? reason.message : "A licit visszavonása nem sikerült.");
+      setWithdrawBidTarget(null);
+      void listAuctionBids(auction.id).then(setBidHistory).catch(() => undefined);
+    } finally {
+      setIsWithdrawingBid(false);
     }
   };
 
@@ -286,7 +341,7 @@ export function AuctionDetailPage() {
       setBidMessage(`A licit ${formatMoney(centsToAmount(minimumCents))} összegtől ${formatMoney(auction.bid_increment)} licitlépcsőkkel emelhető.`);
       return;
     }
-    await placeBidAmount(amount);
+    await requestBidConfirmation(amount, false);
   };
 
   const addToWatchlist = async () => {
@@ -413,7 +468,7 @@ export function AuctionDetailPage() {
               {isBidSubmitting ? "Licit rögzítése..." : "Licitálok"}
             </button>
             {auction.buy_now_enabled && auction.buy_now_price ? (
-              <button className="button button-lightning" id="buy-now-section" type="button" disabled={isBidSubmitting} onClick={() => placeBidAmount(auction.buy_now_price ?? "")}>
+              <button className="button button-lightning" id="buy-now-section" type="button" disabled={isBidSubmitting} onClick={() => void requestBidConfirmation(auction.buy_now_price ?? "", true)}>
                 Villámár: {formatMoney(auction.buy_now_price)}
               </button>
             ) : null}
@@ -455,10 +510,11 @@ export function AuctionDetailPage() {
           ) : (
             <div className="bid-history-list">
               {bidHistory.map((bid) => (
-                <p key={bid.id}>
+                <p className={bid.status === "withdrawn" ? "is-withdrawn" : undefined} key={bid.id}>
                   <strong>{formatMoney(bid.amount)}</strong>
                   <span>{bid.bidder_label}</span>
-                  {bid.is_highest ? <em>Legmagasabb</em> : null}
+                  {bid.status === "withdrawn" ? <em>Visszavonva</em> : bid.is_highest ? <em>Legmagasabb</em> : null}
+                  {bid.can_withdraw && bid.withdrawable_until ? <WithdrawBidButton until={bid.withdrawable_until} onClick={() => setWithdrawBidTarget(bid)} /> : null}
                 </p>
               ))}
             </div>
@@ -537,6 +593,8 @@ export function AuctionDetailPage() {
             })}
           />
         ) : null}
+        {pendingBid ? <BidConfirmationDialog amountLabel={formatMoney(pendingBid.amount)} isBuyNow={pendingBid.isBuyNow} busy={isBidSubmitting} onClose={() => { if (!isBidSubmitting) setPendingBid(null); }} onConfirm={(disableFuture) => void confirmPendingBid(disableFuture)} /> : null}
+        {withdrawBidTarget ? <BidWithdrawalDialog busy={isWithdrawingBid} onClose={() => { if (!isWithdrawingBid) setWithdrawBidTarget(null); }} onConfirm={(reason, text) => void confirmWithdrawal(reason, text)} /> : null}
       </div>
       <section className="account-section related-auctions-section" aria-labelledby="related-auctions-title">
         <div className="section-heading"><h2 id="related-auctions-title">Kapcsolódó aukciók</h2></div>

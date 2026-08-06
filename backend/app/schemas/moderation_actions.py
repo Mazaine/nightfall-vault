@@ -89,3 +89,21 @@ class UserStrikeRead(BaseModel):
 class ModerationOverview(BaseModel):
     actions: list[ModerationActionRead]
     strikes: list[UserStrikeRead]
+
+
+class BidWithdrawalRestrictionUpdate(BaseModel):
+    disabled_until: datetime | None = None
+    permanently_disabled: bool = False
+    reason: str = Field(min_length=3, max_length=1000)
+
+    @field_validator("reason")
+    @classmethod
+    def normalize_reason(cls, value: str) -> str:
+        return clean_text(value) or ""
+
+    @field_validator("disabled_until")
+    @classmethod
+    def validate_expiry_timezone(cls, value: datetime | None) -> datetime | None:
+        if value is not None and (value.tzinfo is None or value.utcoffset() is None):
+            raise ValueError("A lejáratnak időzóna-információt kell tartalmaznia.")
+        return value
