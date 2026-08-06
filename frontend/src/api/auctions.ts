@@ -127,7 +127,7 @@ export type AuctionBid = {
   is_top_active_bid?: boolean;
 };
 
-export type BidWithdrawalReason = "accidental" | "wrong_amount" | "technical_issue" | "other";
+export type BidWithdrawalReason = "accidental" | "wrong_amount" | "technical_issue" | "leave_auction" | "other";
 export type BidWithdrawalResponse = {
   bid_id: number;
   status: "withdrawn";
@@ -154,15 +154,21 @@ export type AuctionRealtimeSnapshot = {
 
 export type MyBidAuction = {
   auction: Auction;
-  my_highest_bid: string;
+  my_highest_bid: string | null;
   is_leading: boolean;
   has_won: boolean;
   is_outbid: boolean;
   my_last_bid_at?: string | null;
   transaction_id?: number | null;
+  top_bid_id?: number | null;
+  can_withdraw?: boolean;
+  withdrawal_block_reason?: string | null;
+  has_exited?: boolean;
+  is_watched?: boolean;
+  participation_note?: string | null;
 };
 
-export type MyBidAuctionState = "all" | "outbid" | "leading" | "active" | "closed" | "won";
+export type MyBidAuctionState = "all" | "outbid" | "leading" | "watched" | "won" | "lost";
 export type MyBidAuctionPage = { items: MyBidAuction[]; total: number; limit: number; offset: number; server_time: string };
 
 export type NotificationItem = {

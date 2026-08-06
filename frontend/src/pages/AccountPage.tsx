@@ -677,9 +677,8 @@ export function AccountPage({ section }: { section: "bids" | "auctions" }) {
                                   {editAuctionDateErrors.endsAt ? <small className="auth-field-error" id={`edit-ends-at-error-${auction.id}`}>{editAuctionDateErrors.endsAt}</small> : <small>Helyi idő: Europe/Budapest.</small>}
                                 </label>
                                 <aside className="form-wide auction-rule-note"><strong>Az utolsó 5 perc szabályai</strong><p>A legutolsó aktív licit az utolsó 5 percben nem vonható vissza. Bekapcsolt hosszabbításnál minden késői érvényes licit a licit pillanatától újabb 5 percre állítja a zárást.</p><label className="toggle-row"><input name="five_minute_rule_enabled" type="checkbox" defaultChecked={auction.five_minute_rule_enabled} />5 perces automatikus hosszabbítás bekapcsolása</label></aside>
-                                <label className="toggle-row">
-                                  <input name="buy_now_enabled" type="checkbox" checked={editBuyNowEnabled} onChange={(event) => setEditBuyNowEnabled(event.target.checked)} disabled={!isDraft && !auction.buy_now_price} />
-                                  Villámár bekapcsolása
+                                <label className="toggle-row buy-now-toggle">
+                                  <span className="toggle-control"><input name="buy_now_enabled" type="checkbox" checked={editBuyNowEnabled} onChange={(event) => setEditBuyNowEnabled(event.target.checked)} disabled={!isDraft && !auction.buy_now_price} />Villámár bekapcsolása</span>
                                   {!isDraft && !auction.buy_now_price ? <small>Korábban megadott villámár nélkül nem kapcsolható be.</small> : null}
                                 </label>
 
@@ -847,9 +846,8 @@ export function AccountPage({ section }: { section: "bids" | "auctions" }) {
             <p>Az aukció utolsó 5 percében a legutolsó aktív licit már nem vonható vissza. Bekapcsolt hosszabbításnál minden, az aktuális zárás előtti utolsó 5 percben érkező érvényes licit a licit pillanatától újabb 5 percre állítja a zárást.</p>
             <label className="toggle-row"><input name="five_minute_rule_enabled" type="checkbox" defaultChecked />5 perces automatikus hosszabbítás bekapcsolása</label>
           </aside>
-          <label className="toggle-row">
-            <input name="buy_now_enabled" type="checkbox" checked={createBuyNowEnabled} onChange={(event) => { setCreateBuyNowEnabled(event.target.checked); clearAuctionFieldError("buy_now_price"); }} />
-            Villámár bekapcsolása
+          <label className="toggle-row buy-now-toggle">
+            <span className="toggle-control"><input name="buy_now_enabled" type="checkbox" checked={createBuyNowEnabled} onChange={(event) => { setCreateBuyNowEnabled(event.target.checked); clearAuctionFieldError("buy_now_price"); }} />Villámár bekapcsolása</span>
             <small>Érvényes összeg megadásakor automatikusan bekapcsol. Kikapcsoláskor az összeg megmaradhat.</small>
           </label>
           <label className="toggle-row form-wide">

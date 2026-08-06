@@ -35,7 +35,6 @@ const AccountConversationsPage = lazy(() => import("./pages/AccountConversations
 const AccountTransactionsPage = lazy(() => import("./pages/AccountTransactionsPage").then((module) => ({ default: module.AccountTransactionsPage })));
 const NotificationsPage = lazy(() => import("./pages/NotificationsPage").then((module) => ({ default: module.NotificationsPage })));
 const SavedSearchesPage = lazy(() => import("./pages/SavedSearchesPage").then((module) => ({ default: module.SavedSearchesPage })));
-const WatchlistPage = lazy(() => import("./pages/WatchlistPage").then((module) => ({ default: module.WatchlistPage })));
 const VipMembershipPage = lazy(() => import("./pages/VipMembershipPage").then((module) => ({ default: module.VipMembershipPage })));
 const AdminLayout = lazy(() => import("./pages/admin/AdminLayout").then((module) => ({ default: module.AdminLayout })));
 const AdminDashboardPage = lazy(() => import("./pages/admin/AdminDashboardPage").then((module) => ({ default: module.AdminDashboardPage })));
@@ -87,13 +86,13 @@ function App() {
                 <Route path="transactions" element={<AccountTransactionsPage />} />
                 <Route path="notifications" element={<NotificationsPage />} />
                 <Route path="saved-searches" element={<SavedSearchesPage />} />
-                <Route path="watchlist" element={<WatchlistPage />} />
+                <Route path="watchlist" element={<Navigate to="/my-bids?state=watched" replace />} />
                 <Route path="reports" element={<AccountReportsPage />} />
                 <Route path="blocked-users" element={<AccountBlockedUsersPage />} />
               </Route>
               <Route path="/notifications" element={<Navigate to="/account/notifications" replace />} />
               <Route path="/my-bids" element={<MyBidsPage />} />
-              <Route path="/watchlist" element={<Navigate to="/account/watchlist" replace />} />
+              <Route path="/watchlist" element={<Navigate to="/my-bids?state=watched" replace />} />
               <Route path="/saved-searches" element={<Navigate to="/account/saved-searches" replace />} />
             </Route>
             <Route path="/how-it-works" element={<HowItWorksPage />} />

@@ -6,7 +6,28 @@ const LEGACY_AUTH_TOKEN_STORAGE_KEY = "webshop_template_auth_token";
 
 type RequestOptions = RequestInit & {
   authenticated?: boolean;
+  _refreshRetried?: boolean;
 };
+
+let refreshPromise: Promise<boolean> | null = null;
+
+async function renewAccessToken() {
+  if (!refreshPromise) {
+    refreshPromise = fetch(`${API_BASE_URL}/api/auth/refresh`, {
+      method: "POST",
+      credentials: "include",
+      cache: "no-store",
+      headers: { "Content-Type": "application/json" },
+    }).then(async (response) => {
+      if (!response.ok) return false;
+      const payload = await response.json() as { access_token?: string };
+      if (!payload.access_token) return false;
+      window.localStorage.setItem(AUTH_TOKEN_STORAGE_KEY, payload.access_token);
+      return true;
+    }).catch(() => false).finally(() => { refreshPromise = null; });
+  }
+  return refreshPromise;
+}
 
 export class ApiError extends Error {
   constructor(message: string, public readonly status: number, public readonly fieldErrors: Record<string, string> = {}) {
@@ -88,10 +109,17 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
     response = await fetch(`${API_BASE_URL}${path}`, {
       ...options,
       headers,
+      credentials: "include",
       cache: options.authenticated === false ? options.cache : "no-store",
     });
   } catch {
     throw new ApiError(normalizeApiErrorMessage(null, 0), 0);
+  }
+
+  if (response.status === 401 && options.authenticated !== false && !options._refreshRetried && path !== "/api/auth/refresh") {
+    if (await renewAccessToken()) {
+      return apiRequest<T>(path, { ...options, _refreshRetried: true });
+    }
   }
 
   if (!response.ok) {

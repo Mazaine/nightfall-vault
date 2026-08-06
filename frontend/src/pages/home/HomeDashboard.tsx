@@ -23,7 +23,7 @@ export function HomeDashboard() {
     if (!isAuthenticated) return;
     try {
       const [bids, auctions, transactions] = await Promise.all([
-        listMyBidAuctionsPage("active", 8, 0),
+        listMyBidAuctionsPage("all", 8, 0),
         listMyAuctions(),
         listTransactions("transaction_open", 8),
       ]);

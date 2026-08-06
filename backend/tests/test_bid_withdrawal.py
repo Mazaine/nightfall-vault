@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import select
 
 from app.db.session import SessionLocal
-from app.models.auction import Auction, Bid
+from app.models.auction import Auction, AuctionBidExclusion, Bid
 from app.models.notification import Notification
 from app.models.security_log import AuditLog
 from app.models.user import User
@@ -59,10 +59,18 @@ def test_top_bid_withdrawal_preserves_history_and_restores_price(monkeypatch) ->
     db = SessionLocal()
     try:
         audit = db.scalar(select(AuditLog).where(AuditLog.action == "auction_bid_withdrawn").order_by(AuditLog.id.desc()))
+        exclusion_audit = db.scalar(select(AuditLog).where(AuditLog.action == "auction_bidder_excluded_after_exit").order_by(AuditLog.id.desc()))
+        exclusion = db.scalar(select(AuctionBidExclusion).where(AuctionBidExclusion.auction_id == auction["id"], AuctionBidExclusion.user_id == second.id))
         assert audit is not None
         assert audit.metadata_json["bid_id"] == top_bid["id"]
+        assert exclusion_audit is not None and exclusion is not None
     finally:
         db.close()
+    lost = client.get("/api/auctions/my-bids/page?state=lost", headers=auth_headers(second))
+    assert lost.status_code == 200
+    assert lost.json()["items"][0]["has_exited"] is True
+    assert lost.json()["items"][0]["participation_note"] == "Kiszálltál ebből az aukcióból."
+    assert place_bid(auction["id"], first, "1300.00").status_code == 201
 
 
 def test_stack_only_allows_current_top_and_successive_owner_withdrawals() -> None:
@@ -112,13 +120,18 @@ def test_withdrawal_time_boundaries_are_explicit(monkeypatch) -> None:
     set_times(auction["id"], exact_bid["id"], now=fixed_now, bid_age_seconds=60, remaining_seconds=300)
     monkeypatch.setattr("app.services.bidding.now_utc", lambda: fixed_now)
     assert withdraw(exact_bid["id"], bidder).status_code == 200
+    excluded = place_bid(auction["id"], bidder, "1200.00")
+    assert excluded.status_code == 403
+    assert "többé nem licitálhatsz" in excluded.json()["detail"]
 
-    newer = place_bid(auction["id"], bidder, "1200.00").json()
-    set_times(auction["id"], newer["id"], now=fixed_now, bid_age_seconds=61, remaining_seconds=600)
+    older_auction = create_active_auction(seller)
+    newer = place_bid(older_auction["id"], bidder, "1100.00").json()
+    set_times(older_auction["id"], newer["id"], now=fixed_now, bid_age_seconds=61, remaining_seconds=600)
     assert withdraw(newer["id"], bidder).status_code == 422
 
-    latest = place_bid(auction["id"], bidder, "1300.00").json()
-    set_times(auction["id"], latest["id"], now=fixed_now, bid_age_seconds=10, remaining_seconds=299)
+    ending_auction = create_active_auction(seller)
+    latest = place_bid(ending_auction["id"], bidder, "1100.00").json()
+    set_times(ending_auction["id"], latest["id"], now=fixed_now, bid_age_seconds=10, remaining_seconds=299)
     assert withdraw(latest["id"], bidder).status_code == 422
 
 

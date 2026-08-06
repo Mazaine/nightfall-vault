@@ -132,7 +132,7 @@ class BidCreate(BaseModel):
 
 
 class BidWithdrawalRequest(BaseModel):
-    reason_code: Literal["accidental", "wrong_amount", "technical_issue", "other"]
+    reason_code: Literal["accidental", "wrong_amount", "technical_issue", "leave_auction", "other"]
     reason_text: str | None = Field(default=None, max_length=500)
 
     @model_validator(mode="after")
@@ -309,12 +309,18 @@ class AuctionListItem(BaseModel):
 
 class MyBidAuctionItem(BaseModel):
     auction: AuctionListItem
-    my_highest_bid: Decimal
+    my_highest_bid: Decimal | None = None
     is_leading: bool
     has_won: bool
     is_outbid: bool
     my_last_bid_at: datetime | None = None
     transaction_id: int | None = None
+    top_bid_id: int | None = None
+    can_withdraw: bool = False
+    withdrawal_block_reason: str | None = None
+    has_exited: bool = False
+    is_watched: bool = False
+    participation_note: str | None = None
 
 
 class MyBidAuctionPage(BaseModel):

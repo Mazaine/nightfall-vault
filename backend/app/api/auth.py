@@ -2,8 +2,9 @@
 import logging
 import secrets
 from datetime import datetime, timedelta, timezone
+from uuid import uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -16,6 +17,7 @@ from app.dependencies.auth import require_active_user
 from app.models.email_verification_token import EmailVerificationToken
 from app.models.newsletter import NewsletterSubscriber
 from app.models.password_reset_token import PasswordResetToken
+from app.models.refresh_session import RefreshSession
 from app.models.user import User
 from app.schemas.auth import ForgotPasswordRequest, LoginRequest, MessageResponse, ResendVerificationRequest, ResetPasswordRequest, TokenResponse
 from app.schemas.user import AccountDeleteRequest, NotificationPreferencesRead, NotificationPreferencesUpdate, PasswordChangeRequest, UserCreate, UserMeRead, UserProfileUpdate
@@ -25,6 +27,36 @@ from app.services.security_audit import create_login_attempt
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 logger = logging.getLogger(__name__)
+
+
+def _refresh_digest(token: str) -> str:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def _set_refresh_cookie(response: Response, token: str) -> None:
+    response.set_cookie(
+        settings.refresh_cookie_name,
+        token,
+        max_age=settings.refresh_token_expire_days * 86400,
+        httponly=True,
+        secure=settings.environment.strip().lower() == "production",
+        samesite="lax",
+        path="/api/auth",
+    )
+
+
+def _new_refresh_session(db: Session, user: User, request: Request, *, family_id: str | None = None) -> str:
+    raw = secrets.token_urlsafe(48)
+    db.add(RefreshSession(
+        user_id=user.id,
+        token_digest=_refresh_digest(raw),
+        family_id=family_id or str(uuid4()),
+        auth_version=user.auth_version,
+        expires_at=datetime.now(timezone.utc) + timedelta(days=settings.refresh_token_expire_days),
+        ip_address=get_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+    ))
+    return raw
 
 
 def hash_reset_token(token: str) -> str:
@@ -118,6 +150,7 @@ def register(
 def login(
     login_request: LoginRequest,
     request: Request,
+    response: Response,
     db: Session = Depends(get_db),
 ) -> TokenResponse:
     check_rate_limit(request, "auth:login", settings.login_rate_limit_per_minute, login_request.email)
@@ -186,9 +219,57 @@ def login(
         user_agent=user_agent,
         success=True,
     )
+    refresh_token = _new_refresh_session(db, user, request)
     db.commit()
+    _set_refresh_cookie(response, refresh_token)
     access_token = create_access_token(subject=user.id, session_version=user.auth_version)
     return TokenResponse(access_token=access_token, user=UserMeRead.model_validate(user))
+
+
+@router.post("/refresh", response_model=TokenResponse)
+def refresh_session(request: Request, response: Response, db: Session = Depends(get_db)) -> TokenResponse:
+    raw = request.cookies.get(settings.refresh_cookie_name)
+    if not raw:
+        raise HTTPException(status_code=401, detail="A munkamenet megújítása nem lehetséges.")
+    session = db.scalar(select(RefreshSession).where(RefreshSession.token_digest == _refresh_digest(raw)).with_for_update())
+    now = datetime.now(timezone.utc)
+    if session is None:
+        response.delete_cookie(settings.refresh_cookie_name, path="/api/auth")
+        raise HTTPException(status_code=401, detail="A munkamenet érvénytelen.")
+    if session.revoked_at is not None:
+        for member in db.scalars(select(RefreshSession).where(RefreshSession.family_id == session.family_id, RefreshSession.revoked_at.is_(None))).all():
+            member.revoked_at = now
+        db.commit()
+        response.delete_cookie(settings.refresh_cookie_name, path="/api/auth")
+        raise HTTPException(status_code=401, detail="A munkamenet biztonsági okból megszűnt.")
+    expires_at = session.expires_at if session.expires_at.tzinfo else session.expires_at.replace(tzinfo=timezone.utc)
+    user = db.get(User, session.user_id)
+    if expires_at <= now or user is None or not user.is_active or user.deleted_at is not None or session.auth_version != user.auth_version:
+        session.revoked_at = now
+        db.commit()
+        response.delete_cookie(settings.refresh_cookie_name, path="/api/auth")
+        raise HTTPException(status_code=401, detail="A munkamenet lejárt.")
+    from app.services.moderation_actions import require_not_fully_banned
+    require_not_fully_banned(db, user.id)
+    replacement = _new_refresh_session(db, user, request, family_id=session.family_id)
+    session.revoked_at = now
+    session.last_used_at = now
+    session.replaced_by_digest = _refresh_digest(replacement)
+    db.commit()
+    _set_refresh_cookie(response, replacement)
+    return TokenResponse(access_token=create_access_token(subject=user.id, session_version=user.auth_version), user=UserMeRead.model_validate(user))
+
+
+@router.post("/logout", response_model=MessageResponse)
+def logout(request: Request, response: Response, db: Session = Depends(get_db)) -> MessageResponse:
+    raw = request.cookies.get(settings.refresh_cookie_name)
+    if raw:
+        session = db.scalar(select(RefreshSession).where(RefreshSession.token_digest == _refresh_digest(raw)))
+        if session is not None and session.revoked_at is None:
+            session.revoked_at = datetime.now(timezone.utc)
+            db.commit()
+    response.delete_cookie(settings.refresh_cookie_name, path="/api/auth")
+    return MessageResponse(message="Sikeresen kijelentkeztél.")
 
 
 @router.post("/forgot-password", response_model=MessageResponse)

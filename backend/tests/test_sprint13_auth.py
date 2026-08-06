@@ -45,6 +45,21 @@ def create_verified_user(prefix: str, role: str = "user") -> User:
         db.close()
 
 
+def test_refresh_session_rotates_and_logout_revokes_cookie() -> None:
+    user = create_verified_user("refresh-session")
+    with TestClient(app) as browser:
+        login = browser.post("/api/auth/login", json={"email": user.email, "password": "OldPassword123!"})
+        assert login.status_code == 200
+        first_cookie = browser.cookies.get("nightfall_refresh")
+        assert first_cookie
+        refreshed = browser.post("/api/auth/refresh")
+        assert refreshed.status_code == 200
+        assert browser.cookies.get("nightfall_refresh") != first_cookie
+        assert refreshed.json()["access_token"] != login.json()["access_token"]
+        assert browser.post("/api/auth/logout").status_code == 200
+        assert browser.post("/api/auth/refresh").status_code == 401
+
+
 def test_registration_activation_login_and_me(monkeypatch) -> None:
     sent_urls: list[str] = []
     monkeypatch.setattr("app.api.auth.send_email_verification_email", lambda _email, url: sent_urls.append(url) or True)

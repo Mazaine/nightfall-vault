@@ -4,12 +4,9 @@ const accountItems = [
   { to: "/account/transactions", label: "Tranzakcióim" },
   { to: "/account/messages", label: "Üzeneteim" },
   { to: "/account/profile", label: "Profilbeállítások" },
-  { to: "/my-bids", label: "Licitjeim" },
   { to: "/account/auctions", label: "Saját aukcióim" },
   { to: "/account/vip", label: "VIP tagság" },
   { to: "/account/notifications", label: "Értesítések" },
-  { to: "/account/saved-searches", label: "Mentett keresések" },
-  { to: "/account/watchlist", label: "Figyelőlista" },
   { to: "/account/reports", label: "Jelentéseim" },
   { to: "/account/blocked-users", label: "Blokkolt felhasználók" },
 ];

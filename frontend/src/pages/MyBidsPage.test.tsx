@@ -5,6 +5,7 @@ import { MyBidsPage } from "./MyBidsPage";
 
 const mocks = vi.hoisted(() => ({ list: vi.fn() }));
 vi.mock("../api/auctions", async (importOriginal) => ({ ...(await importOriginal<typeof import("../api/auctions")>()), listMyBidAuctionsPage: mocks.list }));
+vi.mock("../AuthContext", () => ({ useAuth: () => ({ isAuthenticated: true }) }));
 
 const auction = {
   id: 44, seller_id: 2, title: "Ritka kártya", category: "Pokemon", condition: "fresh", status: "active",
@@ -16,12 +17,12 @@ const auction = {
 describe("MyBidsPage", () => {
   beforeEach(() => mocks.list.mockReset());
 
-  it("szűrhető, állapotot és következő műveletet mutató licitkártyát jelenít meg", async () => {
+  it("szűrhető, személyes állapotot és közös aukciókártyát jelenít meg", async () => {
     mocks.list.mockResolvedValue({ items: [{ auction, my_highest_bid: "1600", is_leading: false, has_won: false, is_outbid: true, transaction_id: null }], total: 1, limit: 12, offset: 0, server_time: new Date().toISOString() });
     render(<MemoryRouter><MyBidsPage /></MemoryRouter>);
-    expect((await screen.findAllByText("Rád licitáltak")).length).toBeGreaterThan(0);
+    expect(await screen.findByText("Rád licitáltak")).toBeInTheDocument();
     expect(screen.getByText("1800 Ft")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Új licit" })).toHaveAttribute("href", "/auctions/44#bid-section");
+    expect(screen.getByRole("button", { name: "Licitálok" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("tab", { name: "Én vezetek" }));
     await waitFor(() => expect(mocks.list).toHaveBeenLastCalledWith("leading", 12, 0));
   });

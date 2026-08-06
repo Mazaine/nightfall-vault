@@ -10,6 +10,8 @@ class Settings(BaseSettings):
     secret_key: str = ""
     access_token_algorithm: str = "HS256"
     access_token_expire_minutes: int = 30
+    refresh_token_expire_days: int = 30
+    refresh_cookie_name: str = "nightfall_refresh"
     smtp_host: str | None = None
     smtp_port: int = 587
     smtp_user: str | None = None

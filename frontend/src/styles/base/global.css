@@ -297,15 +297,15 @@ h3 {
 .hero-section {
   position: relative;
   isolation: isolate;
-  min-height: 40rem;
-  padding: clamp(6rem, 10vw, 8rem) 0 var(--space-6);
+  min-height: 33rem;
+  padding: clamp(4.75rem, 8vw, 6.25rem) 0 var(--space-5);
 }
 
 .hero-media {
   position: absolute;
   inset: 4.75rem var(--space-4) auto;
   z-index: -1;
-  height: clamp(26rem, 48vw, 34rem);
+  height: clamp(23rem, 40vw, 28rem);
   border: 1px solid var(--color-divider);
   background:
     linear-gradient(90deg, rgb(5 5 9 / 0.88) 0%, rgb(5 5 9 / 0.42) 38%, rgb(5 5 9 / 0.78) 100%),
@@ -519,7 +519,22 @@ h3 {
   flex-direction: column;
   overflow: hidden;
   border-radius: var(--radius-md);
+  cursor: pointer;
 }
+
+.auction-card-personal-leading { border-color: #4fc77b; box-shadow: 0 0 0 1px rgb(79 199 123 / 28%); }
+.auction-card-personal-outbid { border-color: #e16464; box-shadow: 0 0 0 1px rgb(225 100 100 / 25%); }
+.auction-card-personal-watched { border-color: #d3ae3f; box-shadow: 0 0 0 1px rgb(211 174 63 / 22%); }
+.auction-card-personal-exited { opacity: .78; }
+.auction-personal-badge { position: absolute; left: .75rem; top: .75rem; z-index: 2; border-radius: 999px; padding: .3rem .65rem; background: #15121d; font-size: .75rem; font-weight: 800; }
+.auction-personal-badge.is-leading { color: #6ee29a; }
+.auction-personal-badge.is-outbid { color: #ff8b8b; }
+.auction-personal-badge.is-watched { color: #f2cc55; }
+.auction-personal-badge.is-exited { color: #bbb2c9; }
+.my-bids-card-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.filter-quick-chips { display: flex; flex-wrap: wrap; align-items: center; gap: .55rem; }
+.filter-quick-chips button, .filter-quick-chips a { min-height: 2.5rem; border: 1px solid var(--color-divider); border-radius: 999px; padding: .55rem .85rem; background: transparent; color: inherit; }
+.filter-quick-chips button.is-active { border-color: var(--color-violet-300); background: rgb(126 47 219 / 20%); }
 
 .auction-card-featured {
   border-color: #c69b35;
@@ -1216,7 +1231,7 @@ h3 {
 .bid-filter-tabs { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 .bid-filter-tabs button { min-height: 2.75rem; border: 1px solid var(--color-border); border-radius: 999px; background: var(--color-surface); color: var(--color-text-secondary); padding: .55rem 1rem; }
 .bid-filter-tabs button.is-active { border-color: var(--color-primary); background: rgb(168 85 247 / .16); color: var(--color-text-primary); }
-.my-bids-card-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-4); }
+.my-bids-card-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-4); }
 .my-bid-card { overflow: hidden; border: 1px solid var(--color-border); border-radius: var(--radius-lg); background: var(--color-surface); }
 .my-bid-card.is-outbid { border-color: rgb(240 201 106 / .62); }
 .my-bid-card.is-leading { border-color: rgb(68 184 128 / .48); }
@@ -1338,6 +1353,17 @@ h3 {
 
 .toggle-row input {
   width: auto;
+}
+
+.buy-now-toggle {
+  grid-template-columns: minmax(0, 1fr);
+  justify-items: start;
+}
+
+.toggle-control {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
 }
 
 .bid-panel {
@@ -1510,6 +1536,10 @@ h3 {
   .mobile-bottom-nav a.is-active { color: var(--color-text-primary); }
   .mobile-bottom-nav a.is-primary > span { width: 2.7rem; height: 2.7rem; display: grid; place-items: center; margin-top: -1.15rem; border-radius: 999px; background: var(--color-primary); color: white; font-size: 1.7rem; box-shadow: 0 8px 24px rgb(124 58 237 / .45); }
   .app-shell { padding-bottom: calc(4.5rem + env(safe-area-inset-bottom)); }
+}
+
+@media (max-width: 700px) {
+  .my-bids-card-grid { grid-template-columns: minmax(0, 1fr); }
 }
 .filter-panel {
   display: grid;

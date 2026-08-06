@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta, timezone
 from typing import Any
+from uuid import uuid4
 
 import jwt
 from passlib.context import CryptContext
@@ -31,6 +32,7 @@ def create_access_token(
         "iat": issued_at,
         "exp": expires_at,
         "ver": session_version,
+        "jti": uuid4().hex,
     }
     return jwt.encode(
         payload,

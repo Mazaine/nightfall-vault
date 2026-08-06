@@ -172,14 +172,18 @@ def test_permanent_ban_blocks_login_and_existing_session_but_not_admin_targets()
     )
     assert temporary.status_code == 201
     assert temporary.json()["expires_at"] is not None
-    assert client.get("/api/auth/me", headers=auth_headers(user)).status_code == 403
+    assert client.get("/api/auth/me", headers=auth_headers(user)).status_code == 401
     assert client.post(f"/api/admin/moderation/actions/{temporary.json()['id']}/revoke", headers=auth_headers(admin)).status_code == 200
-    assert client.get("/api/auth/me", headers=auth_headers(user)).status_code == 200
+    assert client.get("/api/auth/me", headers=auth_headers(user)).status_code == 401
+    relogin = client.post("/api/auth/login", json={"email": user.email, "password": "AuctionTest123!"})
+    assert relogin.status_code == 200
+    current_user_headers = {"Authorization": f"Bearer {relogin.json()['access_token']}"}
+    assert client.get("/api/auth/me", headers=current_user_headers).status_code == 200
 
     payload = {"target_user_id": user.id, "action_type": "permanent_ban", "reason": "Súlyos, kivizsgált szabálysértés"}
     applied = client.post("/api/admin/moderation/actions", json=payload, headers=auth_headers(admin))
     assert applied.status_code == 201
-    assert client.get("/api/auth/me", headers=auth_headers(user)).status_code == 403
+    assert client.get("/api/auth/me", headers=current_user_headers).status_code == 401
     assert client.post("/api/auth/login", json={"email": user.email, "password": "AuctionTest123!"}).status_code == 403
     protected_admin = client.post("/api/admin/moderation/actions", json={**payload, "target_user_id": other_admin.id}, headers=auth_headers(admin))
     assert protected_admin.status_code == 403

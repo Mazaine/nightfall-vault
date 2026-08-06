@@ -52,7 +52,7 @@ def run(values: dict[str, str]) -> subprocess.CompletedProcess[str]:
     try:
         os.chmod(path, 0o600)
         return subprocess.run(
-            ["bash", str(VALIDATOR)],
+            [os.environ.get("BASH_EXECUTABLE", "bash"), str(VALIDATOR)],
             cwd=ROOT,
             env={**os.environ, "PRODUCTION_ENV_FILE": str(path)},
             text=True,

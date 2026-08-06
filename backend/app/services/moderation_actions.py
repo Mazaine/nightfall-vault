@@ -89,6 +89,10 @@ def issue_action(db: Session, admin: User, *, target: User, action_type: str, re
     )
     db.add(action)
     db.flush()
+    if action_type in FULL_BANS:
+        # A teljes tiltás a már kiadott access- és refresh-tokeneket is azonnal érvényteleníti.
+        target.auth_version += 1
+        db.add(target)
     audit_action = "moderation_permanent_ban_applied" if action_type == "permanent_ban" else ("moderation_warning_issued" if action_type == "warning" else "moderation_restriction_applied")
     create_domain_audit_log(db, action=audit_action, user_id=admin.id, metadata={"target_user_id": target.id, "moderation_action_id": action.id, "type": action_type})
     create_notification(db, user_id=target.id, notification_type="moderation_action", title="Moderációs intézkedés", message=f"{moderation_action_label(action_type)}: {reason}", send_email=True)

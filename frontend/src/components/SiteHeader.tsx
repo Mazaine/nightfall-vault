@@ -16,8 +16,6 @@ const navItems = [
 
 const accountItems = [
   ["Profilbeállítások", "/account/profile"],
-  ["Mentett keresések", "/account/saved-searches"],
-  ["Figyelőlista", "/account/watchlist"],
   ["Értesítések", "/account/notifications"],
   ["Jelentéseim", "/account/reports"],
   ["Blokkolt felhasználók", "/account/blocked-users"],

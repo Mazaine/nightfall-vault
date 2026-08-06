@@ -66,6 +66,7 @@ class Auction(Base):
     messages = relationship("AuctionMessage", back_populates="auction", cascade="all, delete-orphan", order_by="AuctionMessage.created_at")
     reviews = relationship("AuctionReview", back_populates="auction", cascade="all, delete-orphan")
     watchlist_entries = relationship("WatchlistItem", back_populates="auction", cascade="all, delete-orphan")
+    bid_exclusions = relationship("AuctionBidExclusion", back_populates="auction", cascade="all, delete-orphan")
 
 
 class AuctionImage(Base):
@@ -120,6 +121,22 @@ class Bid(Base):
     auction = relationship("Auction", back_populates="bids", foreign_keys=[auction_id])
     bidder = relationship("User", foreign_keys=[bidder_id])
     withdrawn_by_user = relationship("User", foreign_keys=[withdrawn_by_user_id])
+
+
+class AuctionBidExclusion(Base):
+    __tablename__ = "auction_bid_exclusions"
+    __table_args__ = (UniqueConstraint("auction_id", "user_id", name="uq_auction_bid_exclusions_auction_user"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    auction_id: Mapped[int] = mapped_column(ForeignKey("auctions.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    source_bid_id: Mapped[int | None] = mapped_column(ForeignKey("bids.id", ondelete="SET NULL"), nullable=True)
+    reason: Mapped[str] = mapped_column(String(40), nullable=False, default="user_exit")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+    auction = relationship("Auction", back_populates="bid_exclusions")
+    user = relationship("User", foreign_keys=[user_id])
+    source_bid = relationship("Bid", foreign_keys=[source_bid_id])
 
 
 class AuctionMessage(Base):

@@ -1,5 +1,5 @@
 import { createContext, ReactNode, useContext, useEffect, useMemo, useState } from "react";
-import { getMe, login as loginRequest, type AuthUser } from "./api/auth";
+import { getMe, login as loginRequest, logoutSession, type AuthUser } from "./api/auth";
 import { AUTH_TOKEN_STORAGE_KEY, SESSION_EXPIRED_EVENT, USER_STORAGE_KEY } from "./api/client";
 
 type AuthContextValue = {
@@ -59,11 +59,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [sessionMessage, setSessionMessage] = useState<string | null>(null);
 
   const refreshMe = async () => {
-    if (!window.localStorage.getItem(AUTH_TOKEN_STORAGE_KEY) && !window.localStorage.getItem("webshop_template_auth_token")) {
-      setUser(null);
-      setIsLoading(false);
-      return null;
-    }
     try {
       const currentUser = await getMe();
       setUser(currentUser);
@@ -107,6 +102,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return response.user;
     },
     logout: () => {
+      void logoutSession().catch(() => undefined);
       clearSession();
       setUser(null);
       setSessionMessage(null);

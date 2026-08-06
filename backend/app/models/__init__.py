@@ -1,5 +1,5 @@
 from app.models.category import Category
-from app.models.auction import Auction, AuctionImage, AuctionMessage, AuctionReview, Bid, WatchlistItem
+from app.models.auction import Auction, AuctionBidExclusion, AuctionImage, AuctionMessage, AuctionReview, Bid, WatchlistItem
 from app.models.email_verification_token import EmailVerificationToken
 from app.models.newsletter import NewsletterCampaign, NewsletterSubscriber
 from app.models.moderation import ModerationAction, Report, UserBlock, UserStrike
@@ -12,12 +12,14 @@ from app.models.product_variant import ProductVariant
 from app.models.shipping import ShippingMethod
 from app.models.stock_movement import StockMovement
 from app.models.security_log import AuditLog, LoginAttempt
+from app.models.refresh_session import RefreshSession
 from app.models.transaction import AuctionTransaction
 from app.models.user import SavedSearch, SellerFollow, User, VipActivationCode
 
 __all__ = [
     "Category",
     "Auction",
+    "AuctionBidExclusion",
     "AuctionImage",
     "AuctionMessage",
     "AuctionReview",
@@ -43,6 +45,7 @@ __all__ = [
     "StockMovement",
     "AuditLog",
     "LoginAttempt",
+    "RefreshSession",
     "AuctionTransaction",
     "User",
     "SellerFollow",

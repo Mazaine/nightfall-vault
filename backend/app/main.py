@@ -23,6 +23,7 @@ from app.api.notifications import router as notifications_router
 from app.api.realtime import router as realtime_router
 from app.api.reports import router as reports_router
 from app.api.searches import router as searches_router
+from app.api.social_preview import router as social_preview_router
 from app.api.test_email import router as test_email_router
 from app.api.transactions import router as transactions_router
 from app.api.moderation_actions import router as moderation_actions_router
@@ -98,7 +99,7 @@ SAFE_REQUEST_ID = re.compile(r"^[A-Za-z0-9._:-]{1,128}$")
 
 PRIVATE_API_PREFIXES = (
     "/api/admin",
-    "/api/auth/me",
+    "/api/auth",
     "/api/blocks",
     "/api/bids",
     "/api/notifications",
@@ -342,6 +343,7 @@ app.add_middleware(
 )
 
 app.include_router(health_router)
+app.include_router(social_preview_router)
 app.include_router(auth_router)
 app.include_router(blocks_router)
 app.include_router(bids_router)

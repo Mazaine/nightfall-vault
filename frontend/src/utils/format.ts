@@ -19,7 +19,8 @@ export function formatHuf(amount: number) {
   return `${amount.toLocaleString("hu-HU")},00 Ft`;
 }
 
-export function formatMoney(value: string | number) {
+export function formatMoney(value: string | number | null | undefined) {
+  if (value === null || value === undefined) return "—";
   const amount = typeof value === "number" ? value : Number(value);
   if (Number.isNaN(amount)) {
     return "0 Ft";

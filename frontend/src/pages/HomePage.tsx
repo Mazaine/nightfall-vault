@@ -7,9 +7,9 @@ export function HomePage() {
   return (
     <>
       <HomeHero />
-      <HomeDashboard />
-      <HomeWhatsNew />
       <HomeFeatured />
+      <HomeWhatsNew />
+      <HomeDashboard />
     </>
   );
 }

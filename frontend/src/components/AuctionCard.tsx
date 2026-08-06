@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router";
-import { placeAuctionBid } from "../api/auctions";
+import { placeAuctionBid, withdrawAuctionBid } from "../api/auctions";
 import { useAuth } from "../AuthContext";
 import { formatMoney } from "../utils/format";
 import { AuctionCountdown } from "./AuctionCountdown";
@@ -41,6 +41,11 @@ type AuctionCardProps = {
     bidCount?: number;
     canBid?: boolean;
     isFeatured?: boolean;
+    personalStatus?: "leading" | "outbid" | "watched" | "exited";
+    topBidId?: number | null;
+    canWithdraw?: boolean;
+    withdrawalBlockReason?: string | null;
+    participationNote?: string | null;
   };
   index: number;
   detailPath: string;
@@ -66,6 +71,7 @@ export function AuctionCard({
   const [isActionPending, setIsActionPending] = useState(false);
   const [isLocallyClosed, setIsLocallyClosed] = useState(Boolean(item.isClosed));
   const [actionMessage, setActionMessage] = useState("");
+  const [personalStatus, setPersonalStatus] = useState(item.personalStatus);
   const parsedSellerRating = typeof item.sellerRating === "number"
     ? item.sellerRating
     : Number.parseFloat(String(item.sellerRating ?? "").replace(",", "."));
@@ -81,6 +87,26 @@ export function AuctionCard({
     setNextBidAmount(currentCents !== null && stepCents !== null ? centsToAmount(currentCents + stepCents) : "");
     setIsLocallyClosed(Boolean(item.isClosed));
   }, [item.bidIncrementAmount, item.currentAmount, item.isClosed, item.price]);
+
+  useEffect(() => setPersonalStatus(item.personalStatus), [item.personalStatus]);
+
+  const exitAuction = async () => {
+    if (!item.topBidId || isActionPending || !item.canWithdraw) return;
+    const confirmed = window.confirm("Biztosan kiszállsz ebből az aukcióból?\n\nA legutolsó licited semmissé válik, kiesik az aukció számításából, és ez az aukció többé nem lesz licitálható számodra.");
+    if (!confirmed) return;
+    setIsActionPending(true);
+    setActionMessage("");
+    try {
+      const result = await withdrawAuctionBid(item.topBidId, "leave_auction", null);
+      setDisplayPrice(formatMoney(result.current_price));
+      setPersonalStatus("exited");
+      setActionMessage("Kiszálltál az aukcióból. Ezen az aukción többé nem licitálhatsz.");
+    } catch (error) {
+      setActionMessage(error instanceof Error ? error.message : "A kiszállás nem sikerült.");
+    } finally {
+      setIsActionPending(false);
+    }
+  };
 
   const submitQuickAction = async (amount: string, isBuyNow = false) => {
     if (!isAuthenticated) {
@@ -106,7 +132,14 @@ export function AuctionCard({
   };
 
   return (
-    <article aria-label={`${item.title} aukció`} className={`auction-card auction-card-${index + 1}${isLocallyClosed ? " auction-card-closed" : ""}${item.isFeatured ? " auction-card-featured" : ""}`}>
+    <article
+      aria-label={`${item.title} aukció${personalStatus ? `, ${personalStatus === "leading" ? "te vezetsz" : personalStatus === "outbid" ? "rád licitáltak" : personalStatus === "watched" ? "figyelt aukció" : "kiszálltál"}` : ""}`}
+      className={`auction-card auction-card-${index + 1}${isLocallyClosed ? " auction-card-closed" : ""}${item.isFeatured ? " auction-card-featured" : ""}${personalStatus ? ` auction-card-personal-${personalStatus}` : ""}`}
+      role="link"
+      tabIndex={0}
+      onClick={(event) => { if (!(event.target as HTMLElement).closest("a,button,input,select,textarea")) navigate(detailPath); }}
+      onKeyDown={(event) => { if ((event.key === "Enter" || event.key === " ") && event.target === event.currentTarget) { event.preventDefault(); navigate(detailPath); } }}
+    >
       <div className="auction-image">
         <SafeImage src={item.imageUrl} alt={item.title} loading="lazy" decoding="async" width={700} height={700} />
       </div>
@@ -114,6 +147,7 @@ export function AuctionCard({
         ? <AuctionCountdown className="auction-time" endsAt={item.endsAt} status={item.status} fiveMinuteRuleEnabled={item.fiveMinuteRuleEnabled} fallback={item.time} />
         : showTimer ? <div className="auction-time">{item.time}</div> : null}
       {item.userIsOutbid && <div className="auction-alert">Rád licitáltak</div>}
+      {personalStatus ? <div className={`auction-personal-badge is-${personalStatus}`}>{personalStatus === "leading" ? "Te vezetsz" : personalStatus === "outbid" ? "Rád licitáltak" : personalStatus === "watched" ? "Figyelőlistán" : "Kiszálltál"}</div> : null}
 
       <div className="auction-content">
         {item.isFeatured ? <span className="vip-featured-badge">VIP KIEMELT</span> : null}
@@ -146,12 +180,13 @@ export function AuctionCard({
         {typeof item.bidCount === "number" ? <small>{item.bidCount} licit</small> : null}
 
         <div className="auction-actions">
-          {showBidActions ? !isLocallyClosed && item.canBid !== false ? <>
+          {showBidActions ? personalStatus === "leading" ? <button className="button button-secondary" type="button" disabled={isActionPending || !item.canWithdraw} title={item.withdrawalBlockReason ?? undefined} onClick={() => void exitAuction()}>{isActionPending ? "Feldolgozás..." : "Kiszállok"}</button> : !isLocallyClosed && item.canBid !== false && personalStatus !== "exited" ? <>
             <button className="button button-secondary" type="button" disabled={isActionPending || !nextBidAmount} onClick={() => void submitQuickAction(nextBidAmount)}>{isActionPending ? "Feldolgozás..." : "Licitálok"}</button>
             {item.buyNowAmount ? <button className="button button-lightning" type="button" disabled={isActionPending} onClick={() => void submitQuickAction(item.buyNowAmount ?? "", true)}>⚡ Lecsapom</button> : null}
           </> : <Link className="button button-secondary" to={detailPath}>Aukció megnyitása</Link> : null}
         </div>
         {actionMessage ? <p className="form-message auction-action-message" role="status" aria-live="polite">{actionMessage}</p> : null}
+        {!actionMessage && item.participationNote ? <p className="form-message auction-action-message">{item.participationNote}</p> : null}
       </div>
     </article>
   );

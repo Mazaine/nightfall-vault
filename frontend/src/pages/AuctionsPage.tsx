@@ -181,6 +181,11 @@ export function AuctionsPage() {
       </div>
 
       <form className="filter-panel side-panel" onSubmit={submitFilters}>
+        <div className="filter-quick-chips filter-wide" aria-label="Gyorsszűrők">
+          <button className={filters.soon_ending ? "is-active" : ""} type="button" aria-pressed={filters.soon_ending} onClick={() => setFilters({ ...filters, soon_ending: !filters.soon_ending })}>24 órán belül lejár</button>
+          <button className={filters.new_only ? "is-active" : ""} type="button" aria-pressed={filters.new_only} onClick={() => setFilters({ ...filters, new_only: !filters.new_only })}>Az elmúlt 7 nap új aukciói</button>
+          {isAuthenticated ? <Link to="/account/saved-searches">Mentett kereséseim</Link> : null}
+        </div>
         <label className="filter-wide">
           Gyorskeresés
           <input type="search" maxLength={180} placeholder="Cím, leírás vagy eladó" value={filters.q} onChange={(event) => setFilters({ ...filters, q: event.target.value })} />

@@ -9,6 +9,8 @@ const auditActionLabels: Record<string, string> = {
   auction_status_changed: "Aukcióállapot módosítása",
   auction_message_sent: "Aukciós üzenet elküldése",
   auction_bid: "Licit rögzítése",
+  auction_bid_withdrawn: "Licit visszavonása",
+  auction_bidder_excluded_after_exit: "Végleges kiszállás az aukcióból",
   auction_buy_now: "Villámáras lezárás",
   auction_moderated_suspend: "Aukció felfüggesztése",
   auction_moderated_restore: "Aukció visszaállítása",

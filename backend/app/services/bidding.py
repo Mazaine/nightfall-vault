@@ -7,7 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from app.core.config import settings
-from app.models.auction import Auction, Bid
+from app.models.auction import Auction, AuctionBidExclusion, Bid
 from app.models.transaction import AuctionTransaction
 from app.models.user import User
 from app.services.auction_lifecycle import FIVE_MINUTE_EXTENSION, can_view_auction, effective_auction_end, normalize_money, now_utc, sync_auction_status
@@ -192,6 +192,17 @@ def withdraw_bid(
     target.withdrawal_reason_code = reason_code
     target.withdrawal_reason_text = reason_text
     target.withdrawn_by_user_id = bidder.id
+    exclusion = db.scalar(select(AuctionBidExclusion).where(
+        AuctionBidExclusion.auction_id == auction.id,
+        AuctionBidExclusion.user_id == bidder.id,
+    ))
+    if exclusion is None:
+        db.add(AuctionBidExclusion(
+            auction_id=auction.id,
+            user_id=bidder.id,
+            source_bid_id=target.id,
+            reason="user_exit",
+        ))
 
     remaining = active_bids[1:]
     next_top = remaining[0] if remaining else None
@@ -203,6 +214,10 @@ def withdraw_bid(
     warning_due = (
         bidder.bid_withdrawal_count >= settings.bid_withdrawal_warning_threshold
         and bidder.bid_withdrawal_first_warning_sent_at is None
+    )
+    create_domain_audit_log(
+        db, action="auction_bidder_excluded_after_exit", user_id=bidder.id, auction_id=auction.id,
+        metadata={"bid_id": target.id, "reason": "user_exit"},
     )
     if warning_due:
         bidder.bid_withdrawal_warning_level = settings.bid_withdrawal_warning_threshold
@@ -316,6 +331,11 @@ def place_bid(db: Session, auction_id: int, bidder: User, amount: Decimal) -> tu
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Licit csak aktív aukcióra adható le.")
     if auction.seller_id == bidder.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="A saját aukciódra nem licitálhatsz.")
+    if db.scalar(select(AuctionBidExclusion.id).where(
+        AuctionBidExclusion.auction_id == auction.id,
+        AuctionBidExclusion.user_id == bidder.id,
+    )) is not None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Kiszálltál ebből az aukcióból, ezért itt többé nem licitálhatsz.")
     if normalized_amount <= 0:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="A licit összegének pozitívnak kell lennie.")
 

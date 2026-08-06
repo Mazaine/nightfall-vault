@@ -66,7 +66,7 @@ describe("SiteHeader", () => {
     render(<MemoryRouter><SiteHeader /></MemoryRouter>);
     fireEvent.click(screen.getByRole("button", { name: "Felhasználói menü" }));
     const firstItem = screen.getByRole("menuitem", { name: "Profilbeállítások" });
-    const secondItem = screen.getByRole("menuitem", { name: "Mentett keresések" });
+    const secondItem = screen.getByRole("menuitem", { name: "Értesítések" });
     await waitFor(() => expect(firstItem).toHaveFocus());
     fireEvent.keyDown(firstItem, { key: "ArrowDown" });
     expect(secondItem).toHaveFocus();

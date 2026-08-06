@@ -39,6 +39,10 @@ export async function login(email: string, password: string, captchaToken?: stri
   return response;
 }
 
+export function logoutSession() {
+  return apiRequest<MessageResponse>("/api/auth/logout", { method: "POST", authenticated: false });
+}
+
 export async function register(payload: RegisterRequest) {
   return apiRequest<MessageResponse>("/api/auth/register", {
     method: "POST",
