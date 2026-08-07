@@ -9,10 +9,26 @@ export type PublicReview = {
   id: number;
   auction_id: number;
   auction_title: string;
-  reviewer_username: string;
   rating: number;
   comment: string | null;
   created_at: string;
+};
+
+export type PublicBusinessHistoryItem = {
+  auction_id: number;
+  auction_title: string;
+  image_url: string | null;
+  closed_at: string;
+  final_price: string;
+  public_status: "lezárás_folyamatban" | "sikeresen_lezárt";
+  rating: number | null;
+};
+
+export type PublicBusinessHistoryPage = {
+  items: PublicBusinessHistoryItem[];
+  total: number;
+  limit: number;
+  offset: number;
 };
 
 export type PublicReviewPage = {
@@ -27,6 +43,7 @@ export type PublicUserProfile = {
   full_name: string;
   created_at: string;
   stats: {
+    review_count: number;
     positive_reviews: number;
     negative_reviews: number;
     average_rating: number | null;
@@ -91,4 +108,8 @@ export function unfollowSeller(username: string) {
 
 export function listFollowing() {
   return apiRequest<FollowedSeller[]>("/api/following");
+}
+
+export function listPublicBusinessHistory(username: string, params: { limit?: number; offset?: number } = {}) {
+  return apiRequest<PublicBusinessHistoryPage>(`/api/users/${encodeURIComponent(username)}/business-history${query(params)}`, { authenticated: false });
 }

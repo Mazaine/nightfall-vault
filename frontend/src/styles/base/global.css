@@ -518,6 +518,7 @@ h3 {
   display: grid;
   gap: var(--space-2);
   margin-top: auto;
+  grid-template-rows: minmax(3.1rem, auto) minmax(3.45rem, auto) minmax(1.25rem, auto);
 }
 
 .auction-price-action-row {
@@ -696,6 +697,13 @@ h3 {
   padding: var(--space-4);
 }
 
+.auction-card-badges {
+  display: flex;
+  min-height: 1.75rem;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
 .auction-content h3 {
   display: -webkit-box;
   height: 2.5em;
@@ -745,6 +753,7 @@ h3 {
 
 .auction-card-status-row {
   display: flex;
+  min-height: 2.25rem;
   min-width: 0;
   align-items: center;
   justify-content: space-between;
@@ -779,11 +788,31 @@ h3 {
 }
 
 .seller-meta {
-  display: grid;
-  gap: 0.15rem;
+  display: flex;
+  min-height: 3rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
   border-top: 1px solid var(--color-divider);
   border-bottom: 1px solid var(--color-divider);
   padding: var(--space-2) 0;
+}
+
+.seller-identity {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.seller-profile-link {
+  color: var(--color-violet-300);
+  font-weight: var(--font-weight-semibold);
+  text-decoration: none;
+}
+
+.seller-profile-link:hover,
+.seller-profile-link:focus-visible {
+  color: var(--color-accent-gold);
+  text-decoration: underline;
 }
 
 .seller-rating-line {
@@ -791,6 +820,20 @@ h3 {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);
+  justify-content: flex-end;
+  white-space: nowrap;
+}
+
+.seller-rating-value {
+  font-size: var(--font-size-caption) !important;
+}
+
+.auction-buy-now-empty {
+  color: var(--color-text-muted) !important;
+}
+
+.auction-actions-slot {
+  min-height: 2.75rem;
 }
 
 .auction-actions,
@@ -1895,6 +1938,67 @@ h3 {
   width: min(100%, 18rem);
 }
 
+.profile-tab-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-bottom: var(--space-5);
+  border-bottom: 1px solid var(--color-divider);
+}
+
+.profile-tab-list button {
+  min-height: 2.75rem;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-weight: var(--font-weight-semibold);
+  padding: var(--space-2) var(--space-3);
+}
+
+.profile-tab-list button.is-active {
+  border-bottom-color: var(--color-violet-300);
+  color: var(--color-text-primary);
+}
+
+.business-history-list {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.business-history-row {
+  display: grid;
+  grid-template-columns: 5rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: rgb(255 255 255 / 0.045);
+  padding: var(--space-3);
+}
+
+.business-history-image,
+.business-history-image img {
+  width: 5rem;
+  height: 5rem;
+  border-radius: var(--radius-sm);
+}
+
+.business-history-image {
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: rgb(255 255 255 / 0.035);
+}
+
+.business-history-image img { object-fit: cover; }
+.business-history-copy,
+.business-history-result { display: grid; gap: var(--space-1); }
+.business-history-copy span,
+.business-history-result span { color: var(--color-text-muted); font-size: var(--font-size-body-sm); }
+.business-history-result { justify-items: end; text-align: right; }
+.profile-load-more { margin-top: var(--space-4); }
+
 @media (max-width: 1100px) {
   .filter-panel,
   .skeleton-grid,
@@ -1920,10 +2024,23 @@ h3 {
     flex-direction: column;
   }
 
+  .seller-meta {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
   .profile-reviews-heading .compact-select {
     flex: none;
     width: 100%;
   }
+
+  .business-history-row {
+    grid-template-columns: 4rem minmax(0, 1fr);
+  }
+
+  .business-history-image,
+  .business-history-image img { width: 4rem; height: 4rem; }
+  .business-history-result { grid-column: 1 / -1; justify-items: start; text-align: left; }
 }
 
 /* Sprint 8 trust & safety surfaces */

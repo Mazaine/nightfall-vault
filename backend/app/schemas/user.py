@@ -190,7 +190,6 @@ class PublicReviewRead(BaseModel):
     id: int
     auction_id: int
     auction_title: str
-    reviewer_username: str
     rating: int
     comment: str | None
     created_at: datetime
@@ -203,7 +202,25 @@ class PublicReviewPage(BaseModel):
     offset: int
 
 
+class PublicBusinessHistoryRead(BaseModel):
+    auction_id: int
+    auction_title: str
+    image_url: str | None = None
+    closed_at: datetime
+    final_price: str
+    public_status: Literal["lezárás_folyamatban", "sikeresen_lezárt"]
+    rating: int | None = None
+
+
+class PublicBusinessHistoryPage(BaseModel):
+    items: list[PublicBusinessHistoryRead]
+    total: int
+    limit: int
+    offset: int
+
+
 class PublicUserStats(BaseModel):
+    review_count: int
     positive_reviews: int
     negative_reviews: int
     average_rating: float | None

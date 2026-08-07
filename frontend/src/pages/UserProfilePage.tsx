@@ -2,10 +2,11 @@ import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router";
 import { blockUser, unblockUser } from "../api/blocks";
 import { createUserReport, userReportReasons } from "../api/reports";
-import { followSeller, getPublicUserProfile, listPublicUserReviews, unfollowSeller, type PublicReview, type PublicUserProfile } from "../api/users";
+import { followSeller, getPublicUserProfile, listPublicBusinessHistory, listPublicUserReviews, unfollowSeller, type PublicBusinessHistoryItem, type PublicReview, type PublicUserProfile } from "../api/users";
+import { apiAssetUrl } from "../api/client";
 import { useAuth } from "../AuthContext";
 import { ReportDialog } from "../components/ReportDialog";
-import { formatAuctionStatus, formatLocalDateTime, formatMoney, formatRemainingTime } from "../utils/format";
+import { formatLocalDateTime, formatMoney, formatRemainingTime } from "../utils/format";
 import { useAuctionRealtime } from "../AuctionRealtimeContext";
 
 function Stars({ value }: { value: number | null }) {
@@ -22,7 +23,7 @@ function ReviewList({ reviews }: { reviews: PublicReview[] }) {
       {reviews.map((review) => (
         <article className="review-row" key={review.id}>
           <div>
-            <strong>{review.reviewer_username}</strong>
+            <strong>Névtelen értékelő</strong>
             <span>{formatLocalDateTime(review.created_at)}</span>
           </div>
           <Stars value={review.rating} />
@@ -34,12 +35,31 @@ function ReviewList({ reviews }: { reviews: PublicReview[] }) {
   );
 }
 
+function BusinessHistory({ items }: { items: PublicBusinessHistoryItem[] }) {
+  if (items.length === 0) return <p className="empty-state">Még nincs publikus üzleti előzmény.</p>;
+  return <div className="business-history-list">{items.map((item) => (
+    <article className="business-history-row" key={item.auction_id}>
+      <div className="business-history-image">{item.image_url ? <img src={apiAssetUrl(item.image_url)} alt="" loading="lazy" /> : <span aria-hidden="true">◇</span>}</div>
+      <div className="business-history-copy">
+        <Link className="text-link" to={`/auctions/${item.auction_id}`}><strong>{item.auction_title}</strong></Link>
+        <span>{formatLocalDateTime(item.closed_at)}</span>
+        <span>{item.public_status === "sikeresen_lezárt" ? "Sikeresen lezárt üzlet" : "Lezárás folyamatban"}</span>
+      </div>
+      <div className="business-history-result"><strong>{formatMoney(item.final_price)}</strong>{item.rating ? <Stars value={item.rating} /> : <span>Még nincs értékelés</span>}</div>
+    </article>
+  ))}</div>;
+}
+
 export function UserProfilePage() {
   const { subscribe } = useAuctionRealtime();
   const { username } = useParams();
   const { user, isAuthenticated } = useAuth();
   const [profile, setProfile] = useState<PublicUserProfile | null>(null);
   const [reviews, setReviews] = useState<PublicReview[]>([]);
+  const [reviewTotal, setReviewTotal] = useState(0);
+  const [businessHistory, setBusinessHistory] = useState<PublicBusinessHistoryItem[]>([]);
+  const [businessHistoryTotal, setBusinessHistoryTotal] = useState(0);
+  const [profileTab, setProfileTab] = useState<"history" | "reviews">("history");
   const [reviewSort, setReviewSort] = useState("newest");
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
@@ -50,10 +70,13 @@ export function UserProfilePage() {
     if (!username) return;
     setIsLoading(true);
     setError("");
-    Promise.all([getPublicUserProfile(username), listPublicUserReviews(username, { sort: reviewSort, limit: 20 })])
-      .then(([profileData, reviewPage]) => {
+    Promise.all([getPublicUserProfile(username), listPublicUserReviews(username, { sort: reviewSort, limit: 20 }), listPublicBusinessHistory(username, { limit: 20 })])
+      .then(([profileData, reviewPage, historyPage]) => {
         setProfile(profileData);
         setReviews(reviewPage.items);
+        setReviewTotal(reviewPage.total);
+        setBusinessHistory(historyPage.items);
+        setBusinessHistoryTotal(historyPage.total);
       })
       .catch((err: Error) => setError(err.message))
       .finally(() => setIsLoading(false));
@@ -105,6 +128,20 @@ export function UserProfilePage() {
     }
   };
 
+  const loadMoreReviews = async () => {
+    if (!username) return;
+    const page = await listPublicUserReviews(username, { sort: reviewSort, limit: 20, offset: reviews.length });
+    setReviews((current) => [...current, ...page.items]);
+    setReviewTotal(page.total);
+  };
+
+  const loadMoreHistory = async () => {
+    if (!username) return;
+    const page = await listPublicBusinessHistory(username, { limit: 20, offset: businessHistory.length });
+    setBusinessHistory((current) => [...current, ...page.items]);
+    setBusinessHistoryTotal(page.total);
+  };
+
   if (isLoading) {
     return <section className="container page-shell"><div className="skeleton-card profile-skeleton" /></section>;
   }
@@ -124,7 +161,7 @@ export function UserProfilePage() {
           <p className="eyebrow">Eladói profil</p>
           <h1>{profile.full_name}</h1>
           <p className="section-note">@{profile.username} · regisztrált: {formatLocalDateTime(profile.created_at)}</p>
-          <div className="profile-rating"><Stars value={stats.average_rating} /><strong>{stats.average_rating ?? "Nincs"}</strong></div>
+          <div className="profile-rating"><Stars value={stats.average_rating} /><strong>{stats.average_rating?.toLocaleString("hu-HU", { maximumFractionDigits: 1 }) ?? "Nincs"}</strong><span>{stats.review_count} értékelés</span></div>
         </div>
         {canUseTrustActions ? (
           <div className="profile-actions">
@@ -168,33 +205,18 @@ export function UserProfilePage() {
         )}
       </section>
 
-      <section className="account-section">
-        <div className="section-heading"><h2>Lezárt aukciók</h2></div>
-        {profile.closed_auctions.length === 0 ? <div className="side-panel empty-state">Nincs lezárt aukció.</div> : (
-          <div className="compact-auction-list">
-            {profile.closed_auctions.map((auction) => (
-              <Link className="compact-auction-row is-closed" to={`/auctions/${auction.id}`} key={auction.id}>
-                <strong>{auction.title}</strong>
-                <span>{formatAuctionStatus(auction.status)}</span>
-                <span>{formatMoney(auction.current_price)}</span>
-                <span>{auction.bid_count} licit</span>
-              </Link>
-            ))}
+      <section className="account-section public-profile-tabs">
+        <div className="profile-tab-list" role="tablist" aria-label="Eladói profil részletei">
+          <button className={profileTab === "history" ? "is-active" : ""} type="button" role="tab" aria-selected={profileTab === "history"} onClick={() => setProfileTab("history")}>Üzleti előzmények</button>
+          <button className={profileTab === "reviews" ? "is-active" : ""} type="button" role="tab" aria-selected={profileTab === "reviews"} onClick={() => setProfileTab("reviews")}>Szöveges értékelések</button>
+        </div>
+        {profileTab === "history" ? <div role="tabpanel"><BusinessHistory items={businessHistory} />{businessHistory.length < businessHistoryTotal ? <button className="button button-secondary profile-load-more" type="button" onClick={() => void loadMoreHistory()}>További üzletek</button> : null}</div> : (
+          <div role="tabpanel">
+            <div className="section-heading profile-reviews-heading"><h2>Szöveges értékelések</h2><select aria-label="Értékelések rendezése" className="compact-select" value={reviewSort} onChange={(event) => setReviewSort(event.target.value)}><option value="newest">Legújabb</option><option value="oldest">Legrégebbi</option><option value="rating_high">Legjobb értékelések</option><option value="rating_low">Legalacsonyabb értékelések</option></select></div>
+            <ReviewList reviews={reviews} />
+            {reviews.length < reviewTotal ? <button className="button button-secondary profile-load-more" type="button" onClick={() => void loadMoreReviews()}>További értékelések</button> : null}
           </div>
         )}
-      </section>
-
-      <section className="account-section">
-        <div className="section-heading profile-reviews-heading">
-          <h2>Értékelések</h2>
-          <select aria-label="Értékelések rendezése" className="compact-select" value={reviewSort} onChange={(event) => setReviewSort(event.target.value)}>
-            <option value="newest">Legújabb</option>
-            <option value="oldest">Legrégebbi</option>
-            <option value="rating_high">Legjobb értékelések</option>
-            <option value="rating_low">Legalacsonyabb értékelések</option>
-          </select>
-        </div>
-        <ReviewList reviews={reviews} />
       </section>
 
       {showReportDialog ? (

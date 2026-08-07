@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router";
 import { addWatchlistItem, placeAuctionBid, removeWatchlistItem, withdrawAuctionBid } from "../api/auctions";
 import { useAuth } from "../AuthContext";
+import { useNotifications } from "../NotificationContext";
 import { formatMoney } from "../utils/format";
 import { disableBidConfirmation, isBidConfirmationDisabled } from "../utils/bidConfirmation";
 import { AuctionCountdown } from "./AuctionCountdown";
@@ -73,6 +74,7 @@ export function AuctionCard({
 }: AuctionCardProps) {
   const navigate = useNavigate();
   const { isAuthenticated, user } = useAuth();
+  const { showToast } = useNotifications();
   const initialCurrentCents = moneyToCents(item.currentAmount);
   const incrementCents = moneyToCents(item.bidIncrementAmount);
   const [displayPrice, setDisplayPrice] = useState(item.price);
@@ -127,7 +129,7 @@ export function AuctionCard({
       else await addWatchlistItem(Number(item.id));
       if (personalStatus === "watched" && previous) setPersonalStatus(undefined);
       else if (!personalStatus && !previous) setPersonalStatus("watched");
-      setActionMessage(previous ? "Az aukció lekerült a figyelőlistádról." : "Az aukció felkerült a figyelőlistádra.");
+      showToast({ title: previous ? "Figyelés kikapcsolva" : "Figyelőlistára mentve", message: previous ? "Az aukció lekerült a figyelőlistádról." : "Az aukció felkerült a figyelőlistádra.", targetUrl: detailPath });
     } catch (error) {
       setIsWatched(previous);
       setActionMessage(error instanceof Error ? error.message : "A figyelőlista módosítása nem sikerült.");
@@ -147,7 +149,7 @@ export function AuctionCard({
       setDisplayPrice(formatMoney(result.current_price));
       setPersonalStatus("exited");
       setCanWithdraw(false);
-      setActionMessage("Kiszálltál az aukcióból. Ezen az aukción többé nem licitálhatsz.");
+      showToast({ title: "Kiszálltál az aukcióból", message: "Ezen az aukción többé nem licitálhatsz.", targetUrl: detailPath });
     } catch (error) {
       setActionMessage(error instanceof Error ? error.message : "A kiszállás nem sikerült.");
     } finally {
@@ -173,7 +175,11 @@ export function AuctionCard({
       setTopBidId(bid.id);
       setCanWithdraw(!closed);
       setPersonalStatus(closed ? undefined : "leading");
-      setActionMessage(closed || isBuyNow ? "Megnyerted az aukciót villámáron." : `A licit sikeresen rögzítve: ${formatMoney(bid.amount)}.`);
+      showToast({
+        title: closed || isBuyNow ? "Sikeres villámvásárlás" : "Sikeres licit",
+        message: closed || isBuyNow ? "Megnyerted az aukciót villámáron." : `Az új aktuális licit ${formatMoney(bid.amount)}.`,
+        targetUrl: detailPath,
+      });
     } catch (error) {
       setActionMessage(error instanceof Error ? error.message : "A művelet nem sikerült.");
     } finally {
@@ -220,8 +226,10 @@ export function AuctionCard({
       {personalStatus ? <div className={`auction-personal-badge is-${personalStatus}`}>{personalStatus === "leading" ? "Te vezetsz" : personalStatus === "outbid" ? "Túllicitáltak" : personalStatus === "watched" ? "Figyelőlistán" : "Kiszálltál"}</div> : null}
 
       <div className="auction-content">
-        {item.isFeatured ? <span className="vip-featured-badge">VIP KIEMELT</span> : null}
-        {item.isDemo ? <span className="demo-auction-badge">TESZT AUKCIÓ</span> : null}
+        <div className="auction-card-badges" aria-hidden={!item.isFeatured && !item.isDemo}>
+          {item.isFeatured ? <span className="vip-featured-badge">VIP KIEMELT</span> : null}
+          {item.isDemo ? <span className="demo-auction-badge">TESZT AUKCIÓ</span> : null}
+        </div>
         <h3>
           <Link className="auction-title-link" to={detailPath}>
             {item.title}
@@ -238,18 +246,20 @@ export function AuctionCard({
           ) : null}
         </div>
         <div className="seller-meta">
-          <span>Eladó: {item.sellerName}</span>
+          <span className="seller-identity">Eladó: {item.sellerProfilePath ? <Link className="seller-profile-link" to={item.sellerProfilePath}>{item.sellerName}</Link> : item.sellerName}</span>
           <span className="seller-rating-line">
-            <span>Értékelés:</span>
+            {sellerRating === null ? <span>Még nincs értékelés</span> : <>
             <span
               className="star-rating"
-              aria-label={sellerRating === null ? "Még nincs értékelés" : `${sellerRating.toLocaleString("hu-HU")} csillag az 5-ből`}
-              title={sellerRating === null ? "Még nincs értékelés" : `${sellerRating.toLocaleString("hu-HU")} / 5`}
+              aria-label={`${sellerRating.toLocaleString("hu-HU")} csillag az 5-ből, ${item.sellerReviewCount ?? 0} értékelés`}
+              title={`${sellerRating.toLocaleString("hu-HU")} / 5`}
             >
               {Array.from({ length: 5 }, (_, starIndex) => (
                 <span className={starIndex < filledStars ? "star is-filled" : "star is-empty"} aria-hidden="true" key={starIndex}>{starIndex < filledStars ? "★" : "☆"}</span>
               ))}
             </span>
+            <strong className="seller-rating-value">{sellerRating.toLocaleString("hu-HU", { maximumFractionDigits: 1 })}</strong>
+            </>}
           </span>
         </div>
         <div className="auction-commerce-block">
@@ -265,24 +275,21 @@ export function AuctionCard({
             ) : null}
           </div>
 
-          {item.buyNowPrice ? (
-            <div className="auction-price-action-row auction-buy-now-row">
-              <div className="auction-price-copy">
-                <span>Villámár</span>
-                <strong className="auction-buy-now-price">{formatCardMoney(item.buyNowPrice)}</strong>
-              </div>
-              {showBidActions && canUseQuickBid && item.buyNowAmount ? <button className="button button-lightning" type="button" disabled={isActionPending} onClick={() => void requestQuickAction(item.buyNowAmount ?? "", true)}>⚡ Lecsapom</button> : null}
+          <div className="auction-price-action-row auction-buy-now-row">
+            <div className="auction-price-copy">
+              <span>Villámár</span>
+              <strong className={item.buyNowPrice ? "auction-buy-now-price" : "auction-buy-now-empty"}>{item.buyNowPrice ? formatCardMoney(item.buyNowPrice) : "Nincs"}</strong>
             </div>
-          ) : null}
+            {item.buyNowPrice && showBidActions && canUseQuickBid && item.buyNowAmount ? <button className="button button-lightning" type="button" disabled={isActionPending} onClick={() => void requestQuickAction(item.buyNowAmount ?? "", true)}>⚡ Lecsapom</button> : null}
+          </div>
 
           <div className="auction-bid-meta">
             <small>Licitlépcső: {item.step}</small>
             {typeof item.bidCount === "number" ? <small>{item.bidCount} licit</small> : null}
           </div>
         </div>
-        {showOpenAction ? <div className="auction-actions"><Link className="button button-secondary" to={detailPath}>Aukció megnyitása</Link></div> : null}
+        <div className="auction-actions-slot">{showOpenAction ? <div className="auction-actions"><Link className="button button-secondary" to={detailPath}>Aukció megnyitása</Link></div> : null}</div>
         {actionMessage ? <p className="form-message auction-action-message" role="status" aria-live="polite">{actionMessage}</p> : null}
-        {!actionMessage && item.participationNote ? <p className="form-message auction-action-message">{item.participationNote}</p> : null}
       </div>
       {pendingBid ? <BidConfirmationDialog amountLabel={formatMoney(pendingBid.amount)} isBuyNow={pendingBid.isBuyNow} busy={isActionPending} onClose={() => { if (!isActionPending) setPendingBid(null); }} onConfirm={(disableFuture) => void confirmPendingBid(disableFuture)} /> : null}
     </article>

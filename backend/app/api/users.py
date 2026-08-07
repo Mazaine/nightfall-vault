@@ -5,11 +5,13 @@ from sqlalchemy.orm import Session, joinedload
 from app.db.session import get_db
 from app.dependencies.auth import get_optional_current_user
 from app.models.auction import Auction, AuctionReview, Bid
+from app.models.transaction import AuctionTransaction
 from app.models.user import SellerFollow, User
-from app.schemas.user import PublicAuctionSummary, PublicReviewPage, PublicReviewRead, PublicUserProfile, PublicUserStats
+from app.schemas.user import PublicAuctionSummary, PublicBusinessHistoryPage, PublicBusinessHistoryRead, PublicReviewPage, PublicReviewRead, PublicUserProfile, PublicUserStats
 from app.services.user_blocks import is_blocked_by
 from app.services.membership import featured_auction_order
 from app.services.demo_visibility import auction_visibility_clause, can_access_demo_auctions
+from app.storage.paths import media_url
 
 router = APIRouter(prefix="/api/users", tags=["users"])
 ACTIVE_STATUSES = {"scheduled", "active"}
@@ -45,15 +47,23 @@ def _review_read(review: AuctionReview) -> PublicReviewRead:
         id=review.id,
         auction_id=review.auction_id,
         auction_title=review.auction.title if review.auction else "Aukció",
-        reviewer_username=review.reviewer.username if review.reviewer else "felhasználó",
         rating=review.rating,
         comment=review.comment,
         created_at=review.created_at,
     )
 
 
-def _review_query(db: Session, user_id: int):
-    return db.query(AuctionReview).options(joinedload(AuctionReview.auction), joinedload(AuctionReview.reviewer)).filter(AuctionReview.reviewed_user_id == user_id)
+def _review_query(db: Session, user_id: int, current_user: User | None = None):
+    return (
+        db.query(AuctionReview)
+        .join(Auction, Auction.id == AuctionReview.auction_id)
+        .options(joinedload(AuctionReview.auction))
+        .filter(
+            AuctionReview.reviewed_user_id == user_id,
+            Auction.deleted_at.is_(None),
+            auction_visibility_clause(current_user),
+        )
+    )
 
 
 def _apply_review_sort(query, sort: str):
@@ -78,6 +88,12 @@ def build_public_profile(db: Session, user: User, current_user: User | None = No
     active_count = int(db.scalar(select(func.count()).select_from(Auction).where(Auction.seller_id == user.id, Auction.deleted_at.is_(None), Auction.status.in_(ACTIVE_STATUSES), visibility)) or 0)
     closed_count = int(db.scalar(select(func.count()).select_from(Auction).where(Auction.seller_id == user.id, Auction.deleted_at.is_(None), Auction.status.in_(CLOSED_STATUSES), visibility)) or 0)
     sold_count = int(db.scalar(select(func.count()).select_from(Auction).where(Auction.seller_id == user.id, Auction.deleted_at.is_(None), Auction.status == "sold", visibility)) or 0)
+    successful_sales = int(db.scalar(select(func.count()).select_from(AuctionTransaction).join(Auction, Auction.id == AuctionTransaction.auction_id).where(
+        AuctionTransaction.seller_id == user.id,
+        AuctionTransaction.status.in_(["completed", "reviewed", "archived"]),
+        Auction.deleted_at.is_(None),
+        visibility,
+    )) or 0)
     won_count = int(db.scalar(select(func.count()).select_from(Auction).where(Auction.winner_id == user.id, Auction.status == "sold", Auction.deleted_at.is_(None), visibility)) or 0)
     total_bids = int(db.scalar(select(func.count()).select_from(Bid).where(Bid.bidder_id == user.id)) or 0)
     participated_auctions = select(Bid.auction_id).where(Bid.bidder_id == user.id, Bid.status == "active").distinct().subquery()
@@ -88,7 +104,7 @@ def build_public_profile(db: Session, user: User, current_user: User | None = No
 
     active_auctions = db.scalars(select(Auction).where(Auction.seller_id == user.id, Auction.deleted_at.is_(None), Auction.status.in_(ACTIVE_STATUSES), visibility).order_by(featured_auction_order(), Auction.ends_at.asc(), Auction.id.asc()).limit(12)).all()
     closed_auctions = db.scalars(select(Auction).where(Auction.seller_id == user.id, Auction.deleted_at.is_(None), Auction.status.in_(CLOSED_STATUSES), visibility).order_by(featured_auction_order(), Auction.ends_at.desc(), Auction.id.desc()).limit(12)).all()
-    recent_reviews = _apply_review_sort(_review_query(db, user.id), "newest").limit(5).all()
+    recent_reviews = _apply_review_sort(_review_query(db, user.id, current_user), "newest").limit(5).all()
     is_followed = False
     is_blocked = False
     is_blocked_by_user = False
@@ -102,12 +118,13 @@ def build_public_profile(db: Session, user: User, current_user: User | None = No
         full_name=user.full_name,
         created_at=user.created_at,
         stats=PublicUserStats(
+            review_count=int(review_count or 0),
             positive_reviews=int(positive_reviews or 0),
             negative_reviews=int(negative_reviews or 0),
             average_rating=round(float(average_rating), 2) if average_rating is not None else None,
             active_auctions=active_count,
             closed_auctions=closed_count,
-            successful_sales=sold_count,
+            successful_sales=successful_sales,
             sold_auctions=sold_count,
             won_auctions=won_count,
             total_bids=total_bids,
@@ -148,7 +165,51 @@ def list_public_user_reviews(
     user = _public_user_or_404(db, username)
     if user.demo_batch_id is not None and not can_access_demo_auctions(current_user):
         raise HTTPException(status_code=404, detail="A felhasználó nem található.")
-    query = _review_query(db, user.id)
+    query = _review_query(db, user.id, current_user)
     total = query.count()
     reviews = _apply_review_sort(query, sort).offset(offset).limit(limit).all()
     return PublicReviewPage(items=[_review_read(review) for review in reviews], total=total, limit=limit, offset=offset)
+
+
+@router.get("/{username}/business-history", response_model=PublicBusinessHistoryPage)
+def list_public_business_history(
+    username: str,
+    limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    current_user: User | None = Depends(get_optional_current_user),
+    db: Session = Depends(get_db),
+) -> PublicBusinessHistoryPage:
+    user = _public_user_or_404(db, username)
+    if user.demo_batch_id is not None and not can_access_demo_auctions(current_user):
+        raise HTTPException(status_code=404, detail="A felhasználó nem található.")
+
+    base = (
+        db.query(Auction, AuctionTransaction)
+        .join(AuctionTransaction, AuctionTransaction.auction_id == Auction.id)
+        .options(joinedload(Auction.images))
+        .filter(
+            Auction.seller_id == user.id,
+            Auction.status == "sold",
+            Auction.deleted_at.is_(None),
+            auction_visibility_clause(current_user),
+        )
+    )
+    total = base.count()
+    rows = base.order_by(Auction.finalized_at.desc(), Auction.id.desc()).offset(offset).limit(limit).all()
+    items: list[PublicBusinessHistoryRead] = []
+    for auction, transaction in rows:
+        cover = next((image for image in auction.images if image.is_cover), auction.images[0] if auction.images else None)
+        rating = db.scalar(select(AuctionReview.rating).where(
+            AuctionReview.auction_id == auction.id,
+            AuctionReview.reviewed_user_id == user.id,
+        ).order_by(AuctionReview.id.desc()).limit(1))
+        items.append(PublicBusinessHistoryRead(
+            auction_id=auction.id,
+            auction_title=auction.title,
+            image_url=media_url((cover.list_storage_key or cover.thumbnail_storage_key or cover.storage_key) if cover else None),
+            closed_at=auction.finalized_at or auction.ends_at,
+            final_price=str(auction.current_price),
+            public_status="sikeresen_lezárt" if transaction.status in {"completed", "reviewed", "archived"} else "lezárás_folyamatban",
+            rating=rating,
+        ))
+    return PublicBusinessHistoryPage(items=items, total=total, limit=limit, offset=offset)
