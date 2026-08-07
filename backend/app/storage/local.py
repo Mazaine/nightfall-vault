@@ -18,6 +18,8 @@ class LocalStorageProvider(StorageProvider):
     def __init__(self, root: str | Path) -> None:
         self.root = Path(root).resolve()
         self.root.mkdir(parents=True, exist_ok=True)
+
+    if os.access(self.root, os.W_OK):
         os.chmod(self.root, DIRECTORY_MODE)
 
     def resolve(self, storage_key: str) -> Path:
