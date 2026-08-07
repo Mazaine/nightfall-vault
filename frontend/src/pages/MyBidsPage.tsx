@@ -7,21 +7,17 @@ import { EmptyState, ErrorState, LoadingState } from "../components/AsyncStates"
 import { toAuctionCardItem } from "../utils/auctionPresentation";
 
 const filters: { value: MyBidAuctionState; label: string }[] = [
-  { value: "all", label: "Összes" },
-  { value: "leading", label: "Én vezetek" },
-  { value: "outbid", label: "Rám licitáltak" },
-  { value: "watched", label: "Figyelőlista" },
-  { value: "won", label: "Megnyert" },
-  { value: "lost", label: "Elvesztett / lezárt" },
+  { value: "current", label: "Aktuális" },
+  { value: "closed", label: "Lezárult" },
 ];
 
 const PAGE_SIZE = 12;
 
 function personalStatus(item: MyBidAuction): "leading" | "outbid" | "watched" | "exited" | undefined {
-  if (item.has_exited) return "exited";
-  if (item.is_leading) return "leading";
   if (item.is_outbid) return "outbid";
+  if (item.is_leading) return "leading";
   if (item.is_watched) return "watched";
+  if (item.has_exited) return "exited";
   return undefined;
 }
 
@@ -29,7 +25,7 @@ export function MyBidsPage() {
   const { subscribe } = useAuctionRealtime();
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedState = searchParams.get("state") as MyBidAuctionState | null;
-  const [filter, setFilter] = useState<MyBidAuctionState>(filters.some((item) => item.value === requestedState) ? requestedState! : "all");
+  const [filter, setFilter] = useState<MyBidAuctionState>(filters.some((item) => item.value === requestedState) ? requestedState! : "current");
   const [offset, setOffset] = useState(0);
   const [items, setItems] = useState<MyBidAuction[]>([]);
   const [total, setTotal] = useState(0);
@@ -52,11 +48,12 @@ export function MyBidsPage() {
 
   useEffect(() => { void load(); }, [load]);
   useEffect(() => subscribe(() => { void load(true); }), [load, subscribe]);
+  useEffect(() => { if (requestedState !== filter) setSearchParams({ state: filter }, { replace: true }); }, [filter, requestedState, setSearchParams]);
 
   const changeFilter = (next: MyBidAuctionState) => {
     setFilter(next);
     setOffset(0);
-    setSearchParams(next === "all" ? {} : { state: next }, { replace: true });
+    setSearchParams({ state: next }, { replace: true });
   };
   const page = Math.floor(offset / PAGE_SIZE) + 1;
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));

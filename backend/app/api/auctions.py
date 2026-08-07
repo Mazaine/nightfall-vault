@@ -1,5 +1,6 @@
 import json
 from datetime import datetime, timedelta, timezone
+from typing import Literal
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile, status
 from fastapi.responses import StreamingResponse
@@ -350,14 +351,12 @@ def list_my_bid_auctions(current_user: User = Depends(require_active_user), db: 
 
 @router.get("/my-bids/page", response_model=MyBidAuctionPage)
 def list_my_bid_auctions_page(
-    state: str = Query(default="all"),
+    state: Literal["current", "closed"] = Query(default="current"),
     limit: int = Query(default=12, ge=1, le=50),
     offset: int = Query(default=0, ge=0),
     current_user: User = Depends(require_active_user),
     db: Session = Depends(get_db),
 ) -> MyBidAuctionPage:
-    if state not in {"all", "outbid", "leading", "watched", "won", "lost"}:
-        raise HTTPException(status_code=422, detail="Érvénytelen licitállapot-szűrő.")
     candidate_ids = set(db.scalars(select(Bid.auction_id).where(Bid.bidder_id == current_user.id)).all())
     watched_ids = set(db.scalars(select(WatchlistItem.auction_id).where(WatchlistItem.user_id == current_user.id)).all())
     exited_ids = set(db.scalars(select(AuctionBidExclusion.auction_id).where(AuctionBidExclusion.user_id == current_user.id)).all())
@@ -385,12 +384,11 @@ def list_my_bid_auctions_page(
         is_watched = auction.id in watched_ids
         is_open = auction.status in {"scheduled", "active", "ended"}
         is_outbid = bool(top_own and not is_leading and is_open and not has_exited)
-        is_lost = has_exited or (bool(own_bids) and not has_won and not is_open)
-        if state == "leading" and not is_leading: continue
-        if state == "outbid" and not is_outbid: continue
-        if state == "watched" and not is_watched: continue
-        if state == "won" and not has_won: continue
-        if state == "lost" and not is_lost: continue
+        is_lost = not is_open and not has_won and (bool(own_bids) or has_exited)
+        is_current = is_open and not has_exited and (is_outbid or is_leading or is_watched)
+        is_closed = not is_open and (has_won or is_lost or is_watched)
+        if state == "current" and not is_current: continue
+        if state == "closed" and not is_closed: continue
         withdrawal = bid_withdrawal_state(top_own, auction, current_user) if top_own else {"can_withdraw": False, "withdrawal_block_reason": None}
         items.append(MyBidAuctionItem(
             auction=auction_list_item(auction, db=db), my_highest_bid=top_own.amount if top_own else None,
@@ -401,7 +399,10 @@ def list_my_bid_auctions_page(
             has_exited=has_exited, is_watched=is_watched,
             participation_note="Kiszálltál ebből az aukcióból." if has_exited else None,
         ))
-    items.sort(key=lambda item: (0 if item.is_outbid else 1 if item.is_leading else 2 if item.is_watched else 3, item.auction.ends_at, item.auction.id))
+    if state == "current":
+        items.sort(key=lambda item: (0 if item.is_outbid else 1 if item.is_leading else 2, item.auction.ends_at, item.auction.id))
+    else:
+        items.sort(key=lambda item: (0 if item.has_won else 1, -item.auction.ends_at.timestamp(), -item.auction.id))
     total = len(items)
     return MyBidAuctionPage(items=items[offset:offset + limit], total=total, limit=limit, offset=offset, server_time=datetime.now(timezone.utc))
 

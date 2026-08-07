@@ -23,7 +23,7 @@ export function HomeDashboard() {
     if (!isAuthenticated) return;
     try {
       const [bids, auctions, transactions] = await Promise.all([
-        listMyBidAuctionsPage("all", 8, 0),
+        listMyBidAuctionsPage("current", 8, 0),
         listMyAuctions(),
         listTransactions("transaction_open", 8),
       ]);
@@ -31,8 +31,8 @@ export function HomeDashboard() {
       const outbid = bids.items.filter((item) => item.is_outbid);
       const leading = bids.items.filter((item) => item.is_leading);
       const drafts = auctions.filter((item) => item.status === "draft");
-      if (outbid.length) next.push({ label: `${outbid.length} aukción rád licitáltak`, detail: "Nézd meg, szeretnél-e új licitet tenni.", to: "/my-bids?state=outbid", tone: "warning" });
-      if (leading.length) next.push({ label: `${leading.length} aukción te vezetsz`, detail: "Kövesd a hátralévő időt valós időben.", to: "/my-bids?state=leading", tone: "success" });
+      if (outbid.length) next.push({ label: `${outbid.length} aukción rád licitáltak`, detail: "Nézd meg, szeretnél-e új licitet tenni.", to: "/my-bids?state=current", tone: "warning" });
+      if (leading.length) next.push({ label: `${leading.length} aukción te vezetsz`, detail: "Kövesd a hátralévő időt valós időben.", to: "/my-bids?state=current", tone: "success" });
       if (drafts.length) next.push({ label: `${drafts.length} piszkozat vár befejezésre`, detail: "Folytasd ugyanazt a mentett aukciót.", to: "/account/auctions" });
       if (transactions.items.length) next.push({ label: `${transactions.items.length} nyitott tranzakciód van`, detail: "Egyeztess, majd erősítsétek meg a lezárást.", to: "/account/transactions" });
       setTasks(next.slice(0, 4));

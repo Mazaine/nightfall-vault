@@ -175,7 +175,7 @@ export type MyBidAuction = {
   participation_note?: string | null;
 };
 
-export type MyBidAuctionState = "all" | "outbid" | "leading" | "watched" | "won" | "lost";
+export type MyBidAuctionState = "current" | "closed";
 export type MyBidAuctionPage = { items: MyBidAuction[]; total: number; limit: number; offset: number; server_time: string };
 
 export type NotificationItem = {
@@ -268,7 +268,7 @@ export function listMyBidAuctions() {
   return apiRequest<MyBidAuction[]>("/api/auctions/my-bids");
 }
 
-export function listMyBidAuctionsPage(state: MyBidAuctionState = "all", limit = 12, offset = 0) {
+export function listMyBidAuctionsPage(state: MyBidAuctionState = "current", limit = 12, offset = 0) {
   return apiRequest<MyBidAuctionPage>(`/api/auctions/my-bids/page${toQuery({ state, limit, offset })}`);
 }
 
