@@ -3,6 +3,23 @@ set -Eeuo pipefail
 source "$(cd "$(dirname "$0")" && pwd)/lib/production_common.sh"
 load_production_env
 base="${SMOKE_BASE_URL:-http://127.0.0.1:${HTTP_PORT:-8080}}"
+log "Várakozás a reverse proxy healthy állapotára..."
+
+for attempt in {1..30}; do
+  proxy_status="$(
+    docker inspect \
+      --format='{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' \
+      nightfall-vault-production-reverse-proxy-1 \
+      2>/dev/null || true
+  )"
+
+  if [[ "$proxy_status" == "healthy" ]]; then
+    break
+  fi
+
+  [[ $attempt -lt 30 ]] || die "A reverse proxy nem lett healthy időben."
+  sleep 2
+done
 
 for attempt in {1..30}; do
   if curl --fail --silent --show-error --max-time 5 "$base/health/ready" >/tmp/nightfall-ready.json; then break; fi
