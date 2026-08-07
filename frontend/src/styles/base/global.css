@@ -298,12 +298,12 @@ h3 {
   position: relative;
   isolation: isolate;
   min-height: 33rem;
-  padding: clamp(4.75rem, 8vw, 6.25rem) 0 var(--space-5);
+  padding: 0 0 var(--space-5);
 }
 
 .hero-media {
   position: absolute;
-  inset: 4.75rem var(--space-4) auto;
+  inset: 0 var(--space-4) auto;
   z-index: -1;
   height: clamp(23rem, 40vw, 28rem);
   border: 1px solid var(--color-divider);
@@ -573,6 +573,25 @@ h3 {
 .auction-personal-badge.is-outbid { color: #f2cc55; }
 .auction-personal-badge.is-watched { color: grey; }
 .auction-personal-badge.is-exited { color: #bbb2c9; }
+.auction-outcome-badge {
+  position: absolute;
+  left: .75rem;
+  top: .75rem;
+  z-index: 3;
+  max-width: calc(100% - 1.5rem);
+  border-radius: 999px;
+  padding: .38rem .75rem;
+  font-size: .75rem;
+  font-weight: 900;
+  letter-spacing: .02em;
+  box-shadow: 0 .35rem 1rem rgb(0 0 0 / .35);
+}
+.auction-outcome-badge.is-won { background: #54d58a; color: #07170d; }
+.auction-outcome-badge.is-lost { background: #dc5f68; color: #fff7f7; }
+.auction-outcome-badge.is-exited { background: #8b8398; color: #100e14; }
+.auction-outcome-badge.is-not_sold { background: #b76a70; color: #fff8f8; }
+.auction-outcome-badge.is-sale_pending { background: #e1b94f; color: #1d1604; }
+.auction-outcome-badge.is-sale_sent { background: #5fc7c1; color: #061817; }
 .my-bids-card-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .filter-quick-chips { display: flex; flex-wrap: wrap; align-items: center; gap: .55rem; }
 .filter-quick-chips button, .filter-quick-chips a { min-height: 2.5rem; border: 1px solid var(--color-divider); border-radius: 999px; padding: .55rem .85rem; background: transparent; color: inherit; }
@@ -1619,7 +1638,7 @@ h3 {
 @media (max-width: 760px) {
   .hero-section {
     min-height: auto;
-    padding-top: 5.5rem;
+    padding-top: 0;
   }
 
   .hero-media {

@@ -76,6 +76,7 @@ export function MyBidsPage() {
       item={{
         ...toAuctionCardItem(item.auction),
         personalStatus: personalStatus(item),
+        outcomeStatus: item.has_exited ? "exited" : item.auction.status === "sold" && item.has_won ? "won" : ["sold", "unsold", "cancelled", "suspended"].includes(item.auction.status) ? "lost" : undefined,
         topBidId: item.top_bid_id,
         canWithdraw: item.can_withdraw,
         withdrawalBlockReason: item.withdrawal_block_reason,

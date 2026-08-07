@@ -271,7 +271,23 @@ def create_my_auction(
 @router.get("/me", response_model=list[AuctionListItem])
 def list_my_auctions(current_user: User = Depends(require_active_user), db: Session = Depends(get_db)) -> list[AuctionListItem]:
     statement = get_auction_statement().where(Auction.seller_id == current_user.id, Auction.deleted_at.is_(None)).order_by(featured_auction_order(), Auction.created_at.desc(), Auction.id.desc())
-    return [auction_list_item(sync_auction_status(db, auction), db=db, viewer=current_user) for auction in db.scalars(statement).all() if auction.demo_batch_id is None or can_access_demo_auctions(current_user)]
+    auctions = [sync_auction_status(db, auction) for auction in db.scalars(statement).all() if auction.demo_batch_id is None or can_access_demo_auctions(current_user)]
+    transaction_rows = db.execute(select(
+        AuctionTransaction.auction_id,
+        AuctionTransaction.status,
+        AuctionTransaction.seller_completed_at,
+    ).where(AuctionTransaction.auction_id.in_([auction.id for auction in auctions]))).all() if auctions else []
+    transactions = {row.auction_id: row for row in transaction_rows}
+    items: list[AuctionListItem] = []
+    for auction in auctions:
+        transaction = transactions.get(auction.id)
+        owner_sale_status = None
+        if auction.status == "unsold":
+            owner_sale_status = "not_sold"
+        elif auction.status == "sold":
+            owner_sale_status = "sale_sent" if transaction and (transaction.seller_completed_at is not None or transaction.status in {"completed", "reviewed", "archived"}) else "sale_pending"
+        items.append(auction_list_item(auction, db=db, viewer=current_user).model_copy(update={"owner_sale_status": owner_sale_status}))
+    return items
 
 
 @router.get("/me/conversations", response_model=list[AuctionConversationRead])

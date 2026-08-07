@@ -56,6 +56,7 @@ type AuctionCardProps = {
     withdrawalBlockReason?: string | null;
     participationNote?: string | null;
     isWatched?: boolean;
+    outcomeStatus?: "won" | "lost" | "exited" | "not_sold" | "sale_pending" | "sale_sent";
   };
   index: number;
   detailPath: string;
@@ -97,6 +98,12 @@ export function AuctionCard({
   const filledStars = sellerRating === null ? 0 : Math.round(sellerRating);
   const canUseQuickBid = !isLocallyClosed && item.canBid !== false && personalStatus !== "leading" && personalStatus !== "exited";
   const showOpenAction = showBidActions && personalStatus !== "leading" && !canUseQuickBid;
+  const outcomeLabel = item.outcomeStatus === "won" ? "Megnyerted"
+    : item.outcomeStatus === "lost" ? "Nem nyertél"
+      : item.outcomeStatus === "exited" ? "Kiszálltál"
+        : item.outcomeStatus === "not_sold" ? "Nem sikerült eladni"
+          : item.outcomeStatus === "sale_pending" ? "Eladva – Egyeztetés alatt"
+            : item.outcomeStatus === "sale_sent" ? "Eladva – Elküldve" : null;
 
   useEffect(() => {
     const currentCents = moneyToCents(item.currentAmount);
@@ -223,7 +230,7 @@ export function AuctionCard({
         ? <AuctionCountdown className="auction-time" endsAt={item.endsAt} status={item.status} fiveMinuteRuleEnabled={item.fiveMinuteRuleEnabled} fallback={item.time} />
         : showTimer ? <div className="auction-time">{item.time}</div> : null}
       {item.userIsOutbid && <div className="auction-alert">Rád licitáltak</div>}
-      {personalStatus ? <div className={`auction-personal-badge is-${personalStatus}`}>{personalStatus === "leading" ? "Te vezetsz" : personalStatus === "outbid" ? "Túllicitáltak" : personalStatus === "watched" ? "Figyelőlistán" : "Kiszálltál"}</div> : null}
+      {outcomeLabel ? <div className={`auction-outcome-badge is-${item.outcomeStatus}`}>{outcomeLabel}</div> : personalStatus ? <div className={`auction-personal-badge is-${personalStatus}`}>{personalStatus === "leading" ? "Te vezetsz" : personalStatus === "outbid" ? "Túllicitáltak" : personalStatus === "watched" ? "Figyelőlistán" : "Kiszálltál"}</div> : null}
 
       <div className="auction-content">
         <div className="auction-card-badges" aria-hidden={!item.isFeatured && !item.isDemo}>

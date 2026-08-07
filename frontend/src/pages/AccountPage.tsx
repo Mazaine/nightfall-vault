@@ -19,6 +19,19 @@ const newCreationKey = () => typeof crypto !== "undefined" && "randomUUID" in cr
       const random = Math.floor(Math.random() * 16);
       return (character === "x" ? random : (random & 0x3) | 0x8).toString(16);
     });
+const DRAFT_CREATION_KEY_STORAGE = "nightfall-auction-draft-creation-key";
+const getDraftCreationKey = () => {
+  const storedKey = typeof sessionStorage !== "undefined" ? sessionStorage.getItem(DRAFT_CREATION_KEY_STORAGE) : null;
+  if (storedKey) return storedKey;
+  const key = newCreationKey();
+  if (typeof sessionStorage !== "undefined") sessionStorage.setItem(DRAFT_CREATION_KEY_STORAGE, key);
+  return key;
+};
+const rotateDraftCreationKey = () => {
+  const key = newCreationKey();
+  if (typeof sessionStorage !== "undefined") sessionStorage.setItem(DRAFT_CREATION_KEY_STORAGE, key);
+  return key;
+};
 
 const editableFields = [
   "név",
@@ -179,7 +192,7 @@ export function AccountPage({ section }: { section: "bids" | "auctions" | "creat
   const [isCreatingAuction, setIsCreatingAuction] = useState(false);
   const [createDraftId, setCreateDraftId] = useState<number | null>(null);
   const [createDraftImageCount, setCreateDraftImageCount] = useState(0);
-  const [creationKey, setCreationKey] = useState(newCreationKey);
+  const [creationKey, setCreationKey] = useState(getDraftCreationKey);
   const [createBuyNowPrice, setCreateBuyNowPrice] = useState("");
   const [createBuyNowEnabled, setCreateBuyNowEnabled] = useState(false);
   const [uploadProgress, setUploadProgress] = useState("");
@@ -365,7 +378,7 @@ export function AccountPage({ section }: { section: "bids" | "auctions" | "creat
         form.reset();
         setCreateDraftId(null);
         setCreateDraftImageCount(0);
-        setCreationKey(newCreationKey());
+        setCreationKey(rotateDraftCreationKey());
         setCreateBuyNowPrice("");
         setCreateBuyNowEnabled(false);
       }
@@ -625,7 +638,7 @@ export function AccountPage({ section }: { section: "bids" | "auctions" | "creat
                         const canShare = ["scheduled", "active"].includes(auction.status);
                         return (
                           <div className={isEditing ? "own-auction-card is-editing" : "own-auction-card"} key={auction.id}>
-                            <AuctionCard item={toCardAuction(auction)} index={index} detailPath={`/auctions/${auction.id}`} showBidActions={false} />
+                            <AuctionCard item={{ ...toCardAuction(auction), outcomeStatus: auction.owner_sale_status ?? undefined }} index={index} detailPath={`/auctions/${auction.id}`} showBidActions={false} />
                             <div className="owner-actions">
                               {canShare ? <button className="button button-secondary owner-share-button" type="button" aria-label={`${auction.title} megosztása Facebookon`} onClick={() => {
                                 openFacebookShare(auction.id);

@@ -67,6 +67,7 @@ export type Auction = {
   viewer_withdrawal_block_reason?: string | null;
   viewer_personal_status?: "leading" | "outbid" | "watched" | "exited" | null;
   viewer_is_watched?: boolean;
+  owner_sale_status?: "not_sold" | "sale_pending" | "sale_sent" | null;
 };
 
 export type AuctionCreatePayload = {

@@ -310,6 +310,7 @@ class AuctionListItem(BaseModel):
     viewer_withdrawal_block_reason: str | None = None
     viewer_personal_status: Literal["leading", "outbid", "watched", "exited"] | None = None
     viewer_is_watched: bool = False
+    owner_sale_status: Literal["not_sold", "sale_pending", "sale_sent"] | None = None
     seller: UserSummary | None = None
     images: list[AuctionImageRead] = []
 
