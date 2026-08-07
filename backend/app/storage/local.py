@@ -1,3 +1,4 @@
+import errno
 import os
 import shutil
 from pathlib import Path
@@ -9,7 +10,6 @@ from app.storage.base import StagedDeletion, StorageHealth, StorageProvider
 from app.storage.exceptions import InvalidStorageKey, StorageUnavailable
 from app.storage.paths import normalize_storage_key
 
-
 DIRECTORY_MODE = 0o755
 FILE_MODE = 0o644
 
@@ -19,29 +19,41 @@ class LocalStorageProvider(StorageProvider):
         self.root = Path(root).resolve()
         self.root.mkdir(parents=True, exist_ok=True)
 
-    if os.access(self.root, os.W_OK):
-        os.chmod(self.root, DIRECTORY_MODE)
+        try:
+            os.chmod(self.root, DIRECTORY_MODE)
+        except OSError as exc:
+            if exc.errno != errno.EROFS:
+                raise
 
     def resolve(self, storage_key: str) -> Path:
         key = normalize_storage_key(storage_key)
         candidate = (self.root / Path(*key.split("/"))).resolve(strict=False)
+
         if candidate != self.root and self.root not in candidate.parents:
             raise InvalidStorageKey("Invalid media storage key.")
+
         if candidate.exists() and candidate.is_symlink():
             raise InvalidStorageKey("Symlinks are not valid media files.")
+
         return candidate
 
     def _ensure_directory(self, path: Path) -> None:
         path.mkdir(parents=True, exist_ok=True)
 
         current = path
+
         while current == self.root or self.root in current.parents:
             os.chmod(current, DIRECTORY_MODE)
+
             if current == self.root:
                 break
+
             current = current.parent
 
-    def save_many_atomic(self, files: Mapping[str, bytes]) -> tuple[str, ...]:
+    def save_many_atomic(
+        self,
+        files: Mapping[str, bytes],
+    ) -> tuple[str, ...]:
         prepared: list[tuple[str, Path, Path]] = []
         committed: list[Path] = []
 
@@ -70,7 +82,11 @@ class LocalStorageProvider(StorageProvider):
                 os.chmod(temporary_path, FILE_MODE)
 
                 prepared.append(
-                    (storage_key, temporary_path, destination)
+                    (
+                        storage_key,
+                        temporary_path,
+                        destination,
+                    )
                 )
 
             for _, temporary_path, destination in prepared:
@@ -79,7 +95,8 @@ class LocalStorageProvider(StorageProvider):
                 committed.append(destination)
 
             return tuple(
-                storage_key for storage_key, _, _ in prepared
+                storage_key
+                for storage_key, _, _ in prepared
             )
 
         except Exception:
@@ -151,19 +168,34 @@ class LocalStorageProvider(StorageProvider):
             self.rollback_delete(staged)
             raise
 
-    def rollback_delete(self, staged: StagedDeletion) -> None:
+    def rollback_delete(
+        self,
+        staged: StagedDeletion,
+    ) -> None:
         for source, target in reversed(staged.moved):
             if target.exists():
                 self._ensure_directory(source.parent)
                 os.replace(target, source)
                 os.chmod(source, FILE_MODE)
 
-        shutil.rmtree(staged.trash_root, ignore_errors=True)
+        shutil.rmtree(
+            staged.trash_root,
+            ignore_errors=True,
+        )
 
-    def finalize_delete(self, staged: StagedDeletion) -> None:
-        shutil.rmtree(staged.trash_root, ignore_errors=True)
+    def finalize_delete(
+        self,
+        staged: StagedDeletion,
+    ) -> None:
+        shutil.rmtree(
+            staged.trash_root,
+            ignore_errors=True,
+        )
 
-    def iter_files(self, prefix: str = "auctions") -> set[str]:
+    def iter_files(
+        self,
+        prefix: str = "auctions",
+    ) -> set[str]:
         base = self.resolve(prefix)
 
         if not base.exists():
@@ -180,10 +212,14 @@ class LocalStorageProvider(StorageProvider):
         return result
 
     def check_health(self) -> StorageHealth:
-        readable = self.root.is_dir() and os.access(
-            self.root,
-            os.R_OK,
+        readable = (
+            self.root.is_dir()
+            and os.access(
+                self.root,
+                os.R_OK,
+            )
         )
+
         writable = False
 
         if readable:
