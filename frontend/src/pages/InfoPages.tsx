@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 import { Link } from "react-router";
+import { MarkdownDocument } from "../components/MarkdownDocument";
+import privacyMarkdown from "../content/privacy.md?raw";
 
 type InformationPageProps = {
   eyebrow: string;
@@ -35,13 +37,9 @@ export function TermsPage() {
 
 export function PrivacyPage() {
   return (
-    <InformationPage eyebrow="Adatvédelem" title="Adatvédelmi tájékoztató" lead="Csak a fiók, az aukciók és a közösségi biztonság működéséhez szükséges adatokat használjuk.">
-      <section><h2>Milyen adatokat kezelünk?</h2><p>A regisztrációs és profiladatokat, az aukciókhoz feltöltött tartalmat, a liciteket, a felhasználók közötti üzeneteket, az értesítési beállításokat, valamint a biztonsági és moderációs eseményeket.</p></section>
-      <section><h2>Mire használjuk?</h2><p>Fiókazonosításra, az aukciós folyamat működtetésére, a résztvevők összekapcsolására, visszaélések megelőzésére, ügyintézésre és a szolgáltatás megbízhatóságának fenntartására.</p></section>
-      <section><h2>Mit nem kezel a platform?</h2><p>A Nightfall Vault nem kér és nem tárol bankkártyaadatot, nem dolgoz fel fizetést, és nem szervez szállítást. Ezekről az eladó és a nyertes egymással állapodik meg.</p></section>
-      <section><h2>Megőrzés és védelem</h2><p>Az adatokat csak a szolgáltatás, a biztonság és a jogszerű működés által indokolt ideig őrizzük. A hozzáférést jogosultságok, naplózás és technikai védelmi intézkedések korlátozzák.</p></section>
-      <section><h2>Felhasználói lehetőségek</h2><p>A profiladatok a fiókban szerkeszthetők, a fiók törlése pedig ugyanott kezdeményezhető. Egyéb adatvédelmi kérdéshez a <Link to="/contact">kapcsolati oldalon</Link> található csatorna használható.</p></section>
-    </InformationPage>
+    <article className="container page-shell information-page" aria-label="Adatkezelési tájékoztató">
+      <MarkdownDocument source={privacyMarkdown} />
+    </article>
   );
 }
 

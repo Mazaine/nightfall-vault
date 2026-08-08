@@ -7,7 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 
 class SavedSearchCreate(BaseModel):
-    name: str = Field(min_length=2, max_length=120)
+    name: str = Field(min_length=2, max_length=20)
     query: str | None = Field(default=None, max_length=180)
     title: str | None = Field(default=None, max_length=180)
     description: str | None = Field(default=None, max_length=180)

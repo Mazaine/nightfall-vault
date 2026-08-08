@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNotifications } from "../NotificationContext";
 import { createAuctionReview, getAuction } from "../api/auctions";
 import { listTransactions } from "../api/transactions";
@@ -7,10 +7,8 @@ import { ReviewDialog } from "./ReviewDialog";
 export function TransactionReviewPrompt() {
   const { notifications, subscribe, markRead } = useNotifications();
   const [prompt, setPrompt] = useState<{ auctionId: number; title: string; notificationId?: number } | null>(null);
-  const ignored = useRef(new Set<number>());
-
   const openIfReviewable = useCallback(async (auctionId: number, notificationId?: number) => {
-    if (!auctionId || ignored.current.has(auctionId)) return;
+    if (!auctionId) return;
     const page = await listTransactions("", 100);
     const transaction = page.items.find((item) => item.auction_id === auctionId);
     if (!transaction?.can_review) return;
@@ -36,11 +34,10 @@ export function TransactionReviewPrompt() {
   }, [openIfReviewable]);
 
   if (!prompt) return null;
-  const close = () => { ignored.current.add(prompt.auctionId); setPrompt(null); };
-  return <ReviewDialog auctionTitle={prompt.title} onClose={close} onSubmit={async (rating, comment) => {
+  return <ReviewDialog auctionTitle={prompt.title} onSubmit={async (rating, comment) => {
     await createAuctionReview(prompt.auctionId, rating, comment);
     if (prompt.notificationId) await markRead(prompt.notificationId);
     window.dispatchEvent(new CustomEvent("nightfall:review-submitted", { detail: { auctionId: prompt.auctionId } }));
-    close();
+    setPrompt(null);
   }} />;
 }

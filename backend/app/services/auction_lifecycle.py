@@ -14,7 +14,7 @@ from app.services.security_audit import create_domain_audit_log
 from app.services.user_blocks import ensure_not_blocked
 
 SELLER_DECLARATION_VERSION = "2026-07-11"
-PUBLIC_AUCTION_STATUSES = {"scheduled", "active", "ended", "sold", "unsold"}
+PUBLIC_AUCTION_STATUSES = {"scheduled", "active"}
 EDITABLE_OWNER_STATUSES = {"draft", "scheduled", "active"}
 CRITICAL_AUCTION_FIELDS = {"starting_price", "bid_increment", "buy_now_price", "starts_at"}
 FIVE_MINUTE_EXTENSION = timedelta(minutes=5)
@@ -141,7 +141,9 @@ def can_view_auction(auction: Auction, user: User | None) -> bool:
         return True
     if user is None:
         return False
-    return auction.seller_id == user.id or user.role == "admin"
+    if auction.seller_id == user.id or user.role == "admin":
+        return True
+    return auction.status in {"ended", "sold"} and auction.winner_id == user.id
 
 
 def require_can_view_auction(auction: Auction, user: User | None) -> None:

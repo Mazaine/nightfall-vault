@@ -29,25 +29,27 @@ def related_auctions(db: Session, source: Auction, viewer: User | None = None, l
             Auction.status.in_(PUBLIC_AUCTION_STATUSES),
             auction_visibility_clause(viewer),
         )
-        .order_by(featured_auction_order(), Auction.created_at.desc(), Auction.id.desc())
+        .order_by(Auction.created_at.desc(), Auction.id.desc())
         .limit(200)
     )
     source_words = _title_words(source.title)
     source_price = Decimal(source.current_price)
 
-    def score(item: Auction) -> tuple[bool, float, int]:
+    def score(item: Auction) -> tuple[float, bool, int]:
         points = 0.0
         if item.category == source.category:
-            points += 5
-        if item.seller_id == source.seller_id:
+            points += 10
+        if item.condition == source.condition:
             points += 3
+        if item.status == source.status:
+            points += 1
         item_words = _title_words(item.title)
         if source_words:
             points += 4 * len(source_words & item_words) / len(source_words)
         high_price = max(source_price, Decimal(item.current_price), Decimal("1"))
         price_distance = abs(source_price - Decimal(item.current_price)) / high_price
-        points += max(0.0, 3.0 * (1.0 - float(price_distance)))
-        return bool(item.seller and is_vip(item.seller)), points, item.id
+        points += max(0.0, 4.0 * (1.0 - float(price_distance)))
+        return points, bool(item.seller and is_vip(item.seller)), item.id
 
     candidates = list(db.scalars(statement).all())
     candidates.sort(key=score, reverse=True)

@@ -96,6 +96,7 @@ export function AuctionCard({
     ? parsedSellerRating
     : null;
   const filledStars = sellerRating === null ? 0 : Math.round(sellerRating);
+  const isOwnAuction = Boolean(user?.id && item.sellerId === user.id);
   const canUseQuickBid = !isLocallyClosed && item.canBid !== false && personalStatus !== "leading" && personalStatus !== "exited";
   const showOpenAction = showBidActions && personalStatus !== "leading" && !canUseQuickBid;
   const outcomeLabel = item.outcomeStatus === "won" ? "Megnyerted"
@@ -278,7 +279,7 @@ export function AuctionCard({
             {showBidActions && personalStatus === "leading" ? (
               <button className="button button-secondary" type="button" disabled={isActionPending || !canWithdraw} title={item.withdrawalBlockReason ?? undefined} onClick={() => void exitAuction()}>{isActionPending ? "Feldolgozás..." : "Kiszállok"}</button>
             ) : showBidActions && canUseQuickBid ? (
-              <button className="button button-secondary" type="button" disabled={isActionPending || !nextBidAmount} onClick={() => void requestQuickAction(nextBidAmount)}>{isActionPending ? "Feldolgozás..." : "Licitálok"}</button>
+              <button className="button button-secondary" type="button" disabled={isOwnAuction || isActionPending || !nextBidAmount} title={isOwnAuction ? "A saját aukciódra nem licitálhatsz." : undefined} onClick={() => void requestQuickAction(nextBidAmount)}>{isActionPending ? "Feldolgozás..." : "Licitálok"}</button>
             ) : null}
           </div>
 
@@ -287,7 +288,7 @@ export function AuctionCard({
               <span>Villámár</span>
               <strong className={item.buyNowPrice ? "auction-buy-now-price" : "auction-buy-now-empty"}>{item.buyNowPrice ? formatCardMoney(item.buyNowPrice) : "Nincs"}</strong>
             </div>
-            {item.buyNowPrice && showBidActions && canUseQuickBid && item.buyNowAmount ? <button className="button button-lightning" type="button" disabled={isActionPending} onClick={() => void requestQuickAction(item.buyNowAmount ?? "", true)}>⚡ Lecsapom</button> : null}
+            {item.buyNowPrice && showBidActions && canUseQuickBid && item.buyNowAmount ? <button className="button button-lightning" type="button" disabled={isOwnAuction || isActionPending} title={isOwnAuction ? "A saját aukciódat nem csaphatod le." : undefined} onClick={() => void requestQuickAction(item.buyNowAmount ?? "", true)}>⚡ Lecsapom</button> : null}
           </div>
 
           <div className="auction-bid-meta">

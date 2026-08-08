@@ -1,7 +1,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { listAuctions, type Auction, type AuctionListParams } from "../api/auctions";
-import { createSavedSearch } from "../api/searches";
+import { createSavedSearch, deleteSavedSearch, listSavedSearches, type SavedSearch } from "../api/searches";
 import { useAuth } from "../AuthContext";
 import { AuctionCard } from "../components/AuctionCard";
 import { EmptyState, ErrorState, LoadingState } from "../components/AsyncStates";
@@ -32,10 +32,8 @@ type FilterState = {
   q: string;
   title: string;
   description: string;
-  seller: string;
   category: string;
   condition: string;
-  status: string;
   min_price: string;
   max_price: string;
   min_bids: string;
@@ -49,10 +47,8 @@ const INITIAL_FILTERS: FilterState = {
   q: "",
   title: "",
   description: "",
-  seller: "",
   category: "",
   condition: "",
-  status: "",
   min_price: "",
   max_price: "",
   min_bids: "",
@@ -65,8 +61,6 @@ const INITIAL_FILTERS: FilterState = {
 const PUBLIC_STATUS_ORDER: Partial<Record<Auction["status"], number>> = {
   active: 0,
   scheduled: 1,
-  ended: 2,
-  sold: 3,
 };
 
 function orderAuctionsByStatus(items: Auction[]) {
@@ -78,10 +72,8 @@ function toParams(filters: FilterState, offset: number): AuctionListParams {
     q: filters.q || undefined,
     title: filters.title || undefined,
     description: filters.description || undefined,
-    seller: filters.seller || undefined,
     category: filters.category || undefined,
     condition: filters.condition || undefined,
-    status: filters.status || undefined,
     min_price: filters.min_price || undefined,
     max_price: filters.max_price || undefined,
     min_bids: filters.min_bids || undefined,
@@ -112,6 +104,19 @@ export function AuctionsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [saveMessage, setSaveMessage] = useState("");
+  const [savedSearches, setSavedSearches] = useState<SavedSearch[]>([]);
+  const [selectedSavedSearchId, setSelectedSavedSearchId] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setSavedSearches([]);
+      setSelectedSavedSearchId(null);
+      return;
+    }
+    void listSavedSearches()
+      .then(setSavedSearches)
+      .catch(() => setSaveMessage("A mentett keresések betöltése nem sikerült."));
+  }, [isAuthenticated]);
 
   useEffect(() => subscribe((snapshot) => {
     setAuctions((items) => {
@@ -146,6 +151,14 @@ export function AuctionsPage() {
     void load();
   }, [load]);
 
+  useEffect(() => {
+    const timeout = window.setTimeout(() => {
+      setOffset(0);
+      setAppliedFilters(filters);
+    }, 250);
+    return () => window.clearTimeout(timeout);
+  }, [filters]);
+
   const submitFilters = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setOffset(0);
@@ -155,17 +168,57 @@ export function AuctionsPage() {
   const resetFilters = () => {
     setFilters(INITIAL_FILTERS);
     setAppliedFilters(INITIAL_FILTERS);
+    setSelectedSavedSearchId(null);
+    setOffset(0);
+  };
+
+  const applySavedSearch = (item: SavedSearch) => {
+    const nextFilters: FilterState = {
+      ...INITIAL_FILTERS,
+      q: item.query ?? "",
+      title: item.title ?? "",
+      description: item.description ?? "",
+      category: item.category ?? "",
+      condition: item.condition ?? "",
+      min_price: item.min_price === undefined || item.min_price === null ? "" : String(item.min_price),
+      max_price: item.max_price === undefined || item.max_price === null ? "" : String(item.max_price),
+      min_bids: item.min_bids === undefined || item.min_bids === null ? "" : String(item.min_bids),
+      buy_now: item.buy_now === undefined || item.buy_now === null ? "" : String(item.buy_now),
+      soon_ending: Boolean(item.soon_ending),
+      new_only: Boolean(item.new_only),
+    };
+    setSelectedSavedSearchId(item.id);
+    setFilters(nextFilters);
+    setAppliedFilters(nextFilters);
     setOffset(0);
   };
 
   const saveSearch = async () => {
     const name = window.prompt("A mentett keresés neve:", filters.q || filters.category || "Aukciókeresés");
     if (!name) return;
+    if (name.trim().length > 20) {
+      setSaveMessage("A mentett keresés neve legfeljebb 20 karakter lehet.");
+      return;
+    }
     try {
-      await createSavedSearch({ name, ...toParams(filters, 0), limit: undefined, offset: undefined, sort: undefined });
+      const savedSearch = await createSavedSearch({ name: name.trim(), ...toParams(filters, 0), limit: undefined, offset: undefined, sort: undefined });
+      setSavedSearches((items) => [savedSearch, ...items]);
+      setSelectedSavedSearchId(savedSearch.id);
       setSaveMessage("A keresés mentve. Az új találatokról in-app értesítést kapsz.");
     } catch (err) {
       setSaveMessage(err instanceof Error ? err.message : "A keresés mentése nem sikerült.");
+    }
+  };
+
+  const removeSelectedSearch = async () => {
+    if (selectedSavedSearchId === null) return;
+    try {
+      await deleteSavedSearch(selectedSavedSearchId);
+      setSavedSearches((items) => items.filter((item) => item.id !== selectedSavedSearchId));
+      setSelectedSavedSearchId(null);
+      setSaveMessage("A mentett keresést töröltük.");
+    } catch (err) {
+      setSaveMessage(err instanceof Error ? err.message : "A mentett keresés törlése nem sikerült.");
     }
   };
 
@@ -184,15 +237,16 @@ export function AuctionsPage() {
         <div className="filter-quick-chips filter-wide" aria-label="Gyorsszűrők">
           <button className={filters.soon_ending ? "is-active" : ""} type="button" aria-pressed={filters.soon_ending} onClick={() => setFilters({ ...filters, soon_ending: !filters.soon_ending })}>24 órán belül lejár</button>
           <button className={filters.new_only ? "is-active" : ""} type="button" aria-pressed={filters.new_only} onClick={() => setFilters({ ...filters, new_only: !filters.new_only })}>Az elmúlt 7 nap új aukciói</button>
-          {isAuthenticated ? <Link to="/account/saved-searches">Mentett kereséseim</Link> : null}
+          {savedSearches.map((item) => (
+            <button className={selectedSavedSearchId === item.id ? "is-active saved-search-chip" : "saved-search-chip"} type="button" title={item.name} aria-pressed={selectedSavedSearchId === item.id} onClick={() => applySavedSearch(item)} key={item.id}>{item.name.slice(0, 20)}</button>
+          ))}
         </div>
         <label className="filter-wide">
           Gyorskeresés
-          <input type="search" maxLength={180} placeholder="Cím, leírás vagy eladó" value={filters.q} onChange={(event) => setFilters({ ...filters, q: event.target.value })} />
+          <input type="search" maxLength={180} placeholder="Cím vagy leírás" value={filters.q} onChange={(event) => setFilters({ ...filters, q: event.target.value })} />
         </label>
         <label>Cím<input type="search" maxLength={180} value={filters.title} onChange={(event) => setFilters({ ...filters, title: event.target.value })} /></label>
         <label>Leírás<input type="search" maxLength={180} value={filters.description} onChange={(event) => setFilters({ ...filters, description: event.target.value })} /></label>
-        <label>Eladó<input type="search" maxLength={80} value={filters.seller} onChange={(event) => setFilters({ ...filters, seller: event.target.value })} /></label>
         <label>
           Kategória
           <select value={filters.category} onChange={(event) => setFilters({ ...filters, category: event.target.value })}>
@@ -205,12 +259,6 @@ export function AuctionsPage() {
           <select value={filters.condition} onChange={(event) => setFilters({ ...filters, condition: event.target.value })}>
             <option value="">Mind</option>
             {CONDITION_OPTIONS.map(([value, label]) => <option value={value} key={value}>{label}</option>)}
-          </select>
-        </label>
-        <label>
-          Aukció állapota
-          <select value={filters.status} onChange={(event) => setFilters({ ...filters, status: event.target.value })}>
-            <option value="">Mind</option><option value="active">Aktív</option><option value="scheduled">Hamarosan indul</option><option value="sold">Eladott, egyeztetés alatt</option>
           </select>
         </label>
         <label>
@@ -248,9 +296,9 @@ export function AuctionsPage() {
           Új aukciók
         </label>
         <div className="filter-actions">
-          <button className="button button-primary" type="submit">Szűrés</button>
           <button className="button button-secondary" type="button" onClick={resetFilters}>Alaphelyzet</button>
           {isAuthenticated ? <button className="button button-ghost" type="button" onClick={saveSearch}>Keresés mentése</button> : null}
+          {isAuthenticated ? <button className="button button-danger" type="button" disabled={selectedSavedSearchId === null} onClick={() => void removeSelectedSearch()}>Keresés törlése</button> : null}
         </div>
       </form>
       {saveMessage ? <p className="form-message" role="status">{saveMessage}</p> : null}
