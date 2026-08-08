@@ -7,8 +7,11 @@ from app.core.config import settings
 from app.core.rate_limit import check_rate_limit
 from app.dependencies.auth import require_active_user, require_admin
 from app.models.user import User, VipActivationCode
-from app.schemas.membership import VipActivateRequest, VipActivationRead, VipCodeAdminRead, VipCodeBatchRead, VipCodeGenerateRequest, VipGeneratedCode, VipStatusRead
+from app.schemas.membership import VipActivateRequest, VipActivationRead, VipCodeAdminRead, VipCodeBatchRead, VipCodeGenerateRequest, VipGeneratedCode, VipReminderPreferencesUpdate, VipStatusRead
 from app.services.membership import NORMAL_ACTIVE_AUCTION_LIMIT, activate_code, active_auction_count, decrypt_vip_code, generate_codes, is_vip
+from app.services.security_audit import create_domain_audit_log
+from app.models.auction import Auction, WatchlistItem
+from app.models.notification import WatchlistReminder
 
 router = APIRouter(tags=["membership"])
 
@@ -21,11 +24,41 @@ def membership_status(db: Session, user: User) -> VipStatusRead:
         active_auction_limit=None if vip else NORMAL_ACTIVE_AUCTION_LIMIT,
         active_auction_count=active_auction_count(db, user.id),
         featured_auctions=vip,
+        reminder_one_day=user.vip_reminder_one_day,
+        reminder_one_hour=user.vip_reminder_one_hour,
+        reminder_five_minutes=user.vip_reminder_five_minutes,
     )
 
 
 @router.get("/api/membership", response_model=VipStatusRead)
 def get_membership(current_user: User = Depends(require_active_user), db: Session = Depends(get_db)) -> VipStatusRead:
+    return membership_status(db, current_user)
+
+
+@router.patch("/api/membership/reminders", response_model=VipStatusRead)
+def update_vip_reminders(payload: VipReminderPreferencesUpdate, current_user: User = Depends(require_active_user), db: Session = Depends(get_db)) -> VipStatusRead:
+    if not is_vip(current_user):
+        from fastapi import HTTPException
+        raise HTTPException(status_code=403, detail="Az aukciólejárati emlékeztetők csak aktív VIP-tagsággal állíthatók be.")
+    current_user.vip_reminder_one_day = payload.reminder_one_day
+    current_user.vip_reminder_one_hour = payload.reminder_one_hour
+    current_user.vip_reminder_five_minutes = payload.reminder_five_minutes
+    selected = {1440: payload.reminder_one_day, 60: payload.reminder_one_hour, 5: payload.reminder_five_minutes}
+    auction_ids = db.scalars(
+        select(WatchlistItem.auction_id).join(Auction, Auction.id == WatchlistItem.auction_id)
+        .where(WatchlistItem.user_id == current_user.id, Auction.status == "active")
+    ).all()
+    for auction_id in auction_ids:
+        for minutes_before, enabled in selected.items():
+            if enabled and db.scalar(select(WatchlistReminder.id).where(
+                WatchlistReminder.user_id == current_user.id,
+                WatchlistReminder.auction_id == auction_id,
+                WatchlistReminder.minutes_before == minutes_before,
+            )) is None:
+                db.add(WatchlistReminder(user_id=current_user.id, auction_id=auction_id, minutes_before=minutes_before))
+    create_domain_audit_log(db, action="vip_reminder_preferences_updated", user_id=current_user.id, metadata=payload.model_dump())
+    db.commit()
+    db.refresh(current_user)
     return membership_status(db, current_user)
 
 

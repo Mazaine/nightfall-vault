@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from "react";
-import { activateVipCode, getVipStatus, type VipStatus } from "../api/membership";
+import { activateVipCode, getVipStatus, saveVipReminders, type VipStatus } from "../api/membership";
 import { useAuth } from "../AuthContext";
 import { ErrorState, LoadingState } from "../components/AsyncStates";
 
@@ -14,6 +14,7 @@ export function VipMembershipPage() {
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
   const [pending, setPending] = useState(false);
+  const [reminderPending, setReminderPending] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -21,6 +22,24 @@ export function VipMembershipPage() {
     try { setStatus(await getVipStatus()); }
     catch (error) { setMessage(error instanceof Error ? error.message : "A VIP-adatok betöltése nem sikerült."); }
     finally { setLoading(false); }
+  };
+
+  const updateReminder = async (field: "reminder_one_day" | "reminder_one_hour" | "reminder_five_minutes", checked: boolean) => {
+    if (!status?.is_vip || reminderPending) return;
+    const preferences = {
+      reminder_one_day: status.reminder_one_day,
+      reminder_one_hour: status.reminder_one_hour,
+      reminder_five_minutes: status.reminder_five_minutes,
+      [field]: checked,
+    };
+    setReminderPending(true);
+    setMessage("");
+    try {
+      setStatus(await saveVipReminders(preferences));
+      setMessage("Az aukciólejárati emlékeztetők beállításait elmentettük.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Az emlékeztetők mentése nem sikerült.");
+    } finally { setReminderPending(false); }
   };
 
   useEffect(() => { void load(); }, []);
@@ -60,6 +79,15 @@ export function VipMembershipPage() {
           <li>A licitálás normál tagsággal is korlátlan</li>
         </ul>
       </div>
+      {status.is_vip ? (
+        <section className="form-panel vip-reminder-settings" aria-labelledby="vip-reminders-title">
+          <h2 id="vip-reminders-title">Aukciólejárati emlékeztetők</h2>
+          <p className="muted-text">A figyelőlistádon lévő aukciókról kérhetsz egyszeri értesítést.</p>
+          <label className="toggle-row"><input type="checkbox" checked={status.reminder_one_day} disabled={reminderPending} onChange={(event) => void updateReminder("reminder_one_day", event.target.checked)} />1 nappal az aukció vége előtt</label>
+          <label className="toggle-row"><input type="checkbox" checked={status.reminder_one_hour} disabled={reminderPending} onChange={(event) => void updateReminder("reminder_one_hour", event.target.checked)} />1 órával az aukció vége előtt</label>
+          <label className="toggle-row"><input type="checkbox" checked={status.reminder_five_minutes} disabled={reminderPending} onChange={(event) => void updateReminder("reminder_five_minutes", event.target.checked)} />Az utolsó 5 perc kezdetekor</label>
+        </section>
+      ) : null}
       <form className="form-panel vip-activation-form" onSubmit={submit}>
         <label htmlFor="vip-code">12 karakteres VIP-kód</label>
         <input id="vip-code" value={code} onChange={(event) => setCode(event.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 12))} inputMode="text" autoCapitalize="characters" autoComplete="one-time-code" pattern="[A-Z0-9]{12}" minLength={12} maxLength={12} placeholder="A7KM2P9R4XQ8" required />

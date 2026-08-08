@@ -158,10 +158,13 @@ def require_owner_or_admin(auction: Auction, user: User) -> None:
 
 def create_auction(db: Session, auction_create: AuctionCreate, seller: User) -> Auction:
     from app.services.moderation_actions import require_no_restriction
+    from app.services.membership import is_vip
 
     require_no_restriction(db, seller.id, "auction_creation_ban")
     if seller.deleted_at is not None or not seller.is_active:
         raise HTTPException(status_code=403, detail="Ez a felhasználói fiók inaktív.")
+    if (auction_create.external_link_label or auction_create.external_link_url) and not is_vip(seller):
+        raise HTTPException(status_code=403, detail="Kattintható hivatkozást csak aktív VIP-tag adhat az aukcióhoz.")
     if auction_create.creation_key:
         existing = db.scalar(select(Auction).where(
             Auction.seller_id == seller.id,
@@ -178,6 +181,8 @@ def create_auction(db: Session, auction_create: AuctionCreate, seller: User) -> 
         creation_key=auction_create.creation_key,
         title=auction_create.title,
         description=auction_create.description,
+        external_link_label=auction_create.external_link_label,
+        external_link_url=auction_create.external_link_url,
         category=auction_create.category,
         condition=auction_create.condition,
         status="draft",
@@ -233,11 +238,20 @@ def _validate_update_buy_now(auction: Auction, update: AuctionUpdate) -> None:
 
 
 def update_auction(db: Session, auction: Auction, auction_update: AuctionUpdate, user: User) -> Auction:
+    from app.services.membership import is_vip
+
     sync_auction_status(db, auction)
     require_owner_or_admin(auction, user)
     if auction.status not in EDITABLE_OWNER_STATUSES and user.role != "admin":
         raise HTTPException(status_code=409, detail="Ebben az aukcióállapotban az aukció nem módosítható.")
     update_data = auction_update.model_dump(exclude_unset=True)
+    link_fields_changed = "external_link_label" in update_data or "external_link_url" in update_data
+    if link_fields_changed and not is_vip(user):
+        raise HTTPException(status_code=403, detail="Kattintható hivatkozást csak aktív VIP-tag módosíthat.")
+    link_label = update_data.get("external_link_label", auction.external_link_label)
+    link_url = update_data.get("external_link_url", auction.external_link_url)
+    if bool(link_label) != bool(link_url):
+        raise HTTPException(status_code=422, detail="A hivatkozás feliratát és URL-jét együtt kell megadni.")
     if user.role != "admin" and auction.status != "draft" and any(field in update_data for field in CRITICAL_AUCTION_FIELDS):
         raise HTTPException(status_code=409, detail="A kezdőár, a licitlépcső, a villámár és a kezdési idő piszkozat után nem módosítható.")
     _validate_update_time_window(auction, auction_update)

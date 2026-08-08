@@ -1482,7 +1482,6 @@ h3 {
 .bid-history-list .is-withdrawn { opacity: .72; }
 .bid-history-list .is-withdrawn strong { text-decoration: line-through; }
 .bid-withdraw-button { margin-inline-start: auto; }
-.bid-withdrawal-countdown { font-variant-numeric: tabular-nums; }
 .bid-action-dialog .toggle-row { margin-top: 0; }
 
 .home-update { padding-block: var(--space-5); }

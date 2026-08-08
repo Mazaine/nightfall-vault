@@ -33,6 +33,8 @@ export type Auction = {
   seller_id: number;
   title: string;
   description?: string;
+  external_link_label?: string | null;
+  external_link_url?: string | null;
   category: string;
   condition: AuctionCondition;
   status: AuctionStatus;
@@ -74,6 +76,8 @@ export type AuctionCreatePayload = {
   creation_key?: string;
   title: string;
   description: string;
+  external_link_label?: string | null;
+  external_link_url?: string | null;
   category: string;
   condition: AuctionCondition;
   starting_price: string;

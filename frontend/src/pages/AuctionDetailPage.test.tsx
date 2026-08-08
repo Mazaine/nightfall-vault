@@ -67,7 +67,7 @@ describe("AuctionDetailPage", () => {
       viewer_is_leading: true,
       viewer_top_bid_id: 31,
       viewer_can_withdraw: false,
-      viewer_withdrawal_block_reason: "A licit visszavonására rendelkezésre álló 1 perc lejárt.",
+      viewer_withdrawal_block_reason: "Az aukció kezdő licitálója nem vonhatja vissza a licitjét.",
     });
     mocks.listAuctionBids.mockResolvedValue([{ id: 31, amount: "1200.00", created_at: new Date().toISOString(), bidder_label: "Te", is_highest: true }]);
 
@@ -76,7 +76,7 @@ describe("AuctionDetailPage", () => {
     expect(await screen.findByRole("heading", { name: "Te vezetsz" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Licitálok" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Kiszállok" })).toBeDisabled();
-    expect(screen.getByText("A licit visszavonására rendelkezésre álló 1 perc lejárt.")).toBeInTheDocument();
+    expect(screen.getByText("Az aukció kezdő licitálója nem vonhatja vissza a licitjét.")).toBeInTheDocument();
   });
 
   it("a teljes képet mutatja és a galéria további képei között lapoz", async () => {

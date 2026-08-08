@@ -54,6 +54,15 @@ class VipStatusRead(BaseModel):
     active_auction_limit: int | None
     active_auction_count: int
     featured_auctions: bool
+    reminder_one_day: bool
+    reminder_one_hour: bool
+    reminder_five_minutes: bool
+
+
+class VipReminderPreferencesUpdate(BaseModel):
+    reminder_one_day: bool
+    reminder_one_hour: bool
+    reminder_five_minutes: bool
 
 
 class VipActivationRead(VipStatusRead):

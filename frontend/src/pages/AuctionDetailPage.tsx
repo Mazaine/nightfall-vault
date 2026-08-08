@@ -29,17 +29,6 @@ function appendUniqueMessage(items: AuctionMessage[], incoming: AuctionMessage) 
   return items.some((item) => item.id === incoming.id) ? items : [...items, incoming];
 }
 
-function WithdrawBidButton({ until, onClick }: { until: string; onClick: () => void }) {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    const timer = window.setInterval(() => setNow(Date.now()), 1000);
-    return () => window.clearInterval(timer);
-  }, []);
-  const seconds = Math.max(0, Math.ceil((new Date(until).getTime() - now) / 1000));
-  if (seconds === 0) return null;
-  return <button className="button button-danger bid-withdraw-button" type="button" onClick={onClick}>Licit visszavonása <span className="bid-withdrawal-countdown" aria-live="polite">{seconds} mp</span></button>;
-}
-
 export function AuctionDetailPage() {
   const { auctionId } = useParams();
   const location = useLocation();
@@ -437,9 +426,10 @@ export function AuctionDetailPage() {
         <p className="eyebrow">{auction.category} · {formatAuctionStatus(auction.status)}</p>
         {auction.is_demo ? <span className="demo-auction-badge">TESZT AUKCIÓ</span> : null}
         <h1>{auction.title}</h1>
-        <p className="hero-lead">
-          {auction.description}
-        </p>
+        <p className="hero-lead">{auction.description}</p>
+        {auction.external_link_label && auction.external_link_url && /^https?:\/\//i.test(auction.external_link_url) ? (
+          <p className="auction-external-link"><a className="text-link" href={auction.external_link_url} target="_blank" rel="noopener noreferrer nofollow">{auction.external_link_label}</a></p>
+        ) : null}
         <dl className="detail-list">
           <div><dt>Aktuális licit</dt><dd>{formatMoney(auction.current_price ?? auction.starting_price)}</dd></div>
           <div><dt>Kezdőár</dt><dd>{formatMoney(auction.starting_price)}</dd></div>
@@ -536,7 +526,7 @@ export function AuctionDetailPage() {
                   <strong>{formatMoney(bid.amount)}</strong>
                   <span>{bid.bidder_label}</span>
                   {bid.status === "withdrawn" ? <em>Visszavonva</em> : bid.is_highest ? <em>Legmagasabb</em> : null}
-                  {bid.can_withdraw && bid.withdrawable_until ? <WithdrawBidButton until={bid.withdrawable_until} onClick={() => setWithdrawBidTarget(bid)} /> : null}
+                  {bid.can_withdraw ? <button className="button button-danger bid-withdraw-button" type="button" onClick={() => setWithdrawBidTarget(bid)}>Licit visszavonása</button> : null}
                 </p>
               ))}
             </div>

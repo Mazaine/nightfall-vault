@@ -42,7 +42,6 @@ class Settings(BaseSettings):
     newsletter_rate_limit_per_minute: int = 5
     bid_rate_limit_per_minute: int = 30
     bid_withdrawal_rate_limit_per_minute: int = 10
-    bid_withdrawal_window_seconds: int = 60
     bid_withdrawal_min_remaining_seconds: int = 300
     bid_withdrawal_warning_threshold: int = 5
     chat_message_rate_limit_per_minute: int = 20

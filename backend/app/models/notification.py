@@ -56,7 +56,7 @@ class NotificationPreference(Base):
 class WatchlistReminder(Base):
     __tablename__ = "watchlist_reminders"
     __table_args__ = (
-        CheckConstraint("minutes_before IN (1, 5, 10, 30)", name="ck_watchlist_reminders_minutes"),
+        CheckConstraint("minutes_before IN (1, 5, 10, 30, 60, 1440)", name="ck_watchlist_reminders_minutes"),
         UniqueConstraint("user_id", "auction_id", "minutes_before", name="uq_watchlist_reminders_once"),
         Index("ix_watchlist_reminders_due", "sent_at", "minutes_before"),
     )

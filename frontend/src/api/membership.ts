@@ -6,6 +6,9 @@ export type VipStatus = {
   active_auction_limit: number | null;
   active_auction_count: number;
   featured_auctions: boolean;
+  reminder_one_day: boolean;
+  reminder_one_hour: boolean;
+  reminder_five_minutes: boolean;
   message?: string;
 };
 
@@ -34,6 +37,12 @@ export const activateVipCode = (code: string) => apiRequest<VipStatus>("/api/mem
   method: "POST",
   body: JSON.stringify({ code }),
 });
+
+export const saveVipReminders = (preferences: Pick<VipStatus, "reminder_one_day" | "reminder_one_hour" | "reminder_five_minutes">) =>
+  apiRequest<VipStatus>("/api/membership/reminders", {
+    method: "PATCH",
+    body: JSON.stringify(preferences),
+  });
 
 export const generateVipCodes = (quantity: 10 | 50 | 100 | 150 | 200 | 500, durationMonths: 1 | 3) =>
   apiRequest<VipCodeBatch>("/api/admin/vip-codes/generate", {

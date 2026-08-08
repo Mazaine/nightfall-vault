@@ -4,13 +4,15 @@ import logging
 from dataclasses import dataclass
 from datetime import timedelta
 
-from sqlalchemy import select, text
+from sqlalchemy import and_, or_, select, text
 from sqlalchemy.orm import Session
 
 from app.db.session import SessionLocal
 from app.core.config import settings
 from app.models.auction import Auction
 from app.models.notification import WatchlistReminder
+from app.models.user import User
+from app.services.membership import is_vip
 from app.services.auction_lifecycle import close_ended_active_auction, now_utc
 from app.services.notification_dispatcher import dispatch_notification
 from app.services.scheduler_health import write_scheduler_heartbeat
@@ -28,19 +30,33 @@ class SchedulerIterationResult:
 def send_due_watchlist_reminders(db: Session, limit: int = 500) -> int:
     current_time = now_utc()
     statement = (
-        select(WatchlistReminder, Auction)
+        select(WatchlistReminder, Auction, User)
         .join(Auction, Auction.id == WatchlistReminder.auction_id)
+        .join(User, User.id == WatchlistReminder.user_id)
         .where(
             WatchlistReminder.sent_at.is_(None), Auction.status == "active",
             Auction.ends_at > current_time,
-            Auction.ends_at <= current_time + timedelta(minutes=30),
+            Auction.ends_at <= current_time + timedelta(days=1),
+            or_(User.role == "admin", User.vip_expires_at > current_time),
+            or_(
+                and_(WatchlistReminder.minutes_before == 1440, User.vip_reminder_one_day.is_(True)),
+                and_(WatchlistReminder.minutes_before == 60, User.vip_reminder_one_hour.is_(True)),
+                and_(WatchlistReminder.minutes_before == 5, User.vip_reminder_five_minutes.is_(True)),
+            ),
         )
         .order_by(Auction.ends_at.asc(), WatchlistReminder.minutes_before.desc())
         .limit(limit)
         .with_for_update(skip_locked=True)
     )
     sent_count = 0
-    for reminder, auction in db.execute(statement).all():
+    for reminder, auction, user in db.execute(statement).all():
+        preference_enabled = {
+            1440: user.vip_reminder_one_day,
+            60: user.vip_reminder_one_hour,
+            5: user.vip_reminder_five_minutes,
+        }.get(reminder.minutes_before, False)
+        if not is_vip(user, current_time) or not preference_enabled:
+            continue
         due_at = auction.ends_at - timedelta(minutes=reminder.minutes_before)
         if reminder.created_at and reminder.created_at > due_at:
             reminder.sent_at = current_time
@@ -48,10 +64,11 @@ def send_due_watchlist_reminders(db: Session, limit: int = 500) -> int:
             continue
         if current_time < due_at:
             continue
+        reminder_label = {1440: "1 napon", 60: "1 órán", 5: "5 percen"}[reminder.minutes_before]
         dispatch_notification(
             db, user_id=reminder.user_id, auction_id=auction.id, notification_type="watchlist_reminder",
             title="Hamarosan zárul egy figyelt aukció",
-            message=f"A(z) „{auction.title}” aukció {reminder.minutes_before} percen belül zárul.",
+            message=f"A(z) „{auction.title}” aukció {reminder_label} belül zárul.",
             target_url=f"/auctions/{auction.id}", event_key=f"watchlist-reminder:{reminder.id}",
         )
         reminder.sent_at = current_time

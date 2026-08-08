@@ -1,6 +1,7 @@
 from datetime import datetime
 from decimal import Decimal
 from typing import Literal
+from urllib.parse import urlsplit
 
 from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator, model_validator
 
@@ -30,6 +31,18 @@ def _require_timezone(value: datetime) -> datetime:
     return value
 
 
+def _safe_external_url(value: str | None) -> str | None:
+    normalized = value.strip() if value else None
+    if not normalized:
+        return None
+    if any(character.isspace() or ord(character) < 32 for character in normalized) or any(character in normalized for character in '<>"\''):
+        raise ValueError("A hivatkozás nem tartalmazhat szóközt vagy vezérlőkaraktert.")
+    parsed = urlsplit(normalized)
+    if parsed.scheme.lower() not in {"http", "https"} or not parsed.netloc or parsed.username or parsed.password:
+        raise ValueError("Csak biztonságos http:// vagy https:// hivatkozás adható meg.")
+    return normalized
+
+
 class UserSummary(BaseModel):
     id: int
     username: str
@@ -41,6 +54,8 @@ class UserSummary(BaseModel):
 class AuctionBase(BaseModel):
     title: str = Field(min_length=2, max_length=180)
     description: str = Field(min_length=10, max_length=5000)
+    external_link_label: str | None = Field(default=None, max_length=80)
+    external_link_url: str | None = Field(default=None, max_length=1000)
     category: str = Field(min_length=2, max_length=80)
     condition: AuctionCondition
     starting_price: Decimal = Field(ge=0, max_digits=12, decimal_places=2)
@@ -56,6 +71,16 @@ class AuctionBase(BaseModel):
     def normalize_text(cls, value: str) -> str:
         return _normalize_required_text(value)
 
+    @field_validator("external_link_label")
+    @classmethod
+    def normalize_link_label(cls, value: str | None) -> str | None:
+        return _normalize_optional_text(value)
+
+    @field_validator("external_link_url")
+    @classmethod
+    def validate_external_link(cls, value: str | None) -> str | None:
+        return _safe_external_url(value)
+
     @field_validator("starts_at", "ends_at")
     @classmethod
     def validate_timezone(cls, value: datetime) -> datetime:
@@ -63,6 +88,8 @@ class AuctionBase(BaseModel):
 
     @model_validator(mode="after")
     def validate_prices_and_time(self) -> "AuctionBase":
+        if bool(self.external_link_label) != bool(self.external_link_url):
+            raise ValueError("A hivatkozás feliratát és URL-jét együtt kell megadni.")
         if self.ends_at <= self.starts_at:
             raise ValueError("A lejárati időnek későbbinek kell lennie a kezdési időnél.")
         if self.buy_now_enabled:
@@ -90,6 +117,8 @@ class AuctionCreate(AuctionBase):
 class AuctionUpdate(BaseModel):
     title: str | None = Field(default=None, min_length=2, max_length=180)
     description: str | None = Field(default=None, min_length=10, max_length=5000)
+    external_link_label: str | None = Field(default=None, max_length=80)
+    external_link_url: str | None = Field(default=None, max_length=1000)
     category: str | None = Field(default=None, min_length=2, max_length=80)
     condition: AuctionCondition | None = None
     starting_price: Decimal | None = Field(default=None, ge=0, max_digits=12, decimal_places=2)
@@ -100,10 +129,15 @@ class AuctionUpdate(BaseModel):
     ends_at: datetime | None = None
     five_minute_rule_enabled: bool | None = None
 
-    @field_validator("title", "description", "category")
+    @field_validator("title", "description", "category", "external_link_label")
     @classmethod
     def normalize_optional_text(cls, value: str | None) -> str | None:
         return _normalize_optional_text(value)
+
+    @field_validator("external_link_url")
+    @classmethod
+    def validate_optional_external_link(cls, value: str | None) -> str | None:
+        return _safe_external_url(value)
 
     @field_validator("starts_at", "ends_at")
     @classmethod
@@ -282,6 +316,8 @@ class AuctionListItem(BaseModel):
     id: int
     seller_id: int
     title: str
+    external_link_label: str | None = None
+    external_link_url: str | None = None
     category: str
     condition: AuctionCondition
     status: AuctionStatus

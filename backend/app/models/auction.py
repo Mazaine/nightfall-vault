@@ -34,6 +34,8 @@ class Auction(Base):
     creation_key: Mapped[str | None] = mapped_column(String(36), nullable=True)
     title: Mapped[str] = mapped_column(String(180), nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=False)
+    external_link_label: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    external_link_url: Mapped[str | None] = mapped_column(String(1000), nullable=True)
     category: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
     condition: Mapped[str] = mapped_column(String(30), nullable=False)
     status: Mapped[str] = mapped_column(String(30), nullable=False, default="draft", index=True)

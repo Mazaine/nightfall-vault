@@ -88,9 +88,17 @@ def _aware(value):
     return value.replace(tzinfo=timezone.utc)
 
 
-def bid_withdrawal_state(bid: Bid, auction: Auction, user: User | None, *, current_time=None) -> dict:
+def _first_bidder_id(db: Session, auction_id: int) -> int | None:
+    return db.scalar(
+        select(Bid.bidder_id)
+        .where(Bid.auction_id == auction_id)
+        .order_by(Bid.created_at.asc(), Bid.id.asc())
+        .limit(1)
+    )
+
+
+def bid_withdrawal_state(bid: Bid, auction: Auction, user: User | None, *, db: Session | None = None, current_time=None) -> dict:
     current_time = current_time or now_utc()
-    withdrawable_until = _aware(bid.created_at) + timedelta(seconds=settings.bid_withdrawal_window_seconds)
     is_top = bid.status == ACTIVE_BID_STATUS and auction.highest_bid_id == bid.id
     reason = None
     if user is None or bid.bidder_id != user.id:
@@ -101,9 +109,9 @@ def bid_withdrawal_state(bid: Bid, auction: Auction, user: User | None, *, curre
         reason = "Csak az aukció legutolsó aktív licitje vonható vissza."
     elif auction.status != "active":
         reason = "Az aukció állapota már nem teszi lehetővé a licit visszavonását."
-    elif current_time > withdrawable_until:
-        reason = "A licit visszavonására rendelkezésre álló 1 perc lejárt."
-    elif _aware(auction.ends_at) - current_time < timedelta(seconds=settings.bid_withdrawal_min_remaining_seconds):
+    elif db is not None and _first_bidder_id(db, auction.id) == bid.bidder_id:
+        reason = "Az aukció kezdő licitálója nem vonhatja vissza a licitjét."
+    elif _aware(auction.ends_at) - current_time <= timedelta(seconds=settings.bid_withdrawal_min_remaining_seconds):
         reason = "Az aukció utolsó 5 percében a licit már nem vonható vissza."
     elif user.bid_withdrawal_permanently_disabled or (
         user.bid_withdrawal_disabled_until is not None and _aware(user.bid_withdrawal_disabled_until) > current_time
@@ -111,15 +119,15 @@ def bid_withdrawal_state(bid: Bid, auction: Auction, user: User | None, *, curre
         reason = "A licit-visszavonási lehetőséged jelenleg korlátozva van."
     return {
         "can_withdraw": reason is None,
-        "withdrawable_until": withdrawable_until,
+        "withdrawable_until": None,
         "withdrawal_block_reason": reason,
         "is_top_active_bid": is_top,
     }
 
 
-def bid_history_item_for_user(bid: Bid, auction: Auction, user: User | None) -> dict:
+def bid_history_item_for_user(bid: Bid, auction: Auction, user: User | None, *, db: Session | None = None) -> dict:
     item = bid_to_history_item(bid, auction)
-    item.update(bid_withdrawal_state(bid, auction, user))
+    item.update(bid_withdrawal_state(bid, auction, user, db=db))
     return item
 
 
@@ -183,9 +191,9 @@ def withdraw_bid(
     top_bid = active_bids[0] if active_bids else None
     if top_bid is None or top_bid.id != target.id:
         raise HTTPException(status_code=409, detail="Csak az aukció legutolsó aktív licitje vonható vissza.")
-    if current_time > _aware(target.created_at) + timedelta(seconds=settings.bid_withdrawal_window_seconds):
-        raise HTTPException(status_code=422, detail="A licit visszavonására rendelkezésre álló 1 perc lejárt.")
-    if _aware(auction.ends_at) - current_time < timedelta(seconds=settings.bid_withdrawal_min_remaining_seconds):
+    if _first_bidder_id(db, auction.id) == target.bidder_id:
+        raise HTTPException(status_code=422, detail="Az aukció kezdő licitálója nem vonhatja vissza a licitjét.")
+    if _aware(auction.ends_at) - current_time <= timedelta(seconds=settings.bid_withdrawal_min_remaining_seconds):
         raise HTTPException(status_code=422, detail="Az aukció utolsó 5 percében a licit már nem vonható vissza.")
 
     old_state = {"current_price": str(auction.current_price), "highest_bid_id": auction.highest_bid_id}
@@ -277,7 +285,7 @@ def withdraw_bid(
 
     snapshot = auction_realtime_snapshot(db, auction)
     publish_auction_event(auction.id, "auction_update", snapshot)
-    next_item = bid_history_item_for_user(next_top, auction, bidder) if next_top is not None and next_top.bidder_id == bidder.id else None
+    next_item = bid_history_item_for_user(next_top, auction, bidder, db=db) if next_top is not None and next_top.bidder_id == bidder.id else None
     return {
         "bid_id": target.id,
         "status": target.status,

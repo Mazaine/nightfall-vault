@@ -14,6 +14,8 @@ const accountRules = [
   "A normál tag korlátlan számú aukciót böngészhet és licitálhat, de egyszerre legfeljebb 3 saját aktív vagy időzített aukciója lehet.",
   "A VIP-tagság 12 karakteres, egyszer használható alfanumerikus kóddal aktiválható 1 vagy 3 hónapra. A még aktív VIP-időszakhoz az új időtartam hozzáadódik.",
   "A VIP-tag korlátlan számú saját aktív vagy időzített aukciót tarthat fenn, aukciói VIP-kiemelést kapnak, és a listák elején jelennek meg.",
+  "A VIP-tag a figyelőlistás aukciók lejárata előtt 1 nappal, 1 órával és az utolsó 5 perc kezdetekor külön-külön bekapcsolható, egyszeri emlékeztetőt kérhet.",
+  "A VIP-tag az aukciójához biztonságos, kattintható http- vagy https-hivatkozást adhat meg külön felirattal; tetszőleges HTML nem illeszthető a leírásba.",
   "Lejárt VIP-tagságnál a már futó aukciók nem tűnnek el, de új aukció csak akkor aktiválható, ha a normál háromaukciós korlát ismét teljesül.",
 ] as const;
 
@@ -37,8 +39,7 @@ const biddingRules = [
 ] as const;
 
 const withdrawalRules = [
-  "A licitek alapvetően kötelező érvényűek. Téves licit esetén kizárólag az aukció legutolsó és legmagasabb aktív licitje vonható vissza, a leadásától számított legfeljebb 1 percen belül.",
-  "A visszavonás csak akkor engedélyezett, ha az aukció végéig legalább 5 perc van hátra. Pontosan 60 másodpercnél és pontosan 5 perc hátralévő időnél a művelet még engedélyezett.",
+  "A kezdő licitáló nem vonhatja vissza a licitjét. A többi licitáló a saját legutolsó aktív licitjét visszavonhatja, kivéve az aukció utolsó 5 percében.",
   "A működés veremelvű: 1000, 2000, 3000 és 4000 Ft aktív licit esetén először csak a 4000 Ft-os vonható vissza. Ezután a 3000 Ft-os válik legfelsővé, és külön műveletben visszavonható, ha a többi feltétel még teljesül.",
   "A visszavont licit nem törlődik. Visszavont állapottal megmarad a licittörténetben és az auditnaplóban, de nem számít bele az aktuális árba, a következő minimumba, a vezetőbe, a nyertesbe vagy a tranzakcióba.",
   "A visszavonáshoz indokot kell választani. Az Egyéb indokhoz rövid szöveges magyarázat is szükséges. A backend a kattintás pillanatában újra ellenőrzi a tulajdonost, az időablakot, az aukcióállapotot és a licitsor tetejét.",

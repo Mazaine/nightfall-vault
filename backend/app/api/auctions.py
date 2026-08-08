@@ -56,7 +56,7 @@ def auction_list_item(
     viewer_is_leading = bool(viewer is not None and auction.highest_bid is not None and auction.highest_bid.bidder_id == viewer.id)
     if viewer_is_watched is None:
         viewer_is_watched = bool(db is not None and viewer is not None and db.scalar(select(WatchlistItem.id).where(WatchlistItem.auction_id == auction.id, WatchlistItem.user_id == viewer.id).limit(1)))
-    withdrawal = bid_withdrawal_state(auction.highest_bid, auction, viewer) if viewer_is_leading and auction.highest_bid is not None else {"can_withdraw": False, "withdrawal_block_reason": None}
+    withdrawal = bid_withdrawal_state(auction.highest_bid, auction, viewer, db=db) if viewer_is_leading and auction.highest_bid is not None else {"can_withdraw": False, "withdrawal_block_reason": None}
     return AuctionListItem.model_validate(auction).model_copy(update={
         "bid_count": count,
         "seller_average_rating": seller_average_rating,
@@ -149,7 +149,7 @@ def auction_response(auction: Auction, user: User | None = None, db: Session | N
     if user is None:
         return response
     viewer_is_leading = bool(auction.highest_bid is not None and auction.highest_bid.bidder_id == user.id)
-    withdrawal = bid_withdrawal_state(auction.highest_bid, auction, user) if viewer_is_leading and auction.highest_bid is not None else {"can_withdraw": False, "withdrawal_block_reason": None}
+    withdrawal = bid_withdrawal_state(auction.highest_bid, auction, user, db=db) if viewer_is_leading and auction.highest_bid is not None else {"can_withdraw": False, "withdrawal_block_reason": None}
     return response.model_copy(
         update={
             "is_owner": auction.seller_id == user.id,
@@ -247,7 +247,7 @@ def list_public_auctions(
                     viewer_personal_status = "outbid"
                 elif auction.id in viewer_watched_auction_ids:
                     viewer_personal_status = "watched"
-            items.append(auction_list_item(auction, bid_counts.get(auction.id, 0), seller_average_rating=average, seller_review_count=review_count, viewer=current_user, viewer_personal_status=viewer_personal_status, viewer_is_watched=auction.id in viewer_watched_auction_ids))
+            items.append(auction_list_item(auction, bid_counts.get(auction.id, 0), db=db, seller_average_rating=average, seller_review_count=review_count, viewer=current_user, viewer_personal_status=viewer_personal_status, viewer_is_watched=auction.id in viewer_watched_auction_ids))
     return AuctionListPage(items=items, total=total, limit=limit, offset=offset)
 
 
@@ -398,7 +398,7 @@ def list_my_bid_auctions_page(
         is_closed = not is_open and (has_won or is_lost or is_watched)
         if state == "current" and not is_current: continue
         if state == "closed" and not is_closed: continue
-        withdrawal = bid_withdrawal_state(top_own, auction, current_user) if top_own else {"can_withdraw": False, "withdrawal_block_reason": None}
+        withdrawal = bid_withdrawal_state(top_own, auction, current_user, db=db) if top_own else {"can_withdraw": False, "withdrawal_block_reason": None}
         items.append(MyBidAuctionItem(
             auction=auction_list_item(auction, db=db), my_highest_bid=top_own.amount if top_own else None,
             is_leading=is_leading, has_won=has_won, is_outbid=is_outbid,
@@ -504,7 +504,7 @@ def list_auction_bids(
 ) -> list[BidHistoryItem]:
     auction = get_auction_or_404(db, auction_id)
     bids = list_bid_history(db=db, auction=auction, user=current_user)
-    return [BidHistoryItem.model_validate(bid_history_item_for_user(bid, auction, current_user)) for bid in bids]
+    return [BidHistoryItem.model_validate(bid_history_item_for_user(bid, auction, current_user, db=db)) for bid in bids]
 
 
 @router.get("/realtime/stream")

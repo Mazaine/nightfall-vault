@@ -10,6 +10,7 @@ import { categories, conditionOptions } from "../data/content";
 import { formatAuctionStatus, formatMoney, formatRemainingTime } from "../utils/format";
 import { useNotifications } from "../NotificationContext";
 import { useAuctionRealtime } from "../AuctionRealtimeContext";
+import { useAuth } from "../AuthContext";
 
 const MAX_AUCTION_IMAGES = 5;
 const MAX_IMAGE_FILE_SIZE_BYTES = 20 * 1024 * 1024;
@@ -175,6 +176,8 @@ function validateAuctionEditDates(formData: FormData, auction: Auction) {
 }
 
 export function AccountPage({ section }: { section: "bids" | "auctions" | "create" }) {
+  const { user } = useAuth();
+  const hasActiveVip = user?.role === "admin" || Boolean(user?.is_vip && user.vip_expires_at && new Date(user.vip_expires_at).getTime() > Date.now());
   const { subscribe: subscribeNotifications, showToast } = useNotifications();
   const { subscribe: subscribeAuctionUpdates } = useAuctionRealtime();
   const [myAuctions, setMyAuctions] = useState<Auction[]>([]);
@@ -332,6 +335,8 @@ export function AccountPage({ section }: { section: "bids" | "auctions" | "creat
       const payload = {
         title: String(formData.get("title") ?? ""),
         description: String(formData.get("description") ?? ""),
+        external_link_label: hasActiveVip ? String(formData.get("external_link_label") ?? "").trim() || null : null,
+        external_link_url: hasActiveVip ? String(formData.get("external_link_url") ?? "").trim() || null : null,
         category: String(formData.get("category") ?? categories[0]),
         condition: conditionMap[String(formData.get("condition") ?? conditionOptions[0])],
         starting_price: String(formData.get("starting_price") ?? "0"),
@@ -474,6 +479,10 @@ export function AccountPage({ section }: { section: "bids" | "auctions" | "creat
     const safeUpdate = {
       title: String(formData.get("title") ?? "").trim(),
       description: String(formData.get("description") ?? "").trim(),
+      ...(hasActiveVip ? {
+        external_link_label: String(formData.get("external_link_label") ?? "").trim() || null,
+        external_link_url: String(formData.get("external_link_url") ?? "").trim() || null,
+      } : {}),
       category: String(formData.get("category") ?? categories[0]),
       condition: conditionMap[String(formData.get("condition") ?? conditionOptions[0])],
       ends_at: localDateTimeToIso(formData.get("ends_at")),
@@ -681,6 +690,10 @@ export function AccountPage({ section }: { section: "bids" | "auctions" | "creat
                                   <textarea name="description" rows={5} defaultValue={auction.description ?? ""} required maxLength={5000} aria-invalid={Boolean(editAuctionFieldErrors.description)} aria-describedby={editAuctionFieldErrors.description ? `edit-description-error-${auction.id}` : undefined} onChange={() => clearEditAuctionFieldError("description")} />
                                   {editAuctionFieldErrors.description ? <small className="auth-field-error" id={`edit-description-error-${auction.id}`}>{editAuctionFieldErrors.description}</small> : <small>10–5000 karakter.</small>}
                                 </label>
+                                {hasActiveVip ? <>
+                                  <label>Hivatkozás felirata<input name="external_link_label" type="text" maxLength={80} defaultValue={auction.external_link_label ?? ""} placeholder="További részletek" /></label>
+                                  <label>Hivatkozás URL-je<input name="external_link_url" type="url" maxLength={1000} defaultValue={auction.external_link_url ?? ""} placeholder="https://pelda.hu" /></label>
+                                </> : null}
                                 <label>
                                   Kezdőár
                                   <input name="starting_price" type="number" min="0" defaultValue={auction.starting_price} required disabled={!isDraft} />
@@ -834,6 +847,10 @@ export function AccountPage({ section }: { section: "bids" | "auctions" | "creat
             <textarea name="description" rows={5} placeholder="Állapot, kiadás, különleges tudnivalók..." required maxLength={5000} aria-invalid={Boolean(auctionFieldErrors.description)} aria-describedby={auctionFieldErrors.description ? "auction-description-error" : undefined} onChange={() => clearAuctionFieldError("description")} />
             {auctionFieldErrors.description ? <small className="auth-field-error" id="auction-description-error">{auctionFieldErrors.description}</small> : <small>10–5000 karakter.</small>}
           </label>
+          {hasActiveVip ? <>
+            <label>Hivatkozás felirata<input name="external_link_label" type="text" maxLength={80} placeholder="További részletek" /></label>
+            <label>Hivatkozás URL-je<input name="external_link_url" type="url" maxLength={1000} placeholder="https://pelda.hu" /></label>
+          </> : null}
           <label>
             Kategória
             <select name="category">
