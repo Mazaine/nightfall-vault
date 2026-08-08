@@ -19,9 +19,6 @@ export function HomeHero() {
             <Link className="button button-primary" to="/auctions">
               Aukciók felfedezése
             </Link>
-            <Link className="button button-ghost" to="/how-it-works">
-              Hogyan működik?
-            </Link>
           </div>
         </div>
       </div>

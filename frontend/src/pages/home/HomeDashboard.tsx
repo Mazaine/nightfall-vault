@@ -7,13 +7,6 @@ import { useAuctionRealtime } from "../../AuctionRealtimeContext";
 
 type Task = { label: string; detail: string; to: string; tone?: "warning" | "success" };
 
-const memberActions = [
-  ["Aukció indítása", "/auctions/create", "Új tétel felvétele"],
-  ["Saját aukcióim", "/account/auctions", "Piszkozatok és futó tételek"],
-  ["Licitjeim", "/my-bids", "Vezető és túllicitált ajánlatok"],
-  ["Aukciók böngészése", "/auctions", "Fedezd fel az aktuális kínálatot"],
-] as const;
-
 export function HomeDashboard() {
   const { isAuthenticated, isLoading } = useAuth();
   const { subscribe } = useAuctionRealtime();
@@ -47,8 +40,5 @@ export function HomeDashboard() {
   if (isLoading) return null;
   if (!isAuthenticated) return <section className="container home-quick-actions" aria-labelledby="home-actions-title"><div className="section-heading"><div><span className="eyebrow">KEZDD EL</span><h2 id="home-actions-title">Lépj be a boltozatba</h2></div></div><div className="quick-action-grid guest-actions"><Link to="/auctions"><strong>Aukciók böngészése</strong><span>Nézd meg az aktuális tételeket</span></Link><Link to="/login"><strong>Belépés</strong><span>Folytasd a licitálást</span></Link><Link to="/register"><strong>Regisztráció</strong><span>Hozd létre a fiókodat</span></Link></div></section>;
 
-  return <>
-    <section className="container home-quick-actions" aria-labelledby="home-actions-title"><div className="section-heading"><div><span className="eyebrow">GYORS ELÉRÉS</span><h2 id="home-actions-title">Merre indulsz?</h2></div></div><div className="quick-action-grid">{memberActions.map(([label, to, detail]) => <Link to={to} key={to}><strong>{label}</strong><span>{detail}</span></Link>)}</div></section>
-    {tasks.length ? <section className="container home-tasks" aria-labelledby="home-tasks-title"><div className="section-heading"><div><span className="eyebrow">TEENDŐID</span><h2 id="home-tasks-title">Ami most figyelmet kér</h2></div></div><div className="task-grid">{tasks.map((task) => <Link className={task.tone ? `task-card is-${task.tone}` : "task-card"} to={task.to} key={`${task.to}-${task.label}`}><strong>{task.label}</strong><span>{task.detail}</span></Link>)}</div></section> : null}
-  </>;
+  return tasks.length ? <section className="container home-tasks" aria-labelledby="home-tasks-title"><div className="section-heading"><div><span className="eyebrow">TEENDŐID</span><h2 id="home-tasks-title">Ami most figyelmet kér</h2></div></div><div className="task-grid">{tasks.map((task) => <Link className={task.tone ? `task-card is-${task.tone}` : "task-card"} to={task.to} key={`${task.to}-${task.label}`}><strong>{task.label}</strong><span>{task.detail}</span></Link>)}</div></section> : null;
 }
