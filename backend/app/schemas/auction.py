@@ -8,7 +8,8 @@ from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validat
 from app.storage.paths import media_url
 
 AuctionStatus = Literal["draft", "scheduled", "active", "ended", "sold", "unsold", "cancelled", "suspended"]
-AuctionCondition = Literal["fresh", "like_new", "played", "damaged", "worn", "misprint"]
+AuctionCondition = Literal["M", "NM", "EX", "GD", "LP", "PL", "PO"]
+AuctionConditionRead = Literal["M", "NM", "EX", "GD", "LP", "PL", "PO", "fresh", "like_new", "played", "damaged", "worn", "misprint"]
 
 
 def _normalize_optional_text(value: str | None) -> str | None:
@@ -58,6 +59,8 @@ class AuctionBase(BaseModel):
     external_link_url: str | None = Field(default=None, max_length=1000)
     category: str = Field(min_length=2, max_length=80)
     condition: AuctionCondition
+    has_printing_error: bool = False
+    printing_error_description: str | None = Field(default=None, min_length=3, max_length=500)
     starting_price: Decimal = Field(ge=0, max_digits=12, decimal_places=2)
     bid_increment: Decimal = Field(gt=0, max_digits=12, decimal_places=2)
     buy_now_enabled: bool = False
@@ -71,7 +74,7 @@ class AuctionBase(BaseModel):
     def normalize_text(cls, value: str) -> str:
         return _normalize_required_text(value)
 
-    @field_validator("external_link_label")
+    @field_validator("external_link_label", "printing_error_description")
     @classmethod
     def normalize_link_label(cls, value: str | None) -> str | None:
         return _normalize_optional_text(value)
@@ -90,6 +93,10 @@ class AuctionBase(BaseModel):
     def validate_prices_and_time(self) -> "AuctionBase":
         if bool(self.external_link_label) != bool(self.external_link_url):
             raise ValueError("A hivatkozás feliratát és URL-jét együtt kell megadni.")
+        if not self.has_printing_error and self.printing_error_description:
+            raise ValueError("Hibaleírás csak nyomdahibás vagy gyártási hibás jelölés mellett adható meg.")
+        if self.printing_error_description and any(character in self.printing_error_description for character in "<>"):
+            raise ValueError("A hibaleírásban HTML-jelölés nem engedélyezett.")
         if self.ends_at <= self.starts_at:
             raise ValueError("A lejárati időnek későbbinek kell lennie a kezdési időnél.")
         if self.buy_now_enabled:
@@ -121,6 +128,8 @@ class AuctionUpdate(BaseModel):
     external_link_url: str | None = Field(default=None, max_length=1000)
     category: str | None = Field(default=None, min_length=2, max_length=80)
     condition: AuctionCondition | None = None
+    has_printing_error: bool | None = None
+    printing_error_description: str | None = Field(default=None, min_length=3, max_length=500)
     starting_price: Decimal | None = Field(default=None, ge=0, max_digits=12, decimal_places=2)
     bid_increment: Decimal | None = Field(default=None, gt=0, max_digits=12, decimal_places=2)
     buy_now_enabled: bool | None = None
@@ -129,7 +138,7 @@ class AuctionUpdate(BaseModel):
     ends_at: datetime | None = None
     five_minute_rule_enabled: bool | None = None
 
-    @field_validator("title", "description", "category", "external_link_label")
+    @field_validator("title", "description", "category", "external_link_label", "printing_error_description")
     @classmethod
     def normalize_optional_text(cls, value: str | None) -> str | None:
         return _normalize_optional_text(value)
@@ -138,6 +147,12 @@ class AuctionUpdate(BaseModel):
     @classmethod
     def validate_optional_external_link(cls, value: str | None) -> str | None:
         return _safe_external_url(value)
+
+    @model_validator(mode="after")
+    def reject_html_in_printing_error(self) -> "AuctionUpdate":
+        if self.printing_error_description and any(character in self.printing_error_description for character in "<>"):
+            raise ValueError("A hibaleírásban HTML-jelölés nem engedélyezett.")
+        return self
 
     @field_validator("starts_at", "ends_at")
     @classmethod
@@ -319,7 +334,9 @@ class AuctionListItem(BaseModel):
     external_link_label: str | None = None
     external_link_url: str | None = None
     category: str
-    condition: AuctionCondition
+    condition: AuctionConditionRead
+    has_printing_error: bool = False
+    printing_error_description: str | None = None
     status: AuctionStatus
     starting_price: Decimal
     bid_increment: Decimal

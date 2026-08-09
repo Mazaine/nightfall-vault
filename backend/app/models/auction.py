@@ -8,7 +8,7 @@ from app.db.base import Base
 
 
 AUCTION_STATUSES = ("draft", "scheduled", "active", "ended", "sold", "unsold", "cancelled", "suspended")
-AUCTION_CONDITIONS = ("fresh", "like_new", "played", "damaged", "worn", "misprint")
+AUCTION_CONDITIONS = ("M", "NM", "EX", "GD", "LP", "PL", "PO", "fresh", "like_new", "played", "damaged", "worn", "misprint")
 ALLOWED_AUCTION_IMAGE_TYPES = ("image/jpeg", "image/png", "image/webp", "image/gif")
 
 
@@ -17,6 +17,8 @@ class Auction(Base):
     __table_args__ = (
         CheckConstraint(f"status IN {AUCTION_STATUSES}", name="ck_auctions_status"),
         CheckConstraint(f"condition IN {AUCTION_CONDITIONS}", name="ck_auctions_condition"),
+        CheckConstraint("printing_error_description IS NULL OR (length(trim(printing_error_description)) BETWEEN 3 AND 500)", name="ck_auctions_printing_error_description"),
+        CheckConstraint("has_printing_error = true OR printing_error_description IS NULL", name="ck_auctions_printing_error_consistency"),
         CheckConstraint("starting_price >= 0", name="ck_auctions_starting_price_positive"),
         CheckConstraint("bid_increment > 0", name="ck_auctions_bid_increment_positive"),
         CheckConstraint("(buy_now_enabled = false AND buy_now_price IS NULL) OR (buy_now_enabled = true AND buy_now_price > starting_price)", name="ck_auctions_buy_now_price"),
@@ -38,6 +40,8 @@ class Auction(Base):
     external_link_url: Mapped[str | None] = mapped_column(String(1000), nullable=True)
     category: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
     condition: Mapped[str] = mapped_column(String(30), nullable=False)
+    has_printing_error: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
+    printing_error_description: Mapped[str | None] = mapped_column(String(500), nullable=True)
     status: Mapped[str] = mapped_column(String(30), nullable=False, default="draft", index=True)
     starting_price: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     bid_increment: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)

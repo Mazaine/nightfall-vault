@@ -61,7 +61,7 @@ def main() -> None:
             status = spec["status"]
             auction = Auction(
                 seller_id=seller.id, creation_key=f"{prefix}-{index:04d}", title=f"[LOADTEST:{args.seed}] Gyűjtői tétel {index + 1}",
-                description="Automatikusan generált, biztonságosan eltávolítható helyi tesztaukció.", category=spec["category"], condition="like_new",
+                description="Automatikusan generált, biztonságosan eltávolítható helyi tesztaukció.", category=spec["category"], condition="NM",
                 status=status, starting_price=Decimal(spec["price"]), bid_increment=Decimal(500), current_price=Decimal(spec["price"]),
                 buy_now_enabled=index % 3 == 0, buy_now_price=Decimal(spec["price"] + 10000) if index % 3 == 0 else None,
                 starts_at=starts_at, ends_at=ends_at, five_minute_rule_enabled=True,

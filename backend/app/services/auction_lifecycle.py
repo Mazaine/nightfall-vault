@@ -185,6 +185,8 @@ def create_auction(db: Session, auction_create: AuctionCreate, seller: User) -> 
         external_link_url=auction_create.external_link_url,
         category=auction_create.category,
         condition=auction_create.condition,
+        has_printing_error=auction_create.has_printing_error,
+        printing_error_description=auction_create.printing_error_description,
         status="draft",
         starting_price=normalize_money(auction_create.starting_price),
         bid_increment=normalize_money(auction_create.bid_increment),
@@ -252,6 +254,11 @@ def update_auction(db: Session, auction: Auction, auction_update: AuctionUpdate,
     link_url = update_data.get("external_link_url", auction.external_link_url)
     if bool(link_label) != bool(link_url):
         raise HTTPException(status_code=422, detail="A hivatkozás feliratát és URL-jét együtt kell megadni.")
+    has_printing_error = update_data.get("has_printing_error", auction.has_printing_error)
+    if not has_printing_error and update_data.get("printing_error_description"):
+        raise HTTPException(status_code=422, detail="Hibaleírás csak nyomdahibás vagy gyártási hibás jelölés mellett adható meg.")
+    if not has_printing_error:
+        update_data["printing_error_description"] = None
     if user.role != "admin" and auction.status != "draft" and any(field in update_data for field in CRITICAL_AUCTION_FIELDS):
         raise HTTPException(status_code=409, detail="A kezdőár, a licitlépcső, a villámár és a kezdési idő piszkozat után nem módosítható.")
     _validate_update_time_window(auction, auction_update)
@@ -264,6 +271,8 @@ def update_auction(db: Session, auction: Auction, auction_update: AuctionUpdate,
         setattr(auction, field_name, value)
     if auction.buy_now_enabled is False:
         auction.buy_now_price = None
+    if auction.has_printing_error is False:
+        auction.printing_error_description = None
     db.add(auction)
     db.commit()
     db.refresh(auction)

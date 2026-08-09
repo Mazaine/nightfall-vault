@@ -8,6 +8,7 @@ import { disableBidConfirmation, isBidConfirmationDisabled } from "../utils/bidC
 import { AuctionCountdown } from "./AuctionCountdown";
 import { BidConfirmationDialog } from "./BidDialogs";
 import { SafeImage } from "./SafeImage";
+import { formatCardCondition, getCardCondition, type ReadableCardCondition } from "../data/cardConditions";
 
 function moneyToCents(value: string | null | undefined) {
   const amount = Number(value);
@@ -35,6 +36,7 @@ type AuctionCardProps = {
     time: string;
     endsAt?: string;
     status?: string;
+    condition: ReadableCardCondition;
     fiveMinuteRuleEnabled?: boolean;
     sellerName: string;
     sellerRating: number | string | null;
@@ -105,6 +107,7 @@ export function AuctionCard({
         : item.outcomeStatus === "not_sold" ? "Nem sikerült eladni"
           : item.outcomeStatus === "sale_pending" ? "Eladva – Egyeztetés alatt"
             : item.outcomeStatus === "sale_sent" ? "Eladva – Elküldve" : null;
+  const cardCondition = getCardCondition(item.condition);
 
   useEffect(() => {
     const currentCents = moneyToCents(item.currentAmount);
@@ -217,7 +220,7 @@ export function AuctionCard({
 
   return (
     <article
-      aria-label={`${item.title} aukció${personalStatus ? `, ${personalStatus === "leading" ? "te vezetsz" : personalStatus === "outbid" ? "rád licitáltak" : personalStatus === "watched" ? "figyelt aukció" : "kiszálltál"}` : ""}`}
+      aria-label={`${item.title} aukció, állapot: ${formatCardCondition(item.condition)}${personalStatus ? `, ${personalStatus === "leading" ? "te vezetsz" : personalStatus === "outbid" ? "rád licitáltak" : personalStatus === "watched" ? "figyelt aukció" : "kiszálltál"}` : ""}`}
       className={`auction-card auction-card-${index + 1}${isLocallyClosed ? " auction-card-closed" : ""}${item.isFeatured ? " auction-card-featured" : ""}${personalStatus ? ` auction-card-personal-${personalStatus}` : ""}`}
       role="link"
       tabIndex={0}
@@ -227,6 +230,7 @@ export function AuctionCard({
       <div className="auction-image">
         <SafeImage src={item.imageUrl} alt={item.title} loading="lazy" decoding="async" width={700} height={700} />
       </div>
+      <span className={`auction-condition-badge condition-${cardCondition.value.toLowerCase()}`} title={`${cardCondition.value} – ${cardCondition.nameHu} (${cardCondition.nameEn})`}>{cardCondition.value}</span>
       {showTimer && item.endsAt && item.status
         ? <AuctionCountdown className="auction-time" endsAt={item.endsAt} status={item.status} fiveMinuteRuleEnabled={item.fiveMinuteRuleEnabled} fallback={item.time} />
         : showTimer ? <div className="auction-time">{item.time}</div> : null}

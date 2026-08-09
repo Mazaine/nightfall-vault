@@ -6,7 +6,9 @@ import { AuctionCard } from "../components/AuctionCard";
 import { SafeImage } from "../components/SafeImage";
 import { FileImagePreview } from "../components/FileImagePreview";
 import { EmptyState, ErrorState, LoadingState } from "../components/AsyncStates";
-import { categories, conditionOptions } from "../data/content";
+import { categories } from "../data/content";
+import { CARD_CONDITIONS, getCardCondition } from "../data/cardConditions";
+import { CardConditionHelp } from "../components/CardConditionGuide";
 import { formatAuctionStatus, formatMoney, formatRemainingTime } from "../utils/format";
 import { useNotifications } from "../NotificationContext";
 import { useAuctionRealtime } from "../AuctionRealtimeContext";
@@ -51,18 +53,8 @@ const lockedFields = [
   "már megadott villámár összege",
 ];
 
-const conditionMap: Record<string, AuctionCondition> = {
-  "Frissen Bontott": "fresh",
-  "Újszerű": "like_new",
-  "Játszott": "played",
-  "Sérült": "damaged",
-  "Kopott": "worn",
-  "Nyomdahibás": "misprint",
-};
-
-const conditionLabelMap = Object.fromEntries(
-  Object.entries(conditionMap).map(([label, value]) => [value, label]),
-) as Record<AuctionCondition, string>;
+const parseCondition = (value: FormDataEntryValue | null): AuctionCondition =>
+  CARD_CONDITIONS.find((item) => item.value === String(value))?.value ?? "NM";
 
 function toCardAuction(auction: Auction) {
   const coverImage = auction.images.find((image) => image.is_cover) ?? auction.images[0];
@@ -75,6 +67,7 @@ function toCardAuction(auction: Auction) {
     time: formatRemainingTime(auction.ends_at, auction.status),
     endsAt: auction.ends_at,
     status: auction.status,
+    condition: auction.condition,
     fiveMinuteRuleEnabled: auction.five_minute_rule_enabled,
     sellerName: "Te",
     sellerRating: auction.seller_average_rating ?? null,
@@ -155,7 +148,7 @@ function validateAuctionEditFields(formData: FormData) {
   if (description.length < 10) errors.description = "A leírás legalább 10 karakter hosszú legyen.";
   else if (description.length > 5000) errors.description = "A leírás legfeljebb 5000 karakter hosszú lehet.";
   if (!categories.some((item) => item === category)) errors.category = "Válassz érvényes kategóriát.";
-  if (!conditionMap[condition]) errors.condition = "Válassz érvényes állapotot.";
+  if (!CARD_CONDITIONS.some((item) => item.value === condition)) errors.condition = "Válassz érvényes állapotot.";
   return errors;
 }
 
@@ -338,7 +331,9 @@ export function AccountPage({ section }: { section: "bids" | "auctions" | "creat
         external_link_label: hasActiveVip ? String(formData.get("external_link_label") ?? "").trim() || null : null,
         external_link_url: hasActiveVip ? String(formData.get("external_link_url") ?? "").trim() || null : null,
         category: String(formData.get("category") ?? categories[0]),
-        condition: conditionMap[String(formData.get("condition") ?? conditionOptions[0])],
+        condition: parseCondition(formData.get("condition")),
+        has_printing_error: formData.get("has_printing_error") === "on",
+        printing_error_description: formData.get("has_printing_error") === "on" ? String(formData.get("printing_error_description") ?? "").trim() || null : null,
         starting_price: String(formData.get("starting_price") ?? "0"),
         bid_increment: String(formData.get("bid_increment") ?? "0"),
         buy_now_enabled: formData.get("buy_now_enabled") === "on",
@@ -484,7 +479,9 @@ export function AccountPage({ section }: { section: "bids" | "auctions" | "creat
         external_link_url: String(formData.get("external_link_url") ?? "").trim() || null,
       } : {}),
       category: String(formData.get("category") ?? categories[0]),
-      condition: conditionMap[String(formData.get("condition") ?? conditionOptions[0])],
+      condition: parseCondition(formData.get("condition")),
+      has_printing_error: formData.get("has_printing_error") === "on",
+      printing_error_description: formData.get("has_printing_error") === "on" ? String(formData.get("printing_error_description") ?? "").trim() || null : null,
       ends_at: localDateTimeToIso(formData.get("ends_at")),
       five_minute_rule_enabled: formData.get("five_minute_rule_enabled") === "on",
       buy_now_enabled: formData.get("buy_now_enabled") === "on",
@@ -678,13 +675,13 @@ export function AccountPage({ section }: { section: "bids" | "auctions" | "creat
                                   </select>
                                   {editAuctionFieldErrors.category ? <small className="auth-field-error" id={`edit-category-error-${auction.id}`}>{editAuctionFieldErrors.category}</small> : null}
                                 </label>
-                                <label>
-                                  Állapot
-                                  <select name="condition" defaultValue={conditionLabelMap[auction.condition]} aria-invalid={Boolean(editAuctionFieldErrors.condition)} aria-describedby={editAuctionFieldErrors.condition ? `edit-condition-error-${auction.id}` : undefined} onChange={() => clearEditAuctionFieldError("condition")}>
-                                    {conditionOptions.map((condition) => <option key={condition}>{condition}</option>)}
+                                <div className="form-field">
+                                  <div className="field-label-row"><label htmlFor={`edit-condition-${auction.id}`}>Állapot</label><CardConditionHelp /></div>
+                                  <select id={`edit-condition-${auction.id}`} name="condition" defaultValue={getCardCondition(auction.condition).value} aria-invalid={Boolean(editAuctionFieldErrors.condition)} aria-describedby={editAuctionFieldErrors.condition ? `edit-condition-error-${auction.id}` : undefined} onChange={() => clearEditAuctionFieldError("condition")}>
+                                    {CARD_CONDITIONS.map((condition) => <option value={condition.value} key={condition.value}>{condition.nameHu} ({condition.value})</option>)}
                                   </select>
                                   {editAuctionFieldErrors.condition ? <small className="auth-field-error" id={`edit-condition-error-${auction.id}`}>{editAuctionFieldErrors.condition}</small> : null}
-                                </label>
+                                </div>
                                 <label className="form-wide">
                                   Leírás
                                   <textarea name="description" rows={5} defaultValue={auction.description ?? ""} required maxLength={5000} aria-invalid={Boolean(editAuctionFieldErrors.description)} aria-describedby={editAuctionFieldErrors.description ? `edit-description-error-${auction.id}` : undefined} onChange={() => clearEditAuctionFieldError("description")} />
@@ -694,6 +691,8 @@ export function AccountPage({ section }: { section: "bids" | "auctions" | "creat
                                   <label>Hivatkozás felirata<input name="external_link_label" type="text" maxLength={80} defaultValue={auction.external_link_label ?? ""} placeholder="További részletek" /></label>
                                   <label>Hivatkozás URL-je<input name="external_link_url" type="url" maxLength={1000} defaultValue={auction.external_link_url ?? ""} placeholder="https://pelda.hu" /></label>
                                 </> : null}
+                                <label className="toggle-row"><input name="has_printing_error" type="checkbox" defaultChecked={auction.has_printing_error} onChange={(event) => { const field = event.currentTarget.form?.elements.namedItem("printing_error_description"); if (field instanceof HTMLTextAreaElement) { field.disabled = !event.currentTarget.checked; if (!event.currentTarget.checked) field.value = ""; } }} />Nyomdahibás / gyártási hibás</label>
+                                <label>Hiba rövid leírása<textarea name="printing_error_description" rows={3} minLength={3} maxLength={500} defaultValue={auction.printing_error_description ?? ""} disabled={!auction.has_printing_error} placeholder="Például: a hátoldalon gyári festékhiba látható." /></label>
                                 <label>
                                   Kezdőár
                                   <input name="starting_price" type="number" min="0" defaultValue={auction.starting_price} required disabled={!isDraft} />
@@ -857,12 +856,14 @@ export function AccountPage({ section }: { section: "bids" | "auctions" | "creat
               {categories.map((category) => <option key={category}>{category}</option>)}
             </select>
           </label>
-          <label>
-            Állapot
-            <select name="condition">
-              {conditionOptions.map((condition) => <option key={condition}>{condition}</option>)}
+          <div className="form-field">
+            <div className="field-label-row"><label htmlFor="auction-condition">Állapot</label><CardConditionHelp /></div>
+            <select id="auction-condition" name="condition" defaultValue="NM">
+              {CARD_CONDITIONS.map((condition) => <option value={condition.value} key={condition.value}>{condition.nameHu} ({condition.value})</option>)}
             </select>
-          </label>
+          </div>
+          <label className="toggle-row"><input name="has_printing_error" type="checkbox" onChange={(event) => { const field = event.currentTarget.form?.elements.namedItem("printing_error_description"); if (field instanceof HTMLTextAreaElement) { field.disabled = !event.currentTarget.checked; if (!event.currentTarget.checked) field.value = ""; } }} />Nyomdahibás / gyártási hibás</label>
+          <label>Hiba rövid leírása<textarea name="printing_error_description" rows={3} minLength={3} maxLength={500} disabled placeholder="Például: a hátoldalon gyári festékhiba látható." /></label>
           <label>
             Kezdőár
             <input name="starting_price" type="number" min="0" placeholder="0" required aria-invalid={Boolean(auctionFieldErrors.starting_price)} aria-describedby={auctionFieldErrors.starting_price ? "auction-starting-price-error" : undefined} onChange={() => clearAuctionFieldError("starting_price")} />

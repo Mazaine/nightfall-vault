@@ -17,6 +17,7 @@ export function toAuctionCardItem(auction: Auction) {
     time: formatRemainingTime(auction.ends_at, auction.status),
     endsAt: auction.ends_at,
     status: auction.status,
+    condition: auction.condition,
     fiveMinuteRuleEnabled: auction.five_minute_rule_enabled,
     sellerName,
     sellerRating: auction.seller_average_rating ?? null,

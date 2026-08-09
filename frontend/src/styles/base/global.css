@@ -649,7 +649,7 @@ h3 {
 
 .auction-time {
   position: absolute;
-  top: var(--space-3);
+  top: 3.25rem;
   right: var(--space-3);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-full);
@@ -658,6 +658,31 @@ h3 {
   font-size: var(--font-size-caption);
   padding: var(--space-1) var(--space-3);
 }
+
+.auction-condition-badge {
+  position: absolute;
+  top: var(--space-3);
+  right: var(--space-3);
+  z-index: 4;
+  min-width: 2.35rem;
+  border: 1px solid rgb(255 255 255 / 28%);
+  border-radius: var(--radius-full);
+  padding: .3rem .55rem;
+  color: #09080c;
+  font-size: .75rem;
+  font-weight: 900;
+  line-height: 1;
+  text-align: center;
+  box-shadow: 0 .25rem .85rem rgb(0 0 0 / 38%);
+}
+
+.auction-condition-badge.condition-m, .condition-guide-item.condition-m .condition-guide-code { background: #e8c65a; }
+.auction-condition-badge.condition-nm, .condition-guide-item.condition-nm .condition-guide-code { background: #63d48d; }
+.auction-condition-badge.condition-ex, .condition-guide-item.condition-ex .condition-guide-code { background: #a7e47a; }
+.auction-condition-badge.condition-gd, .condition-guide-item.condition-gd .condition-guide-code { background: #76b8ed; }
+.auction-condition-badge.condition-lp, .condition-guide-item.condition-lp .condition-guide-code { background: #f1d65c; }
+.auction-condition-badge.condition-pl, .condition-guide-item.condition-pl .condition-guide-code { background: #ef9a4b; }
+.auction-condition-badge.condition-po, .condition-guide-item.condition-po .condition-guide-code { background: #dc6269; color: #fff; }
 
 .auction-countdown-urgent.auction-time {
   display: grid;
@@ -2355,6 +2380,68 @@ h3 {
   max-height: calc(100dvh - 2rem);
   overflow-y: auto;
   width: min(100%, 36rem);
+}
+
+.form-field { display: grid; gap: .45rem; }
+.field-label-row { display: flex; align-items: center; gap: .5rem; font-weight: 700; }
+.condition-help-wrap { position: relative; display: inline-flex; }
+.condition-help-button {
+  display: inline-grid;
+  width: 1.65rem;
+  min-width: 1.65rem;
+  height: 1.65rem;
+  min-height: 1.65rem;
+  place-items: center;
+  border: 1px solid var(--color-violet-300);
+  border-radius: 50%;
+  padding: 0;
+  background: rgb(126 47 219 / 18%);
+  color: var(--color-text-primary);
+  font-weight: 900;
+}
+.condition-help-tooltip {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + .55rem);
+  z-index: 12;
+  display: none;
+  width: max-content;
+  max-width: min(18rem, 78vw);
+  transform: translateX(-50%);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: .55rem .7rem;
+  background: #17131f;
+  color: var(--color-text-primary);
+  font-size: .78rem;
+  font-weight: 500;
+  box-shadow: 0 .5rem 1.5rem rgb(0 0 0 / 40%);
+}
+.condition-help-wrap:hover .condition-help-tooltip,
+.condition-help-wrap:focus-within .condition-help-tooltip { display: block; }
+.condition-guide-dialog {
+  display: grid;
+  width: min(100%, 58rem);
+  max-height: calc(100dvh - 2rem);
+  gap: var(--space-4);
+  overflow-y: auto;
+}
+.condition-guide-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); }
+.condition-guide-item { display: grid; grid-template-columns: 3rem 1fr; gap: var(--space-3); border: 1px solid var(--color-divider); border-radius: var(--radius-md); padding: var(--space-3); background: rgb(255 255 255 / 2%); }
+.condition-guide-code { display: grid; width: 2.5rem; height: 2.5rem; place-items: center; border-radius: 50%; color: #09080c; }
+.condition-guide-item.condition-po .condition-guide-code { color: #fff; }
+.condition-guide-item h3, .condition-guide-item p { margin: 0; }
+.condition-guide-item small { display: block; margin: .15rem 0 .55rem; color: var(--color-text-muted); }
+.condition-guide-note { border-left: 3px solid var(--color-violet-300); padding-left: var(--space-3); }
+.printing-error-detail dd { display: grid; gap: .25rem; }
+.printing-error-detail strong { color: #f2b75e; }
+.printing-error-detail small { max-width: 42rem; color: var(--color-text-muted); }
+
+@media (max-width: 640px) {
+  .condition-guide-grid { grid-template-columns: 1fr; }
+  .condition-guide-dialog .section-heading { align-items: stretch; flex-direction: column; }
+  .condition-guide-dialog .section-heading .button { width: 100%; }
+  .condition-help-tooltip { display: none !important; }
 }
 
 .report-dialog .section-heading {

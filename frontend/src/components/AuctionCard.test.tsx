@@ -9,7 +9,7 @@ const mocks = vi.hoisted(() => ({ placeAuctionBid: vi.fn(), withdrawAuctionBid: 
 vi.mock("../AuthContext", () => ({ useAuth: () => state }));
 vi.mock("../api/auctions", async (importOriginal) => ({ ...(await importOriginal<typeof import("../api/auctions")>()), placeAuctionBid: mocks.placeAuctionBid, withdrawAuctionBid: mocks.withdrawAuctionBid }));
 
-const item = { id: 7, title: "Teszt kártya", type: "Pokemon", price: "1 200 Ft", step: "100 Ft", currentAmount: "1200.00", bidIncrementAmount: "100.00", time: "2 óra", sellerName: "Anna Kártyabarlang", sellerRating: 4, bidCount: 2, buyNowPrice: "2 000 Ft", buyNowAmount: "2000.00", imageUrl: "https://example.test/card.png", canBid: true };
+const item = { id: 7, title: "Teszt kártya", type: "Pokemon", condition: "NM" as const, price: "1 200 Ft", step: "100 Ft", currentAmount: "1200.00", bidIncrementAmount: "100.00", time: "2 óra", sellerName: "Anna Kártyabarlang", sellerRating: 4, bidCount: 2, buyNowPrice: "2 000 Ft", buyNowAmount: "2000.00", imageUrl: "https://example.test/card.png", canBid: true };
 
 function Location() {
   return <span data-testid="location">{useLocation().pathname}{useLocation().hash}</span>;

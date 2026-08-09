@@ -33,7 +33,7 @@ def main() -> None:
                     title=title,
                     description="Kiemelt, villámáras fejlesztői tesztaukció a főoldali karusszel kézi ellenőrzéséhez.",
                     category=categories[(index - 1) % len(categories)],
-                    condition="like_new",
+                    condition="NM",
                     status="active",
                     starting_price=starting_price,
                     bid_increment=Decimal("500"),

@@ -22,15 +22,6 @@ export const categories = [
   "Egyéb",
 ];
 
-export const conditionOptions = [
-  "Frissen Bontott",
-  "Újszerű",
-  "Játszott",
-  "Sérült",
-  "Kopott",
-  "Nyomdahibás",
-];
-
 export const featuredAuctions: FeaturedAuction[] = [
   {
     id: "arnyekhasito-kard",

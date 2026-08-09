@@ -1,4 +1,5 @@
 import { Link } from "react-router";
+import { CARD_CONDITIONS } from "../data/cardConditions";
 
 const journeySteps = [
   ["Hozd létre a fiókodat", "Regisztrálj, erősítsd meg az e-mail-címedet, majd jelentkezz be. Licitálni és aukciót indítani csak aktív, e-mailben megerősített fiókkal lehet."],
@@ -26,6 +27,12 @@ const creationRules = [
   "A lejáratnak későbbinek kell lennie a kezdésnél. Jövőbeli kezdés esetén az aukció Időzített, már elérkezett kezdésnél Aktív állapotba kerül.",
   "Piszkozatban minden adat javítható. Aktiválás után a kezdőár, a licitlépcső, a villámár összege és a kezdési idő már nem módosítható.",
   "Az eladó a saját aktív aukciójára nem licitálhat. A lezárt, eladott, eladatlan vagy megszakított aukció adatai utólag nem írhatók át normál szerkesztéssel.",
+] as const;
+
+const conditionRules = [
+  `A Nightfall Vault kártyaállapot-skálája: ${CARD_CONDITIONS.map((item) => `${item.nameHu} (${item.value})`).join(" → ")}.`,
+  "A besorolást mindig a kártya tényleges fizikai állapota alapján add meg. A frissen bontott kártya sem automatikusan Tökéletes (M); bizonytalanságnál válaszd az alacsonyabb állapotot.",
+  "A nyomdahiba vagy gyártási hiba külön tulajdonság és röviden leírható. Nem változtatja meg automatikusan az M–PO állapotbesorolást.",
 ] as const;
 
 const biddingRules = [
@@ -121,6 +128,7 @@ export function HowItWorksPage() {
       <div className="rules-grid how-it-works-rules">
         <RuleSection eyebrow="Fiók és tagság" title="Normál és VIP-tagság" rules={accountRules} />
         <RuleSection eyebrow="Eladóknak" title="Aukció létrehozása és módosítása" rules={creationRules} />
+        <RuleSection eyebrow="M–PO skála" title="Kártyaállapot" rules={conditionRules} />
         <RuleSection eyebrow="Licitálóknak" title="Licit és licitlépcső" rules={biddingRules} ariaLabel="Licitálási szabályok" />
         <div id="bid-withdrawal"><RuleSection eyebrow="Kivételes lehetőség" title="Licit visszavonása" rules={withdrawalRules} ariaLabel="Licit-visszavonási szabályok" /></div>
         <RuleSection eyebrow="Azonnali nyerés" title="Villámár" rules={buyNowRules} />

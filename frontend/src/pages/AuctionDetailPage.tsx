@@ -15,6 +15,7 @@ import { BidConfirmationDialog, BidWithdrawalDialog } from "../components/BidDia
 import { addWatchlistItem, auctionStreamUrl, createAuctionMessage, createAuctionReview, getAuction, getAuctionPresence, listAuctionBids, listAuctionMessages, listRelatedAuctions, listSellerOtherAuctions, markAuctionMessagesRead, placeAuctionBid, listAuctionReviews, sendTyping, withdrawAuctionBid, type Auction, type AuctionBid, type AuctionMessage, type AuctionRealtimeSnapshot, type AuctionReview, type BidWithdrawalReason, type NotificationItem } from "../api/auctions";
 import { formatAuctionStatus, formatLocalDateTime, formatMoney, formatRemainingTime } from "../utils/format";
 import { disableBidConfirmation, isBidConfirmationDisabled } from "../utils/bidConfirmation";
+import { formatCardCondition } from "../data/cardConditions";
 
 function moneyToCents(value: string | null | undefined) {
   const amount = Number(value);
@@ -431,6 +432,8 @@ export function AuctionDetailPage() {
           <p className="auction-external-link"><a className="text-link" href={auction.external_link_url} target="_blank" rel="noopener noreferrer nofollow">{auction.external_link_label}</a></p>
         ) : null}
         <dl className="detail-list">
+          <div><dt>Állapot</dt><dd>{formatCardCondition(auction.condition)}</dd></div>
+          {auction.has_printing_error ? <div className="printing-error-detail"><dt>Nyomdahiba</dt><dd><strong>Nyomdahibás / gyártási hibás</strong>{auction.printing_error_description ? <small>{auction.printing_error_description}</small> : null}</dd></div> : null}
           <div><dt>Aktuális licit</dt><dd>{formatMoney(auction.current_price ?? auction.starting_price)}</dd></div>
           <div><dt>Kezdőár</dt><dd>{formatMoney(auction.starting_price)}</dd></div>
           <div><dt>Licitlépcső</dt><dd>{formatMoney(auction.bid_increment)}</dd></div>

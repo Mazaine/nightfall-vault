@@ -204,7 +204,7 @@ class DemoAuctionService:
                         demo_batch_id=batch.id,
                         creation_key=str(uuid4()), title=title,
                         description="Biztonságosan elkülönített Nightfall Vault demóaukció tesztelői ellenőrzéshez.",
-                        category=categories[(sequence - 1) % len(categories)], condition=("fresh", "like_new", "played")[sequence % 3],
+                        category=categories[(sequence - 1) % len(categories)], condition=("NM", "EX", "PL")[sequence % 3],
                         status="active", starting_price=price, bid_increment=increment, current_price=price,
                         buy_now_enabled=buy_now, buy_now_price=price + increment * 12 if buy_now else None,
                         starts_at=now - timedelta(hours=1), ends_at=now + timedelta(hours=6 + sequence * 3),

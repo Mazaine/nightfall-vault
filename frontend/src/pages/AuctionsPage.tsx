@@ -7,16 +7,9 @@ import { AuctionCard } from "../components/AuctionCard";
 import { EmptyState, ErrorState, LoadingState } from "../components/AsyncStates";
 import { toAuctionCardItem } from "../utils/auctionPresentation";
 import { useAuctionRealtime } from "../AuctionRealtimeContext";
+import { CARD_CONDITIONS } from "../data/cardConditions";
 
 const CATEGORY_OPTIONS = ["Hatalom Kártyái Kártyajáték", "Pokemon", "One Piece", "Star Wars TCG", "Yu-gi-oh", "Magic the Gathering", "Egyéb"];
-const CONDITION_OPTIONS = [
-  ["fresh", "Frissen bontott"],
-  ["like_new", "Újszerű"],
-  ["played", "Játszott"],
-  ["damaged", "Sérült"],
-  ["worn", "Kopott"],
-  ["misprint", "Nyomdahibás"],
-];
 const SORT_OPTIONS = [
   ["newest", "Legújabb"],
   ["oldest", "Legrégebbi"],
@@ -258,7 +251,7 @@ export function AuctionsPage() {
           Termék állapota
           <select value={filters.condition} onChange={(event) => setFilters({ ...filters, condition: event.target.value })}>
             <option value="">Mind</option>
-            {CONDITION_OPTIONS.map(([value, label]) => <option value={value} key={value}>{label}</option>)}
+            {CARD_CONDITIONS.map((condition) => <option value={condition.value} key={condition.value}>{condition.nameHu} ({condition.value})</option>)}
           </select>
         </label>
         <label>
