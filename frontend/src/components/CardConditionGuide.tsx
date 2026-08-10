@@ -1,4 +1,5 @@
 import { KeyboardEvent, useEffect, useId, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { CARD_CONDITIONS } from "../data/cardConditions";
 
 function CardConditionGuideDialog({ onClose }: { onClose: () => void }) {
@@ -34,8 +35,8 @@ function CardConditionGuideDialog({ onClose }: { onClose: () => void }) {
     else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
   };
 
-  return (
-    <div className="dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+  return createPortal(
+    <div className="dialog-backdrop" role="presentation" onClick={(event) => { if (event.target === event.currentTarget) onClose(); }}>
       <div ref={dialogRef} className="side-panel condition-guide-dialog" role="dialog" aria-modal="true" aria-labelledby={titleId} aria-describedby={descriptionId} onKeyDown={handleKeyDown}>
         <div className="section-heading">
           <div><p className="eyebrow">Állapotbesorolás</p><h2 id={titleId}>Kártyaállapot útmutató</h2></div>
@@ -51,7 +52,8 @@ function CardConditionGuideDialog({ onClose }: { onClose: () => void }) {
         </div>
         <p className="condition-guide-note"><strong>Nyomdahibás / gyártási hibás:</strong> külön tulajdonság, amely nem írja felül automatikusan az M–PO állapotot.</p>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
