@@ -1,4 +1,4 @@
-import { ChangeEvent, FormEvent, useEffect, useState } from "react";
+import { ChangeEvent, FormEvent, useEffect, useId, useState } from "react";
 import { Link } from "react-router";
 import { activateAuction, cancelAuction, createAuction, deleteAuctionImage, getAuction, listMyAuctions, listMyBidAuctions, setAuctionCoverImage, updateAuction, uploadAuctionImage, type Auction, type AuctionCondition, type MyBidAuction } from "../api/auctions";
 import { ApiError, apiAssetUrl } from "../api/client";
@@ -35,6 +35,17 @@ const rotateDraftCreationKey = () => {
   if (typeof sessionStorage !== "undefined") sessionStorage.setItem(DRAFT_CREATION_KEY_STORAGE, key);
   return key;
 };
+
+function OptionalExternalLinkHelp() {
+  const tooltipId = useId();
+  return <div className="form-wide optional-field-heading">
+    <span>VIP hivatkozás <small>(opcionális)</small></span>
+    <span className="condition-help-wrap">
+      <button className="condition-help-button" type="button" aria-label="A VIP hivatkozás magyarázata" aria-describedby={tooltipId}>?</button>
+      <span className="condition-help-tooltip" id={tooltipId} role="tooltip">Ezzel egy kattintható külső hivatkozást jeleníthetsz meg az aukció részleteinél. Ha használod, add meg a gomb feliratát és a teljes http:// vagy https:// címet is. Ha nincs rá szükséged, mindkét mezőt hagyd üresen.</span>
+    </span>
+  </div>;
+}
 
 const editableFields = [
   "név",
@@ -688,8 +699,9 @@ export function AccountPage({ section }: { section: "bids" | "auctions" | "creat
                                   {editAuctionFieldErrors.description ? <small className="auth-field-error" id={`edit-description-error-${auction.id}`}>{editAuctionFieldErrors.description}</small> : <small>10–5000 karakter.</small>}
                                 </label>
                                 {hasActiveVip ? <>
-                                  <label>Hivatkozás felirata<input name="external_link_label" type="text" maxLength={80} defaultValue={auction.external_link_label ?? ""} placeholder="További részletek" /></label>
-                                  <label>Hivatkozás URL-je<input name="external_link_url" type="url" maxLength={1000} defaultValue={auction.external_link_url ?? ""} placeholder="https://pelda.hu" /></label>
+                                  <OptionalExternalLinkHelp />
+                                  <label className="external-link-field">Hivatkozás felirata <small>(opcionális)</small><input name="external_link_label" type="text" maxLength={80} defaultValue={auction.external_link_label ?? ""} placeholder="További részletek" /></label>
+                                  <label className="external-link-field">Hivatkozás URL-je <small>(opcionális)</small><input name="external_link_url" type="url" maxLength={1000} defaultValue={auction.external_link_url ?? ""} placeholder="https://pelda.hu" /></label>
                                 </> : null}
                                 <label className="toggle-row"><input name="has_printing_error" type="checkbox" defaultChecked={auction.has_printing_error} onChange={(event) => { const field = event.currentTarget.form?.elements.namedItem("printing_error_description"); if (field instanceof HTMLTextAreaElement) { field.disabled = !event.currentTarget.checked; if (!event.currentTarget.checked) field.value = ""; } }} />Nyomdahibás / gyártási hibás</label>
                                 <label>Hiba rövid leírása<textarea name="printing_error_description" rows={3} minLength={3} maxLength={500} defaultValue={auction.printing_error_description ?? ""} disabled={!auction.has_printing_error} placeholder="Például: a hátoldalon gyári festékhiba látható." /></label>
@@ -847,8 +859,9 @@ export function AccountPage({ section }: { section: "bids" | "auctions" | "creat
             {auctionFieldErrors.description ? <small className="auth-field-error" id="auction-description-error">{auctionFieldErrors.description}</small> : <small>10–5000 karakter.</small>}
           </label>
           {hasActiveVip ? <>
-            <label>Hivatkozás felirata<input name="external_link_label" type="text" maxLength={80} placeholder="További részletek" /></label>
-            <label>Hivatkozás URL-je<input name="external_link_url" type="url" maxLength={1000} placeholder="https://pelda.hu" /></label>
+            <OptionalExternalLinkHelp />
+            <label className="external-link-field">Hivatkozás felirata <small>(opcionális)</small><input name="external_link_label" type="text" maxLength={80} placeholder="További részletek" /></label>
+            <label className="external-link-field">Hivatkozás URL-je <small>(opcionális)</small><input name="external_link_url" type="url" maxLength={1000} placeholder="https://pelda.hu" /></label>
           </> : null}
           <label>
             Kategória
