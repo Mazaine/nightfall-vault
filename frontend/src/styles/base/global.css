@@ -1761,7 +1761,7 @@ h3 {
   .home-tasks .section-heading { display: block; margin-bottom: .65rem; }
   .home-tasks .section-heading h2 { font-size: 1.45rem; }
   .task-grid { gap: .6rem; }
-  .task-card { min-height: 4.5rem; padding: .75rem .9rem; }
+  .task-card { min-height: 4.5rem; padding: .75rem .9rem; z-index: 200; }
   .guest-actions { grid-template-columns: 1fr; }
   .create-form-actions { grid-template-columns: 1fr; }
   .mobile-bottom-nav { position: fixed; z-index: var(--z-sticky); inset: auto 0 0; display: grid; grid-template-columns: repeat(5, 1fr); min-height: 4.5rem; border-top: 1px solid var(--color-border); background: rgb(5 4 11 / .96); backdrop-filter: blur(18px); padding: .35rem max(.35rem, env(safe-area-inset-right)) max(.35rem, env(safe-area-inset-bottom)) max(.35rem, env(safe-area-inset-left)); }
