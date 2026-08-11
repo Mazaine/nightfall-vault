@@ -91,8 +91,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<AuthContextValue>(() => ({
     user,
-    isAuthenticated: user !== null,
-    isAdmin: user?.role === "admin",
+    isAuthenticated: !isLoading && user !== null,
+    isAdmin: !isLoading && user?.role === "admin",
     isLoading,
     login: async (email: string, password: string, captchaToken?: string | null) => {
       const response = await loginRequest(email, password, captchaToken);

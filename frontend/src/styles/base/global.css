@@ -1445,9 +1445,14 @@ h3 {
 .auction-rule-note p { color: var(--color-text-secondary); margin: var(--space-2) 0 var(--space-3); }
 .auction-rule-note .toggle-row { margin: 0; }
 
-.home-quick-actions, .home-tasks { padding-block: var(--space-5); }
+.home-quick-actions { padding-block: var(--space-5); }
+.home-tasks { padding-block: var(--space-3); }
+.home-tasks .section-heading { margin-bottom: .7rem; }
+.home-tasks .section-heading h2 { font-size: clamp(1.5rem, 2.2vw, 2.15rem); line-height: 1.05; }
+.home-tasks .eyebrow { margin-bottom: .2rem; font-size: .7rem; }
 .quick-action-grid, .task-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-3); }
 .quick-action-grid a, .task-card { display: grid; gap: .4rem; min-height: 7rem; align-content: center; border: 1px solid var(--color-border); border-radius: var(--radius-lg); background: var(--color-surface); padding: var(--space-4); transition: border-color var(--transition-ui), transform var(--transition-ui), background var(--transition-ui); }
+.task-card { min-height: 5rem; padding: .85rem 1rem; border-radius: var(--radius-md); }
 .quick-action-grid a:hover, .task-card:hover { border-color: var(--color-primary); background: rgb(168 85 247 / .08); transform: translateY(-2px); }
 .quick-action-grid span, .task-card span { color: var(--color-text-muted); font-size: var(--font-size-body-sm); }
 .task-card.is-warning { border-color: rgb(240 201 106 / .55); }
@@ -1752,6 +1757,11 @@ h3 {
   }
 
   .quick-action-grid, .task-grid, .my-bids-card-grid { grid-template-columns: 1fr; }
+  .home-tasks { padding-block: .75rem; }
+  .home-tasks .section-heading { display: block; margin-bottom: .65rem; }
+  .home-tasks .section-heading h2 { font-size: 1.45rem; }
+  .task-grid { gap: .6rem; }
+  .task-card { min-height: 4.5rem; padding: .75rem .9rem; }
   .guest-actions { grid-template-columns: 1fr; }
   .create-form-actions { grid-template-columns: 1fr; }
   .mobile-bottom-nav { position: fixed; z-index: var(--z-sticky); inset: auto 0 0; display: grid; grid-template-columns: repeat(5, 1fr); min-height: 4.5rem; border-top: 1px solid var(--color-border); background: rgb(5 4 11 / .96); backdrop-filter: blur(18px); padding: .35rem max(.35rem, env(safe-area-inset-right)) max(.35rem, env(safe-area-inset-bottom)) max(.35rem, env(safe-area-inset-left)); }
