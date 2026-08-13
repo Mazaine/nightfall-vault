@@ -15,10 +15,13 @@ from app.storage.paths import media_url
 router = APIRouter(tags=["social-preview"])
 
 CONDITION_LABELS = {
-    "M": "M", "NM": "NM", "EX": "EX", "GD": "GD", "LP": "LP", "PL": "PL", "PO": "PO",
-    "fresh": "NM", "like_new": "NM", "played": "PL", "damaged": "PO", "worn": "PO", "misprint": "PO",
+    "M": "M – Tökéletes", "NM": "NM – Újszerű", "EX": "EX – Kiváló", "GD": "GD – Jó",
+    "LP": "LP – Enyhén játszott", "PL": "PL – Játszott", "PO": "PO – Rossz",
+    "fresh": "NM – Újszerű", "like_new": "NM – Újszerű", "played": "PL – Játszott",
+    "damaged": "PO – Rossz", "worn": "PO – Rossz", "misprint": "PO – Rossz",
 }
 CLOSED_STATUSES = {"ended", "sold", "unsold"}
+HU_MONTHS = ("jan.", "febr.", "márc.", "ápr.", "máj.", "jún.", "júl.", "aug.", "szept.", "okt.", "nov.", "dec.")
 
 
 def _money(value) -> str:
@@ -33,6 +36,17 @@ def _public_base_url() -> str:
     ):
         raise HTTPException(status_code=503, detail="A megosztási előnézet publikus URL-je nincs megfelelően beállítva.")
     return base
+
+
+def _hu_datetime(value) -> str:
+    local = value.astimezone(ZoneInfo("Europe/Budapest"))
+    return f"{local.year}. {HU_MONTHS[local.month - 1]} {local.day}. {local:%H:%M}"
+
+
+def _description(parts: list[str]) -> str:
+    text = " · ".join(parts)
+    cta = "Nézd meg és licitálj a Nightfall Vaulton!"
+    return f"{text} · {cta}" if len(text) + len(cta) + 3 <= 300 else text[:300].rstrip(" ·")
 
 
 @router.get("/auctions/{auction_id}", response_class=HTMLResponse, include_in_schema=False)
@@ -64,17 +78,23 @@ def auction_social_preview(auction_id: int, db: Session = Depends(get_db)) -> HT
             )
 
     closed = auction.status in CLOSED_STATUSES
-    state = "Lezárult" if closed else ("Hamarosan indul" if auction.status == "scheduled" else "Aktív")
-    price_label = "Végső ár" if closed else "Jelenlegi ár"
-    condition = CONDITION_LABELS.get(auction.condition, auction.condition)
-    ends_at = auction.ends_at.astimezone(ZoneInfo("Europe/Budapest"))
-    description = " · ".join((
-        state,
-        f"{price_label}: {_money(auction.current_price)}",
-        f"Licitlépcső: {_money(auction.bid_increment)}",
-        condition,
-        f"Lejár: {ends_at:%Y.%m.%d. %H:%M}",
-    ))
+    condition = CONDITION_LABELS.get(auction.condition)
+    seller_name = auction.seller.full_name or auction.seller.username
+    if closed:
+        parts = ["Lezárult", f"Végső ár: {_money(auction.current_price)}"]
+    else:
+        parts = [
+            "Hamarosan indul" if auction.status == "scheduled" else f"Aktuális ár: {_money(auction.current_price)}",
+            f"Licitlépcső: {_money(auction.bid_increment)}",
+        ]
+    if condition:
+        parts.append(f"Állapot: {condition}")
+    if not closed and auction.buy_now_enabled and auction.buy_now_price is not None:
+        parts.append(f"Villámár: {_money(auction.buy_now_price)}")
+    if not closed:
+        parts.append(f"Lejárat: {_hu_datetime(auction.ends_at)}")
+    parts.append(f"Eladó: {seller_name}")
+    description = _description(parts)
     title = f"{auction.title} | Nightfall Vault"
 
     html = f"""<!doctype html><html lang="hu"><head><meta charset="utf-8">
