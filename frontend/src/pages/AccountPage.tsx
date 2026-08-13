@@ -13,6 +13,7 @@ import { formatAuctionStatus, formatMoney, formatRemainingTime } from "../utils/
 import { useNotifications } from "../NotificationContext";
 import { useAuctionRealtime } from "../AuctionRealtimeContext";
 import { useAuth } from "../AuthContext";
+import { openFacebookAuctionShare } from "../utils/auctionShare";
 
 const MAX_AUCTION_IMAGES = 5;
 const MAX_IMAGE_FILE_SIZE_BYTES = 20 * 1024 * 1024;
@@ -89,12 +90,6 @@ function toCardAuction(auction: Auction) {
     statusLabel: formatAuctionStatus(auction.status),
     bidCount: auction.bid_count ?? 0,
   };
-}
-
-function openFacebookShare(auctionId: number) {
-  const auctionUrl = new URL(`/auctions/${auctionId}`, window.location.origin).href;
-  const shareUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(auctionUrl)}`;
-  window.open(shareUrl, "nightfall-facebook-share", "popup=yes,width=720,height=640,noopener,noreferrer");
 }
 
 function localDateTimeToIso(value: FormDataEntryValue | null) {
@@ -657,7 +652,7 @@ export function AccountPage({ section }: { section: "bids" | "auctions" | "creat
                             <AuctionCard item={{ ...toCardAuction(auction), outcomeStatus: auction.owner_sale_status ?? undefined }} index={index} detailPath={`/auctions/${auction.id}`} showBidActions={false} />
                             <div className="owner-actions">
                               {canShare ? <button className="button button-secondary owner-share-button" type="button" aria-label={`${auction.title} megosztása Facebookon`} onClick={() => {
-                                openFacebookShare(auction.id);
+                                openFacebookAuctionShare(auction.id);
                                 setEditPageMessage("A Facebook megosztó megnyitása elindult. Ha nem jelenik meg, engedélyezd a felugró ablakokat, majd próbáld újra.");
                               }}><span aria-hidden="true">f</span> Megosztás Facebookon</button> : null}
                               {canEdit ? <button className="button button-secondary" type="button" onClick={() => isEditing ? stopEditingAuction() : void beginEditingAuction(auction)}>{isEditing ? "Szerkesztő bezárása" : "Módosítás"}</button> : null}

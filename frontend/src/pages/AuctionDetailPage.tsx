@@ -16,6 +16,7 @@ import { addWatchlistItem, auctionStreamUrl, createAuctionMessage, createAuction
 import { formatAuctionStatus, formatLocalDateTime, formatMoney, formatRemainingTime } from "../utils/format";
 import { disableBidConfirmation, isBidConfirmationDisabled } from "../utils/bidConfirmation";
 import { formatCardCondition } from "../data/cardConditions";
+import { copyAuctionLink, openFacebookAuctionShare, shareAuction } from "../utils/auctionShare";
 
 function moneyToCents(value: string | null | undefined) {
   const amount = Number(value);
@@ -58,6 +59,7 @@ export function AuctionDetailPage() {
   const [isWithdrawingBid, setIsWithdrawingBid] = useState(false);
   const [showReportDialog, setShowReportDialog] = useState(false);
   const [reportMessage, setReportMessage] = useState("");
+  const [shareMessage, setShareMessage] = useState("");
   const [selectedImageId, setSelectedImageId] = useState<number | null>(null);
   const [typingUser, setTypingUser] = useState("");
   const [presence, setPresence] = useState<{ online: boolean; last_active_at: string | null } | null>(null);
@@ -515,6 +517,31 @@ export function AuctionDetailPage() {
           {isAuthenticated && !auction.is_owner ? <button className="button button-ghost" type="button" onClick={() => setShowReportDialog(true)}>Aukció jelentése</button> : null}
           <Link className="button button-ghost" to="/auctions">Vissza az aukciókhoz</Link>
         </div>
+        <div className="auction-share-actions" aria-label="Aukció megosztása">
+          {typeof navigator !== "undefined" && navigator.share ? (
+            <button className="button button-secondary" type="button" onClick={async () => {
+              try {
+                const result = await shareAuction(auction.id, auction.title);
+                setShareMessage(result === "copied" ? "Az aukció linkjét a vágólapra másoltuk." : "A megosztás megnyílt.");
+              } catch (shareError) {
+                if (shareError instanceof DOMException && shareError.name === "AbortError") return;
+                setShareMessage("A megosztás most nem sikerült.");
+              }
+            }}>Megosztás</button>
+          ) : null}
+          <button className="button button-secondary owner-share-button" type="button" onClick={() => openFacebookAuctionShare(auction.id)}>
+            <span aria-hidden="true">f</span> Facebook
+          </button>
+          <button className="button button-ghost" type="button" onClick={async () => {
+            try {
+              await copyAuctionLink(auction.id);
+              setShareMessage("Az aukció linkjét a vágólapra másoltuk.");
+            } catch {
+              setShareMessage("A link másolása most nem sikerült.");
+            }
+          }}>Link másolása</button>
+        </div>
+        {shareMessage ? <p className="form-message" role="status" aria-live="polite">{shareMessage}</p> : null}
         {watchlistMessage ? <p className="form-message">{watchlistMessage}</p> : null}
         {reportMessage ? <p className="form-message">{reportMessage}</p> : null}
 
