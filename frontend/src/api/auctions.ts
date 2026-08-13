@@ -299,6 +299,10 @@ export function markAllNotificationsRead() {
   return apiRequest<{ updated: number }>("/api/notifications/mark-all-read", { method: "POST" });
 }
 
+export function markNotificationCategoryRead(category: string) {
+  return apiRequest<{ updated: number }>(`/api/notifications/mark-category-read?category=${encodeURIComponent(category)}`, { method: "POST" });
+}
+
 export function listWatchlist() {
   return apiRequest<WatchlistItem[]>("/api/watchlist");
 }

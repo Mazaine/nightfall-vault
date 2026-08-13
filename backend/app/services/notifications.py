@@ -53,6 +53,24 @@ def mark_all_notifications_read(db: Session, user_id: int) -> int:
     return int(result.rowcount or 0)
 
 
+def mark_notification_category_read(db: Session, user_id: int, category: str) -> int:
+    result = db.execute(
+        update(Notification)
+        .where(
+            Notification.user_id == user_id,
+            Notification.category == category,
+            Notification.in_app_enabled.is_(True),
+            Notification.is_read.is_(False),
+        )
+        .values(is_read=True, read_at=now_utc()),
+    )
+    db.commit()
+    updated = int(result.rowcount or 0)
+    if updated:
+        publish_user_event(user_id, "notifications_read_category", {"category": category, "updated": updated})
+    return updated
+
+
 def count_unread_notifications(db: Session, user_id: int) -> int:
     user = db.get(User, user_id)
     statement = select(func.count()).select_from(Notification).outerjoin(Auction, Auction.id == Notification.auction_id).where(Notification.user_id == user_id, Notification.in_app_enabled.is_(True), Notification.is_read.is_(False), (Notification.auction_id.is_(None)) | auction_visibility_clause(user))

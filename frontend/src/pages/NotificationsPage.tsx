@@ -1,11 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router";
-import { listMyNotifications, markAllNotificationsRead, markNotificationRead, type NotificationItem } from "../api/auctions";
+import { listMyNotifications, type NotificationItem } from "../api/auctions";
 import { EmptyState, ErrorState, LoadingState } from "../components/AsyncStates";
 import { NotificationPreferencesPanel } from "../components/NotificationPreferencesPanel";
 import { useNotifications } from "../NotificationContext";
 import { isBidConfirmationDisabled, resetBidConfirmation } from "../utils/bidConfirmation";
-import { publishUnreadNotificationCount } from "../utils/notificationEvents";
 import { localizeModerationMessage } from "../utils/moderationFormat";
 
 function unreadCount(items: NotificationItem[]) {
@@ -13,12 +12,13 @@ function unreadCount(items: NotificationItem[]) {
 }
 
 export function NotificationsPage() {
-  const { showToast } = useNotifications();
+  const { notifications: allNotifications, unreadCount: totalUnreadCount, markRead, markAllRead, markCategoryRead, showToast } = useNotifications();
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [pendingNotificationId, setPendingNotificationId] = useState<number | null>(null);
   const [isMarkingAll, setIsMarkingAll] = useState(false);
+  const [pendingCategory, setPendingCategory] = useState<string | null>(null);
   const [category, setCategory] = useState("all");
   const [bidConfirmationDisabled, setBidConfirmationDisabled] = useState(() => isBidConfirmationDisabled());
   const [bidConfirmationMessage, setBidConfirmationMessage] = useState("");
@@ -28,7 +28,6 @@ export function NotificationsPage() {
     try {
       const notifications = await listMyNotifications(category);
       setItems(notifications);
-      publishUnreadNotificationCount(unreadCount(notifications));
       setError("");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Nem sikerült betölteni az értesítéseket.");
@@ -59,13 +58,11 @@ export function NotificationsPage() {
     setPendingNotificationId(id);
     setError("");
     setItems(nextItems);
-    publishUnreadNotificationCount(unreadCount(nextItems));
 
     try {
-      await markNotificationRead(id);
+      await markRead(id);
     } catch (err) {
       setItems(previousItems);
-      publishUnreadNotificationCount(unreadCount(previousItems));
       setError(err instanceof Error ? err.message : "Az értesítést nem sikerült olvasottnak jelölni.");
     } finally {
       setPendingNotificationId(null);
@@ -79,21 +76,41 @@ export function NotificationsPage() {
     setIsMarkingAll(true);
     setError("");
     setItems(nextItems);
-    publishUnreadNotificationCount(0);
 
     try {
-      await markAllNotificationsRead();
+      await markAllRead();
     } catch (err) {
       setItems(previousItems);
-      publishUnreadNotificationCount(unreadCount(previousItems));
       setError(err instanceof Error ? err.message : "Az értesítéseket nem sikerült olvasottnak jelölni.");
     } finally {
       setIsMarkingAll(false);
     }
   }
 
-  const hasPendingAction = pendingNotificationId !== null || isMarkingAll;
-  const hasUnreadNotifications = unreadCount(items) > 0;
+  async function openCategory(nextCategory: string) {
+    if (nextCategory === category || pendingCategory !== null) return;
+    setError("");
+    if (nextCategory !== "all") {
+      setPendingCategory(nextCategory);
+      try {
+        await markCategoryRead(nextCategory);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "A kategória értesítéseit nem sikerült olvasottnak jelölni.");
+        setPendingCategory(null);
+        return;
+      }
+      setPendingCategory(null);
+    }
+    setCategory(nextCategory);
+  }
+
+  const unreadByCategory = allNotifications.reduce<Record<string, number>>((counts, item) => {
+    if (!item.is_read) counts[item.category] = (counts[item.category] ?? 0) + 1;
+    return counts;
+  }, {});
+
+  const hasPendingAction = pendingNotificationId !== null || isMarkingAll || pendingCategory !== null;
+  const hasUnreadNotifications = totalUnreadCount > 0;
 
   return (
     <>
@@ -107,7 +124,13 @@ export function NotificationsPage() {
         </button>
       </div>
       <div className="notification-filters" role="group" aria-label="Értesítési előzmények szűrése">
-        {[["all", "Összes"], ["bids", "Licitek"], ["chat", "Chat"], ["follows", "Követések"], ["transactions", "Tranzakciók"], ["moderation", "Moderáció"], ["system", "Rendszer"]].map(([value, label]) => <button className={category === value ? "filter-chip is-active" : "filter-chip"} type="button" aria-pressed={category === value} onClick={() => setCategory(value)} key={value}>{label}</button>)}
+        {[["all", "Összes"], ["bids", "Licitek"], ["chat", "Chat"], ["follows", "Követések"], ["transactions", "Tranzakciók"], ["moderation", "Moderáció"], ["system", "Rendszer"]].map(([value, label]) => {
+          const count = value === "all" ? totalUnreadCount : unreadByCategory[value] ?? 0;
+          return <button className={category === value ? "filter-chip is-active" : "filter-chip"} type="button" aria-pressed={category === value} disabled={pendingCategory !== null} onClick={() => void openCategory(value)} key={value}>
+            <span>{label}</span>
+            {count > 0 ? <strong className="notification-filter-count" aria-label={`${count} olvasatlan`}>{count > 99 ? "99+" : count}</strong> : null}
+          </button>;
+        })}
       </div>
       {isLoading ? <LoadingState label="Értesítések betöltése" /> : null}
       {error ? <ErrorState message={error} onRetry={() => void load()} /> : null}

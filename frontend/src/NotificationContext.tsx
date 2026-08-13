@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router";
 import { API_BASE_URL, getStoredToken } from "./api/client";
-import { getUnreadNotificationCount, listMyNotifications, markAllNotificationsRead, markNotificationRead, type NotificationItem } from "./api/auctions";
+import { getUnreadNotificationCount, listMyNotifications, markAllNotificationsRead, markNotificationCategoryRead, markNotificationRead, type NotificationItem } from "./api/auctions";
 import { useAuth } from "./AuthContext";
 import { localizeModerationMessage } from "./utils/moderationFormat";
 
@@ -18,11 +18,12 @@ type NotificationContextValue = {
   reload: () => Promise<void>;
   markRead: (id: number) => Promise<void>;
   markAllRead: () => Promise<void>;
+  markCategoryRead: (category: string) => Promise<void>;
   subscribe: (listener: Listener) => () => void;
   showToast: (toast: ToastInput) => void;
 };
 
-const EMPTY_CONTEXT: NotificationContextValue = { isRealtimeReady: false, notifications: [], unreadCount: 0, isLoading: false, reload: async () => undefined, markRead: async () => undefined, markAllRead: async () => undefined, subscribe: () => () => undefined, showToast: () => undefined };
+const EMPTY_CONTEXT: NotificationContextValue = { isRealtimeReady: false, notifications: [], unreadCount: 0, isLoading: false, reload: async () => undefined, markRead: async () => undefined, markAllRead: async () => undefined, markCategoryRead: async () => undefined, subscribe: () => () => undefined, showToast: () => undefined };
 const NotificationContext = createContext<NotificationContextValue>(EMPTY_CONTEXT);
 const LAST_EVENT_KEY = "nightfall:last-realtime-event";
 
@@ -124,6 +125,13 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
               } else if (event.type === "notifications_read_all") {
                 setNotifications((items) => items.map((item) => ({ ...item, is_read: true })));
                 setUnreadCount(0);
+              } else if (event.type === "notifications_read_category") {
+                const category = String(event.payload.category ?? "");
+                setNotifications((items) => {
+                  const changed = items.filter((item) => item.category === category && !item.is_read).length;
+                  if (changed) setUnreadCount((count) => Math.max(0, count - changed));
+                  return items.map((item) => item.category === category ? { ...item, is_read: true } : item);
+                });
               }
             }
           }
@@ -161,8 +169,16 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     try { await markAllNotificationsRead(); } catch (error) { await reload(); throw error; }
   }, [reload]);
 
+  const markCategoryRead = useCallback(async (category: string) => {
+    const changed = notifications.filter((item) => item.category === category && !item.is_read).length;
+    if (!changed) return;
+    setNotifications((items) => items.map((item) => item.category === category ? { ...item, is_read: true } : item));
+    setUnreadCount((count) => Math.max(0, count - changed));
+    try { await markNotificationCategoryRead(category); } catch (error) { await reload(); throw error; }
+  }, [notifications, reload]);
+
   const subscribe = useCallback((listener: Listener) => { listeners.current.add(listener); return () => { listeners.current.delete(listener); }; }, []);
-  const value = useMemo(() => ({ isRealtimeReady: true, notifications, unreadCount, isLoading, reload, markRead, markAllRead, subscribe, showToast }), [notifications, unreadCount, isLoading, reload, markRead, markAllRead, subscribe, showToast]);
+  const value = useMemo(() => ({ isRealtimeReady: true, notifications, unreadCount, isLoading, reload, markRead, markAllRead, markCategoryRead, subscribe, showToast }), [notifications, unreadCount, isLoading, reload, markRead, markAllRead, markCategoryRead, subscribe, showToast]);
 
   return <NotificationContext.Provider value={value}>{children}<div className="toast-region" aria-live="polite" aria-label="Értesítések">{toasts.map((toast) => <button className="nightfall-toast" type="button" key={toast.id} onClick={() => { navigate(toast.targetUrl); setToasts((items) => items.filter((item) => item.id !== toast.id)); }}><strong>{toast.title}</strong><span>{toast.message}</span></button>)}</div></NotificationContext.Provider>;
 }

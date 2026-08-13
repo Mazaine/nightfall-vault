@@ -10,7 +10,7 @@ from app.models.user import User
 from app.models.auction import Auction
 from app.schemas.auction import NotificationRead, NotificationUnreadCount
 from app.schemas.user import NotificationChannelPreference, NotificationPreferenceMatrix
-from app.services.notifications import count_unread_notifications, mark_all_notifications_read, mark_notification_read
+from app.services.notifications import count_unread_notifications, mark_all_notifications_read, mark_notification_category_read, mark_notification_read
 from app.services.demo_visibility import auction_visibility_clause
 
 router = APIRouter(prefix="/api/notifications", tags=["notifications"])
@@ -54,6 +54,13 @@ def get_unread_notification_count(current_user: User = Depends(require_active_us
 @router.post("/mark-all-read")
 def mark_all_read(current_user: User = Depends(require_active_user), db: Session = Depends(get_db)) -> dict[str, int]:
     return {"updated": mark_all_notifications_read(db, current_user.id)}
+
+
+@router.post("/mark-category-read")
+def mark_category_read(category: str = Query(...), current_user: User = Depends(require_active_user), db: Session = Depends(get_db)) -> dict[str, int]:
+    if category not in CATEGORIES:
+        raise HTTPException(status_code=422, detail="Ismeretlen értesítési kategória.")
+    return {"updated": mark_notification_category_read(db, current_user.id, category)}
 
 
 @router.post("/{notification_id}/read", response_model=NotificationRead)
