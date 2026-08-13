@@ -238,18 +238,23 @@ export function AuctionsPage() {
       </div>
 
       <form className="filter-panel side-panel" onSubmit={submitFilters}>
+        {isAuthenticated && savedSearches.length ? <div className="saved-search-strip filter-wide" aria-label="Mentett keresések">
+          <strong>Mentett keresések</strong>
+          <div className="filter-quick-chips">
+            {savedSearches.slice(0, 4).map((item) => (
+              <button className={selectedSavedSearchId === item.id ? "is-active saved-search-chip" : "saved-search-chip"} type="button" title={item.name} aria-pressed={selectedSavedSearchId === item.id} onClick={() => applySavedSearch(item)} key={item.id}>{item.name.slice(0, 24)}</button>
+            ))}
+            {savedSearches.length > 4 ? <div className="saved-search-more">
+              <button type="button" className={savedSearches.slice(4).some((item) => item.id === selectedSavedSearchId) ? "is-active" : ""} aria-expanded={showMoreSavedSearches} onClick={() => setShowMoreSavedSearches((open) => !open)}>Továbbiak</button>
+              {showMoreSavedSearches ? <div className="saved-search-more-menu">
+                {savedSearches.slice(4).map((item) => <button className={selectedSavedSearchId === item.id ? "is-active saved-search-chip" : "saved-search-chip"} type="button" title={item.name} aria-pressed={selectedSavedSearchId === item.id} onClick={() => applySavedSearch(item)} key={item.id}>{item.name.slice(0, 24)}</button>)}
+              </div> : null}
+            </div> : null}
+          </div>
+        </div> : null}
         <div className="filter-quick-chips filter-wide" aria-label="Gyorsszűrők">
           <button className={filters.soon_ending ? "is-active" : ""} type="button" aria-pressed={filters.soon_ending} onClick={() => setFilters({ ...filters, soon_ending: !filters.soon_ending })}>24 órán belül lejár</button>
           <button className={filters.new_only ? "is-active" : ""} type="button" aria-pressed={filters.new_only} onClick={() => setFilters({ ...filters, new_only: !filters.new_only })}>Az elmúlt 7 nap új aukciói</button>
-          {savedSearches.slice(0, 4).map((item) => (
-            <button className={selectedSavedSearchId === item.id ? "is-active saved-search-chip" : "saved-search-chip"} type="button" title={item.name} aria-pressed={selectedSavedSearchId === item.id} onClick={() => applySavedSearch(item)} key={item.id}>{item.name.slice(0, 24)}</button>
-          ))}
-          {savedSearches.length > 4 ? <div className="saved-search-more">
-            <button type="button" className={savedSearches.slice(4).some((item) => item.id === selectedSavedSearchId) ? "is-active" : ""} aria-expanded={showMoreSavedSearches} onClick={() => setShowMoreSavedSearches((open) => !open)}>Továbbiak</button>
-            {showMoreSavedSearches ? <div className="saved-search-more-menu">
-              {savedSearches.slice(4).map((item) => <button className={selectedSavedSearchId === item.id ? "is-active saved-search-chip" : "saved-search-chip"} type="button" title={item.name} aria-pressed={selectedSavedSearchId === item.id} onClick={() => applySavedSearch(item)} key={item.id}>{item.name.slice(0, 24)}</button>)}
-            </div> : null}
-          </div> : null}
         </div>
         <label className="filter-wide">
           Gyorskeresés

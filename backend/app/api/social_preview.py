@@ -49,9 +49,19 @@ def auction_social_preview(auction_id: int, db: Session = Depends(get_db)) -> HT
     base = _public_base_url()
     canonical = f"{base}/auctions/{auction.id}"
     cover = next((item for item in auction.images if item.is_cover), auction.images[0] if auction.images else None)
-    image_key = (cover.detail_storage_key or cover.list_storage_key or cover.storage_key) if cover else None
+    # A social crawlerek szamara az eredeti JPEG/PNG a legszelesebb korben tamogatott;
+    # a feluleti WebP variansok egyes Facebook elonezetekben nem jelennek meg.
+    image_key = cover.storage_key if cover else None
     image_path = media_url(image_key)
     image = f"{base}{image_path}" if image_path else f"{base}/assets/nightfall-vault-logo.png"
+    image_meta = ""
+    if cover:
+        image_meta = f'<meta property="og:image:type" content="{escape(cover.content_type)}">'
+        if cover.width and cover.height:
+            image_meta += (
+                f'<meta property="og:image:width" content="{cover.width}">'
+                f'<meta property="og:image:height" content="{cover.height}">'
+            )
 
     closed = auction.status in CLOSED_STATUSES
     state = "Lezárult" if closed else ("Hamarosan indul" if auction.status == "scheduled" else "Aktív")
@@ -73,8 +83,11 @@ def auction_social_preview(auction_id: int, db: Session = Depends(get_db)) -> HT
 <meta property="og:site_name" content="Nightfall Vault"><meta property="og:locale" content="hu_HU">
 <meta property="og:title" content="{escape(title)}"><meta property="og:description" content="{escape(description)}">
 <meta property="og:url" content="{escape(canonical)}"><meta property="og:image" content="{escape(image)}">
-<meta property="og:image:secure_url" content="{escape(image)}"><meta property="og:image:alt" content="{escape(auction.title)}">
+<meta property="og:image:secure_url" content="{escape(image)}"><meta property="og:image:alt" content="{escape(auction.title)}">{image_meta}
 <meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="{escape(title)}">
 <meta name="twitter:description" content="{escape(description)}"><meta name="twitter:image" content="{escape(image)}">
 </head><body><main><h1>{escape(auction.title)}</h1><p>{escape(description)}</p><a href="{escape(canonical)}">Aukció megnyitása</a></main></body></html>"""
-    return HTMLResponse(html, headers={"Cache-Control": "public, max-age=60, stale-while-revalidate=300"})
+    return HTMLResponse(html, headers={
+        "Cache-Control": "public, max-age=60, stale-while-revalidate=300",
+        "Vary": "User-Agent",
+    })
