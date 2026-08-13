@@ -99,6 +99,7 @@ export function AuctionsPage() {
   const [saveMessage, setSaveMessage] = useState("");
   const [savedSearches, setSavedSearches] = useState<SavedSearch[]>([]);
   const [selectedSavedSearchId, setSelectedSavedSearchId] = useState<number | null>(null);
+  const [showMoreSavedSearches, setShowMoreSavedSearches] = useState(false);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -166,6 +167,11 @@ export function AuctionsPage() {
   };
 
   const applySavedSearch = (item: SavedSearch) => {
+    if (selectedSavedSearchId === item.id) {
+      setSelectedSavedSearchId(null);
+      setShowMoreSavedSearches(false);
+      return;
+    }
     const nextFilters: FilterState = {
       ...INITIAL_FILTERS,
       q: item.query ?? "",
@@ -189,12 +195,17 @@ export function AuctionsPage() {
   const saveSearch = async () => {
     const name = window.prompt("A mentett keresés neve:", filters.q || filters.category || "Aukciókeresés");
     if (!name) return;
-    if (name.trim().length > 20) {
-      setSaveMessage("A mentett keresés neve legfeljebb 20 karakter lehet.");
+    const normalizedName = name.trim();
+    if (normalizedName.length < 2) {
+      setSaveMessage("A mentett keresés neve legalább 2 karakter legyen.");
+      return;
+    }
+    if (normalizedName.length > 24) {
+      setSaveMessage("A mentett keresés neve legfeljebb 24 karakter lehet.");
       return;
     }
     try {
-      const savedSearch = await createSavedSearch({ name: name.trim(), ...toParams(filters, 0), limit: undefined, offset: undefined, sort: undefined });
+      const savedSearch = await createSavedSearch({ name: normalizedName, ...toParams(filters, 0), limit: undefined, offset: undefined, sort: undefined });
       setSavedSearches((items) => [savedSearch, ...items]);
       setSelectedSavedSearchId(savedSearch.id);
       setSaveMessage("A keresés mentve. Az új találatokról in-app értesítést kapsz.");
@@ -230,9 +241,15 @@ export function AuctionsPage() {
         <div className="filter-quick-chips filter-wide" aria-label="Gyorsszűrők">
           <button className={filters.soon_ending ? "is-active" : ""} type="button" aria-pressed={filters.soon_ending} onClick={() => setFilters({ ...filters, soon_ending: !filters.soon_ending })}>24 órán belül lejár</button>
           <button className={filters.new_only ? "is-active" : ""} type="button" aria-pressed={filters.new_only} onClick={() => setFilters({ ...filters, new_only: !filters.new_only })}>Az elmúlt 7 nap új aukciói</button>
-          {savedSearches.map((item) => (
-            <button className={selectedSavedSearchId === item.id ? "is-active saved-search-chip" : "saved-search-chip"} type="button" title={item.name} aria-pressed={selectedSavedSearchId === item.id} onClick={() => applySavedSearch(item)} key={item.id}>{item.name.slice(0, 20)}</button>
+          {savedSearches.slice(0, 4).map((item) => (
+            <button className={selectedSavedSearchId === item.id ? "is-active saved-search-chip" : "saved-search-chip"} type="button" title={item.name} aria-pressed={selectedSavedSearchId === item.id} onClick={() => applySavedSearch(item)} key={item.id}>{item.name.slice(0, 24)}</button>
           ))}
+          {savedSearches.length > 4 ? <div className="saved-search-more">
+            <button type="button" className={savedSearches.slice(4).some((item) => item.id === selectedSavedSearchId) ? "is-active" : ""} aria-expanded={showMoreSavedSearches} onClick={() => setShowMoreSavedSearches((open) => !open)}>Továbbiak</button>
+            {showMoreSavedSearches ? <div className="saved-search-more-menu">
+              {savedSearches.slice(4).map((item) => <button className={selectedSavedSearchId === item.id ? "is-active saved-search-chip" : "saved-search-chip"} type="button" title={item.name} aria-pressed={selectedSavedSearchId === item.id} onClick={() => applySavedSearch(item)} key={item.id}>{item.name.slice(0, 24)}</button>)}
+            </div> : null}
+          </div> : null}
         </div>
         <label className="filter-wide">
           Gyorskeresés
