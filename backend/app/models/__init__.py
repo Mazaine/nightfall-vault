@@ -15,7 +15,7 @@ from app.models.security_log import AuditLog, LoginAttempt
 from app.models.demo_auction import DemoAuctionBatch
 from app.models.refresh_session import RefreshSession
 from app.models.transaction import AuctionTransaction
-from app.models.user import SavedSearch, SellerFollow, User, VipActivationCode
+from app.models.user import SavedSearch, SellerFollow, User, UserAuthIdentity, VipActivationCode
 
 __all__ = [
     "Category",
@@ -50,6 +50,7 @@ __all__ = [
     "RefreshSession",
     "AuctionTransaction",
     "User",
+    "UserAuthIdentity",
     "SellerFollow",
     "SavedSearch",
     "VipActivationCode",

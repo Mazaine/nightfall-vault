@@ -259,6 +259,18 @@
 .recovery-card h1 { max-width: 12ch; }
 .recovery-back { justify-self: start; margin-top: var(--space-2); }
 
+.auth-divider { display: flex; align-items: center; gap: .75rem; margin: 1.25rem 0; color: var(--color-text-muted); }
+.auth-divider::before, .auth-divider::after { content: ""; height: 1px; flex: 1; background: var(--color-border); }
+.social-auth-buttons { display: grid; gap: .65rem; }
+.social-auth-button { width: 100%; justify-content: center; background: rgb(18 17 26 / .9); }
+.social-auth-button > span { display: inline-grid; width: 1.5rem; height: 1.5rem; place-items: center; margin-right: .4rem; border-radius: 50%; font-weight: 800; }
+.social-auth-button.is-google > span { background: #fff; color: #4285f4; }
+.social-auth-button.is-apple > span { background: #fff; color: #111; }
+.social-auth-button.is-facebook > span { background: #1877f2; color: #fff; }
+.connected-account-list { display: grid; gap: .6rem; margin-block: 1rem; }
+.connected-account-list > div { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .75rem; border: 1px solid var(--color-border); border-radius: var(--radius-sm); }
+.connected-account-list span { display: grid; gap: .2rem; }
+
 @media (max-width: 1024px) {
   .auth-layout { grid-template-columns: 1fr; width: min(100%, 42rem); min-height: 0; }
   .auth-intro-panel { display: none; }

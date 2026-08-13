@@ -518,7 +518,7 @@ export function AuctionDetailPage() {
           <Link className="button button-ghost" to="/auctions">Vissza az aukciókhoz</Link>
         </div>
         <div className="auction-share-actions" aria-label="Aukció megosztása">
-          {typeof navigator !== "undefined" && navigator.share ? (
+          {typeof navigator !== "undefined" && "share" in navigator ? (
             <button className="button button-secondary" type="button" onClick={async () => {
               try {
                 const result = await shareAuction(auction.id, auction.title);

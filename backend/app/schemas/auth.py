@@ -21,6 +21,20 @@ class TokenResponse(BaseModel):
     user: UserMeRead
 
 
+class SocialProviderStatus(BaseModel):
+    provider: str
+    configured: bool
+
+
+class SocialStartResponse(BaseModel):
+    authorization_url: str
+
+
+class AuthIdentityRead(BaseModel):
+    provider: str
+    provider_email: str | None = None
+
+
 class ForgotPasswordRequest(BaseModel):
     email: EmailStr
     captcha_token: str | None = None

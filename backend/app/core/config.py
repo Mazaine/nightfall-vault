@@ -69,6 +69,17 @@ class Settings(BaseSettings):
     development_admin_seed_enabled: bool = False
     error_tracking_dsn: str | None = None
     realtime_stream_max_length: int = 5000
+    google_oauth_client_id: str | None = None
+    google_oauth_client_secret: str | None = None
+    google_oauth_redirect_uri: str | None = None
+    apple_oauth_client_id: str | None = None
+    apple_oauth_team_id: str | None = None
+    apple_oauth_key_id: str | None = None
+    apple_oauth_private_key: str | None = None
+    apple_oauth_redirect_uri: str | None = None
+    facebook_oauth_client_id: str | None = None
+    facebook_oauth_client_secret: str | None = None
+    facebook_oauth_redirect_uri: str | None = None
 
     @field_validator("media_url_prefix")
     @classmethod

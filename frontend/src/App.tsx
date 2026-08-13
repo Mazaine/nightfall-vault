@@ -26,6 +26,7 @@ const UserProfilePage = lazy(() => import("./pages/UserProfilePage").then((modul
 const EmailVerificationPage = lazy(() => import("./pages/AuthRecoveryPages").then((module) => ({ default: module.EmailVerificationPage })));
 const ForgotPasswordPage = lazy(() => import("./pages/AuthRecoveryPages").then((module) => ({ default: module.ForgotPasswordPage })));
 const ResetPasswordPage = lazy(() => import("./pages/AuthRecoveryPages").then((module) => ({ default: module.ResetPasswordPage })));
+const SocialAuthCompletePage = lazy(() => import("./pages/SocialAuthCompletePage").then((module) => ({ default: module.SocialAuthCompletePage })));
 const AccountLayout = lazy(() => import("./components/AccountLayout").then((module) => ({ default: module.AccountLayout })));
 const AccountPage = lazy(() => import("./pages/AccountPage").then((module) => ({ default: module.AccountPage })));
 const MyBidsPage = lazy(() => import("./pages/MyBidsPage").then((module) => ({ default: module.MyBidsPage })));
@@ -105,6 +106,7 @@ function App() {
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
             <Route path="/reset-password" element={<ResetPasswordPage />} />
             <Route path="/auth/verify-email" element={<EmailVerificationPage />} />
+            <Route path="/auth/social/complete" element={<SocialAuthCompletePage />} />
             <Route path="/admin" element={<AdminRoute />}>
               <Route index element={<AdminDashboardPage />} />
               <Route path="auctions" element={<AdminAuctionsPage />} />

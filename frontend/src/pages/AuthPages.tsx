@@ -4,6 +4,7 @@ import { register, resendVerification } from "../api/auth";
 import { ApiError } from "../api/client";
 import { useAuth } from "../AuthContext";
 import { CaptchaWidget } from "../components/security/CaptchaWidget";
+import { SocialAuthButtons } from "../components/SocialAuthButtons";
 
 type AuthPageProps = {
   mode: "login" | "register";
@@ -54,6 +55,11 @@ export function AuthPage({ mode }: AuthPageProps) {
     setCaptchaToken(null);
     setRegisteredEmail("");
   }, [mode]);
+
+  useEffect(() => {
+    const socialError = new URLSearchParams(location.search).get("social_error");
+    if (socialError) { setMessageTone("error"); setMessage(socialError); }
+  }, [location.search]);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -183,6 +189,7 @@ export function AuthPage({ mode }: AuthPageProps) {
           {message ? <p className={`auth-message is-${messageTone}`} role={messageTone === "error" ? "alert" : "status"}>{message}</p> : null}
           {registeredEmail ? <button className="button button-secondary" type="button" onClick={handleResend} disabled={isSubmitting}>Aktiváló e-mail újraküldése</button> : <button className="button button-primary auth-submit" type="submit" disabled={isSubmitting}>{isSubmitting ? "Feldolgozás…" : isLogin ? "Belépés" : "Fiók létrehozása"}</button>}
         </form>
+        <SocialAuthButtons />
 
         {isLogin ? <div className="auth-links"><Link className="text-link" to="/forgot-password">Elfelejtetted a jelszavad?</Link><span>Nincs még fiókod? <Link className="text-link" to={`/register${location.search}`}>Regisztrálj</Link></span></div> : <p className="auth-links">Már van fiókod? <Link className="text-link" to={`/login${location.search}`}>Lépj be</Link></p>}
       </div>

@@ -1,9 +1,10 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router";
-import { deleteProfile, updateProfile } from "../api/auth";
+import { deleteProfile, listAuthIdentities, unlinkAuthIdentity, updateProfile, type AuthIdentity, type SocialProvider } from "../api/auth";
 import { useAuth } from "../AuthContext";
 import { NotificationPreferencesPanel } from "../components/NotificationPreferencesPanel";
 import { resetBidConfirmation } from "../utils/bidConfirmation";
+import { SocialAuthButtons } from "../components/SocialAuthButtons";
 
 export function AccountProfilePage() {
   const { user, refreshMe, logout } = useAuth();
@@ -16,8 +17,10 @@ export function AccountProfilePage() {
   const [deletePassword, setDeletePassword] = useState("");
   const [deleteConfirmation, setDeleteConfirmation] = useState("");
   const [isDeleting, setIsDeleting] = useState(false);
+  const [identities, setIdentities] = useState<AuthIdentity[]>([]);
 
   useEffect(() => { if (user) setForm({ full_name: user.full_name, username: user.username, email: user.email }); }, [user?.email, user?.full_name, user?.username]);
+  useEffect(() => { void listAuthIdentities().then(setIdentities).catch(() => setMessage("A kapcsolt fiókok állapota nem tölthető be.")); }, []);
 
   async function save(event: FormEvent) {
     event.preventDefault();
@@ -54,6 +57,17 @@ export function AccountProfilePage() {
           <div className="form-actions"><button className="button button-primary" type="submit" disabled={isSaving}>{isSaving ? "Mentés…" : "Mentés"}</button><button className="button button-ghost" type="button" disabled={isSaving} onClick={() => { if (user) setForm({ full_name: user.full_name, username: user.username, email: user.email }); setIsEditing(false); }}>Mégse</button></div>
         </form> : <dl className="profile-data-list"><div><dt>Megjelenítési név</dt><dd>{user?.full_name}</dd></div><div><dt>Felhasználónév</dt><dd>@{user?.username}</dd></div><div><dt>E-mail-cím</dt><dd>{user?.email}</dd></div></dl>}
         {message ? <p className="form-message" role="status">{message}</p> : null}
+      </section>
+      <section className="side-panel profile-settings-card" aria-labelledby="connected-accounts-title">
+        <h2 id="connected-accounts-title">Kapcsolt fiókok</h2>
+        <div className="connected-account-list">
+          {(["google", "apple", "facebook"] as SocialProvider[]).map((provider) => {
+            const identity = identities.find((item) => item.provider === provider);
+            const label = provider === "google" ? "Google" : provider === "apple" ? "Apple" : "Facebook";
+            return <div key={provider}><span><strong>{label}</strong><small>{identity ? `Kapcsolva${identity.provider_email ? ` · ${identity.provider_email}` : ""}` : "Nincs kapcsolva"}</small></span>{identity ? <button className="button button-ghost" type="button" onClick={async () => { try { const response = await unlinkAuthIdentity(provider); setIdentities((items) => items.filter((item) => item.provider !== provider)); setMessage(response.message); } catch (error) { setMessage(error instanceof Error ? error.message : "A külső fiók leválasztása nem sikerült."); } }}>Leválasztás</button> : null}</div>;
+          })}
+        </div>
+        <SocialAuthButtons link />
       </section>
       <NotificationPreferencesPanel />
       <section className="side-panel profile-settings-card" aria-labelledby="bid-confirmation-title">

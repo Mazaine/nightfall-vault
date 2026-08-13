@@ -1,11 +1,16 @@
 ﻿import hashlib
 import logging
 import secrets
+from urllib.parse import urlencode
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
+from fastapi.responses import RedirectResponse
+import httpx
+import jwt
+from jwt import InvalidTokenError
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -13,20 +18,22 @@ from app.core.rate_limit import check_rate_limit, get_client_ip
 from app.core.security import create_access_token, hash_password, verify_password
 from app.crud.user import create_user, get_user_by_email, get_user_by_username
 from app.db.session import get_db
-from app.dependencies.auth import require_active_user
+from app.dependencies.auth import get_optional_current_user, require_active_user
 from app.models.email_verification_token import EmailVerificationToken
 from app.models.newsletter import NewsletterSubscriber
 from app.models.password_reset_token import PasswordResetToken
 from app.models.refresh_session import RefreshSession
-from app.models.user import User
-from app.schemas.auth import ForgotPasswordRequest, LoginRequest, MessageResponse, ResendVerificationRequest, ResetPasswordRequest, TokenResponse
+from app.models.user import User, UserAuthIdentity
+from app.schemas.auth import AuthIdentityRead, ForgotPasswordRequest, LoginRequest, MessageResponse, ResendVerificationRequest, ResetPasswordRequest, SocialProviderStatus, SocialStartResponse, TokenResponse
 from app.schemas.user import AccountDeleteRequest, NotificationPreferencesRead, NotificationPreferencesUpdate, PasswordChangeRequest, UserCreate, UserMeRead, UserProfileUpdate
 from app.services.captcha_service import verify_captcha
 from app.services.email_service import send_email_verification_email, send_password_reset_email
 from app.services.security_audit import create_login_attempt
+from app.services.social_auth import PROVIDERS, authorization_url, exchange_code, provider_configured, safe_username
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 logger = logging.getLogger(__name__)
+SOCIAL_STATE_COOKIE = "nightfall_oauth_state"
 
 
 def _refresh_digest(token: str) -> str:
@@ -57,6 +64,22 @@ def _new_refresh_session(db: Session, user: User, request: Request, *, family_id
         user_agent=request.headers.get("user-agent"),
     ))
     return raw
+
+
+def _social_redirect(message: str | None = None, *, target: str = "/login") -> RedirectResponse:
+    suffix = f"?{urlencode({'social_error': message})}" if message else ""
+    return RedirectResponse(f"{settings.app_frontend_url.rstrip('/')}{target}{suffix}", status_code=303)
+
+
+def _issue_social_session(db: Session, user: User, request: Request, response: Response) -> None:
+    previous = request.cookies.get(settings.refresh_cookie_name)
+    if previous:
+        session = db.scalar(select(RefreshSession).where(RefreshSession.token_digest == _refresh_digest(previous)))
+        if session is not None and session.revoked_at is None:
+            session.revoked_at = datetime.now(timezone.utc)
+    refresh_token = _new_refresh_session(db, user, request)
+    db.commit()
+    _set_refresh_cookie(response, refresh_token)
 
 
 def hash_reset_token(token: str) -> str:
@@ -159,7 +182,7 @@ def login(
     ip_address = get_client_ip(request)
     user_agent = request.headers.get("user-agent")
     user = get_user_by_email(db, login_request.email)
-    if user is None or not verify_password(login_request.password, user.password_hash):
+    if user is None or not user.password_login_enabled or not verify_password(login_request.password, user.password_hash):
         create_login_attempt(
             db,
             email=login_request.email,
@@ -224,6 +247,109 @@ def login(
     _set_refresh_cookie(response, refresh_token)
     access_token = create_access_token(subject=user.id, session_version=user.auth_version)
     return TokenResponse(access_token=access_token, user=UserMeRead.model_validate(user))
+
+
+@router.get("/social/providers", response_model=list[SocialProviderStatus])
+def social_providers() -> list[SocialProviderStatus]:
+    return [SocialProviderStatus(provider=provider, configured=provider_configured(provider)) for provider in PROVIDERS]
+
+
+@router.post("/social/{provider}/start", response_model=SocialStartResponse)
+def start_social_auth(
+    provider: str,
+    response: Response,
+    request: Request,
+    link: bool = Query(False),
+    current_user: User | None = Depends(get_optional_current_user),
+) -> SocialStartResponse:
+    if provider not in PROVIDERS or not provider_configured(provider):
+        raise HTTPException(status_code=404, detail="Ez a külső bejelentkezési mód jelenleg nem érhető el.")
+    if link and current_user is None:
+        raise HTTPException(status_code=401, detail="A fiók összekapcsolásához jelentkezz be.")
+    check_rate_limit(request, f"auth:social-start:{provider}", settings.login_rate_limit_per_minute, str(current_user.id if current_user else "guest"))
+    nonce = secrets.token_urlsafe(24)
+    state_id = secrets.token_urlsafe(24)
+    now = datetime.now(timezone.utc)
+    state = jwt.encode({"sid": state_id, "nonce": nonce, "action": "link" if link else "login", "uid": current_user.id if current_user else None, "iat": now, "exp": now + timedelta(minutes=10)}, settings.secret_key, algorithm=settings.access_token_algorithm)
+    response.set_cookie(SOCIAL_STATE_COOKIE, state_id, max_age=600, httponly=True, secure=settings.environment.strip().lower() == "production", samesite="none" if settings.environment.strip().lower() == "production" else "lax", path="/api/auth/social")
+    return SocialStartResponse(authorization_url=authorization_url(provider, state, nonce))
+
+
+@router.api_route("/social/{provider}/callback", methods=["GET", "POST"], response_class=RedirectResponse)
+async def social_callback(provider: str, request: Request, db: Session = Depends(get_db)) -> RedirectResponse:
+    values = request.query_params if request.method == "GET" else await request.form()
+    code, state = values.get("code"), values.get("state")
+    if provider not in PROVIDERS or not isinstance(code, str) or not isinstance(state, str):
+        return _social_redirect("A külső bejelentkezés nem sikerült.")
+    try:
+        claims = jwt.decode(state, settings.secret_key, algorithms=[settings.access_token_algorithm])
+        if not secrets.compare_digest(str(claims.get("sid", "")), request.cookies.get(SOCIAL_STATE_COOKIE, "")):
+            raise ValueError("state mismatch")
+        identity = exchange_code(provider, code, str(claims["nonce"]))
+    except (InvalidTokenError, KeyError, ValueError, httpx.HTTPError):
+        logger.warning("Social login validation failed provider=%s request_id=%s", provider, getattr(request.state, "request_id", None))
+        return _social_redirect(f"A {provider.capitalize()}-bejelentkezés nem sikerült.")
+
+    stored = db.scalar(select(UserAuthIdentity).where(UserAuthIdentity.provider == provider, UserAuthIdentity.provider_subject == identity.subject))
+    action, requested_user_id = claims.get("action"), claims.get("uid")
+    if action == "link":
+        user = db.get(User, requested_user_id) if isinstance(requested_user_id, int) else None
+        if user is None or not user.is_active or user.deleted_at is not None:
+            return _social_redirect("A fiók összekapcsolása nem sikerült.", target="/account/profile")
+        if stored is not None and stored.user_id != user.id:
+            return _social_redirect("Ez a külső fiók már egy másik Nightfall Vault-fiókhoz tartozik.", target="/account/profile")
+        existing_provider = db.scalar(select(UserAuthIdentity).where(UserAuthIdentity.user_id == user.id, UserAuthIdentity.provider == provider))
+        if existing_provider is not None and existing_provider.provider_subject != identity.subject:
+            return _social_redirect("Ehhez a szolgáltatóhoz már másik külső fiók van kapcsolva.", target="/account/profile")
+        if existing_provider is None:
+            db.add(UserAuthIdentity(user_id=user.id, provider=provider, provider_subject=identity.subject, provider_email=identity.email))
+            db.commit()
+        result = _social_redirect(target=f"/account/profile?social_linked={provider}")
+    else:
+        if stored is not None:
+            user = db.get(User, stored.user_id)
+        else:
+            user = get_user_by_email(db, identity.email) if identity.email else None
+            if user is not None:
+                return _social_redirect("Ehhez az e-mail-címhez már tartozik fiók. Jelentkezz be a meglévő fiókoddal az összekapcsoláshoz.")
+            if not identity.email or not identity.email_verified:
+                return _social_redirect("A szolgáltató nem adott ellenőrzött e-mail-címet. Előbb hozz létre Nightfall Vault-fiókot, majd kapcsold hozzá.")
+            username_base = safe_username(identity.email, provider)
+            username, counter = username_base, 1
+            while get_user_by_username(db, username) is not None:
+                counter += 1
+                username = f"{username_base[:70]}-{counter}"
+            user = User(email=identity.email, username=username, full_name=(identity.display_name or username)[:160], password_hash=hash_password(secrets.token_urlsafe(48)), password_login_enabled=False, is_active=True, is_email_verified=True)
+            db.add(user)
+            db.flush()
+            db.add(UserAuthIdentity(user_id=user.id, provider=provider, provider_subject=identity.subject, provider_email=identity.email))
+            db.commit()
+        if user is None or not user.is_active or user.deleted_at is not None:
+            return _social_redirect("Ez a felhasználói fiók inaktív.")
+        from app.services.moderation_actions import require_not_fully_banned
+        require_not_fully_banned(db, user.id)
+        result = _social_redirect(target="/auth/social/complete")
+    result.delete_cookie(SOCIAL_STATE_COOKIE, path="/api/auth/social")
+    _issue_social_session(db, user, request, result)
+    return result
+
+
+@router.get("/me/auth-identities", response_model=list[AuthIdentityRead])
+def list_auth_identities(current_user: User = Depends(require_active_user), db: Session = Depends(get_db)) -> list[AuthIdentityRead]:
+    return [AuthIdentityRead.model_validate(item, from_attributes=True) for item in db.scalars(select(UserAuthIdentity).where(UserAuthIdentity.user_id == current_user.id).order_by(UserAuthIdentity.provider)).all()]
+
+
+@router.delete("/me/auth-identities/{provider}", response_model=MessageResponse)
+def unlink_auth_identity(provider: str, current_user: User = Depends(require_active_user), db: Session = Depends(get_db)) -> MessageResponse:
+    identity = db.scalar(select(UserAuthIdentity).where(UserAuthIdentity.user_id == current_user.id, UserAuthIdentity.provider == provider))
+    if identity is None:
+        raise HTTPException(status_code=404, detail="Ez a külső fiók nincs összekapcsolva.")
+    identity_count = db.scalar(select(func.count(UserAuthIdentity.id)).where(UserAuthIdentity.user_id == current_user.id)) or 0
+    if not current_user.password_login_enabled and identity_count <= 1:
+        raise HTTPException(status_code=409, detail="Az utolsó biztonságos belépési mód nem választható le.")
+    db.delete(identity)
+    db.commit()
+    return MessageResponse(message="A külső fiók leválasztása sikerült.")
 
 
 @router.post("/refresh", response_model=TokenResponse)
@@ -362,6 +488,7 @@ def reset_password(
         raise HTTPException(status_code=400, detail="A jelszó-visszaállítás nem hajtható végre.")
 
     user.password_hash = hash_password(reset_request.new_password)
+    user.password_login_enabled = True
     user.auth_version += 1
     user_tokens = db.scalars(
         select(PasswordResetToken).where(
@@ -492,6 +619,7 @@ def change_my_password(
         raise HTTPException(status_code=422, detail="Az új jelszó nem lehet azonos a jelenlegi jelszóval.")
 
     current_user.password_hash = hash_password(password_change.new_password)
+    current_user.password_login_enabled = True
     current_user.auth_version += 1
     db.add(current_user)
     db.commit()

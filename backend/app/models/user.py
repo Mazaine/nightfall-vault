@@ -16,6 +16,7 @@ class User(Base):
     username: Mapped[str] = mapped_column(String(80), nullable=False, unique=True, index=True)
     full_name: Mapped[str] = mapped_column(String(160), nullable=False)
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    password_login_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default="true")
     auth_version: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     role: Mapped[str] = mapped_column(String(20), nullable=False, default="user")
     demo_batch_id: Mapped[int | None] = mapped_column(ForeignKey("demo_auction_batches.id", ondelete="SET NULL"), nullable=True, index=True)
@@ -38,6 +39,26 @@ class User(Base):
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
+
+    auth_identities = relationship("UserAuthIdentity", back_populates="user", cascade="all, delete-orphan")
+
+
+class UserAuthIdentity(Base):
+    __tablename__ = "user_auth_identities"
+    __table_args__ = (
+        UniqueConstraint("provider", "provider_subject", name="uq_user_auth_identities_provider_subject"),
+        UniqueConstraint("user_id", "provider", name="uq_user_auth_identities_user_provider"),
+        CheckConstraint("provider IN ('google', 'apple', 'facebook')", name="ck_user_auth_identities_provider"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    provider: Mapped[str] = mapped_column(String(20), nullable=False)
+    provider_subject: Mapped[str] = mapped_column(String(255), nullable=False)
+    provider_email: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+    user = relationship("User", back_populates="auth_identities")
 
 class SellerFollow(Base):
     __tablename__ = "seller_follows"

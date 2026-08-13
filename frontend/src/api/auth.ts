@@ -17,6 +17,9 @@ export type LoginResponse = {
 };
 
 export type MessageResponse = { message: string };
+export type SocialProvider = "google" | "apple" | "facebook";
+export type SocialProviderStatus = { provider: SocialProvider; configured: boolean };
+export type AuthIdentity = { provider: SocialProvider; provider_email: string | null };
 
 export type RegisterRequest = {
   email: string;
@@ -53,6 +56,27 @@ export async function register(payload: RegisterRequest) {
 
 export async function getMe() {
   return apiRequest<AuthUser>("/api/auth/me");
+}
+
+export function listSocialProviders() {
+  return apiRequest<SocialProviderStatus[]>("/api/auth/social/providers", { authenticated: false });
+}
+
+export async function startSocialAuth(provider: SocialProvider, link = false) {
+  const response = await apiRequest<{ authorization_url: string }>(`/api/auth/social/${provider}/start?link=${link}`, { method: "POST", authenticated: link });
+  window.location.assign(response.authorization_url);
+}
+
+export async function completeSocialLogin() {
+  return apiRequest<LoginResponse>("/api/auth/refresh", { method: "POST", authenticated: false });
+}
+
+export function listAuthIdentities() {
+  return apiRequest<AuthIdentity[]>("/api/auth/me/auth-identities");
+}
+
+export function unlinkAuthIdentity(provider: SocialProvider) {
+  return apiRequest<MessageResponse>(`/api/auth/me/auth-identities/${provider}`, { method: "DELETE" });
 }
 
 export function updateProfile(payload: { email: string; username: string; full_name: string }) {
