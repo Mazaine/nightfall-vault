@@ -31,7 +31,7 @@ export function AboutPage() {
           </p>
           <div className="hero-actions">
             <Link className="button button-primary" to="/auctions">Belépek a Vaultba</Link>
-            <Link className="button button-secondary" to="/how-it-works">Hogyan működik?</Link>
+            <Link className="button button-secondary" to="/how-it-works">Szabályok</Link>
           </div>
         </div>
         <blockquote className="about-oath">

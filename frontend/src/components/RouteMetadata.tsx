@@ -14,7 +14,7 @@ const routeMeta: RouteMeta[] = [
   { matches: (path) => path === "/auctions/create", title: "Aukció létrehozása", description: "Új Nightfall Vault aukció létrehozása és képeinek feltöltése.", indexable: false },
   { matches: (path) => /^\/auctions\/\d+$/.test(path), title: "Aukció részletei", description: "Tekintsd meg az aukció részleteit, képeit, licittörténetét és aktuális állapotát a Nightfall Vaultban." },
   { matches: (path) => path.startsWith("/users/"), title: "Felhasználói profil", description: "Nyilvános Nightfall Vault profil, aukciós előzmények és közösségi értékelések." },
-  { matches: (path) => path === "/how-it-works", title: "Hogyan működik?", description: "Ismerd meg a Nightfall Vault licitálási, villámáras és ötpereces hosszabbítási szabályait." },
+  { matches: (path) => path === "/how-it-works", title: "Szabályok", description: "Ismerd meg a Nightfall Vault licitálási, villámáras és ötpereces hosszabbítási szabályait." },
   { matches: (path) => path === "/about", title: "Rólunk", description: "Ismerd meg a Nightfall Vault világát és a biztonságos, közösségi aukciós tér alapelveit." },
   { matches: (path) => path === "/contact", title: "Kapcsolat", description: "Segítség és kapcsolatfelvételi lehetőségek a Nightfall Vault zárt béta felhasználóinak." },
   { matches: (path) => path === "/terms", title: "Felhasználási feltételek", description: "A Nightfall Vault zárt béta használatának legfontosabb szabályai és szolgáltatási határai." },

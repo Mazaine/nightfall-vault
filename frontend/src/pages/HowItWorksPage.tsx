@@ -114,7 +114,7 @@ export function HowItWorksPage() {
   return (
     <section className="container page-shell">
       <p className="eyebrow">A Nightfall Vault szabályai</p>
-      <h1>Hogyan működik?</h1>
+      <h1>Szabályok</h1>
       <p className="page-intro">Az aukció teljes útja a fiók létrehozásától a licitáláson át a kölcsönös lezárásig. Az alábbi szabályok minden felhasználóra és minden aukcióra érvényesek.</p>
 
       <div className="info-grid">

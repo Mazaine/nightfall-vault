@@ -65,10 +65,8 @@
 }
 
 .site-nav a.nav-primary-action {
-  border: 1px solid rgb(168 85 247 / .72);
- 
-  color: #fff;
-  box-shadow: 0 8px 22px rgb(124 58 237 / .24);
+  color: var(--color-text-primary);
+  font-weight: var(--font-weight-semibold);
 }
 
 .mobile-auth-links { display: none; }

@@ -47,7 +47,7 @@ export function SupportPage() {
   return (
     <InformationPage eyebrow="Támogatás" title="Miben segíthetünk?" lead="A legtöbb kérdés néhány lépésben rendezhető; az alábbi útvonalak gyorsan a megfelelő helyre visznek.">
       <section><h2>Fiókhozzáférés</h2><p>Elfelejtett jelszónál indíts <Link to="/forgot-password">jelszó-helyreállítást</Link>. Ha az aktiváló levél nem érkezett meg, a regisztrációnál megadott címmel újraküldhető.</p></section>
-      <section><h2>Aukció és licit</h2><p>A licitlépcsőt, a villámárat és az ötpereces szabályt a <Link to="/how-it-works">Hogyan működik?</Link> oldal foglalja össze.</p></section>
+      <section><h2>Aukció és licit</h2><p>A licitlépcsőt, a villámárat és az ötpereces szabályt a <Link to="/how-it-works">Szabályok</Link> oldal foglalja össze.</p></section>
       <section><h2>Visszaélés vagy vitás tartalom</h2><p>Használd az érintett aukción vagy profilon a Jelentés gombot. A moderáció a bejelentést az előzményekkel együtt vizsgálja.</p></section>
       <section><h2>Közvetlen segítség</h2><p>Technikai vagy fiókproblémánál a <Link to="/contact">Kapcsolat</Link> oldalon találod az aktuális támogatási elérhetőséget.</p></section>
     </InformationPage>

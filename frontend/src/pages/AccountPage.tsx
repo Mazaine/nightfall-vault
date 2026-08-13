@@ -605,7 +605,6 @@ export function AccountPage({ section }: { section: "bids" | "auctions" | "creat
           </p>
         </div>
         {section === "auctions" ? <Link className="button button-primary" to="/auctions/create">Új aukció</Link> : null}
-        {section === "create" ? <Link className="button button-secondary" to="/account/auctions">Saját aukcióim</Link> : null}
         {section === "bids" ? <Link className="button button-primary" to="/auctions">Aukciók böngészése</Link> : null}
       </div>
 
@@ -814,7 +813,6 @@ export function AccountPage({ section }: { section: "bids" | "auctions" | "creat
             <p className="eyebrow">Új feltöltés</p>
             <h2 id="auction-create-title">Aukció adatai</h2>
           </div>
-          <Link className="text-link" to="/how-it-works">Szabályok részletesen</Link>
         </div>
 
         <form className="side-panel auction-create-form" onSubmit={handleCreateAuction} noValidate>
