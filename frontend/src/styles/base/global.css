@@ -630,6 +630,9 @@ h3 {
 
 .vip-membership-page { display: grid; gap: var(--space-5); }
 .vip-membership-page > h1 { max-width: 18ch; }
+.vip-reminder-settings { display: grid; justify-items: start; gap: var(--space-3); max-width: 38rem; }
+.vip-reminder-settings > h2, .vip-reminder-settings > p { margin: 0; }
+.vip-reminder-settings .toggle-row { display: grid; margin: 0; }
 .vip-status-card { display: grid; grid-template-columns: 1.2fr 1fr; gap: var(--space-6); padding: clamp(1.25rem, 4vw, 2.5rem); border: 1px solid var(--border); border-radius: var(--radius-lg); background: linear-gradient(135deg, #111019, #171020); }
 .vip-status-card.is-active { border-color: #c69b35; background: radial-gradient(circle at 85% 15%, rgb(126 58 237 / 30%), transparent 36%), linear-gradient(135deg, #111019, #1a1025); }
 .vip-status-card ul { margin: 0; display: grid; gap: .75rem; align-content: center; }
