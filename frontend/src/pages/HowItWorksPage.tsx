@@ -12,6 +12,9 @@ const journeySteps = [
 
 const accountRules = [
   "Egy személy saját, valós adatokkal létrehozott fiókot használjon; a belépési adatokat nem szabad másnak átadni.",
+  "A hagyományos e-mail-címes belépés mellett – ha az adott szolgáltató elérhető – Google-, Apple- vagy Facebook-fiókkal is létrehozhatsz fiókot és beléphetsz.",
+  "Ha a külső szolgáltatótól kapott e-mail-címhez már tartozik Nightfall Vault-fiók, a rendszer biztonsági okból nem kapcsolja össze automatikusan a két hozzáférést. Előbb jelentkezz be a meglévő fiókodba, majd a Profilbeállításokban kapcsold hozzá a külső fiókot.",
+  "Kapcsolt külső fiókot csak akkor választhatsz le, ha utána is marad legalább egy biztonságos belépési módod.",
   "A normál tag korlátlan számú aukciót böngészhet és licitálhat, de egyszerre legfeljebb 3 saját aktív vagy időzített aukciója lehet.",
   "A VIP-tagság 12 karakteres, egyszer használható alfanumerikus kóddal aktiválható 1 vagy 3 hónapra. A még aktív VIP-időszakhoz az új időtartam hozzáadódik.",
   "A VIP-tag korlátlan számú saját aktív vagy időzített aukciót tarthat fenn, aukciói VIP-kiemelést kapnak, és a listák elején jelennek meg.",
@@ -88,8 +91,16 @@ const transactionRules = [
 const discoveryRules = [
   "A figyelőlista a kiválasztott aukciókat gyűjti össze, és a közelgő lejáratról emlékeztető érkezhet.",
   "A mentett keresés az új, feltételeknek megfelelő aukciókról jelezhet. Az eladó követése az eladó új aukcióiról küldhet értesítést.",
+  "A mentett keresések legfeljebb 24 karakteres nevet kaphatnak. Az aktív mentett keresés a nevére ismét rákattintva kikapcsolható; az első négy közvetlenül, a többi a Továbbiak menüből érhető el.",
   "Az értesítések kategóriái: licitek, chat, követések, tranzakciók, értékelések, moderáció és rendszer. Kategóriánként külön állítható az alkalmazáson belüli, böngészős és e-mailes csatorna.",
+  "Az értesítési kategóriák mellett külön olvasatlan darabszám látható. Egy konkrét kategória megnyitásakor az abban lévő olvasatlan értesítések olvasottra váltanak, és a kategória, az Összes, valamint a fejléc számlálója együtt frissül.",
   "A kikapcsolt csatornára nem érkezik értesítés; a mentett beállítások oldalfrissítés után is megmaradnak.",
+] as const;
+
+const sharingRules = [
+  "Minden publikus aukció megosztható a részletes oldal Megosztás, Facebook vagy Link másolása műveletével; a saját aukciók Facebook-megosztása ugyanezt a publikus aukciólinket használja.",
+  "A megosztási előnézet az aukció borítóképét, címét és a rendelkezésre álló publikus adatokat – például az aktuális vagy végső árat, állapotot, licitszámot, villámárat és lejáratot – jeleníti meg. Lezárt aukciónál az előnézet egyértelműen jelzi a lezárt állapotot.",
+  "A megosztási előnézet nem tartalmaz e-mail-címet, belső felhasználói azonosítót, tokent, privát profiladatot vagy adminisztrációs információt.",
 ] as const;
 
 const safetyRules = [
@@ -136,6 +147,7 @@ export function HowItWorksPage() {
         <RuleSection eyebrow="Automatikus folyamat" title="Kezdés és aukciózárás" rules={closingRules} />
         <RuleSection eyebrow="Eladó és nyertes" title="Chat, tranzakció és értékelés" rules={transactionRules} />
         <RuleSection eyebrow="Ne maradj le" title="Figyelések és értesítések" rules={discoveryRules} />
+        <RuleSection eyebrow="Publikus aukciólink" title="Aukció megosztása" rules={sharingRules} />
         <RuleSection eyebrow="Biztonság" title="Jelentés, blokkolás és moderáció" rules={safetyRules} />
       </div>
 
