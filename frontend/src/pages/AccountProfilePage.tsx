@@ -61,9 +61,9 @@ export function AccountProfilePage() {
       <section className="side-panel profile-settings-card" aria-labelledby="connected-accounts-title">
         <h2 id="connected-accounts-title">Kapcsolt fiókok</h2>
         <div className="connected-account-list">
-          {(["google", "apple", "facebook"] as SocialProvider[]).map((provider) => {
+          {(["google", "facebook"] as SocialProvider[]).map((provider) => {
             const identity = identities.find((item) => item.provider === provider);
-            const label = provider === "google" ? "Google" : provider === "apple" ? "Apple" : "Facebook";
+            const label = provider === "google" ? "Google" : "Facebook";
             return <div key={provider}><span><strong>{label}</strong><small>{identity ? `Kapcsolva${identity.provider_email ? ` · ${identity.provider_email}` : ""}` : "Nincs kapcsolva"}</small></span>{identity ? <button className="button button-ghost" type="button" onClick={async () => { try { const response = await unlinkAuthIdentity(provider); setIdentities((items) => items.filter((item) => item.provider !== provider)); setMessage(response.message); } catch (error) { setMessage(error instanceof Error ? error.message : "A külső fiók leválasztása nem sikerült."); } }}>Leválasztás</button> : null}</div>;
           })}
         </div>

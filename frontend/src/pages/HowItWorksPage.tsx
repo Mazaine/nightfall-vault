@@ -12,7 +12,7 @@ const journeySteps = [
 
 const accountRules = [
   "Egy személy saját, valós adatokkal létrehozott fiókot használjon; a belépési adatokat nem szabad másnak átadni.",
-  "A hagyományos e-mail-címes belépés mellett – ha az adott szolgáltató elérhető – Google-, Apple- vagy Facebook-fiókkal is létrehozhatsz fiókot és beléphetsz.",
+  "A hagyományos e-mail-címes belépés mellett – ha az adott szolgáltató elérhető – Google- vagy Facebook-fiókkal is létrehozhatsz fiókot és beléphetsz.",
   "Ha a külső szolgáltatótól kapott e-mail-címhez már tartozik Nightfall Vault-fiók, a rendszer biztonsági okból nem kapcsolja össze automatikusan a két hozzáférést. Előbb jelentkezz be a meglévő fiókodba, majd a Profilbeállításokban kapcsold hozzá a külső fiókot.",
   "Kapcsolt külső fiókot csak akkor választhatsz le, ha utána is marad legalább egy biztonságos belépési módod.",
   "A normál tag korlátlan számú aukciót böngészhet és licitálhat, de egyszerre legfeljebb 3 saját aktív vagy időzített aukciója lehet.",

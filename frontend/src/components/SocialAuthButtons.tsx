@@ -3,7 +3,6 @@ import { listSocialProviders, startSocialAuth, type SocialProvider } from "../ap
 
 const providers: Array<{ provider: SocialProvider; label: string; mark: string }> = [
   { provider: "google", label: "Google-lel", mark: "G" },
-  { provider: "apple", label: "Apple-lel", mark: "●" },
   { provider: "facebook", label: "Facebookkal", mark: "f" },
 ];
 
@@ -31,7 +30,7 @@ export function SocialAuthButtons({ link = false }: { link?: boolean }) {
           aria-describedby={unavailable ? "social-auth-status" : undefined}
           onClick={async () => {
             if (unavailable) {
-              setMessage(`A ${provider === "google" ? "Google" : provider === "apple" ? "Apple" : "Facebook"}-belépés konfigurálása még folyamatban van.`);
+              setMessage(`A ${provider === "google" ? "Google" : "Facebook"}-belépés konfigurálása még folyamatban van.`);
               return;
             }
             setPending(provider); setMessage("");
