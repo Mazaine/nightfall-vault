@@ -297,7 +297,7 @@ export function AuctionCard({
 
           <div className="auction-bid-meta">
             <small>Licitlépcső: {item.step}</small>
-            {typeof item.bidCount === "number" ? <small>{item.bidCount} licit</small> : null}
+            {typeof item.bidCount === "number" ? <strong className="auction-bid-count" aria-label={`${item.bidCount} licit érkezett`}>{item.bidCount} licit</strong> : null}
           </div>
         </div>
         <div className="auction-actions-slot">{showOpenAction ? <div className="auction-actions"><Link className="button button-secondary" to={detailPath}>Aukció megnyitása</Link></div> : null}</div>

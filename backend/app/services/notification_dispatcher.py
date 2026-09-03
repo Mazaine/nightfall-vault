@@ -11,7 +11,7 @@ from app.models.auction import Auction
 from app.services.demo_visibility import can_access_demo_auctions
 
 TYPE_CATEGORY = {
-    "outbid": "bids",
+    "outbid": "bids", "auction_bid_received": "bids",
     "bid_withdrawn_bidder": "bids", "bid_withdrawn_seller": "bids", "bid_leader_changed_after_withdrawal": "bids", "bid_withdrawal_warning": "moderation",
     "auction_won": "transactions", "auction_lost": "transactions", "auction_sold": "transactions", "auction_unsold": "transactions",
     "auction_message": "chat",

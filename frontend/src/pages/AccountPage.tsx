@@ -160,8 +160,9 @@ function validateAuctionEditFields(formData: FormData) {
 
 function validateAuctionEditDates(formData: FormData, auction: Auction) {
   const isDraft = auction.status === "draft";
+  const hasBids = (auction.bid_count ?? 0) > 0;
   const startsAt = isDraft ? new Date(String(formData.get("starts_at") ?? "")) : new Date(auction.starts_at);
-  const endsAt = new Date(String(formData.get("ends_at") ?? ""));
+  const endsAt = hasBids ? new Date(auction.ends_at) : new Date(String(formData.get("ends_at") ?? ""));
   const currentMinute = new Date();
   currentMinute.setSeconds(0, 0);
   const errors: { startsAt?: string; endsAt?: string } = {};
@@ -469,6 +470,7 @@ export function AccountPage({ section }: { section: "bids" | "auctions" | "creat
     if (isUpdatingAuction) return;
     const formData = new FormData(event.currentTarget);
     const isDraft = auction.status === "draft";
+    const hasBids = (auction.bid_count ?? 0) > 0;
     const fieldErrors = validateAuctionEditFields(formData);
     const dateErrors = validateAuctionEditDates(formData, auction);
     if (Object.keys(fieldErrors).length > 0 || dateErrors.startsAt || dateErrors.endsAt) {
@@ -488,7 +490,7 @@ export function AccountPage({ section }: { section: "bids" | "auctions" | "creat
       condition: parseCondition(formData.get("condition")),
       has_printing_error: formData.get("has_printing_error") === "on",
       printing_error_description: formData.get("has_printing_error") === "on" ? String(formData.get("printing_error_description") ?? "").trim() || null : null,
-      ends_at: localDateTimeToIso(formData.get("ends_at")),
+      ...(!hasBids ? { ends_at: localDateTimeToIso(formData.get("ends_at")) } : {}),
       five_minute_rule_enabled: formData.get("five_minute_rule_enabled") === "on",
       buy_now_enabled: formData.get("buy_now_enabled") === "on",
     };
@@ -721,8 +723,8 @@ export function AccountPage({ section }: { section: "bids" | "auctions" | "creat
                                 </label>
                                 <label>
                                   Lejárati dátum
-                                  <input name="ends_at" type="datetime-local" defaultValue={isoToLocalDateTime(auction.ends_at)} required aria-invalid={Boolean(editAuctionDateErrors.endsAt)} aria-describedby={editAuctionDateErrors.endsAt ? `edit-ends-at-error-${auction.id}` : undefined} onChange={() => setEditAuctionDateErrors((current) => ({ ...current, endsAt: undefined }))} />
-                                  {editAuctionDateErrors.endsAt ? <small className="auth-field-error" id={`edit-ends-at-error-${auction.id}`}>{editAuctionDateErrors.endsAt}</small> : <small>Helyi idő: Europe/Budapest.</small>}
+                                  <input name="ends_at" type="datetime-local" defaultValue={isoToLocalDateTime(auction.ends_at)} required disabled={(auction.bid_count ?? 0) > 0} aria-invalid={Boolean(editAuctionDateErrors.endsAt)} aria-describedby={editAuctionDateErrors.endsAt ? `edit-ends-at-error-${auction.id}` : undefined} onChange={() => setEditAuctionDateErrors((current) => ({ ...current, endsAt: undefined }))} />
+                                  {editAuctionDateErrors.endsAt ? <small className="auth-field-error" id={`edit-ends-at-error-${auction.id}`}>{editAuctionDateErrors.endsAt}</small> : <small>{(auction.bid_count ?? 0) > 0 ? "Licit érkezése után a lejárati idő már nem módosítható." : "Helyi idő: Europe/Budapest."}</small>}
                                 </label>
                                 <aside className="form-wide auction-rule-note"><strong>Az utolsó 5 perc szabályai</strong><p>A legutolsó aktív licit az utolsó 5 percben nem vonható vissza. Bekapcsolt hosszabbításnál minden késői érvényes licit a licit pillanatától újabb 5 percre állítja a zárást.</p><label className="toggle-row"><input name="five_minute_rule_enabled" type="checkbox" defaultChecked={auction.five_minute_rule_enabled} />5 perces automatikus hosszabbítás bekapcsolása</label></aside>
                                 <label className="toggle-row buy-now-toggle">

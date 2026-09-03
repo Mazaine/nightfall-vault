@@ -118,12 +118,33 @@ def test_successful_bid_updates_current_price_and_highest_bid() -> None:
 
     response = place_bid(auction["id"], bidder, "1100.00")
     refreshed = client.get(f"/api/auctions/{auction['id']}", headers=auth_headers(bidder))
+    seller_notifications = client.get("/api/notifications", headers=auth_headers(seller))
 
     assert response.status_code == 201
     assert response.json()["amount"] == "1100.00"
     assert response.json()["is_highest"] is True
     assert refreshed.json()["current_price"] == "1100.00"
     assert refreshed.json()["highest_bid_id"] == response.json()["id"]
+    assert seller_notifications.status_code == 200
+    assert seller_notifications.json()[0]["type"] == "auction_bid_received"
+    assert seller_notifications.json()[0]["auction_id"] == auction["id"]
+
+
+def test_auction_end_date_cannot_change_after_first_bid() -> None:
+    cleanup_test_data()
+    seller = create_test_user("seller-locked-end-date@bid-test.local")
+    bidder = create_test_user("bidder-locked-end-date@bid-test.local")
+    auction = create_active_auction(seller)
+    assert place_bid(auction["id"], bidder, "1100.00").status_code == 201
+
+    response = client.patch(
+        f"/api/auctions/{auction['id']}",
+        json={"ends_at": (datetime.now(timezone.utc) + timedelta(days=2)).isoformat()},
+        headers=auth_headers(seller),
+    )
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == "A lejárati idő licit érkezése után már nem módosítható."
 
 
 def test_current_leader_cannot_raise_own_bid_and_list_marks_leading_state() -> None:

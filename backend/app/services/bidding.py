@@ -412,6 +412,15 @@ def place_bid(db: Session, auction_id: int, bidder: User, amount: Decimal) -> tu
             message=f"Valaki magasabb licitet tett erre az aukcióra: {auction.title}",
             event_key=f"outbid:{auction.id}:{bid.id}:{previous_highest_bidder_id}",
         )
+    dispatch_notification(
+        db,
+        user_id=auction.seller_id,
+        auction_id=auction.id,
+        notification_type="auction_bid_received",
+        title="Új licit érkezett",
+        message=f"A(z) {auction.title} aukciódra {format_bid_amount(normalized_amount)} összegű licit érkezett.",
+        event_key=f"auction-bid-received:{auction.id}:{bid.id}:{auction.seller_id}",
+    )
     create_domain_audit_log(db, action="auction_bid", user_id=bidder.id, auction_id=auction.id, metadata={"amount": str(normalized_amount), "extended_until": extended_until})
     db.add(auction)
     db.commit()

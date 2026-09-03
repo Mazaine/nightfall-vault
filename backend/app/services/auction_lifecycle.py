@@ -242,11 +242,24 @@ def _validate_update_buy_now(auction: Auction, update: AuctionUpdate) -> None:
 def update_auction(db: Session, auction: Auction, auction_update: AuctionUpdate, user: User) -> Auction:
     from app.services.membership import is_vip
 
+    auction = db.scalar(
+        select(Auction)
+        .where(Auction.id == auction.id, Auction.deleted_at.is_(None))
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    if auction is None:
+        raise HTTPException(status_code=404, detail="Az aukció nem található.")
     sync_auction_status(db, auction)
     require_owner_or_admin(auction, user)
     if auction.status not in EDITABLE_OWNER_STATUSES and user.role != "admin":
         raise HTTPException(status_code=409, detail="Ebben az aukcióállapotban az aukció nem módosítható.")
     update_data = auction_update.model_dump(exclude_unset=True)
+    if "ends_at" in update_data and update_data["ends_at"] is not None:
+        requested_ends_at = normalize_datetime(update_data["ends_at"])
+        current_ends_at = normalize_datetime(auction.ends_at)
+        if requested_ends_at != current_ends_at and db.scalar(select(Bid.id).where(Bid.auction_id == auction.id).limit(1)) is not None:
+            raise HTTPException(status_code=409, detail="A lejárati idő licit érkezése után már nem módosítható.")
     link_fields_changed = "external_link_label" in update_data or "external_link_url" in update_data
     if link_fields_changed and not is_vip(user):
         raise HTTPException(status_code=403, detail="Kattintható hivatkozást csak aktív VIP-tag módosíthat.")
