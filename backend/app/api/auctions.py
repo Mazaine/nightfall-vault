@@ -75,7 +75,7 @@ def _escaped_contains(value: str) -> str:
     return f"%{value.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')}%"
 
 
-def _apply_auction_filters(query, *, query_text, title, description, seller, category, condition, status_filter, min_price, max_price, min_bids, max_bids, buy_now, soon_ending, new_only):
+def _apply_auction_filters(query, *, query_text, title, description, seller, category, hatalom_era, condition, status_filter, min_price, max_price, min_bids, max_bids, buy_now, soon_ending, new_only):
     now = datetime.now(timezone.utc)
     query = query.filter(
         Auction.status.in_(("scheduled", "active")),
@@ -93,6 +93,8 @@ def _apply_auction_filters(query, *, query_text, title, description, seller, cat
         query = query.filter(or_(User.username.ilike(pattern, escape="\\"), User.full_name.ilike(pattern, escape="\\")))
     if category:
         query = query.filter(Auction.category == category)
+    if hatalom_era:
+        query = query.filter(Auction.category == "Hatalom Kártyái Kártyajáték", Auction.hatalom_era == hatalom_era)
     if condition:
         query = query.filter(Auction.condition == condition)
     if status_filter:
@@ -171,6 +173,7 @@ def list_public_auctions(
     description: str | None = Query(default=None, max_length=180),
     seller: str | None = Query(default=None, max_length=80),
     category: str | None = None,
+    hatalom_era: Literal["retro", "ujkor", "uj_nemzedek"] | None = None,
     condition: str | None = None,
     status_filter: str | None = Query(default=None, alias="status"),
     min_price: float | None = Query(default=None, ge=0),
@@ -196,6 +199,7 @@ def list_public_auctions(
         description=description,
         seller=seller,
         category=category,
+        hatalom_era=hatalom_era,
         condition=condition,
         status_filter=status_filter,
         min_price=min_price,

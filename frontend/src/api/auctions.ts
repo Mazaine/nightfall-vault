@@ -3,6 +3,7 @@ import { API_BASE_URL, apiRequest } from "./client";
 export type AuctionStatus = "draft" | "scheduled" | "active" | "ended" | "sold" | "unsold" | "cancelled" | "suspended";
 export type AuctionCondition = "M" | "NM" | "EX" | "GD" | "LP" | "PL" | "PO";
 export type AuctionConditionRead = AuctionCondition | "fresh" | "like_new" | "played" | "damaged" | "worn" | "misprint";
+export type HatalomEra = "retro" | "ujkor" | "uj_nemzedek";
 
 export type AuctionImage = {
   id: number;
@@ -37,6 +38,7 @@ export type Auction = {
   external_link_label?: string | null;
   external_link_url?: string | null;
   category: string;
+  hatalom_era?: HatalomEra | null;
   condition: AuctionConditionRead;
   has_printing_error?: boolean;
   printing_error_description?: string | null;
@@ -82,6 +84,7 @@ export type AuctionCreatePayload = {
   external_link_label?: string | null;
   external_link_url?: string | null;
   category: string;
+  hatalom_era?: HatalomEra | null;
   condition: AuctionCondition;
   has_printing_error?: boolean;
   printing_error_description?: string | null;
@@ -216,6 +219,7 @@ export type AuctionListParams = {
   description?: string;
   seller?: string;
   category?: string;
+  hatalom_era?: HatalomEra;
   condition?: string;
   status?: string;
   min_price?: string;

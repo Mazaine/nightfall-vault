@@ -13,6 +13,7 @@ class SavedSearchCreate(BaseModel):
     description: str | None = Field(default=None, max_length=180)
     seller: str | None = Field(default=None, max_length=80)
     category: str | None = Field(default=None, max_length=80)
+    hatalom_era: str | None = Field(default=None, max_length=20, pattern=r"^(retro|ujkor|uj_nemzedek)$")
     condition: str | None = Field(default=None, max_length=30)
     status: str | None = Field(default=None, max_length=30)
     min_price: Decimal | None = Field(default=None, ge=0, max_digits=12, decimal_places=2)
@@ -23,7 +24,7 @@ class SavedSearchCreate(BaseModel):
     soon_ending: bool = False
     new_only: bool = False
 
-    @field_validator("name", "query", "title", "description", "seller", "category", "condition", "status")
+    @field_validator("name", "query", "title", "description", "seller", "category", "hatalom_era", "condition", "status")
     @classmethod
     def normalize_text(cls, value: str | None) -> str | None:
         if value is None:

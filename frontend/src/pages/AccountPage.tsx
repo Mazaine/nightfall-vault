@@ -1,6 +1,6 @@
 import { ChangeEvent, FormEvent, useEffect, useId, useState } from "react";
 import { Link } from "react-router";
-import { activateAuction, cancelAuction, createAuction, deleteAuctionImage, getAuction, listMyAuctions, listMyBidAuctions, setAuctionCoverImage, updateAuction, uploadAuctionImage, type Auction, type AuctionCondition, type MyBidAuction } from "../api/auctions";
+import { activateAuction, cancelAuction, createAuction, deleteAuctionImage, getAuction, listMyAuctions, listMyBidAuctions, setAuctionCoverImage, updateAuction, uploadAuctionImage, type Auction, type AuctionCondition, type HatalomEra, type MyBidAuction } from "../api/auctions";
 import { ApiError, apiAssetUrl } from "../api/client";
 import { AuctionCard } from "../components/AuctionCard";
 import { SafeImage } from "../components/SafeImage";
@@ -17,6 +17,13 @@ import { openFacebookAuctionShare } from "../utils/auctionShare";
 
 const MAX_AUCTION_IMAGES = 5;
 const MAX_IMAGE_FILE_SIZE_BYTES = 20 * 1024 * 1024;
+const HATALOM_CATEGORY = "Hatalom Kártyái Kártyajáték";
+const HATALOM_ERAS: { value: HatalomEra; label: string }[] = [
+  { value: "retro", label: "RETRO" },
+  { value: "ujkor", label: "Újkor" },
+  { value: "uj_nemzedek", label: "Új nemzedék" },
+];
+type DescriptionTemplate = { id: string; name: string; text: string };
 const newCreationKey = () => typeof crypto !== "undefined" && "randomUUID" in crypto
   ? crypto.randomUUID()
   : "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (character) => {
@@ -198,6 +205,7 @@ export function AccountPage({ section }: { section: "bids" | "auctions" | "creat
   const [creationKey, setCreationKey] = useState(getDraftCreationKey);
   const [createBuyNowPrice, setCreateBuyNowPrice] = useState("");
   const [createBuyNowEnabled, setCreateBuyNowEnabled] = useState(false);
+  const [createCategory, setCreateCategory] = useState(categories[0]);
   const [uploadProgress, setUploadProgress] = useState("");
   const [editingAuctionId, setEditingAuctionId] = useState<number | null>(null);
   const [isUpdatingAuction, setIsUpdatingAuction] = useState(false);
@@ -212,6 +220,43 @@ export function AccountPage({ section }: { section: "bids" | "auctions" | "creat
   const [editPageMessage, setEditPageMessage] = useState("");
   const [editBuyNowPrice, setEditBuyNowPrice] = useState("");
   const [editBuyNowEnabled, setEditBuyNowEnabled] = useState(false);
+  const [editCategory, setEditCategory] = useState(categories[0]);
+  const [descriptionTemplates, setDescriptionTemplates] = useState<DescriptionTemplate[]>([]);
+
+  useEffect(() => {
+    if (!user?.id) {
+      setDescriptionTemplates([]);
+      return;
+    }
+    try {
+      const stored = localStorage.getItem(`nightfall-description-templates:${user.id}`);
+      const parsed = stored ? JSON.parse(stored) : [];
+      setDescriptionTemplates(Array.isArray(parsed) ? parsed : []);
+    } catch {
+      setDescriptionTemplates([]);
+    }
+  }, [user?.id]);
+
+  const saveDescriptionTemplate = (form: HTMLFormElement | null, edit = false) => {
+    const showMessage = edit ? setEditFormMessage : setFormMessage;
+    if (!user?.id || !form) return;
+    const description = form.elements.namedItem("description");
+    if (!(description instanceof HTMLTextAreaElement) || description.value.trim().length < 10) {
+      showMessage("A sablon mentéséhez adj meg legalább 10 karakteres leírást.");
+      return;
+    }
+    const name = window.prompt("A leírássablon neve:", description.value.trim().slice(0, 40));
+    if (!name?.trim()) return;
+    const template: DescriptionTemplate = { id: newCreationKey(), name: name.trim().slice(0, 60), text: description.value.trim() };
+    const next = [template, ...descriptionTemplates];
+    try {
+      localStorage.setItem(`nightfall-description-templates:${user.id}`, JSON.stringify(next));
+      setDescriptionTemplates(next);
+      showMessage("A leírássablont elmentettük ezen az eszközön.");
+    } catch {
+      showMessage("A leírássablon mentése nem sikerült. Ellenőrizd a böngésző tárhelybeállításait.");
+    }
+  };
   const clearAuctionFieldError = (field: string) => setAuctionFieldErrors((current) => {
     if (!current[field]) return current;
     const next = { ...current };
@@ -338,6 +383,7 @@ export function AccountPage({ section }: { section: "bids" | "auctions" | "creat
         external_link_label: hasActiveVip ? String(formData.get("external_link_label") ?? "").trim() || null : null,
         external_link_url: hasActiveVip ? String(formData.get("external_link_url") ?? "").trim() || null : null,
         category: String(formData.get("category") ?? categories[0]),
+        hatalom_era: String(formData.get("category")) === HATALOM_CATEGORY ? String(formData.get("hatalom_era") ?? "") as HatalomEra || null : null,
         condition: parseCondition(formData.get("condition")),
         has_printing_error: formData.get("has_printing_error") === "on",
         printing_error_description: formData.get("has_printing_error") === "on" ? String(formData.get("printing_error_description") ?? "").trim() || null : null,
@@ -388,6 +434,7 @@ export function AccountPage({ section }: { section: "bids" | "auctions" | "creat
         setCreationKey(rotateDraftCreationKey());
         setCreateBuyNowPrice("");
         setCreateBuyNowEnabled(false);
+        setCreateCategory(categories[0]);
       }
     } catch (error) {
       if (error instanceof ApiError && Object.keys(error.fieldErrors).length > 0) {
@@ -419,6 +466,7 @@ export function AccountPage({ section }: { section: "bids" | "auctions" | "creat
       setMyAuctions((items) => items.map((item) => item.id === detailedAuction.id ? detailedAuction : item));
       setEditBuyNowPrice(detailedAuction.buy_now_price ?? "");
       setEditBuyNowEnabled(detailedAuction.buy_now_enabled);
+      setEditCategory(detailedAuction.category);
       setEditingAuctionId(detailedAuction.id);
     } catch (error) {
       setEditPageMessage(error instanceof Error ? error.message : "Az aukció adatainak betöltése nem sikerült.");
@@ -487,6 +535,7 @@ export function AccountPage({ section }: { section: "bids" | "auctions" | "creat
         external_link_url: String(formData.get("external_link_url") ?? "").trim() || null,
       } : {}),
       category: String(formData.get("category") ?? categories[0]),
+      hatalom_era: String(formData.get("category")) === HATALOM_CATEGORY ? String(formData.get("hatalom_era") ?? "") as HatalomEra || null : null,
       condition: parseCondition(formData.get("condition")),
       has_printing_error: formData.get("has_printing_error") === "on",
       printing_error_description: formData.get("has_printing_error") === "on" ? String(formData.get("printing_error_description") ?? "").trim() || null : null,
@@ -677,11 +726,12 @@ export function AccountPage({ section }: { section: "bids" | "auctions" | "creat
                                 </label>
                                 <label>
                                   Kategória
-                                  <select name="category" defaultValue={auction.category} aria-invalid={Boolean(editAuctionFieldErrors.category)} aria-describedby={editAuctionFieldErrors.category ? `edit-category-error-${auction.id}` : undefined} onChange={() => clearEditAuctionFieldError("category")}>
+                                  <select name="category" value={editCategory} aria-invalid={Boolean(editAuctionFieldErrors.category)} aria-describedby={editAuctionFieldErrors.category ? `edit-category-error-${auction.id}` : undefined} onChange={(event) => { setEditCategory(event.target.value); clearEditAuctionFieldError("category"); }}>
                                     {categories.map((category) => <option key={category}>{category}</option>)}
                                   </select>
                                   {editAuctionFieldErrors.category ? <small className="auth-field-error" id={`edit-category-error-${auction.id}`}>{editAuctionFieldErrors.category}</small> : null}
                                 </label>
+                                {editCategory === HATALOM_CATEGORY ? <fieldset className="form-wide compact-choice-group"><legend>Hatalom-korszak <small>(opcionális)</small></legend>{HATALOM_ERAS.map((era) => <label className="toggle-row" key={era.value}><input type="radio" name="hatalom_era" value={era.value} defaultChecked={auction.hatalom_era === era.value} />{era.label}</label>)}</fieldset> : null}
                                 <div className="form-field">
                                   <div className="field-label-row"><label htmlFor={`edit-condition-${auction.id}`}>Állapot</label><CardConditionHelp /></div>
                                   <select id={`edit-condition-${auction.id}`} name="condition" defaultValue={getCardCondition(auction.condition).value} aria-invalid={Boolean(editAuctionFieldErrors.condition)} aria-describedby={editAuctionFieldErrors.condition ? `edit-condition-error-${auction.id}` : undefined} onChange={() => clearEditAuctionFieldError("condition")}>
@@ -694,6 +744,10 @@ export function AccountPage({ section }: { section: "bids" | "auctions" | "creat
                                   <textarea name="description" rows={5} defaultValue={auction.description ?? ""} required maxLength={5000} aria-invalid={Boolean(editAuctionFieldErrors.description)} aria-describedby={editAuctionFieldErrors.description ? `edit-description-error-${auction.id}` : undefined} onChange={() => clearEditAuctionFieldError("description")} />
                                   {editAuctionFieldErrors.description ? <small className="auth-field-error" id={`edit-description-error-${auction.id}`}>{editAuctionFieldErrors.description}</small> : <small>10–5000 karakter.</small>}
                                 </label>
+                                <div className="form-wide description-template-actions">
+                                  <label>Leírássablon<select defaultValue="" onChange={(event) => { const template = descriptionTemplates.find((item) => item.id === event.target.value); const field = event.currentTarget.form?.elements.namedItem("description"); if (template && field instanceof HTMLTextAreaElement) { field.value = template.text; clearEditAuctionFieldError("description"); } }}><option value="">Válassz sablont…</option>{descriptionTemplates.map((template) => <option value={template.id} key={template.id}>{template.name}</option>)}</select></label>
+                                  <button className="button button-secondary" type="button" onClick={(event) => saveDescriptionTemplate(event.currentTarget.form, true)}>Aktuális leírás mentése sablonként</button>
+                                </div>
                                 {hasActiveVip ? <>
                                   <OptionalExternalLinkHelp />
                                   <label className="external-link-field">Hivatkozás felirata <small>(opcionális)</small><input name="external_link_label" type="text" maxLength={80} defaultValue={auction.external_link_label ?? ""} placeholder="További részletek" /></label>
@@ -747,6 +801,7 @@ export function AccountPage({ section }: { section: "bids" | "auctions" | "creat
                                     Új képek hozzáadása
                                     <input type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={(event) => handleEditImageChange(event, auction)} disabled={isUpdatingAuction || auction.images.length >= MAX_AUCTION_IMAGES} />
                                   </label>
+                                  <label className="mobile-camera-upload">Fénykép készítése<input type="file" accept="image/*" capture="environment" onChange={(event) => handleEditImageChange(event, auction)} disabled={isUpdatingAuction || auction.images.length >= MAX_AUCTION_IMAGES} /></label>
                                   <small>JPEG, PNG vagy WEBP; képenként legfeljebb 20 MB. Összesen maximum 5 kép.</small>
                                   {editAuctionImages.length > 0 ? (
                                     <div className="cover-image-list" aria-label="Új képek beállítása">
@@ -823,6 +878,7 @@ export function AccountPage({ section }: { section: "bids" | "auctions" | "creat
               Képek
               <input type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={handleImageChange} disabled={isCreatingAuction} />
             </label>
+            <label className="mobile-camera-upload">Fénykép készítése<input type="file" accept="image/*" capture="environment" onChange={handleImageChange} disabled={isCreatingAuction} /></label>
             <small>
               JPEG, PNG vagy WEBP; képenként legfeljebb 20 MB. Minimum 1, maximum 5 kép tölthető fel. Válaszd ki a borítóképet.
             </small>
@@ -853,6 +909,10 @@ export function AccountPage({ section }: { section: "bids" | "auctions" | "creat
             <textarea name="description" rows={5} placeholder="Állapot, kiadás, különleges tudnivalók..." required maxLength={5000} aria-invalid={Boolean(auctionFieldErrors.description)} aria-describedby={auctionFieldErrors.description ? "auction-description-error" : undefined} onChange={() => clearAuctionFieldError("description")} />
             {auctionFieldErrors.description ? <small className="auth-field-error" id="auction-description-error">{auctionFieldErrors.description}</small> : <small>10–5000 karakter.</small>}
           </label>
+          <div className="form-wide description-template-actions">
+            <label>Leírássablon<select defaultValue="" onChange={(event) => { const template = descriptionTemplates.find((item) => item.id === event.target.value); const field = event.currentTarget.form?.elements.namedItem("description"); if (template && field instanceof HTMLTextAreaElement) { field.value = template.text; clearAuctionFieldError("description"); } }}><option value="">Válassz sablont…</option>{descriptionTemplates.map((template) => <option value={template.id} key={template.id}>{template.name}</option>)}</select></label>
+            <button className="button button-secondary" type="button" onClick={(event) => saveDescriptionTemplate(event.currentTarget.form)}>Aktuális leírás mentése sablonként</button>
+          </div>
           {hasActiveVip ? <>
             <OptionalExternalLinkHelp />
             <label className="external-link-field">Hivatkozás felirata <small>(opcionális)</small><input name="external_link_label" type="text" maxLength={80} placeholder="További részletek" /></label>
@@ -860,10 +920,11 @@ export function AccountPage({ section }: { section: "bids" | "auctions" | "creat
           </> : null}
           <label>
             Kategória
-            <select name="category">
+            <select name="category" value={createCategory} onChange={(event) => setCreateCategory(event.target.value)}>
               {categories.map((category) => <option key={category}>{category}</option>)}
             </select>
           </label>
+          {createCategory === HATALOM_CATEGORY ? <fieldset className="form-wide compact-choice-group"><legend>Hatalom-korszak <small>(opcionális)</small></legend>{HATALOM_ERAS.map((era) => <label className="toggle-row" key={era.value}><input type="radio" name="hatalom_era" value={era.value} />{era.label}</label>)}</fieldset> : null}
           <div className="form-field">
             <div className="field-label-row"><label htmlFor="auction-condition">Állapot</label><CardConditionHelp /></div>
             <select id="auction-condition" name="condition" defaultValue="NM">

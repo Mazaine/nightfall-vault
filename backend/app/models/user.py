@@ -90,6 +90,7 @@ class SavedSearch(Base):
     description: Mapped[str | None] = mapped_column(String(180), nullable=True)
     seller: Mapped[str | None] = mapped_column(String(80), nullable=True)
     category: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    hatalom_era: Mapped[str | None] = mapped_column(String(20), nullable=True)
     condition: Mapped[str | None] = mapped_column(String(30), nullable=True)
     status: Mapped[str | None] = mapped_column(String(30), nullable=True)
     min_price: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)

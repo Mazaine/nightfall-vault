@@ -58,6 +58,7 @@ class AuctionBase(BaseModel):
     external_link_label: str | None = Field(default=None, max_length=80)
     external_link_url: str | None = Field(default=None, max_length=1000)
     category: str = Field(min_length=2, max_length=80)
+    hatalom_era: Literal["retro", "ujkor", "uj_nemzedek"] | None = None
     condition: AuctionCondition
     has_printing_error: bool = False
     printing_error_description: str | None = Field(default=None, min_length=3, max_length=500)
@@ -91,6 +92,8 @@ class AuctionBase(BaseModel):
 
     @model_validator(mode="after")
     def validate_prices_and_time(self) -> "AuctionBase":
+        if self.hatalom_era is not None and self.category != "Hatalom Kártyái Kártyajáték":
+            raise ValueError("Korszak csak a Hatalom Kártyái Kártyajáték kategóriánál adható meg.")
         if bool(self.external_link_label) != bool(self.external_link_url):
             raise ValueError("A hivatkozás feliratát és URL-jét együtt kell megadni.")
         if not self.has_printing_error and self.printing_error_description:
@@ -127,6 +130,7 @@ class AuctionUpdate(BaseModel):
     external_link_label: str | None = Field(default=None, max_length=80)
     external_link_url: str | None = Field(default=None, max_length=1000)
     category: str | None = Field(default=None, min_length=2, max_length=80)
+    hatalom_era: Literal["retro", "ujkor", "uj_nemzedek"] | None = None
     condition: AuctionCondition | None = None
     has_printing_error: bool | None = None
     printing_error_description: str | None = Field(default=None, min_length=3, max_length=500)
@@ -334,6 +338,7 @@ class AuctionListItem(BaseModel):
     external_link_label: str | None = None
     external_link_url: str | None = None
     category: str
+    hatalom_era: Literal["retro", "ujkor", "uj_nemzedek"] | None = None
     condition: AuctionConditionRead
     has_printing_error: bool = False
     printing_error_description: str | None = None

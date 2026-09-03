@@ -9,6 +9,7 @@ from app.db.base import Base
 
 AUCTION_STATUSES = ("draft", "scheduled", "active", "ended", "sold", "unsold", "cancelled", "suspended")
 AUCTION_CONDITIONS = ("M", "NM", "EX", "GD", "LP", "PL", "PO", "fresh", "like_new", "played", "damaged", "worn", "misprint")
+HATALOM_ERAS = ("retro", "ujkor", "uj_nemzedek")
 ALLOWED_AUCTION_IMAGE_TYPES = ("image/jpeg", "image/png", "image/webp", "image/gif")
 
 
@@ -17,6 +18,7 @@ class Auction(Base):
     __table_args__ = (
         CheckConstraint(f"status IN {AUCTION_STATUSES}", name="ck_auctions_status"),
         CheckConstraint(f"condition IN {AUCTION_CONDITIONS}", name="ck_auctions_condition"),
+        CheckConstraint("hatalom_era IS NULL OR (category = 'Hatalom Kártyái Kártyajáték' AND hatalom_era IN ('retro', 'ujkor', 'uj_nemzedek'))", name="ck_auctions_hatalom_era"),
         CheckConstraint("printing_error_description IS NULL OR (length(trim(printing_error_description)) BETWEEN 3 AND 500)", name="ck_auctions_printing_error_description"),
         CheckConstraint("has_printing_error = true OR printing_error_description IS NULL", name="ck_auctions_printing_error_consistency"),
         CheckConstraint("starting_price >= 0", name="ck_auctions_starting_price_positive"),
@@ -28,6 +30,7 @@ class Auction(Base):
         CheckConstraint("(status = 'unsold' AND winner_id IS NULL) OR status <> 'unsold'", name="ck_auctions_unsold_has_no_winner"),
         UniqueConstraint("seller_id", "creation_key", name="uq_auctions_seller_creation_key"),
         Index("ix_auctions_status_ends_at", "status", "ends_at"),
+        Index("ix_auctions_category_hatalom_era", "category", "hatalom_era"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -39,6 +42,7 @@ class Auction(Base):
     external_link_label: Mapped[str | None] = mapped_column(String(80), nullable=True)
     external_link_url: Mapped[str | None] = mapped_column(String(1000), nullable=True)
     category: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    hatalom_era: Mapped[str | None] = mapped_column(String(20), nullable=True)
     condition: Mapped[str] = mapped_column(String(30), nullable=False)
     has_printing_error: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
     printing_error_description: Mapped[str | None] = mapped_column(String(500), nullable=True)

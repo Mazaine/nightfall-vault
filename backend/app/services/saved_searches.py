@@ -24,6 +24,7 @@ def auction_matches_saved_search(db: Session, auction: Auction, saved: SavedSear
         _contains(auction.description, saved.description),
         _contains(seller_name, saved.seller),
         saved.category is None or auction.category == saved.category,
+        saved.hatalom_era is None or auction.hatalom_era == saved.hatalom_era,
         saved.condition is None or auction.condition == saved.condition,
         saved.status is None or auction.status == saved.status,
         saved.min_price is None or Decimal(auction.current_price) >= Decimal(saved.min_price),

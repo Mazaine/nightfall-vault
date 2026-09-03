@@ -184,6 +184,7 @@ def create_auction(db: Session, auction_create: AuctionCreate, seller: User) -> 
         external_link_label=auction_create.external_link_label,
         external_link_url=auction_create.external_link_url,
         category=auction_create.category,
+        hatalom_era=auction_create.hatalom_era,
         condition=auction_create.condition,
         has_printing_error=auction_create.has_printing_error,
         printing_error_description=auction_create.printing_error_description,
@@ -255,6 +256,12 @@ def update_auction(db: Session, auction: Auction, auction_update: AuctionUpdate,
     if auction.status not in EDITABLE_OWNER_STATUSES and user.role != "admin":
         raise HTTPException(status_code=409, detail="Ebben az aukcióállapotban az aukció nem módosítható.")
     update_data = auction_update.model_dump(exclude_unset=True)
+    resulting_category = update_data.get("category", auction.category)
+    resulting_hatalom_era = update_data.get("hatalom_era", auction.hatalom_era)
+    if resulting_hatalom_era is not None and resulting_category != "Hatalom Kártyái Kártyajáték":
+        raise HTTPException(status_code=422, detail="Korszak csak a Hatalom Kártyái Kártyajáték kategóriánál adható meg.")
+    if resulting_category != "Hatalom Kártyái Kártyajáték":
+        update_data["hatalom_era"] = None
     if "ends_at" in update_data and update_data["ends_at"] is not None:
         requested_ends_at = normalize_datetime(update_data["ends_at"])
         current_ends_at = normalize_datetime(auction.ends_at)

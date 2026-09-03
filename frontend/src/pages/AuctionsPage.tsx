@@ -1,6 +1,6 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router";
-import { listAuctions, type Auction, type AuctionListParams } from "../api/auctions";
+import { listAuctions, type Auction, type AuctionListParams, type HatalomEra } from "../api/auctions";
 import { createSavedSearch, deleteSavedSearch, listSavedSearches, type SavedSearch } from "../api/searches";
 import { useAuth } from "../AuthContext";
 import { AuctionCard } from "../components/AuctionCard";
@@ -26,6 +26,7 @@ type FilterState = {
   title: string;
   description: string;
   category: string;
+  hatalom_era: HatalomEra | "";
   condition: string;
   min_price: string;
   max_price: string;
@@ -41,6 +42,7 @@ const INITIAL_FILTERS: FilterState = {
   title: "",
   description: "",
   category: "",
+  hatalom_era: "",
   condition: "",
   min_price: "",
   max_price: "",
@@ -66,6 +68,7 @@ function toParams(filters: FilterState, offset: number): AuctionListParams {
     title: filters.title || undefined,
     description: filters.description || undefined,
     category: filters.category || undefined,
+    hatalom_era: filters.hatalom_era || undefined,
     condition: filters.condition || undefined,
     min_price: filters.min_price || undefined,
     max_price: filters.max_price || undefined,
@@ -178,6 +181,7 @@ export function AuctionsPage() {
       title: item.title ?? "",
       description: item.description ?? "",
       category: item.category ?? "",
+      hatalom_era: item.hatalom_era ?? "",
       condition: item.condition ?? "",
       min_price: item.min_price === undefined || item.min_price === null ? "" : String(item.min_price),
       max_price: item.max_price === undefined || item.max_price === null ? "" : String(item.max_price),
@@ -264,7 +268,7 @@ export function AuctionsPage() {
         <label>Leírás<input type="search" maxLength={180} value={filters.description} onChange={(event) => setFilters({ ...filters, description: event.target.value })} /></label>
         <label>
           Kategória
-          <select value={filters.category} onChange={(event) => setFilters({ ...filters, category: event.target.value })}>
+          <select value={filters.category} onChange={(event) => setFilters({ ...filters, category: event.target.value, hatalom_era: event.target.value === "Hatalom Kártyái Kártyajáték" ? filters.hatalom_era : "" })}>
             <option value="">Mind</option>
             {CATEGORY_OPTIONS.map((category) => <option value={category} key={category}>{category}</option>)}
           </select>
@@ -276,6 +280,15 @@ export function AuctionsPage() {
             {CARD_CONDITIONS.map((condition) => <option value={condition.value} key={condition.value}>{condition.nameHu} ({condition.value})</option>)}
           </select>
         </label>
+        {filters.category === "Hatalom Kártyái Kártyajáték" ? <label>
+          Hatalom-korszak
+          <select value={filters.hatalom_era} onChange={(event) => setFilters({ ...filters, hatalom_era: event.target.value as HatalomEra | "" })}>
+            <option value="">Mind</option>
+            <option value="retro">RETRO</option>
+            <option value="ujkor">Újkor</option>
+            <option value="uj_nemzedek">Új nemzedék</option>
+          </select>
+        </label> : null}
         <label>
           Minimum ár
           <input type="number" min="0" value={filters.min_price} onChange={(event) => setFilters({ ...filters, min_price: event.target.value })} />
