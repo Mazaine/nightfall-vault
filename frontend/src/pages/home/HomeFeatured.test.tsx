@@ -52,13 +52,18 @@ describe("HomeFeatured", () => {
   });
 
   it("a kiemelt kártya árát és licitszámát frissítés nélkül módosítja", async () => {
+    const refreshedAuction = { ...auction(1), current_price: "1500", highest_bid_id: 9, bid_count: 3 };
     mocks.listAuctions
       .mockResolvedValueOnce({ items: [auction(1)], total: 1, limit: 4, offset: 0 })
+      .mockResolvedValueOnce({ items: [], total: 0, limit: 4, offset: 0 })
+      .mockResolvedValueOnce({ items: [refreshedAuction], total: 1, limit: 4, offset: 0 })
       .mockResolvedValueOnce({ items: [], total: 0, limit: 4, offset: 0 });
     render(<MemoryRouter><HomeFeatured /></MemoryRouter>);
     expect(await screen.findByText("1200 Ft")).toBeInTheDocument();
 
-    act(() => mocks.realtimeListener?.({ auction_id: 1, status: "active", current_price: "1500", highest_bid_id: 9, bid_count: 3, winner_id: null, ends_at: "2026-07-14T10:00:00Z", bids: [] }));
+    await act(async () => {
+      mocks.realtimeListener?.({ auction_id: 1, status: "active", current_price: "1500", highest_bid_id: 9, bid_count: 3, winner_id: null, ends_at: "2026-07-14T10:00:00Z", bids: [] });
+    });
 
     expect(screen.getByText("1500 Ft")).toBeInTheDocument();
     expect(screen.getByText("3 licit")).toBeInTheDocument();

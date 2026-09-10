@@ -59,6 +59,19 @@ describe("AuctionDetailPage", () => {
     await waitFor(() => expect(mocks.placeAuctionBid).toHaveBeenCalledWith(21, "1300.00"));
   });
 
+  it("villámár nélküli aukción is elfogadja az érvényes licitet", async () => {
+    state.isAuthenticated = true;
+    mocks.getAuction.mockResolvedValue({ ...auction, buy_now_enabled: false, buy_now_price: null });
+    render(<MemoryRouter initialEntries={["/auctions/21"]}><Routes><Route path="/auctions/:auctionId" element={<AuctionDetailPage />} /></Routes></MemoryRouter>);
+
+    fireEvent.change(await screen.findByLabelText("Licit összege"), { target: { value: "1300" } });
+    fireEvent.click(screen.getByRole("button", { name: "Licitálok" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Licit véglegesítése" }));
+
+    await waitFor(() => expect(mocks.placeAuctionBid).toHaveBeenCalledWith(21, "1300"));
+    expect(screen.queryByText("A villámár legfeljebb 0 Ft lehet.")).not.toBeInTheDocument();
+  });
+
   it("vezető licitálóként a licitmező helyett Kiszállok műveletet mutat", async () => {
     state.isAuthenticated = true;
     mocks.getAuction.mockResolvedValue({

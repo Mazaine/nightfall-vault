@@ -321,7 +321,9 @@ export function AuctionDetailPage() {
     const minimumCents = currentCents + incrementCents;
     const amount = bidAmount.trim() || centsToAmount(minimumCents);
     const amountCents = moneyToCents(amount);
-    const buyNowCents = moneyToCents(auction.buy_now_enabled ? auction.buy_now_price : null);
+    const buyNowCents = auction.buy_now_enabled && auction.buy_now_price
+      ? moneyToCents(auction.buy_now_price)
+      : null;
     if (amountCents === null || amountCents < minimumCents) {
       setBidMessage(`A licit összege legalább ${formatMoney(centsToAmount(minimumCents))} legyen.`);
       return;
