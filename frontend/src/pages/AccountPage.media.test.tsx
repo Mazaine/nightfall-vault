@@ -38,7 +38,7 @@ function fillRequiredForm() {
   const futureEnd = new Date(Date.now() + 48 * 60 * 60 * 1000);
   const localValue = (date: Date) => new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
   fireEvent.change(screen.getByLabelText(/^Név/), { target: { value: "Teszt aukció" } });
-  fireEvent.change(screen.getByLabelText(/^Leírás/), { target: { value: "Részletes leírás" } });
+  fireEvent.change(screen.getByRole("textbox", { name: /^Leírás/ }), { target: { value: "Részletes leírás" } });
   fireEvent.change(screen.getByLabelText(/Kezdőár/), { target: { value: "1000" } });
   fireEvent.change(screen.getByLabelText(/Licitlépcső/), { target: { value: "100" } });
   fireEvent.change(screen.getByLabelText(/^Kezdési dátum/), { target: { value: localValue(futureStart) } });
@@ -63,23 +63,26 @@ describe("AccountPage media upload", () => {
     renderPage();
     const input = await screen.findByLabelText("Képek");
     fireEvent.change(input, { target: { files: [1, 2, 3, 4, 5, 6].map((value) => file(`${value}.png`)) } });
-    expect(screen.getAllByRole("radio")).toHaveLength(5);
+    const coverChoices = screen.getByLabelText("Borítókép kiválasztása");
+    expect(within(coverChoices).getAllByRole("radio")).toHaveLength(5);
     expect(screen.getByText(/Legfeljebb 5 képet/)).toBeInTheDocument();
-    fireEvent.click(screen.getAllByRole("radio")[2]);
+    fireEvent.click(within(coverChoices).getAllByRole("radio")[2]);
     expect(screen.getAllByText("Borítókép")).toHaveLength(1);
     fireEvent.click(screen.getAllByRole("button", { name: "Kép eltávolítása" })[1]);
-    expect(screen.getAllByRole("radio")).toHaveLength(4);
+    expect(within(coverChoices).getAllByRole("radio")).toHaveLength(4);
   });
 
   it("több külön fájlválasztásból összeadja a képeket és megtartja a borítóképet", async () => {
     renderPage();
     const input = await screen.findByLabelText("Képek");
     fireEvent.change(input, { target: { files: [file("egy.png"), file("ketto.png")] } });
-    fireEvent.click(screen.getAllByRole("radio")[1]);
+    let coverChoices = screen.getByLabelText("Borítókép kiválasztása");
+    fireEvent.click(within(coverChoices).getAllByRole("radio")[1]);
 
     fireEvent.change(input, { target: { files: [file("harom.png"), file("negy.png"), file("ot.png"), file("hat.png")] } });
 
-    expect(screen.getAllByRole("radio")).toHaveLength(5);
+    coverChoices = screen.getByLabelText("Borítókép kiválasztása");
+    expect(within(coverChoices).getAllByRole("radio")).toHaveLength(5);
     expect(screen.getByText("egy.png")).toBeInTheDocument();
     expect(screen.getByText("harom.png")).toBeInTheDocument();
     expect(screen.queryByText("hat.png")).not.toBeInTheDocument();
@@ -161,7 +164,7 @@ describe("AccountPage media upload", () => {
 
   it("meglévő piszkozatnál backend művelettel állít borítót és töröl képet", async () => {
     vi.spyOn(window, "confirm").mockReturnValue(true);
-    mocks.listMyAuctions.mockResolvedValue([{ id: 91, seller_id: 2, title: "Képes piszkozat", description: "Leírás", category: "Pokemon", condition: "fresh", status: "draft", starting_price: "1000", bid_increment: "100", current_price: "1000", buy_now_enabled: false, buy_now_price: null, starts_at: "2026-07-16T10:00:00Z", ends_at: "2026-07-17T10:00:00Z", five_minute_rule_enabled: true, winner_id: null, highest_bid_id: null, images: [{ id: 10, auction_id: 91, storage_key: "original.webp", url: "/media/original.webp", thumbnail_url: "/media/thumb.webp", original_filename: "one.png", content_type: "image/webp", file_size: 10, position: 0, is_cover: false, created_at: "2026-07-15T10:00:00Z" }] }]);
+    mocks.listMyAuctions.mockResolvedValue([{ id: 91, seller_id: 2, title: "Képes piszkozat", description: "Leírás", category: "Pokemon", condition: "NM", status: "draft", starting_price: "1000", bid_increment: "100", current_price: "1000", buy_now_enabled: false, buy_now_price: null, starts_at: "2026-07-16T10:00:00Z", ends_at: "2026-07-17T10:00:00Z", five_minute_rule_enabled: true, winner_id: null, highest_bid_id: null, images: [{ id: 10, auction_id: 91, storage_key: "original.webp", url: "/media/original.webp", thumbnail_url: "/media/thumb.webp", original_filename: "one.png", content_type: "image/webp", file_size: 10, position: 0, is_cover: false, created_at: "2026-07-15T10:00:00Z" }] }]);
     renderPage("auctions");
     fireEvent.click(await screen.findByRole("button", { name: "Módosítás" }));
     fireEvent.click(await screen.findByRole("button", { name: "Legyen borítókép" }));
@@ -173,7 +176,7 @@ describe("AccountPage media upload", () => {
   it("a teljes aukcióadatokkal, módosítható alapadatokkal nyitja meg a szerkesztőt", async () => {
     const futureStart = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
     const futureEnd = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString();
-    const listItem = { id: 92, seller_id: 2, title: "Aktív tesztaukció", category: "Pokemon", condition: "fresh", status: "active", starting_price: "1000", bid_increment: "100", current_price: "1200", buy_now_enabled: false, buy_now_price: null, starts_at: futureStart, ends_at: futureEnd, five_minute_rule_enabled: true, winner_id: null, highest_bid_id: null, images: [] };
+    const listItem = { id: 92, seller_id: 2, title: "Aktív tesztaukció", category: "Pokemon", condition: "NM", status: "active", starting_price: "1000", bid_increment: "100", current_price: "1200", buy_now_enabled: false, buy_now_price: null, starts_at: futureStart, ends_at: futureEnd, five_minute_rule_enabled: true, winner_id: null, highest_bid_id: null, images: [] };
     mocks.listMyAuctions.mockResolvedValue([listItem]);
     mocks.getAuction.mockResolvedValue({ ...listItem, description: "Régi, részletes leírás" });
     renderPage("auctions");
@@ -182,7 +185,7 @@ describe("AccountPage media upload", () => {
     const form = await screen.findByRole("form", { name: "Aktív tesztaukció módosítása" });
     const editor = within(form);
     expect(mocks.getAuction).toHaveBeenCalledWith(92);
-    expect(editor.getByLabelText(/^Leírás/)).toHaveValue("Régi, részletes leírás");
+    expect(editor.getByRole("textbox", { name: /^Leírás/ })).toHaveValue("Régi, részletes leírás");
     expect(editor.getByLabelText(/^Név/)).toBeEnabled();
     expect(editor.getByLabelText("Kategória")).toBeEnabled();
     expect(editor.getByLabelText("Állapot")).toBeEnabled();
@@ -191,21 +194,21 @@ describe("AccountPage media upload", () => {
 
     fireEvent.change(editor.getByLabelText(/^Név/), { target: { value: "Módosított aukciónév" } });
     fireEvent.change(editor.getByLabelText("Kategória"), { target: { value: "Magic the Gathering" } });
-    fireEvent.change(editor.getByLabelText("Állapot"), { target: { value: "Újszerű" } });
-    fireEvent.change(editor.getByLabelText(/^Leírás/), { target: { value: "Frissített leírás" } });
+    fireEvent.change(editor.getByLabelText("Állapot"), { target: { value: "NM" } });
+    fireEvent.change(editor.getByRole("textbox", { name: /^Leírás/ }), { target: { value: "Frissített leírás" } });
     fireEvent.click(editor.getByRole("button", { name: "Módosítások mentése" }));
 
     await waitFor(() => expect(mocks.updateAuction).toHaveBeenCalledWith(92, expect.objectContaining({
       title: "Módosított aukciónév",
       category: "Magic the Gathering",
-      condition: "like_new",
+      condition: "NM",
       description: "Frissített leírás",
       five_minute_rule_enabled: true,
     })));
   });
 
   it("magyar mezőhibákat mutat hibás aukciómódosításnál", async () => {
-    const auction = { id: 93, seller_id: 2, title: "Tesztaukció", description: "Eredeti, részletes leírás", category: "Pokemon", condition: "fresh", status: "active", starting_price: "1000", bid_increment: "100", current_price: "1200", buy_now_enabled: false, buy_now_price: null, starts_at: "2026-07-15T10:00:00Z", ends_at: "2026-07-27T10:00:00Z", five_minute_rule_enabled: true, winner_id: null, highest_bid_id: null, images: [] };
+    const auction = { id: 93, seller_id: 2, title: "Tesztaukció", description: "Eredeti, részletes leírás", category: "Pokemon", condition: "NM", status: "active", starting_price: "1000", bid_increment: "100", current_price: "1200", buy_now_enabled: false, buy_now_price: null, starts_at: "2026-07-15T10:00:00Z", ends_at: "2026-07-27T10:00:00Z", five_minute_rule_enabled: true, winner_id: null, highest_bid_id: null, images: [] };
     mocks.listMyAuctions.mockResolvedValue([auction]);
     mocks.getAuction.mockResolvedValue(auction);
     renderPage("auctions");
@@ -213,7 +216,7 @@ describe("AccountPage media upload", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Módosítás" }));
     const editor = within(await screen.findByRole("form", { name: "Tesztaukció módosítása" }));
     fireEvent.change(editor.getByLabelText(/^Név/), { target: { value: "A" } });
-    fireEvent.change(editor.getByLabelText(/^Leírás/), { target: { value: "Rövid" } });
+    fireEvent.change(editor.getByRole("textbox", { name: /^Leírás/ }), { target: { value: "Rövid" } });
     fireEvent.click(editor.getByRole("button", { name: "Módosítások mentése" }));
 
     expect(await editor.findByText("A név legalább 2 karakter hosszú legyen.")).toBeInTheDocument();

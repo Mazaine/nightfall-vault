@@ -14,7 +14,7 @@ from app.services.security_audit import create_domain_audit_log
 from app.services.user_blocks import ensure_not_blocked
 
 SELLER_DECLARATION_VERSION = "2026-07-11"
-PUBLIC_AUCTION_STATUSES = {"scheduled", "active"}
+PUBLIC_AUCTION_STATUSES = {"scheduled", "active", "ended", "sold", "unsold"}
 EDITABLE_OWNER_STATUSES = {"draft", "scheduled", "active"}
 CRITICAL_AUCTION_FIELDS = {"starting_price", "bid_increment", "buy_now_price", "starts_at"}
 FIVE_MINUTE_EXTENSION = timedelta(minutes=5)
@@ -109,7 +109,6 @@ def close_ended_active_auction(db: Session, auction: Auction) -> Auction:
     db.add(auction)
     create_domain_audit_log(db, action="auction_status_changed", auction_id=auction.id, metadata={"from": "active", "to": auction.status, "source": "scheduler"})
     notify_auction_closed(db, auction)
-    publish_auction_change(db, auction)
     return auction
 
 
@@ -267,7 +266,10 @@ def update_auction(db: Session, auction: Auction, auction_update: AuctionUpdate,
         current_ends_at = normalize_datetime(auction.ends_at)
         if requested_ends_at != current_ends_at and db.scalar(select(Bid.id).where(Bid.auction_id == auction.id).limit(1)) is not None:
             raise HTTPException(status_code=409, detail="A lejárati idő licit érkezése után már nem módosítható.")
-    link_fields_changed = "external_link_label" in update_data or "external_link_url" in update_data
+    link_fields_changed = (
+        ("external_link_label" in update_data and update_data["external_link_label"] != auction.external_link_label)
+        or ("external_link_url" in update_data and update_data["external_link_url"] != auction.external_link_url)
+    )
     if link_fields_changed and not is_vip(user):
         raise HTTPException(status_code=403, detail="Kattintható hivatkozást csak aktív VIP-tag módosíthat.")
     link_label = update_data.get("external_link_label", auction.external_link_label)
@@ -437,6 +439,7 @@ def create_message(db: Session, auction: Auction, sender: User, message: str) ->
         notification_type="auction_message",
         title="Új üzenet egy lezárt aukcióhoz",
         message=f"Új üzenet érkezett ehhez az aukcióhoz: {auction.title}",
+        event_key=f"auction-message:{auction_message.id}:{counterparty_id}",
     )
     create_domain_audit_log(
         db,

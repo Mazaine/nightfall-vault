@@ -13,6 +13,8 @@ from app.models.auction import Auction, AuctionImage, AuctionMessage, AuctionRev
 from app.models.notification import Notification
 from app.models.security_log import AuditLog
 from app.models.user import User
+from app.services.realtime import redis_client
+from app.services.scheduler_health import SCHEDULER_HEARTBEAT_KEY, write_scheduler_heartbeat
 
 client = TestClient(app)
 VALID_PNG = base64.b64decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4//8/AAX+Av4N70a4AAAAAElFTkSuQmCC")
@@ -67,7 +69,7 @@ def auction_payload(**overrides):
         "title": "Ops readiness aukcio",
         "description": "Sprint hat operations readiness teszt aukcio leirasa.",
         "category": "Pokemon",
-        "condition": "like_new",
+        "condition": "NM",
         "starting_price": "1000.00",
         "bid_increment": "100.00",
         "buy_now_enabled": False,
@@ -82,6 +84,8 @@ def auction_payload(**overrides):
 
 
 def test_health_endpoints_and_request_id() -> None:
+    if settings.auction_scheduler_mode.lower() == "external":
+        write_scheduler_heartbeat(leader=True, closed_count=0)
     live = client.get("/health/live", headers={"X-Request-ID": "ops-test-request"})
     ready = client.get("/health/ready")
     health = client.get("/health")
@@ -101,6 +105,20 @@ def test_health_endpoints_and_request_id() -> None:
     assert "nightfall_scheduler_heartbeat_up" in metrics.text
 
 
+def test_external_scheduler_readiness_requires_fresh_heartbeat(monkeypatch) -> None:
+    monkeypatch.setattr(settings, "auction_scheduler_mode", "external")
+    redis_client().delete(SCHEDULER_HEARTBEAT_KEY)
+    missing = client.get("/health/ready")
+    write_scheduler_heartbeat(leader=True, closed_count=0)
+    fresh = client.get("/health/ready")
+    redis_client().delete(SCHEDULER_HEARTBEAT_KEY)
+
+    assert missing.status_code == 503
+    assert missing.json()["checks"]["scheduler"] == "error"
+    assert fresh.status_code == 200
+    assert fresh.json()["checks"]["scheduler"] == "ok"
+
+
 def test_audit_log_admin_api_filters_and_blocks_normal_user() -> None:
     cleanup_test_data()
     admin = create_test_user("admin-audit@ops-test.local", role="admin")
@@ -112,7 +130,7 @@ def test_audit_log_admin_api_filters_and_blocks_normal_user() -> None:
             title="Audit log auction",
             description="Audit log FK target",
             category="Pokemon",
-            condition="like_new",
+            condition="NM",
             starting_price=1000,
             current_price=1000,
             bid_increment=100,

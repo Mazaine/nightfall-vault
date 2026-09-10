@@ -1,14 +1,14 @@
 from dataclasses import dataclass
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.models.notification import Notification, NotificationPreference
+from app.models.notification import Notification, NotificationOutbox, NotificationPreference
 from app.models.user import User
-from app.services.notification_email import send_notification_email
-from app.services.realtime import publish_user_event
 from app.models.auction import Auction
 from app.services.demo_visibility import can_access_demo_auctions
+from app.services.notification_targets import validate_notification_target_url
 
 TYPE_CATEGORY = {
     "outbid": "bids", "auction_bid_received": "bids",
@@ -56,26 +56,40 @@ def dispatch_notification(
     auction = db.get(Auction, auction_id) if auction_id is not None else None
     if auction is not None and auction.demo_batch_id is not None and not can_access_demo_auctions(user):
         return None
+    resolved_target = validate_notification_target_url(target_url or (f"/auctions/{auction_id}" if auction_id else "/account/notifications"))
     if event_key:
         existing = db.scalar(select(Notification).where(Notification.event_key == event_key))
         if existing is not None:
             return existing
+
     notification = Notification(
         user_id=user_id, auction_id=auction_id, type=notification_type, category=category,
-        title=title, message=message, target_url=target_url or (f"/auctions/{auction_id}" if auction_id else "/account/notifications"),
+        title=title, message=message, target_url=resolved_target,
         event_key=event_key, in_app_enabled=preference.in_app, browser_enabled=preference.browser,
         email_enabled=preference.email and send_email,
     )
-    db.add(notification)
-    db.flush()
-    payload = {
-        "id": notification.id, "auction_id": auction_id, "type": notification_type, "category": category,
-        "title": title, "message": message, "target_url": notification.target_url,
-        "is_read": False, "in_app_enabled": notification.in_app_enabled,
-        "browser_enabled": notification.browser_enabled, "email_enabled": notification.email_enabled,
-        "created_at": notification.created_at.isoformat() if notification.created_at else None,
-    }
-    publish_user_event(user_id, "notification", payload)
-    if user is not None and notification.email_enabled:
-        send_notification_email(user, notification)
+    try:
+        with db.begin_nested():
+            db.add(notification)
+            db.flush()
+            delivery_event_key = event_key or f"notification:{notification.id}"
+            db.add(NotificationOutbox(
+                notification_id=notification.id,
+                event_key=delivery_event_key,
+                task_type="realtime",
+            ))
+            if user is not None and notification.email_enabled:
+                db.add(NotificationOutbox(
+                    notification_id=notification.id,
+                    event_key=delivery_event_key,
+                    task_type="email",
+                ))
+            db.flush()
+    except IntegrityError:
+        if not event_key:
+            raise
+        existing = db.scalar(select(Notification).where(Notification.event_key == event_key))
+        if existing is None:
+            raise
+        return existing
     return notification

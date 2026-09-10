@@ -68,7 +68,7 @@ def auction_payload(**overrides):
         "title": "Production readiness aukcio",
         "description": "Sprint ot production readiness teszt aukcio leirasa.",
         "category": "Pokemon",
-        "condition": "like_new",
+        "condition": "NM",
         "starting_price": "1000.00",
         "bid_increment": "100.00",
         "buy_now_enabled": False,

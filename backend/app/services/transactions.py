@@ -128,6 +128,7 @@ def confirm_completion(db: Session, transaction_id: int, user: User) -> AuctionT
         notification_type="transaction_confirmation",
         title="A partnered megerősítette a teljesítést",
         message=f"A(z) {transaction.auction.title} tranzakciónál most a te megerősítésedre várunk.",
+        event_key=f"transaction-confirmation:{transaction.id}:{user.id}:{partner_id}",
     )
     if transaction.seller_completed_at and transaction.buyer_completed_at:
         transaction.status = "completed"
@@ -142,6 +143,7 @@ def confirm_completion(db: Session, transaction_id: int, user: User) -> AuctionT
                 notification_type="transaction_completed",
                 title="A tranzakció sikeresen teljesült",
                 message=f"Most már értékelhetitek egymást: {transaction.auction.title}",
+                event_key=f"transaction-completed:{transaction.id}:{participant_id}",
             )
     db.add(transaction)
     db.commit()

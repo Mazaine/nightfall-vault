@@ -8,10 +8,11 @@ from app.core.security import create_access_token, hash_password
 from app.db.session import SessionLocal
 from app.main import app
 from app.models.auction import Auction
-from app.models.notification import Notification, NotificationPreference, WatchlistReminder
+from app.models.notification import Notification, NotificationOutbox, NotificationPreference, WatchlistReminder
 from app.models.user import User
 from app.services.notification_dispatcher import dispatch_notification
 from app.services.auction_scheduler import send_due_watchlist_reminders
+from app.services.notification_outbox import process_outbox_batch
 
 client = TestClient(app)
 
@@ -30,6 +31,7 @@ def headers(user: User) -> dict[str, str]:
 
 def cleanup() -> None:
     db = SessionLocal()
+    db.execute(delete(NotificationOutbox))
     db.execute(delete(Notification).where(Notification.user_id.in_(select(User.id).where(User.email.like("%@sprint16-test.local")))))
     db.execute(delete(NotificationPreference).where(NotificationPreference.user_id.in_(select(User.id).where(User.email.like("%@sprint16-test.local")))))
     db.execute(delete(Auction).where(Auction.title.like("Sprint 16 %")))
@@ -40,12 +42,13 @@ def cleanup() -> None:
 def test_dispatcher_respects_matrix_and_deduplicates(monkeypatch) -> None:
     cleanup(); user = create_user("dispatcher")
     published: list[tuple[int, str, dict]] = []
-    monkeypatch.setattr("app.services.notification_dispatcher.publish_user_event", lambda user_id, event_type, payload: published.append((user_id, event_type, payload)))
+    monkeypatch.setattr("app.services.notification_outbox.publish_user_event", lambda user_id, event_type, payload: published.append((user_id, event_type, payload)) or "1-0")
     db = SessionLocal()
     db.add(NotificationPreference(user_id=user.id, category="chat", in_app=True, browser=True, email=False)); db.commit()
     first = dispatch_notification(db, user_id=user.id, notification_type="auction_message", title="Új üzenet", message="Teszt", event_key=f"chat:test:{user.id}")
     second = dispatch_notification(db, user_id=user.id, notification_type="auction_message", title="Duplikáció", message="Teszt", event_key=f"chat:test:{user.id}")
     db.commit()
+    process_outbox_batch()
     assert first.id == second.id
     assert first.category == "chat" and first.browser_enabled is True and first.email_enabled is False
     assert len(published) == 1
@@ -72,8 +75,8 @@ def test_all_notification_categories_respect_disabled_channels(monkeypatch) -> N
     cleanup(); user = create_user("all-categories")
     published: list[tuple[int, str, dict]] = []
     emailed: list[int] = []
-    monkeypatch.setattr("app.services.notification_dispatcher.publish_user_event", lambda user_id, event_type, payload: published.append((user_id, event_type, payload)))
-    monkeypatch.setattr("app.services.notification_dispatcher.send_notification_email", lambda _user, notification: emailed.append(notification.id))
+    monkeypatch.setattr("app.services.notification_outbox.publish_user_event", lambda user_id, event_type, payload: published.append((user_id, event_type, payload)) or "1-0")
+    monkeypatch.setattr("app.services.notification_outbox.send_notification_email", lambda _user, notification: emailed.append(notification.id) or True)
     cases = {
         "outbid": "bids",
         "auction_message": "chat",
@@ -101,6 +104,7 @@ def test_all_notification_categories_respect_disabled_channels(monkeypatch) -> N
         assert item.browser_enabled is False
         assert item.email_enabled is False
     db.commit()
+    process_outbox_batch()
     assert len(published) == 7
     assert all(event_type == "notification" for _, event_type, _ in published)
     assert all(payload["in_app_enabled"] is False and payload["browser_enabled"] is False and payload["email_enabled"] is False for _, _, payload in published)
@@ -117,12 +121,15 @@ def test_enabled_email_and_browser_channels_are_forwarded(monkeypatch) -> None:
     cleanup(); user = create_user("enabled-channels")
     published: list[dict] = []
     emailed: list[int] = []
-    monkeypatch.setattr("app.services.notification_dispatcher.publish_user_event", lambda _user_id, _event_type, payload: published.append(payload))
-    monkeypatch.setattr("app.services.notification_dispatcher.send_notification_email", lambda _user, notification: emailed.append(notification.id))
+    monkeypatch.setattr("app.services.notification_outbox.publish_user_event", lambda _user_id, _event_type, payload: published.append(payload) or "1-0")
+    monkeypatch.setattr("app.services.notification_outbox.should_email", lambda _user, _notification_type: True)
+    monkeypatch.setattr("app.services.notification_outbox.send_notification_email", lambda _user, notification: emailed.append(notification.id) or True)
+    monkeypatch.setattr("app.services.notification_outbox.settings.email_delivery_enabled", True)
     db = SessionLocal()
     db.add(NotificationPreference(user_id=user.id, category="bids", in_app=True, browser=True, email=True)); db.commit()
     item = dispatch_notification(db, user_id=user.id, notification_type="outbid", title="Rád licitáltak", message="Teszt", event_key=f"enabled:bids:{user.id}")
     db.commit()
+    process_outbox_batch()
     assert item.in_app_enabled is True and item.browser_enabled is True and item.email_enabled is True
     assert published[0]["in_app_enabled"] is True and published[0]["browser_enabled"] is True and published[0]["email_enabled"] is True
     assert emailed == [item.id]
@@ -133,7 +140,7 @@ def test_typing_and_presence_are_participant_only() -> None:
     cleanup(); seller, winner, outsider = create_user("seller"), create_user("winner"), create_user("outsider")
     now = datetime.now(timezone.utc)
     db = SessionLocal()
-    auction = Auction(seller_id=seller.id, winner_id=winner.id, title="Sprint 16 privát chat", description="Lezárt aukció privát realtime tesztje.", category="Pokemon", condition="like_new", status="sold", starting_price=1000, bid_increment=100, current_price=1200, buy_now_enabled=False, starts_at=now-timedelta(days=2), ends_at=now-timedelta(days=1), seller_declaration_accepted_at=now-timedelta(days=2), seller_declaration_version="test", finalized_at=now-timedelta(days=1))
+    auction = Auction(seller_id=seller.id, winner_id=winner.id, title="Sprint 16 privát chat", description="Lezárt aukció privát realtime tesztje.", category="Pokemon", condition="NM", status="sold", starting_price=1000, bid_increment=100, current_price=1200, buy_now_enabled=False, starts_at=now-timedelta(days=2), ends_at=now-timedelta(days=1), seller_declaration_accepted_at=now-timedelta(days=2), seller_declaration_version="test", finalized_at=now-timedelta(days=1))
     db.add(auction); db.commit(); db.refresh(auction); auction_id = auction.id; db.close()
     assert client.get(f"/api/realtime/auctions/{auction_id}/presence", headers=headers(outsider)).status_code == 403
     assert client.post(f"/api/realtime/auctions/{auction_id}/typing", headers=headers(outsider)).status_code == 403
@@ -144,7 +151,10 @@ def test_typing_and_presence_are_participant_only() -> None:
 def test_watchlist_reminder_is_sent_once_at_due_threshold(monkeypatch) -> None:
     cleanup(); user = create_user("reminder"); now = datetime.now(timezone.utc)
     db = SessionLocal()
-    auction = Auction(seller_id=user.id, title="Sprint 16 emlékeztető", description="Figyelőlista emlékeztető scheduler teszt.", category="Pokemon", condition="like_new", status="active", starting_price=1000, bid_increment=100, current_price=1000, buy_now_enabled=False, starts_at=now-timedelta(days=1), ends_at=now+timedelta(minutes=5), seller_declaration_accepted_at=now-timedelta(days=1), seller_declaration_version="test")
+    stored_user = db.get(User, user.id)
+    stored_user.vip_expires_at = now + timedelta(days=1)
+    stored_user.vip_reminder_five_minutes = True
+    auction = Auction(seller_id=user.id, title="Sprint 16 emlékeztető", description="Figyelőlista emlékeztető scheduler teszt.", category="Pokemon", condition="NM", status="active", starting_price=1000, bid_increment=100, current_price=1000, buy_now_enabled=False, starts_at=now-timedelta(days=1), ends_at=now+timedelta(minutes=5), seller_declaration_accepted_at=now-timedelta(days=1), seller_declaration_version="test")
     db.add(auction); db.flush()
     db.add(WatchlistReminder(user_id=user.id, auction_id=auction.id, minutes_before=5, created_at=now-timedelta(hours=1))); db.commit()
     sent: list[str] = []

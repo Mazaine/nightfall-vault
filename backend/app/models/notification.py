@@ -35,6 +35,32 @@ class Notification(Base):
     auction = relationship("Auction")
 
 
+class NotificationOutbox(Base):
+    __tablename__ = "notification_outbox"
+    TASK_TYPES = ("realtime", "email")
+    STATUSES = ("pending", "processing", "retry", "delivered", "failed")
+    __table_args__ = (
+        CheckConstraint(f"task_type IN {TASK_TYPES}", name="ck_notification_outbox_task_type"),
+        CheckConstraint(f"status IN {STATUSES}", name="ck_notification_outbox_status"),
+        UniqueConstraint("event_key", "task_type", name="uq_notification_outbox_event_task"),
+        Index("ix_notification_outbox_due", "status", "next_attempt_at", "id"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    notification_id: Mapped[int] = mapped_column(ForeignKey("notifications.id", ondelete="CASCADE"), nullable=False, index=True)
+    event_key: Mapped[str] = mapped_column(String(220), nullable=False)
+    task_type: Mapped[str] = mapped_column(String(30), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending")
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    next_attempt_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    locked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    processed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_error: Mapped[str | None] = mapped_column(String(120), nullable=True)
+
+    notification = relationship("Notification")
+
+
 class NotificationPreference(Base):
     __tablename__ = "notification_preferences"
     CATEGORIES = ("bids", "chat", "follows", "transactions", "reviews", "moderation", "system")

@@ -115,6 +115,7 @@ def update_report_status(db: Session, report: Report, admin: User, next_status: 
             notification_type=notification_type,
             title="Jelentés lezárva" if next_status == "resolved" else "Jelentés elutasítva",
             message="A beküldött jelentésed állapota frissült.",
+            event_key=f"report-status:{report.id}:{notification_type}",
         )
     db.add(report)
     create_domain_audit_log(db, action="report_status_changed", user_id=admin.id, auction_id=report.auction_id, metadata={"report_id": report.id, "from": previous, "to": next_status})

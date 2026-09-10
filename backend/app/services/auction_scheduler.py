@@ -13,7 +13,7 @@ from app.models.auction import Auction
 from app.models.notification import WatchlistReminder
 from app.models.user import User
 from app.services.membership import is_vip
-from app.services.auction_lifecycle import close_ended_active_auction, now_utc
+from app.services.auction_lifecycle import close_ended_active_auction, now_utc, publish_auction_change
 from app.services.notification_dispatcher import dispatch_notification
 from app.services.scheduler_health import write_scheduler_heartbeat
 
@@ -88,14 +88,18 @@ def close_expired_auctions(db: Session, limit: int = 50) -> int:
         .with_for_update(skip_locked=True)
     )
     closed_count = 0
+    closed_auctions: list[Auction] = []
     for auction in db.scalars(statement).all():
         previous_status = auction.status
         close_ended_active_auction(db, auction)
         if previous_status == "active" and auction.status != "active":
             closed_count += 1
+            closed_auctions.append(auction)
     archive_due_transactions(db)
     send_due_watchlist_reminders(db)
     db.commit()
+    for auction in closed_auctions:
+        publish_auction_change(db, auction)
     return closed_count
 
 

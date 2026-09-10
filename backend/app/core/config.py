@@ -69,6 +69,13 @@ class Settings(BaseSettings):
     development_admin_seed_enabled: bool = False
     error_tracking_dsn: str | None = None
     realtime_stream_max_length: int = 5000
+    notification_outbox_enabled: bool = True
+    notification_outbox_poll_seconds: float = 1.0
+    notification_outbox_batch_size: int = 50
+    notification_outbox_max_attempts: int = 5
+    notification_outbox_base_backoff_seconds: int = 5
+    notification_outbox_max_backoff_seconds: int = 900
+    notification_outbox_lock_timeout_seconds: int = 300
     google_oauth_client_id: str | None = None
     google_oauth_client_secret: str | None = None
     google_oauth_redirect_uri: str | None = None

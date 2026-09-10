@@ -148,12 +148,10 @@ def _apply_auction_sort(query, sort: str):
 def auction_response(auction: Auction, user: User | None = None, db: Session | None = None) -> AuctionResponse:
     seller_average_rating, seller_review_count = seller_rating_summary(db, auction.seller_id) if db is not None else (None, 0)
     response = AuctionResponse.model_validate(auction).model_copy(update={"seller_average_rating": seller_average_rating, "seller_review_count": seller_review_count, "is_featured": bool(auction.seller and is_vip(auction.seller))})
-    if user is None:
-        return response
-    viewer_is_leading = bool(auction.highest_bid is not None and auction.highest_bid.bidder_id == user.id)
-    withdrawal = bid_withdrawal_state(auction.highest_bid, auction, user, db=db) if viewer_is_leading and auction.highest_bid is not None else {"can_withdraw": False, "withdrawal_block_reason": None}
-    return response.model_copy(
-        update={
+    if user is not None:
+        viewer_is_leading = bool(auction.highest_bid is not None and auction.highest_bid.bidder_id == user.id)
+        withdrawal = bid_withdrawal_state(auction.highest_bid, auction, user, db=db) if viewer_is_leading and auction.highest_bid is not None else {"can_withdraw": False, "withdrawal_block_reason": None}
+        response = response.model_copy(update={
             "is_owner": auction.seller_id == user.id,
             "can_chat": can_access_post_auction_features(auction, user.id),
             "chat_read_only": bool(db is not None and can_access_post_auction_features(auction, user.id) and is_chat_read_only(db, auction)),
@@ -162,8 +160,27 @@ def auction_response(auction: Auction, user: User | None = None, db: Session | N
             "viewer_top_bid_id": auction.highest_bid_id if viewer_is_leading else None,
             "viewer_can_withdraw": withdrawal["can_withdraw"],
             "viewer_withdrawal_block_reason": withdrawal["withdrawal_block_reason"],
-        },
-    )
+        })
+    can_see_internal_fields = user is not None and (user.role == "admin" or auction.seller_id == user.id)
+    if not can_see_internal_fields:
+        response = response.model_copy(update={
+            "moderated_at": None,
+            "moderated_by_admin_id": None,
+            "moderation_reason": None,
+            "seller_declaration_accepted_at": None,
+            "seller_declaration_version": None,
+        })
+    can_see_winner_fields = user is not None and (user.role == "admin" or user.id in {auction.seller_id, auction.winner_id})
+    if user is None or (auction.status in {"ended", "sold", "unsold"} and not can_see_winner_fields):
+        public_seller = response.seller.model_copy(update={"id": None}) if user is None and response.seller is not None else response.seller
+        response = response.model_copy(update={
+            "seller_id": None if user is None else response.seller_id,
+            "seller": public_seller,
+            "winner_id": None,
+            "winner": None,
+            "highest_bid_id": None,
+        })
+    return response
 
 
 @router.get("", response_model=AuctionListPage)
@@ -497,7 +514,13 @@ def get_auction_status(
 ) -> AuctionStatusResponse:
     auction = get_auction_or_404(db, auction_id)
     require_can_view_auction(auction, current_user)
-    return AuctionStatusResponse.model_validate(auction)
+    response = AuctionStatusResponse.model_validate(auction)
+    can_see_private_fields = current_user is not None and (
+        current_user.role == "admin" or current_user.id in {auction.seller_id, auction.winner_id}
+    )
+    if not can_see_private_fields:
+        return response.model_copy(update={"winner_id": None, "highest_bid_id": None})
+    return response
 
 
 @router.get("/{auction_id}/bids", response_model=list[BidHistoryItem])

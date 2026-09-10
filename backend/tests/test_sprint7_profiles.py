@@ -114,12 +114,12 @@ def test_auction_search_filters_and_sorting() -> None:
     cleanup_sprint7_data()
     seller = create_test_user("seller-search@auction-test.local")
     bidder = create_test_user("bidder-search@auction-test.local")
-    pokemon = create_active_auction(seller, title="Pokemon villam", category="Pokemon", condition="fresh", starting_price="1000.00", buy_now_enabled=True, buy_now_price="5000.00")
-    magic = create_active_auction(seller, title="Magic lap", category="Magic the Gathering", condition="played", starting_price="2000.00", buy_now_enabled=False, buy_now_price=None)
+    pokemon = create_active_auction(seller, title="Pokemon villam", category="Pokemon", condition="NM", starting_price="1000.00", buy_now_enabled=True, buy_now_price="5000.00")
+    magic = create_active_auction(seller, title="Magic lap", category="Magic the Gathering", condition="PL", starting_price="2000.00", buy_now_enabled=False, buy_now_price=None)
     assert client.post(f"/api/auctions/{pokemon['id']}/bids", json={"amount": "1200.00"}, headers=auth_headers(bidder)).status_code == 201
     assert client.post(f"/api/auctions/{magic['id']}/bids", json={"amount": "2200.00"}, headers=auth_headers(bidder)).status_code == 201
 
-    filtered = client.get("/api/auctions?category=Pokemon&condition=fresh&buy_now=true&min_bids=1&sort=highest_price")
+    filtered = client.get("/api/auctions?category=Pokemon&condition=NM&buy_now=true&min_bids=1&sort=highest_price")
     sorted_by_bids = client.get("/api/auctions?sort=most_bids")
 
     assert filtered.status_code == 200

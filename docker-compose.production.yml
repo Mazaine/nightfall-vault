@@ -120,6 +120,19 @@ services:
     cpus: 0.50
     pids_limit: 128
 
+  notification-outbox:
+    <<: *app
+    environment:
+      AUCTION_SCHEDULER_MODE: external
+      NOTIFICATION_OUTBOX_ENABLED: ${NOTIFICATION_OUTBOX_ENABLED:-true}
+    command: [python, -m, app.workers.notification_outbox]
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+    mem_limit: 256m
+    cpus: 0.50
+    pids_limit: 128
+
   media-init:
     image: alpine:3.20
     command: [sh, -c, "mkdir -p /data/media && chown -R 10001:10001 /data/media"]

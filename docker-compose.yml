@@ -101,6 +101,36 @@ services:
       timeout: 5s
       retries: 10
 
+  notification-outbox:
+    init: true
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    volumes:
+      - ./backend:/app
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in your local .env file}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      LOG_FORMAT: ${LOG_FORMAT:-text}
+      NOTIFICATION_OUTBOX_ENABLED: ${NOTIFICATION_OUTBOX_ENABLED:-true}
+      NOTIFICATION_OUTBOX_POLL_SECONDS: ${NOTIFICATION_OUTBOX_POLL_SECONDS:-1}
+      NOTIFICATION_OUTBOX_BATCH_SIZE: ${NOTIFICATION_OUTBOX_BATCH_SIZE:-50}
+      NOTIFICATION_OUTBOX_MAX_ATTEMPTS: ${NOTIFICATION_OUTBOX_MAX_ATTEMPTS:-5}
+      NOTIFICATION_OUTBOX_BASE_BACKOFF_SECONDS: ${NOTIFICATION_OUTBOX_BASE_BACKOFF_SECONDS:-5}
+      NOTIFICATION_OUTBOX_MAX_BACKOFF_SECONDS: ${NOTIFICATION_OUTBOX_MAX_BACKOFF_SECONDS:-900}
+      NOTIFICATION_OUTBOX_LOCK_TIMEOUT_SECONDS: ${NOTIFICATION_OUTBOX_LOCK_TIMEOUT_SECONDS:-300}
+    command: ["python", "-m", "app.workers.notification_outbox"]
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
   postgres:
     image: postgres:16-alpine
     ports:

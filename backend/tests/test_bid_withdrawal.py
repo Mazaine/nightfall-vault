@@ -66,10 +66,9 @@ def test_top_bid_withdrawal_preserves_history_and_restores_price(monkeypatch) ->
         assert exclusion_audit is not None and exclusion is not None
     finally:
         db.close()
-    lost = client.get("/api/auctions/my-bids/page?state=lost", headers=auth_headers(second))
-    assert lost.status_code == 200
-    assert lost.json()["items"][0]["has_exited"] is True
-    assert lost.json()["items"][0]["participation_note"] == "Kiszálltál ebből az aukcióból."
+    current = client.get("/api/auctions/my-bids/page?state=current", headers=auth_headers(second))
+    assert current.status_code == 200
+    assert current.json()["items"] == []
     third = create_test_user("third-withdraw-success@bid-test.local")
     assert place_bid(auction["id"], third, "1300.00").status_code == 201
 
@@ -105,7 +104,18 @@ def test_withdrawal_rejects_other_user_and_duplicate_request() -> None:
     bid = place_bid(auction["id"], bidder, "1100.00").json()
 
     assert withdraw(bid["id"], outsider).status_code == 403
-    assert withdraw(bid["id"], bidder).status_code == 200
+    successful = withdraw(bid["id"], bidder)
+    assert successful.status_code == 200
+    assert successful.json()["current_price"] == "1000.00"
+    assert successful.json()["highest_bid_id"] is None
+    db = SessionLocal()
+    try:
+        stored_auction = db.get(Auction, auction["id"])
+        stored_bid = db.get(Bid, bid["id"])
+        assert stored_auction is not None and stored_bid is not None
+        assert stored_auction.winner_id is None and stored_bid.status == "withdrawn"
+    finally:
+        db.close()
     duplicate = withdraw(bid["id"], bidder)
     assert duplicate.status_code == 409
     assert duplicate.json()["detail"] == "Ez a licit már visszavonásra került."
@@ -118,17 +128,17 @@ def test_withdrawal_time_boundaries_are_explicit(monkeypatch) -> None:
     bidder = create_test_user("bidder-withdraw-boundary@bid-test.local")
     auction = create_active_auction(seller)
     exact_bid = place_bid(auction["id"], bidder, "1100.00").json()
-    set_times(auction["id"], exact_bid["id"], now=fixed_now, bid_age_seconds=60, remaining_seconds=300)
+    set_times(auction["id"], exact_bid["id"], now=fixed_now, bid_age_seconds=60, remaining_seconds=301)
     monkeypatch.setattr("app.services.bidding.now_utc", lambda: fixed_now)
     assert withdraw(exact_bid["id"], bidder).status_code == 200
     excluded = place_bid(auction["id"], bidder, "1200.00")
     assert excluded.status_code == 403
     assert "többé nem licitálhatsz" in excluded.json()["detail"]
 
-    older_auction = create_active_auction(seller)
-    newer = place_bid(older_auction["id"], bidder, "1100.00").json()
-    set_times(older_auction["id"], newer["id"], now=fixed_now, bid_age_seconds=61, remaining_seconds=600)
-    assert withdraw(newer["id"], bidder).status_code == 422
+    boundary_auction = create_active_auction(seller)
+    boundary_bid = place_bid(boundary_auction["id"], bidder, "1100.00").json()
+    set_times(boundary_auction["id"], boundary_bid["id"], now=fixed_now, bid_age_seconds=10, remaining_seconds=300)
+    assert withdraw(boundary_bid["id"], bidder).status_code == 422
 
     ending_auction = create_active_auction(seller)
     latest = place_bid(ending_auction["id"], bidder, "1100.00").json()

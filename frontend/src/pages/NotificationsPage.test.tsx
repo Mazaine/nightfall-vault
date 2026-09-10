@@ -1,7 +1,8 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SiteHeader } from "../components/SiteHeader";
+import { NotificationProvider } from "../NotificationContext";
 import { NotificationsPage } from "./NotificationsPage";
 
 const mocks = vi.hoisted(() => ({
@@ -37,8 +38,10 @@ const notifications = [
 function renderNotifications() {
   render(
     <MemoryRouter>
-      <SiteHeader />
-      <NotificationsPage />
+      <NotificationProvider>
+        <SiteHeader />
+        <NotificationsPage />
+      </NotificationProvider>
     </MemoryRouter>,
   );
 }
@@ -50,7 +53,12 @@ describe("NotificationsPage", () => {
     mocks.getUnreadNotificationCount.mockResolvedValue({ unread_count: 2 });
     mocks.markNotificationRead.mockResolvedValue({ ...notifications[0], is_read: true });
     mocks.markAllNotificationsRead.mockResolvedValue({ updated: 2 });
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok: true,
+      body: { getReader: () => ({ read: () => new Promise(() => undefined) }) },
+    }));
   });
+  afterEach(() => vi.unstubAllGlobals());
 
   it("azonnal olvasottra állítja a sort és frissíti a fejléc számlálóját", async () => {
     renderNotifications();
@@ -59,9 +67,9 @@ describe("NotificationsPage", () => {
 
     fireEvent.click(screen.getAllByRole("button", { name: "Olvasott" })[0]);
 
-    expect(screen.getAllByRole("button", { name: "Olvasott" })).toHaveLength(1);
+    await waitFor(() => expect(screen.getAllByRole("button", { name: "Olvasott" })).toHaveLength(1));
     expect(screen.getByRole("link", { name: "Értesítések, 1 olvasatlan" })).toBeInTheDocument();
-    expect(mocks.listMyNotifications).toHaveBeenCalledTimes(1);
+    expect(mocks.listMyNotifications).toHaveBeenCalledTimes(2);
     await waitFor(() => expect(mocks.markNotificationRead).toHaveBeenCalledWith(1));
   });
 
@@ -71,9 +79,9 @@ describe("NotificationsPage", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Összes olvasott" }));
 
-    expect(screen.queryByRole("button", { name: "Olvasott" })).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Olvasott" })).not.toBeInTheDocument());
     expect(screen.getByRole("link", { name: "Értesítések" })).toBeInTheDocument();
-    expect(mocks.listMyNotifications).toHaveBeenCalledTimes(1);
+    expect(mocks.listMyNotifications).toHaveBeenCalledTimes(2);
     await waitFor(() => expect(mocks.markAllNotificationsRead).toHaveBeenCalledTimes(1));
   });
 

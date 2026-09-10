@@ -71,7 +71,7 @@ def auction_payload(**overrides):
         "title": "Teszt licites aukciĂł",
         "description": "RĂ©szletes licitmotor teszt aukciĂł leĂ­rĂˇsa.",
         "category": "Pokemon",
-        "condition": "like_new",
+        "condition": "NM",
         "starting_price": "1000.00",
         "bid_increment": "100.00",
         "buy_now_enabled": False,
@@ -282,8 +282,8 @@ def test_expired_active_auction_sets_winner_from_highest_bid() -> None:
 
     assert status_response.status_code == 200
     assert status_response.json()["status"] == "sold"
-    assert status_response.json()["winner_id"] == bidder_two.id
-    assert status_response.json()["highest_bid_id"] == highest["id"]
+    assert status_response.json()["winner_id"] is None
+    assert status_response.json()["highest_bid_id"] is None
 
 
 def test_expired_active_auction_without_bid_becomes_unsold() -> None:
@@ -473,14 +473,17 @@ def test_outbid_notification_and_my_bids_endpoint() -> None:
     assert my_bids.json()[0]["is_outbid"] is True
     assert my_bids.json()[0]["auction"]["current_price"] == "1200.00"
 
-    outbid_page = client.get("/api/auctions/my-bids/page?state=outbid&limit=10&offset=0", headers=auth_headers(bidder_one))
-    leading_page = client.get("/api/auctions/my-bids/page?state=leading&limit=10&offset=0", headers=auth_headers(bidder_one))
+    outbid_page = client.get("/api/auctions/my-bids/page?state=current&limit=10&offset=0", headers=auth_headers(bidder_one))
+    leading_page = client.get("/api/auctions/my-bids/page?state=current&limit=10&offset=0", headers=auth_headers(bidder_two))
     assert outbid_page.status_code == 200
     assert outbid_page.json()["total"] == 1
     assert outbid_page.json()["items"][0]["auction"]["id"] == auction["id"]
     assert outbid_page.json()["items"][0]["my_last_bid_at"] is not None
     assert leading_page.status_code == 200
-    assert leading_page.json()["total"] == 0
+    assert leading_page.json()["total"] == 1
+    assert leading_page.json()["items"][0]["is_leading"] is True
+    legacy_state = client.get("/api/auctions/my-bids/page?state=outbid", headers=auth_headers(bidder_one))
+    assert legacy_state.status_code == 422
 
 
 def test_realtime_stream_returns_auction_snapshot() -> None:

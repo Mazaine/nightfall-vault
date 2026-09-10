@@ -72,7 +72,7 @@ def auction_payload(**overrides):
         "title": "Teszt aukciĂł",
         "description": "RĂ©szletes, valĂłs teszt aukciĂł leĂ­rĂˇs.",
         "category": "Pokemon",
-        "condition": "like_new",
+        "condition": "NM",
         "starting_price": "1000.00",
         "bid_increment": "100.00",
         "buy_now_enabled": True,
@@ -160,14 +160,49 @@ def test_auction_creation_key_reuses_the_same_logical_draft() -> None:
     payload = auction_payload(creation_key=creation_key)
 
     first = client.post("/api/auctions", json=payload, headers=auth_headers(seller))
-    second = client.post("/api/auctions", json=payload, headers=auth_headers(seller))
+    second = client.post(
+        "/api/auctions",
+        json={**payload, "description": "Az idempotens ismétlés frissített, részletes leírása."},
+        headers=auth_headers(seller),
+    )
 
     assert first.status_code == 201
     assert second.status_code == 201
     assert second.json()["id"] == first.json()["id"]
+    assert second.json()["description"] == "Az idempotens ismétlés frissített, részletes leírása."
     db = SessionLocal()
     try:
         assert db.query(Auction).filter(Auction.seller_id == seller.id, Auction.creation_key == creation_key).count() == 1
+    finally:
+        db.close()
+
+
+def test_auction_creation_key_retry_cannot_bypass_vip_external_link_rule() -> None:
+    cleanup_test_data()
+    seller = create_test_user("seller-idempotent-link@auction-test.local")
+    creation_key = "67427a33-d3e3-4ae7-a6d1-9a290a399268"
+    first = client.post(
+        "/api/auctions",
+        json=auction_payload(creation_key=creation_key),
+        headers=auth_headers(seller),
+    )
+    retry = client.post(
+        "/api/auctions",
+        json=auction_payload(
+            creation_key=creation_key,
+            external_link_label="Külső oldal",
+            external_link_url="https://example.com/card",
+        ),
+        headers=auth_headers(seller),
+    )
+
+    assert first.status_code == 201
+    assert retry.status_code == 403
+    db = SessionLocal()
+    try:
+        stored = db.get(Auction, first.json()["id"])
+        assert stored is not None
+        assert stored.external_link_label is None and stored.external_link_url is None
     finally:
         db.close()
 
@@ -291,6 +326,8 @@ def test_sold_auction_chat_and_review_are_participant_only() -> None:
     admin = create_test_user("admin-closed@auction-test.local", role="admin")
     finalized = create_sold_auction(seller, winner, admin)
     complete_auction_transaction(seller, winner)
+    public_detail = client.get(f"/api/auctions/{finalized['id']}")
+    public_data = public_detail.json()
 
     seller_message = client.post(f"/api/auctions/{finalized['id']}/messages", json={"message": "KapcsolatfelvĂ©tel."}, headers=auth_headers(seller))
     stranger_messages = client.get(f"/api/auctions/{finalized['id']}/messages", headers=auth_headers(stranger))
@@ -299,12 +336,63 @@ def test_sold_auction_chat_and_review_are_participant_only() -> None:
     stranger_review = client.post(f"/api/auctions/{finalized['id']}/reviews", json={"rating": 5}, headers=auth_headers(stranger))
 
     assert finalized["status"] == "sold"
+    assert public_detail.status_code == 200
+    assert public_data["seller"] == {"id": None, "username": seller.username, "full_name": seller.full_name}
+    for private_field in {
+        "seller_id", "winner_id", "winner", "highest_bid_id", "moderated_at",
+        "moderated_by_admin_id", "moderation_reason", "seller_declaration_accepted_at",
+        "seller_declaration_version",
+    }:
+        assert public_data[private_field] is None
+    assert all(marker not in str(public_data).lower() for marker in ("email", "phone", "address", "transaction", "message"))
     assert seller_message.status_code == 201
     assert stranger_messages.status_code == 403
     assert winner_review.status_code == 201
     assert winner_review.json()["reviewed_user_id"] == seller.id
     assert duplicate_review.status_code == 409
     assert stranger_review.status_code == 403
+    assert client.get("/api/transactions").status_code == 401
+
+
+def test_closed_public_visibility_preserves_hidden_auction_protection() -> None:
+    cleanup_test_data()
+    seller = create_test_user("seller-public-closed@auction-test.local")
+    admin = create_test_user("admin-public-closed@auction-test.local", role="admin")
+
+    draft = client.post("/api/auctions", json=auction_payload(), headers=auth_headers(seller)).json()
+    assert client.get(f"/api/auctions/{draft['id']}").status_code == 404
+
+    unsold_candidate = create_expired_auction_with_image(seller)
+    unsold = client.post(
+        f"/api/auctions/{unsold_candidate['id']}/admin/finalize",
+        json={"status": "unsold", "winner_id": None},
+        headers=auth_headers(admin),
+    )
+    assert unsold.status_code == 200
+    assert client.get(f"/api/auctions/{unsold_candidate['id']}").status_code == 200
+
+    db = SessionLocal()
+    try:
+        suspended = db.get(Auction, draft["id"])
+        assert suspended is not None
+        suspended.status = "suspended"
+        suspended.moderated_at = datetime.now(timezone.utc)
+        suspended.moderated_by_admin_id = admin.id
+        suspended.moderation_reason = "Teszt moderációs rejtés"
+        db.commit()
+    finally:
+        db.close()
+    assert client.get(f"/api/auctions/{draft['id']}").status_code == 404
+
+    db = SessionLocal()
+    try:
+        deleted = db.get(Auction, unsold_candidate["id"])
+        assert deleted is not None
+        deleted.deleted_at = datetime.now(timezone.utc)
+        db.commit()
+    finally:
+        db.close()
+    assert client.get(f"/api/auctions/{unsold_candidate['id']}").status_code == 404
 
 
 def test_image_limit_cover_integrity_and_activation_without_cover() -> None:

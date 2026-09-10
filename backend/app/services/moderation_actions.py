@@ -95,7 +95,11 @@ def issue_action(db: Session, admin: User, *, target: User, action_type: str, re
         db.add(target)
     audit_action = "moderation_permanent_ban_applied" if action_type == "permanent_ban" else ("moderation_warning_issued" if action_type == "warning" else "moderation_restriction_applied")
     create_domain_audit_log(db, action=audit_action, user_id=admin.id, metadata={"target_user_id": target.id, "moderation_action_id": action.id, "type": action_type})
-    create_notification(db, user_id=target.id, notification_type="moderation_action", title="Moderációs intézkedés", message=f"{moderation_action_label(action_type)}: {reason}", send_email=True)
+    create_notification(
+        db, user_id=target.id, notification_type="moderation_action",
+        title="Moderációs intézkedés", message=f"{moderation_action_label(action_type)}: {reason}",
+        event_key=f"moderation-action:{action.id}:{target.id}", send_email=True,
+    )
     db.commit()
     db.refresh(action)
     return action
@@ -110,7 +114,11 @@ def issue_strike(db: Session, admin: User, *, target: User, reason: str, severit
     db.flush()
     create_domain_audit_log(db, action="moderation_strike_issued", user_id=admin.id, metadata={"target_user_id": target.id, "strike_id": strike.id, "severity": severity})
     severity_label = STRIKE_SEVERITY_LABELS.get(severity, "Ismeretlen")
-    create_notification(db, user_id=target.id, notification_type="moderation_strike", title="Moderációs figyelmeztető pont", message=f"Súlyosság: {severity_label}. Indok: {reason}", send_email=True)
+    create_notification(
+        db, user_id=target.id, notification_type="moderation_strike",
+        title="Moderációs figyelmeztető pont", message=f"Súlyosság: {severity_label}. Indok: {reason}",
+        event_key=f"moderation-strike:{strike.id}:{target.id}", send_email=True,
+    )
     active_count = int(
         db.scalar(
             select(func.count()).select_from(UserStrike).where(
@@ -124,7 +132,11 @@ def issue_strike(db: Session, admin: User, *, target: User, reason: str, severit
         create_domain_audit_log(db, action="moderation_strike_threshold_reached", user_id=admin.id, metadata={"target_user_id": target.id, "active_strikes": active_count})
         admin_ids = list(db.scalars(select(User.id).where(User.role == "admin", User.is_active.is_(True), User.deleted_at.is_(None))).all())
         for admin_id in admin_ids:
-            create_notification(db, user_id=admin_id, notification_type="moderation_action", title="Moderációs felülvizsgálat szükséges", message=f"{target.username} aktív strike-jainak száma: {active_count}. Emberi döntés szükséges.", send_email=False)
+            create_notification(
+                db, user_id=admin_id, notification_type="moderation_action",
+                title="Moderációs felülvizsgálat szükséges", message=f"{target.username} aktív strike-jainak száma: {active_count}. Emberi döntés szükséges.",
+                event_key=f"moderation-strike-threshold:{strike.id}:{admin_id}", send_email=False,
+            )
     db.commit()
     db.refresh(strike)
     return strike
@@ -136,7 +148,11 @@ def revoke_action(db: Session, admin: User, action: ModerationAction) -> Moderat
         action.revoked_by_admin_id = admin.id
         db.add(action)
         create_domain_audit_log(db, action="moderation_permanent_ban_revoked" if action.action_type == "permanent_ban" else "moderation_restriction_revoked", user_id=admin.id, metadata={"target_user_id": action.target_user_id, "moderation_action_id": action.id})
-        create_notification(db, user_id=action.target_user_id, notification_type="moderation_revoked", title="Korlátozás visszavonva", message=f"A(z) {moderation_action_label(action.action_type)} intézkedést visszavontuk.", send_email=True)
+        create_notification(
+            db, user_id=action.target_user_id, notification_type="moderation_revoked",
+            title="Korlátozás visszavonva", message=f"A(z) {moderation_action_label(action.action_type)} intézkedést visszavontuk.",
+            event_key=f"moderation-revoked:{action.id}:{action.target_user_id}", send_email=True,
+        )
         db.commit()
         db.refresh(action)
     return action
@@ -176,17 +192,19 @@ def update_bid_withdrawal_restriction(
     target.bid_withdrawal_permanently_disabled = permanently_disabled
     target.bid_withdrawal_disabled_until = None if permanently_disabled else disabled_until
     action = "bid_withdrawal_restriction_applied" if permanently_disabled or disabled_until else "bid_withdrawal_restriction_revoked"
-    create_domain_audit_log(
+    audit_log = create_domain_audit_log(
         db, action=action, user_id=admin.id,
         metadata={
             "target_user_id": target.id, "permanently_disabled": permanently_disabled,
             "disabled_until": disabled_until.isoformat() if disabled_until else None, "reason": reason,
         },
     )
+    db.flush()
     create_notification(
         db, user_id=target.id, notification_type="moderation_action",
         title="Licit-visszavonási jogosultság módosult",
         message=("A licit-visszavonási lehetőségedet korlátoztuk." if permanently_disabled or disabled_until else "A licit-visszavonási korlátozásodat feloldottuk."),
+        event_key=f"bid-withdrawal-permission:{audit_log.id}:{target.id}",
         send_email=True,
     )
     db.add(target)

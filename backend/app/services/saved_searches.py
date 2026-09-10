@@ -49,5 +49,6 @@ def notify_saved_search_matches(db: Session, auction: Auction) -> None:
                 notification_type="saved_search_match",
                 title="Mentett kereses uj talalata",
                 message=f"A(z) {saved.name} keresesedhez uj aukcio erkezett: {auction.title}",
+                event_key=f"saved-search-match:{auction.id}:{saved.id}",
                 send_email=False,
             )

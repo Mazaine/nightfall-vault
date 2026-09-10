@@ -8,7 +8,7 @@ vi.mock("../api/auctions", async (importOriginal) => ({ ...(await importOriginal
 vi.mock("../AuthContext", () => ({ useAuth: () => ({ isAuthenticated: true }) }));
 
 const auction = {
-  id: 44, seller_id: 2, title: "Ritka kártya", category: "Pokemon", condition: "fresh", status: "active",
+  id: 44, seller_id: 2, title: "Ritka kártya", category: "Pokemon", condition: "NM", status: "active",
   starting_price: "1000", bid_increment: "200", current_price: "1800", buy_now_enabled: false, buy_now_price: null,
   starts_at: "2026-08-01T10:00:00Z", ends_at: "2026-08-08T10:00:00Z", five_minute_rule_enabled: true,
   winner_id: null, highest_bid_id: 8, images: [], bid_count: 3,
@@ -23,7 +23,7 @@ describe("MyBidsPage", () => {
     expect(await screen.findByText("Túllicitáltak")).toBeInTheDocument();
     expect(screen.getByText("1800 Ft")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Licitálok" })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("tab", { name: "Én vezetek" }));
-    await waitFor(() => expect(mocks.list).toHaveBeenLastCalledWith("leading", 12, 0));
+    fireEvent.click(screen.getByRole("tab", { name: "Lezárult" }));
+    await waitFor(() => expect(mocks.list).toHaveBeenLastCalledWith("closed", 12, 0));
   });
 });

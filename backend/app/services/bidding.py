@@ -88,15 +88,6 @@ def _aware(value):
     return value.replace(tzinfo=timezone.utc)
 
 
-def _first_bidder_id(db: Session, auction_id: int) -> int | None:
-    return db.scalar(
-        select(Bid.bidder_id)
-        .where(Bid.auction_id == auction_id)
-        .order_by(Bid.created_at.asc(), Bid.id.asc())
-        .limit(1)
-    )
-
-
 def bid_withdrawal_state(bid: Bid, auction: Auction, user: User | None, *, db: Session | None = None, current_time=None) -> dict:
     current_time = current_time or now_utc()
     is_top = bid.status == ACTIVE_BID_STATUS and auction.highest_bid_id == bid.id
@@ -109,8 +100,6 @@ def bid_withdrawal_state(bid: Bid, auction: Auction, user: User | None, *, db: S
         reason = "Csak az aukció legutolsó aktív licitje vonható vissza."
     elif auction.status != "active":
         reason = "Az aukció állapota már nem teszi lehetővé a licit visszavonását."
-    elif db is not None and _first_bidder_id(db, auction.id) == bid.bidder_id:
-        reason = "Az aukció kezdő licitálója nem vonhatja vissza a licitjét."
     elif _aware(auction.ends_at) - current_time <= timedelta(seconds=settings.bid_withdrawal_min_remaining_seconds):
         reason = "Az aukció utolsó 5 percében a licit már nem vonható vissza."
     elif user.bid_withdrawal_permanently_disabled or (
@@ -191,8 +180,6 @@ def withdraw_bid(
     top_bid = active_bids[0] if active_bids else None
     if top_bid is None or top_bid.id != target.id:
         raise HTTPException(status_code=409, detail="Csak az aukció legutolsó aktív licitje vonható vissza.")
-    if _first_bidder_id(db, auction.id) == target.bidder_id:
-        raise HTTPException(status_code=422, detail="Az aukció kezdő licitálója nem vonhatja vissza a licitjét.")
     if _aware(auction.ends_at) - current_time <= timedelta(seconds=settings.bid_withdrawal_min_remaining_seconds):
         raise HTTPException(status_code=422, detail="Az aukció utolsó 5 percében a licit már nem vonható vissza.")
 

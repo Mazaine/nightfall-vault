@@ -49,7 +49,7 @@ const biddingRules = [
 ] as const;
 
 const withdrawalRules = [
-  "A kezdő licitáló nem vonhatja vissza a licitjét. A többi licitáló a saját legutolsó aktív licitjét visszavonhatja, kivéve az aukció utolsó 5 percében.",
+  "Az első licitáló is visszavonhatja a saját legutolsó aktív licitjét, kivéve az aukció utolsó 5 percében. Ugyanazok a jogosultsági, figyelmeztetési és moderációs korlátok vonatkoznak rá, mint minden más licitálóra.",
   "A működés veremelvű: 1000, 2000, 3000 és 4000 Ft aktív licit esetén először csak a 4000 Ft-os vonható vissza. Ezután a 3000 Ft-os válik legfelsővé, és külön műveletben visszavonható, ha a többi feltétel még teljesül.",
   "A visszavont licit nem törlődik. Visszavont állapottal megmarad a licittörténetben és az auditnaplóban, de nem számít bele az aktuális árba, a következő minimumba, a vezetőbe, a nyertesbe vagy a tranzakcióba.",
   "A visszavonáshoz indokot kell választani. Az Egyéb indokhoz rövid szöveges magyarázat is szükséges. A backend a kattintás pillanatában újra ellenőrzi a tulajdonost, az időablakot, az aukcióállapotot és a licitsor tetejét.",

@@ -23,11 +23,13 @@ def create_notification(
     title: str,
     message: str,
     auction_id: int | None = None,
+    target_url: str | None = None,
+    event_key: str | None = None,
     send_email: bool = True,
 ) -> Notification | None:
     return dispatch_notification(
         db, user_id=user_id, auction_id=auction_id, notification_type=notification_type,
-        title=title, message=message, send_email=send_email,
+        title=title, message=message, target_url=target_url, event_key=event_key, send_email=send_email,
     )
 
 
@@ -91,6 +93,7 @@ def notify_auction_closed(db: Session, auction: Auction) -> None:
                     notification_type="transaction_opened",
                     title="Megnyílt az aukció utáni egyeztetés",
                     message=f"A privát chatben egyeztethetitek a teljesítést: {auction.title}",
+                    event_key=f"transaction-opened:{transaction.id}:{participant_id}",
                 )
         create_notification(
             db,
@@ -99,6 +102,7 @@ def notify_auction_closed(db: Session, auction: Auction) -> None:
             notification_type="auction_won",
             title="Megnyert aukcio",
             message=f"Megnyerted ezt az aukciot: {auction.title}",
+            event_key=f"auction-won:{auction.id}:{auction.winner_id}",
         )
         create_notification(
             db,
@@ -107,6 +111,7 @@ def notify_auction_closed(db: Session, auction: Auction) -> None:
             notification_type="auction_sold",
             title="Eladott aukcio",
             message=f"Sikeresen lezart aukcio: {auction.title}",
+            event_key=f"auction-sold:{auction.id}:{auction.seller_id}",
         )
         losing_bidder_ids = {
             bidder_id
@@ -120,6 +125,7 @@ def notify_auction_closed(db: Session, auction: Auction) -> None:
                 notification_type="auction_lost",
                 title="Lezart aukcio",
                 message=f"Nem te nyerted ezt az aukciot: {auction.title}",
+                event_key=f"auction-lost:{auction.id}:{bidder_id}",
             )
     elif auction.status == "unsold":
         create_notification(
@@ -129,6 +135,7 @@ def notify_auction_closed(db: Session, auction: Auction) -> None:
             notification_type="auction_unsold",
             title="Eladatlan aukcio",
             message=f"Az aukcio licit nelkul zarult: {auction.title}",
+            event_key=f"auction-unsold:{auction.id}:{auction.seller_id}",
         )
 
 def notify_followers_new_auction(db: Session, auction: Auction) -> None:
@@ -146,4 +153,5 @@ def notify_followers_new_auction(db: Session, auction: Auction) -> None:
             notification_type="seller_new_auction",
             title="Kovetett elado uj aukcioja",
             message=f"Uj aukcio indult: {auction.title}",
+            event_key=f"seller-new-auction:{auction.id}:{follower_id}",
         )
