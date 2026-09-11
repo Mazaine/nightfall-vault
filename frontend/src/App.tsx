@@ -8,6 +8,7 @@ import { ScrollToTop } from "./components/ScrollToTop";
 import { SiteFooter } from "./components/SiteFooter";
 import { SiteHeader } from "./components/SiteHeader";
 import { MobileBottomNav } from "./components/MobileBottomNav";
+import { PwaInstallBanner } from "./components/PwaInstallBanner";
 import { TransactionReviewPrompt } from "./components/TransactionReviewPrompt";
 import { HomePage } from "./pages/HomePage";
 
@@ -125,6 +126,7 @@ function App() {
         </Suspense>
       </main>
       <SiteFooter />
+      <PwaInstallBanner />
       <MobileBottomNav />
       <IncomingChatDock />
       <TransactionReviewPrompt />
