@@ -5,7 +5,10 @@ import App from "./App";
 import { AuthProvider } from "./AuthContext";
 import { NotificationProvider } from "./NotificationContext";
 import { AuctionRealtimeProvider } from "./AuctionRealtimeContext";
+import { registerServiceWorker } from "./registerServiceWorker";
 import "./styles/index.css";
+
+registerServiceWorker();
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
