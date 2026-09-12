@@ -128,6 +128,7 @@ class NotificationChannelPreference(BaseModel):
 
 class NotificationPreferenceMatrix(BaseModel):
     categories: dict[str, NotificationChannelPreference]
+    push_defaults_eligible: bool = False
 
 
 class WebPushPublicKeyRead(BaseModel):

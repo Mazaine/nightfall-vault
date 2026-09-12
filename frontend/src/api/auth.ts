@@ -117,16 +117,16 @@ export async function verifyEmail(token: string) {
 }
 
 export type NotificationChannelPreference = { in_app: boolean; browser: boolean; email: boolean; push: boolean };
-export type NotificationPreferences = { categories: Record<string, NotificationChannelPreference> };
+export type NotificationPreferences = { categories: Record<string, NotificationChannelPreference>; push_defaults_eligible: boolean };
 
 export async function getNotificationPreferences() {
   return apiRequest<NotificationPreferences>("/api/notifications/preferences");
 }
 
-export async function updateNotificationPreferences(payload: NotificationPreferences) {
+export async function updateNotificationPreferences(payload: Pick<NotificationPreferences, "categories">) {
   return apiRequest<NotificationPreferences>("/api/notifications/preferences", {
     method: "PUT",
-    body: JSON.stringify(payload),
+    body: JSON.stringify({ categories: payload.categories }),
   });
 }
 
@@ -135,27 +135,30 @@ export type WebPushSubscriptionPayload = {
   keys: { p256dh: string; auth: string };
 };
 
-export function getWebPushPublicKey() {
-  return apiRequest<{ enabled: boolean; public_key: string | null }>("/api/notifications/push/public-key");
+export function getWebPushPublicKey(signal?: AbortSignal) {
+  return apiRequest<{ enabled: boolean; public_key: string | null }>("/api/notifications/push/public-key", { signal });
 }
 
-export function registerWebPushSubscription(payload: WebPushSubscriptionPayload) {
+export function registerWebPushSubscription(payload: WebPushSubscriptionPayload, signal?: AbortSignal) {
   return apiRequest<{ active: boolean }>("/api/notifications/push/subscriptions", {
     method: "POST",
     body: JSON.stringify(payload),
+    signal,
   });
 }
 
-export function getWebPushSubscriptionStatus(endpoint: string) {
+export function getWebPushSubscriptionStatus(endpoint: string, signal?: AbortSignal) {
   return apiRequest<{ active: boolean }>("/api/notifications/push/subscriptions/status", {
     method: "POST",
     body: JSON.stringify({ endpoint }),
+    signal,
   });
 }
 
-export function revokeWebPushSubscription(endpoint: string) {
+export function revokeWebPushSubscription(endpoint: string, signal?: AbortSignal) {
   return apiRequest<{ active: boolean }>("/api/notifications/push/subscriptions", {
     method: "DELETE",
     body: JSON.stringify({ endpoint }),
+    signal,
   });
 }

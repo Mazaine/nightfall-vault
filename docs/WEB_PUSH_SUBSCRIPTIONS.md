@@ -12,6 +12,10 @@ A rendszer szabványos Web Push protokollt használ VAPID-hitelesítéssel. Nem 
 6. A worker eszközönként külön feladatot dolgoz fel. Siker esetén frissíti a `last_success_at` értéket; 404/410 esetén soft revoke történik; átmeneti hibánál az outbox meglévő backoffja érvényesül.
 7. A service worker szigorúan validált, verziózott payloadból helyi ikonnal jelenít meg értesítést. Kattintáskor csak azonos originű, központilag engedélyezett belső cél nyitható meg.
 
+A production origin mellett a fejlesztői regisztráció kizárólag böngésző által biztonságosnak tekintett `localhost`, `127.0.0.1` vagy `::1` originen engedélyezett. Mindkét környezet ugyanazt a `/service-worker.js` fájlt és `/` scope-ot használja, a meglévő azonos scope-ú regisztrációt újrahasználva. Az azonos script eltérő scope-ú régi regisztrációja nem törlődik automatikusan és nem kap párhuzamos új regisztrációt: a UI kézi webhelyadat-törlést kér. A regisztráció, az `installing`/`waiting` worker aktiválása és a Web Push hálózati/böngészőműveletek műveletenként legfeljebb 10 másodpercig várnak; timeout vagy aktiválási hiba esetén a UI újrapróbálható állapotba tér vissza. A backend POST csak érvényes PushSubscription után történhet.
+
+Telepített PWA/TWA megjelenítési módban a sikeres, explicit eszközengedélyezés után a telefonos push kategóriák csak teljesen új, még egyetlen mentett notification-preference sorral sem rendelkező fióknál kapcsolnak be alapértelmezetten. Bármilyen korábbi beállítás konzervatívan konfiguráltnak számít, így az explicit kikapcsolás újrafeliratkozáskor sem íródik felül. Desktop böngészőben nincs automatikus kategóriamódosítás. A böngésző Notification engedélyét az alkalmazás nem kerülheti meg: megtagadott engedélynél subscription és preferenciaváltozás sem történik.
+
 Az endpoint és a böngészőkulcsok érzékeny technikai adatok: nem kerülnek API-válaszba, naplóba vagy frontend buildváltozóba. A VAPID privát kulcs kizárólag backend-secret. A lezárt képernyőn kategóriánként rögzített, általános magyar szöveg jelenik meg; licitösszeg, partneradat, moderációs részlet és más érzékeny adat nem kerül a payloadba.
 
 ## Konfiguráció

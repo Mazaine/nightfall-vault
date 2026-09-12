@@ -79,7 +79,10 @@ def delete_web_push_subscription(
 @router.get("/preferences", response_model=NotificationPreferenceMatrix)
 def get_preferences(current_user: User = Depends(require_active_user), db: Session = Depends(get_db)) -> NotificationPreferenceMatrix:
     rows = {row.category: row for row in db.scalars(select(NotificationPreference).where(NotificationPreference.user_id == current_user.id)).all()}
-    return NotificationPreferenceMatrix(categories={category: NotificationChannelPreference.model_validate(rows[category], from_attributes=True) if category in rows else NotificationChannelPreference() for category in CATEGORIES})
+    return NotificationPreferenceMatrix(
+        categories={category: NotificationChannelPreference.model_validate(rows[category], from_attributes=True) if category in rows else NotificationChannelPreference() for category in CATEGORIES},
+        push_defaults_eligible=not rows,
+    )
 
 
 @router.put("/preferences", response_model=NotificationPreferenceMatrix)

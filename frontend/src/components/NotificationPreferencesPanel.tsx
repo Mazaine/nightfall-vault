@@ -30,7 +30,7 @@ export function NotificationPreferencesPanel() {
   async function change(category: string, channel: keyof typeof channelLabels, checked: boolean) {
     if (!preferences || (channel === "browser" && checked && !browserGranted) || (channel === "push" && checked && !pushActive)) return;
     const previous = preferences;
-    const next = { categories: { ...preferences.categories, [category]: { ...preferences.categories[category], [channel]: checked } } };
+    const next = { ...preferences, categories: { ...preferences.categories, [category]: { ...preferences.categories[category], [channel]: checked } } };
     setPreferences(next);
     setMessage("");
     try { setPreferences(await updateNotificationPreferences(next)); setMessage("Értesítési beállítások mentve."); }
@@ -41,7 +41,7 @@ export function NotificationPreferencesPanel() {
     if (!browserSupported) { setMessage("Ez a böngésző nem támogatja a rendszerértesítéseket."); return; }
     const permission = await window.Notification.requestPermission();
     setMessage(permission === "granted" ? "A megnyitott alkalmazás értesítései engedélyezve." : "Ehhez a csatornához böngészőengedély szükséges.");
-    if (permission === "granted") setPreferences((value) => value ? { categories: { ...value.categories } } : value);
+    if (permission === "granted") setPreferences((value) => value ? { ...value, categories: { ...value.categories } } : value);
   }
 
   async function toggleWebPush() {
@@ -58,10 +58,11 @@ export function NotificationPreferencesPanel() {
         setPushActive(true);
         announceWebPushState(true);
         let preferenceWarning = "";
-        if (preferences && isInstalledAppDisplayMode()) {
+        if (preferences?.push_defaults_eligible && isInstalledAppDisplayMode()) {
           const enabledPreferences = {
             categories: Object.fromEntries(Object.entries(preferences.categories).map(([category, channels]) => [category, { ...channels, push: true }])),
-          } as NotificationPreferences;
+            push_defaults_eligible: false,
+          };
           try {
             setPreferences(await updateNotificationPreferences(enabledPreferences));
           } catch {

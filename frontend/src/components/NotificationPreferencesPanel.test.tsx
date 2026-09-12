@@ -19,7 +19,7 @@ const labels = ["Licitek", "Chat", "Követések", "Tranzakciók", "Értékelése
 const channels = ["Alkalmazáson belüli értesítés", "Értesítés megnyitott alkalmazásnál", "Telefonos push értesítés", "E-mail"];
 
 function matrix() {
-  return { categories: Object.fromEntries(categories.map((category) => [category, { in_app: true, browser: false, push: false, email: false }])) };
+  return { categories: Object.fromEntries(categories.map((category) => [category, { in_app: true, browser: false, push: false, email: false }])), push_defaults_eligible: true };
 }
 
 describe("NotificationPreferencesPanel", () => {
@@ -59,14 +59,64 @@ describe("NotificationPreferencesPanel", () => {
     expect(pushMocks.enableWebPush).toHaveBeenCalledTimes(2);
   });
 
+  it("folyamat közben letiltja, siker után visszaállítja a gombot", async () => {
+    let finish: ((value: { alreadySubscribed: boolean }) => void) | undefined;
+    pushMocks.enableWebPush.mockReturnValue(new Promise((resolve) => { finish = resolve; }));
+    render(<NotificationPreferencesPanel />);
+    fireEvent.click(await screen.findByRole("button", { name: "Bekapcsolás ezen az eszközön" }));
+    const busy = await screen.findByRole("button", { name: "Folyamatban…" });
+    expect(busy).toBeDisabled();
+    finish?.({ alreadySubscribed: false });
+    const enabled = await screen.findByRole("button", { name: "Kikapcsolás ezen az eszközön" });
+    expect(enabled).toBeEnabled();
+  });
+
+  it("sikeres bekapcsolás után a következő kattintás kikapcsolja az eszközt", async () => {
+    render(<NotificationPreferencesPanel />);
+    fireEvent.click(await screen.findByRole("button", { name: "Bekapcsolás ezen az eszközön" }));
+    const disable = await screen.findByRole("button", { name: "Kikapcsolás ezen az eszközön" });
+    fireEvent.click(disable);
+    await screen.findByText(/kikapcsolva ezen az eszközön/i);
+    expect(pushMocks.disableWebPush).toHaveBeenCalledOnce();
+    expect(pushMocks.announceWebPushState).toHaveBeenLastCalledWith(false);
+  });
+
   it("telepített alkalmazásban sikeres feliratkozás után alapból bekapcsolja a push kategóriákat", async () => {
     pushMocks.isInstalledAppDisplayMode.mockReturnValue(true);
     render(<NotificationPreferencesPanel />);
     fireEvent.click(await screen.findByRole("button", { name: "Bekapcsolás ezen az eszközön" }));
     await waitFor(() => expect(mocks.updateNotificationPreferences).toHaveBeenCalled());
-    const saved = mocks.updateNotificationPreferences.mock.calls.at(-1)?.[0] as ReturnType<typeof matrix>;
+    const calls = mocks.updateNotificationPreferences.mock.calls;
+    const saved = calls[calls.length - 1][0] as ReturnType<typeof matrix>;
     expect(Object.values(saved.categories).every((channels) => channels.push)).toBe(true);
     expect(pushMocks.announceWebPushState).toHaveBeenCalledWith(true);
+  });
+
+  it("korábban konfigurált mobil-PWA preferenciákat nem ír felül", async () => {
+    pushMocks.isInstalledAppDisplayMode.mockReturnValue(true);
+    mocks.getNotificationPreferences.mockResolvedValue({ ...matrix(), push_defaults_eligible: false });
+    render(<NotificationPreferencesPanel />);
+    fireEvent.click(await screen.findByRole("button", { name: "Bekapcsolás ezen az eszközön" }));
+    await screen.findByText(/feliratkozás elkészült ezen az eszközön/i);
+    expect(mocks.updateNotificationPreferences).not.toHaveBeenCalled();
+  });
+
+  it("desktop böngészőben nem alkalmaz mobil-PWA alapértékeket", async () => {
+    pushMocks.isInstalledAppDisplayMode.mockReturnValue(false);
+    render(<NotificationPreferencesPanel />);
+    fireEvent.click(await screen.findByRole("button", { name: "Bekapcsolás ezen az eszközön" }));
+    await screen.findByText(/feliratkozás elkészült ezen az eszközön/i);
+    expect(mocks.updateNotificationPreferences).not.toHaveBeenCalled();
+  });
+
+  it("megtagadott rendszerengedélynél nem indít engedélyezést vagy alapérték-mentést", async () => {
+    Object.defineProperty(window, "Notification", { configurable: true, value: { permission: "denied", requestPermission: vi.fn() } });
+    render(<NotificationPreferencesPanel />);
+    const button = await screen.findByRole("button", { name: "Bekapcsolás ezen az eszközön" });
+    expect(button).toBeDisabled();
+    fireEvent.click(button);
+    expect(pushMocks.enableWebPush).not.toHaveBeenCalled();
+    expect(mocks.updateNotificationPreferences).not.toHaveBeenCalled();
   });
 
   it("a kapcsoló módosítását azonnal menti és a szerverválasszal tartja meg", async () => {

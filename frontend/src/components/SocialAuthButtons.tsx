@@ -12,9 +12,23 @@ export function SocialAuthButtons({ link = false }: { link?: boolean }) {
   const [message, setMessage] = useState("");
 
   useEffect(() => {
+    let mounted = true;
+
     void listSocialProviders()
-      .then((items) => setConfigured(new Set(items.filter((item) => item.configured).map((item) => item.provider))))
-      .catch(() => setConfigured(new Set()));
+      .then((items) => {
+        if (mounted) {
+          setConfigured(new Set(items.filter((item) => item.configured).map((item) => item.provider)));
+        }
+      })
+      .catch(() => {
+        if (mounted) {
+          setConfigured(new Set());
+        }
+      });
+
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   return <div className="social-auth-section">
