@@ -5,6 +5,7 @@ import { useAuth } from "../AuthContext";
 import { NotificationPreferencesPanel } from "../components/NotificationPreferencesPanel";
 import { resetBidConfirmation } from "../utils/bidConfirmation";
 import { SocialAuthButtons } from "../components/SocialAuthButtons";
+import { PwaInstallProfileCard } from "../components/PwaInstallProfileCard";
 
 export function AccountProfilePage() {
   const { user, refreshMe, logout } = useAuth();
@@ -58,6 +59,7 @@ export function AccountProfilePage() {
         </form> : <dl className="profile-data-list"><div><dt>Megjelenítési név</dt><dd>{user?.full_name}</dd></div><div><dt>Felhasználónév</dt><dd>@{user?.username}</dd></div><div><dt>E-mail-cím</dt><dd>{user?.email}</dd></div></dl>}
         {message ? <p className="form-message" role="status">{message}</p> : null}
       </section>
+      <PwaInstallProfileCard />
       <section className="side-panel profile-settings-card" aria-labelledby="connected-accounts-title">
         <h2 id="connected-accounts-title">Kapcsolt fiókok</h2>
         <div className="connected-account-list">

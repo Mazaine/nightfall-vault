@@ -308,6 +308,10 @@ export function markNotificationCategoryRead(category: string) {
   return apiRequest<{ updated: number }>(`/api/notifications/mark-category-read?category=${encodeURIComponent(category)}`, { method: "POST" });
 }
 
+export function deleteReadNotifications() {
+  return apiRequest<{ deleted: number; retained: number }>("/api/notifications/read", { method: "DELETE" });
+}
+
 export function listWatchlist() {
   return apiRequest<WatchlistItem[]>("/api/watchlist");
 }

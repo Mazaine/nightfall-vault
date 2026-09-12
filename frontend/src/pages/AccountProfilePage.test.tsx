@@ -12,6 +12,7 @@ describe("AccountProfilePage", () => {
   beforeEach(() => { Object.values(mocks).forEach((mock) => mock.mockReset()); mocks.updateProfile.mockResolvedValue({}); mocks.refreshMe.mockResolvedValue({}); mocks.deleteProfile.mockResolvedValue({ message: "Törölve" }); });
   it("szerkeszti és menti a profiladatokat", async () => {
     render(<MemoryRouter><AccountProfilePage /></MemoryRouter>);
+    expect(screen.getByRole("heading", { name: "Mobilalkalmazás" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Adatok szerkesztése" }));
     fireEvent.change(screen.getByLabelText("Megjelenítési név"), { target: { value: "Anna Kártyabarlang" } });
     fireEvent.click(screen.getByRole("button", { name: "Mentés" }));

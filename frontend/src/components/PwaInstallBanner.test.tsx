@@ -3,6 +3,7 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PWA_INSTALL_DISMISSAL_KEY, PWA_INSTALL_DISMISSAL_MS, type BeforeInstallPromptEvent } from "../hooks/usePwaInstall";
 import { PwaInstallBanner } from "./PwaInstallBanner";
+import { PwaInstallProfileCard } from "./PwaInstallProfileCard";
 
 function setStandaloneMode(matches: boolean) {
   Object.defineProperty(window, "matchMedia", {
@@ -62,6 +63,23 @@ describe("PwaInstallBanner", () => {
     expect(prompt).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "Telepítés" }));
     await waitFor(() => expect(prompt).toHaveBeenCalledTimes(1));
+  });
+
+  it("makes the previously captured prompt available on the profile page", async () => {
+    render(<PwaInstallBanner />);
+    const { prompt } = dispatchInstallPrompt();
+    render(<PwaInstallProfileCard />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Mobilalkalmazás telepítése" }));
+
+    await waitFor(() => expect(prompt).toHaveBeenCalledTimes(1));
+    expect(await screen.findByText("Telepítve ezen az eszközön")).toBeInTheDocument();
+  });
+
+  it("kezelhető telepítési útmutatót mutat a profilban natív prompt nélkül", () => {
+    render(<PwaInstallProfileCard />);
+    expect(screen.getByRole("heading", { name: "Mobilalkalmazás" })).toBeInTheDocument();
+    expect(screen.getByText(/Android Chrome-ban nyisd meg a böngésző menüjét/i)).toBeInTheDocument();
   });
 
   it("hides after an accepted native install choice", async () => {

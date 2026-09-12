@@ -12,12 +12,14 @@ function unreadCount(items: NotificationItem[]) {
 }
 
 export function NotificationsPage() {
-  const { notifications: allNotifications, unreadCount: totalUnreadCount, markRead, markAllRead, markCategoryRead, showToast } = useNotifications();
+  const { notifications: allNotifications, unreadCount: totalUnreadCount, markRead, markAllRead, markCategoryRead, deleteRead, showToast } = useNotifications();
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [pendingNotificationId, setPendingNotificationId] = useState<number | null>(null);
   const [isMarkingAll, setIsMarkingAll] = useState(false);
+  const [isDeletingRead, setIsDeletingRead] = useState(false);
+  const [deleteMessage, setDeleteMessage] = useState("");
   const [pendingCategory, setPendingCategory] = useState<string | null>(null);
   const [category, setCategory] = useState("all");
   const [bidConfirmationDisabled, setBidConfirmationDisabled] = useState(() => isBidConfirmationDisabled());
@@ -104,13 +106,33 @@ export function NotificationsPage() {
     setCategory(nextCategory);
   }
 
+  async function removeReadHistory() {
+    if (isDeletingRead || !items.some((item) => item.is_read)) return;
+    if (!window.confirm("Biztosan törlöd a korábbi olvasott értesítéseidet?")) return;
+    setIsDeletingRead(true);
+    setDeleteMessage("");
+    setError("");
+    try {
+      const result = await deleteRead();
+      await load();
+      setDeleteMessage(result.retained > 0
+        ? `${result.deleted} olvasott értesítés törölve. ${result.retained} még kézbesítés alatt áll, ezért egyelőre megmaradt.`
+        : `${result.deleted} olvasott értesítés törölve.`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Az olvasott értesítéseket nem sikerült törölni.");
+    } finally {
+      setIsDeletingRead(false);
+    }
+  }
+
   const unreadByCategory = allNotifications.reduce<Record<string, number>>((counts, item) => {
     if (!item.is_read) counts[item.category] = (counts[item.category] ?? 0) + 1;
     return counts;
   }, {});
 
-  const hasPendingAction = pendingNotificationId !== null || isMarkingAll || pendingCategory !== null;
+  const hasPendingAction = pendingNotificationId !== null || isMarkingAll || isDeletingRead || pendingCategory !== null;
   const hasUnreadNotifications = totalUnreadCount > 0;
+  const hasReadNotifications = items.some((item) => item.is_read);
 
   return (
     <>
@@ -119,10 +141,16 @@ export function NotificationsPage() {
           <span className="eyebrow">Fiók</span>
           <h1>Értesítések</h1>
         </div>
-        <button className="button button-secondary" type="button" onClick={() => void markAll()} disabled={!hasUnreadNotifications || hasPendingAction}>
-          {isMarkingAll ? "Mentés..." : "Összes olvasott"}
-        </button>
+        <div className="form-actions">
+          <button className="button button-secondary" type="button" onClick={() => void markAll()} disabled={!hasUnreadNotifications || hasPendingAction}>
+            {isMarkingAll ? "Mentés..." : "Összes olvasott"}
+          </button>
+          <button className="button button-danger" type="button" onClick={() => void removeReadHistory()} disabled={!hasReadNotifications || hasPendingAction}>
+            {isDeletingRead ? "Törlés..." : "Olvasottak törlése"}
+          </button>
+        </div>
       </div>
+      {deleteMessage ? <p className="form-message" role="status">{deleteMessage}</p> : null}
       <div className="notification-filters" role="group" aria-label="Értesítési előzmények szűrése">
         {[["all", "Összes"], ["bids", "Licitek"], ["chat", "Chat"], ["follows", "Követések"], ["transactions", "Tranzakciók"], ["moderation", "Moderáció"], ["system", "Rendszer"]].map(([value, label]) => {
           const count = value === "all" ? totalUnreadCount : unreadByCategory[value] ?? 0;

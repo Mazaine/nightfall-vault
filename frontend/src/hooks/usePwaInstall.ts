@@ -17,6 +17,19 @@ type NavigatorWithStandalone = Navigator & {
   readonly standalone?: boolean;
 };
 
+let sharedDeferredPrompt: BeforeInstallPromptEvent | null = null;
+let sharedInstalled = false;
+const installStateSubscribers = new Set<() => void>();
+
+function publishInstallState() {
+  installStateSubscribers.forEach((subscriber) => subscriber());
+}
+
+function setSharedPrompt(prompt: BeforeInstallPromptEvent | null) {
+  sharedDeferredPrompt = prompt;
+  publishInstallState();
+}
+
 function isStandalone() {
   return window.matchMedia("(display-mode: standalone)").matches
     || (window.navigator as NavigatorWithStandalone).standalone === true;
@@ -48,7 +61,7 @@ function clearDismissal() {
 }
 
 export function usePwaInstall() {
-  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
+  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(sharedDeferredPrompt);
   const [dismissedUntil, setDismissedUntil] = useState(readDismissedUntil);
   const [standalone, setStandalone] = useState(isStandalone);
   const [installed, setInstalled] = useState(false);
@@ -57,40 +70,53 @@ export function usePwaInstall() {
   const dismissForNow = useCallback(() => {
     const nextAppearance = Date.now() + PWA_INSTALL_DISMISSAL_MS;
     setDismissedUntil(nextAppearance);
-    setDeferredPrompt(null);
     writeDismissedUntil(nextAppearance);
+    setSharedPrompt(null);
   }, []);
 
   useEffect(() => {
     const displayMode = window.matchMedia("(display-mode: standalone)");
+    const syncSharedState = () => {
+      setDeferredPrompt(sharedDeferredPrompt);
+      setInstalled(sharedInstalled);
+      setDismissedUntil(readDismissedUntil());
+    };
 
     const handleInstallPrompt = (rawEvent: Event) => {
       const event = rawEvent as BeforeInstallPromptEvent;
       event.preventDefault();
       if (isStandalone() || readDismissedUntil() > Date.now()) return;
-      setDeferredPrompt((current) => current ?? event);
+      if (!sharedDeferredPrompt) setSharedPrompt(event);
     };
 
     const handleInstalled = () => {
       promptInProgress.current = false;
-      setInstalled(true);
-      setDeferredPrompt(null);
+      sharedInstalled = true;
+      sharedDeferredPrompt = null;
       clearDismissal();
+      publishInstallState();
     };
 
     const handleDisplayModeChange = (event: MediaQueryListEvent) => {
       setStandalone(event.matches);
-      if (event.matches) setDeferredPrompt(null);
+      if (event.matches) setSharedPrompt(null);
     };
 
+    installStateSubscribers.add(syncSharedState);
+    syncSharedState();
     window.addEventListener("beforeinstallprompt", handleInstallPrompt);
     window.addEventListener("appinstalled", handleInstalled);
     displayMode.addEventListener("change", handleDisplayModeChange);
 
     return () => {
+      installStateSubscribers.delete(syncSharedState);
       window.removeEventListener("beforeinstallprompt", handleInstallPrompt);
       window.removeEventListener("appinstalled", handleInstalled);
       displayMode.removeEventListener("change", handleDisplayModeChange);
+      if (installStateSubscribers.size === 0) {
+        sharedDeferredPrompt = null;
+        sharedInstalled = false;
+      }
     };
   }, []);
 
@@ -98,13 +124,14 @@ export function usePwaInstall() {
     if (!deferredPrompt || promptInProgress.current) return;
 
     promptInProgress.current = true;
-    setDeferredPrompt(null);
+    setSharedPrompt(null);
     try {
       await deferredPrompt.prompt();
       const choice = await deferredPrompt.userChoice;
       if (choice.outcome === "accepted") {
-        setInstalled(true);
+        sharedInstalled = true;
         clearDismissal();
+        publishInstallState();
       } else {
         dismissForNow();
       }
@@ -117,6 +144,7 @@ export function usePwaInstall() {
 
   return {
     canInstall: Boolean(deferredPrompt) && !standalone && !installed && dismissedUntil <= Date.now(),
+    isInstalled: standalone || installed,
     dismissForNow,
     promptInstall,
   };

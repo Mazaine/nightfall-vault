@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   listMyNotifications: vi.fn(),
   markNotificationRead: vi.fn(),
   markAllNotificationsRead: vi.fn(),
+  deleteReadNotifications: vi.fn(),
   getUnreadNotificationCount: vi.fn(),
 }));
 
@@ -53,6 +54,7 @@ describe("NotificationsPage", () => {
     mocks.getUnreadNotificationCount.mockResolvedValue({ unread_count: 2 });
     mocks.markNotificationRead.mockResolvedValue({ ...notifications[0], is_read: true });
     mocks.markAllNotificationsRead.mockResolvedValue({ updated: 2 });
+    mocks.deleteReadNotifications.mockResolvedValue({ deleted: 1, retained: 0 });
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
       ok: true,
       body: { getReader: () => ({ read: () => new Promise(() => undefined) }) },
@@ -83,6 +85,24 @@ describe("NotificationsPage", () => {
     expect(screen.getByRole("link", { name: "Értesítések" })).toBeInTheDocument();
     expect(mocks.listMyNotifications).toHaveBeenCalledTimes(2);
     await waitFor(() => expect(mocks.markAllNotificationsRead).toHaveBeenCalledTimes(1));
+  });
+
+  it("megerősítés után törli a saját olvasott értesítési előzményt", async () => {
+    let deleted = false;
+    const history = [notifications[0], { ...notifications[1], is_read: true }];
+    mocks.listMyNotifications.mockImplementation(async () => deleted ? [notifications[0]] : history);
+    mocks.getUnreadNotificationCount.mockResolvedValue({ unread_count: 1 });
+    mocks.deleteReadNotifications.mockImplementation(async () => { deleted = true; return { deleted: 1, retained: 0 }; });
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    renderNotifications();
+    await screen.findByText("Második értesítés");
+
+    fireEvent.click(screen.getByRole("button", { name: "Olvasottak törlése" }));
+
+    await waitFor(() => expect(mocks.deleteReadNotifications).toHaveBeenCalledOnce());
+    await waitFor(() => expect(screen.queryByText("Második értesítés")).not.toBeInTheDocument());
+    expect(screen.getByText("1 olvasott értesítés törölve.")).toBeInTheDocument();
+    expect(screen.getByText("Első értesítés")).toBeInTheDocument();
   });
 
   it("a korábban eltárolt moderációs típuskódot is magyarul jeleníti meg", async () => {

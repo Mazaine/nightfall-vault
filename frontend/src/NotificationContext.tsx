@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router";
 import { API_BASE_URL, getStoredToken } from "./api/client";
-import { getUnreadNotificationCount, listMyNotifications, markAllNotificationsRead, markNotificationCategoryRead, markNotificationRead, type NotificationItem } from "./api/auctions";
+import { deleteReadNotifications, getUnreadNotificationCount, listMyNotifications, markAllNotificationsRead, markNotificationCategoryRead, markNotificationRead, type NotificationItem } from "./api/auctions";
 import { useAuth } from "./AuthContext";
 import { localizeModerationMessage } from "./utils/moderationFormat";
 import { isWebPushActiveForCurrentUser, WEB_PUSH_STATE_CHANNEL, WEB_PUSH_STATE_EVENT } from "./utils/webPush";
@@ -20,11 +20,12 @@ type NotificationContextValue = {
   markRead: (id: number) => Promise<void>;
   markAllRead: () => Promise<void>;
   markCategoryRead: (category: string) => Promise<void>;
+  deleteRead: () => Promise<{ deleted: number; retained: number }>;
   subscribe: (listener: Listener) => () => void;
   showToast: (toast: ToastInput) => void;
 };
 
-const EMPTY_CONTEXT: NotificationContextValue = { isRealtimeReady: false, notifications: [], unreadCount: 0, isLoading: false, reload: async () => undefined, markRead: async () => undefined, markAllRead: async () => undefined, markCategoryRead: async () => undefined, subscribe: () => () => undefined, showToast: () => undefined };
+const EMPTY_CONTEXT: NotificationContextValue = { isRealtimeReady: false, notifications: [], unreadCount: 0, isLoading: false, reload: async () => undefined, markRead: async () => undefined, markAllRead: async () => undefined, markCategoryRead: async () => undefined, deleteRead: async () => ({ deleted: 0, retained: 0 }), subscribe: () => () => undefined, showToast: () => undefined };
 const NotificationContext = createContext<NotificationContextValue>(EMPTY_CONTEXT);
 const LAST_EVENT_KEY = "nightfall:last-realtime-event";
 
@@ -178,6 +179,8 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
                   if (changed) setUnreadCount((count) => Math.max(0, count - changed));
                   return items.map((item) => item.category === category ? { ...item, is_read: true } : item);
                 });
+              } else if (event.type === "notifications_read_deleted") {
+                void reload();
               }
             }
           }
@@ -199,7 +202,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       sendHeartbeat();
     }, 25000);
     return () => { stopped = true; controller?.abort(); window.clearInterval(heartbeat); };
-  }, [isAuthenticated, navigate, user?.id, webPushActive, webPushStateReady]);
+  }, [isAuthenticated, navigate, reload, user?.id, webPushActive, webPushStateReady]);
 
   const markRead = useCallback(async (id: number) => {
     const existing = notifications.find((item) => item.id === id);
@@ -223,8 +226,14 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     try { await markNotificationCategoryRead(category); } catch (error) { await reload(); throw error; }
   }, [notifications, reload]);
 
+  const deleteRead = useCallback(async () => {
+    const result = await deleteReadNotifications();
+    await reload();
+    return result;
+  }, [reload]);
+
   const subscribe = useCallback((listener: Listener) => { listeners.current.add(listener); return () => { listeners.current.delete(listener); }; }, []);
-  const value = useMemo(() => ({ isRealtimeReady: true, notifications, unreadCount, isLoading, reload, markRead, markAllRead, markCategoryRead, subscribe, showToast }), [notifications, unreadCount, isLoading, reload, markRead, markAllRead, markCategoryRead, subscribe, showToast]);
+  const value = useMemo(() => ({ isRealtimeReady: true, notifications, unreadCount, isLoading, reload, markRead, markAllRead, markCategoryRead, deleteRead, subscribe, showToast }), [notifications, unreadCount, isLoading, reload, markRead, markAllRead, markCategoryRead, deleteRead, subscribe, showToast]);
 
   return <NotificationContext.Provider value={value}>{children}<div className="toast-region" aria-live="polite" aria-label="Értesítések">{toasts.map((toast) => <button className="nightfall-toast" type="button" key={toast.id} onClick={() => { navigate(toast.targetUrl); setToasts((items) => items.filter((item) => item.id !== toast.id)); }}><strong>{toast.title}</strong><span>{toast.message}</span></button>)}</div></NotificationContext.Provider>;
 }

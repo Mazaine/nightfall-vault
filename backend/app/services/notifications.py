@@ -1,10 +1,10 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import func, select, update
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.orm import Session
 
 from app.models.auction import Auction, Bid
-from app.models.notification import Notification
+from app.models.notification import Notification, NotificationOutbox
 from app.models.user import SellerFollow, User
 from app.services.demo_visibility import auction_visibility_clause
 from app.services.notification_dispatcher import dispatch_notification
@@ -71,6 +71,21 @@ def mark_notification_category_read(db: Session, user_id: int, category: str) ->
     if updated:
         publish_user_event(user_id, "notifications_read_category", {"category": category, "updated": updated})
     return updated
+
+
+def delete_read_notifications(db: Session, user_id: int) -> tuple[int, int]:
+    read_filter = (Notification.user_id == user_id, Notification.is_read.is_(True))
+    total = int(db.scalar(select(func.count()).select_from(Notification).where(*read_filter)) or 0)
+    active_delivery = select(NotificationOutbox.id).where(
+        NotificationOutbox.notification_id == Notification.id,
+        NotificationOutbox.status.in_(("pending", "processing", "retry")),
+    ).exists()
+    result = db.execute(delete(Notification).where(*read_filter, ~active_delivery))
+    deleted = int(result.rowcount or 0)
+    db.commit()
+    if deleted:
+        publish_user_event(user_id, "notifications_read_deleted", {"deleted": deleted, "retained": total - deleted})
+    return deleted, total - deleted
 
 
 def count_unread_notifications(db: Session, user_id: int) -> int:

@@ -18,7 +18,7 @@ from app.schemas.user import (
     WebPushSubscriptionEndpoint,
     WebPushSubscriptionState,
 )
-from app.services.notifications import count_unread_notifications, mark_all_notifications_read, mark_notification_category_read, mark_notification_read
+from app.services.notifications import count_unread_notifications, delete_read_notifications, mark_all_notifications_read, mark_notification_category_read, mark_notification_read
 from app.services.demo_visibility import auction_visibility_clause
 from app.services.web_push_subscriptions import revoke_web_push_subscription, upsert_web_push_subscription
 
@@ -123,6 +123,12 @@ def mark_category_read(category: str = Query(...), current_user: User = Depends(
     if category not in CATEGORIES:
         raise HTTPException(status_code=422, detail="Ismeretlen értesítési kategória.")
     return {"updated": mark_notification_category_read(db, current_user.id, category)}
+
+
+@router.delete("/read")
+def delete_read_notification_history(current_user: User = Depends(require_active_user), db: Session = Depends(get_db)) -> dict[str, int]:
+    deleted, retained = delete_read_notifications(db, current_user.id)
+    return {"deleted": deleted, "retained": retained}
 
 
 @router.post("/{notification_id}/read", response_model=NotificationRead)

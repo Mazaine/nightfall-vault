@@ -9,7 +9,7 @@ from app.core.security import create_access_token, hash_password
 from app.db.session import SessionLocal
 from app.main import app
 from app.models.auction import Auction, AuctionImage, AuctionMessage, AuctionReview, Bid, WatchlistItem
-from app.models.notification import Notification
+from app.models.notification import Notification, NotificationOutbox
 from app.models.security_log import AuditLog
 from app.models.user import User
 from app.services.auction_scheduler import close_expired_auctions
@@ -128,6 +128,38 @@ def test_notification_center_read_flow_and_idor() -> None:
     assert read_response.json()["is_read"] is True
     assert idor_response.status_code == 404
     assert mark_all_response.status_code == 200
+
+
+def test_users_can_delete_only_their_safely_delivered_read_notifications() -> None:
+    cleanup_test_data()
+    owner = create_test_user("owner-delete-notifications@production-test.local")
+    stranger = create_test_user("stranger-delete-notifications@production-test.local")
+    db = SessionLocal()
+    try:
+        deletable = Notification(user_id=owner.id, type="outbid", title="Regi", message="Olvasott", is_read=True, read_at=datetime.now(timezone.utc))
+        unread = Notification(user_id=owner.id, type="outbid", title="Uj", message="Olvasatlan")
+        retained = Notification(user_id=owner.id, type="outbid", title="Folyamatban", message="Kezbesites alatt", is_read=True, read_at=datetime.now(timezone.utc))
+        stranger_read = Notification(user_id=stranger.id, type="outbid", title="Mas tulajdona", message="Olvasott", is_read=True, read_at=datetime.now(timezone.utc))
+        db.add_all([deletable, unread, retained, stranger_read])
+        db.flush()
+        db.add(NotificationOutbox(notification_id=retained.id, event_key=f"delete-test:{retained.id}", task_type="push", status="pending"))
+        db.commit()
+        ids = deletable.id, unread.id, retained.id, stranger_read.id
+    finally:
+        db.close()
+
+    response = client.delete("/api/notifications/read", headers=auth_headers(owner))
+
+    assert response.status_code == 200
+    assert response.json() == {"deleted": 1, "retained": 1}
+    db = SessionLocal()
+    try:
+        assert db.get(Notification, ids[0]) is None
+        assert db.get(Notification, ids[1]) is not None
+        assert db.get(Notification, ids[2]) is not None
+        assert db.get(Notification, ids[3]) is not None
+    finally:
+        db.close()
 
 
 def test_watchlist_crud_and_private_auction_idor() -> None:
