@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { getNotificationPreferences, updateNotificationPreferences, type NotificationPreferences } from "../api/auth";
-import { announceWebPushState, disableWebPush, enableWebPush, getWebPushSupport, isWebPushActiveForCurrentUser } from "../utils/webPush";
+import { announceWebPushState, disableWebPush, enableWebPush, getWebPushSupport, isInstalledAppDisplayMode, isWebPushActiveForCurrentUser } from "../utils/webPush";
 
 const categoryLabels: Record<string, string> = {
   bids: "Licitek", chat: "Chat", follows: "Követések", transactions: "Tranzakciók",
@@ -57,7 +57,18 @@ export function NotificationPreferencesPanel() {
         const result = await enableWebPush();
         setPushActive(true);
         announceWebPushState(true);
-        setPushMessage(result.alreadySubscribed ? "A meglévő eszközfeliratkozás frissítve." : "A telefonos push feliratkozás elkészült ezen az eszközön.");
+        let preferenceWarning = "";
+        if (preferences && isInstalledAppDisplayMode()) {
+          const enabledPreferences = {
+            categories: Object.fromEntries(Object.entries(preferences.categories).map(([category, channels]) => [category, { ...channels, push: true }])),
+          } as NotificationPreferences;
+          try {
+            setPreferences(await updateNotificationPreferences(enabledPreferences));
+          } catch {
+            preferenceWarning = " A kategóriák automatikus bekapcsolása nem sikerült; próbáld meg őket kézzel engedélyezni.";
+          }
+        }
+        setPushMessage(`${result.alreadySubscribed ? "A meglévő eszközfeliratkozás frissítve." : "A telefonos push feliratkozás elkészült ezen az eszközön."}${preferenceWarning}`);
       }
     } catch (error) {
       setPushMessage(error instanceof Error ? error.message : "A telefonos push beállítása nem sikerült.");

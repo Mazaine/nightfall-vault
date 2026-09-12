@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { disableWebPush, enableWebPush, getWebPushSupport, urlBase64ToUint8Array } from "./webPush";
+import { disableWebPush, enableWebPush, getWebPushSupport, isInstalledAppDisplayMode, urlBase64ToUint8Array } from "./webPush";
 
 const api = vi.hoisted(() => ({
   getWebPushPublicKey: vi.fn(),
@@ -103,5 +103,10 @@ describe("Web Push subscription", () => {
 
   it("URL-safe base64 VAPID-kulcsot Uint8Array formára alakít", () => {
     expect(Array.from(urlBase64ToUint8Array("AQID-_8"))).toEqual([1, 2, 3, 251, 255]);
+  });
+
+  it("felismeri a telepített alkalmazás megjelenítési módját", () => {
+    Object.defineProperty(window, "matchMedia", { configurable: true, value: vi.fn().mockReturnValue({ matches: true }) });
+    expect(isInstalledAppDisplayMode()).toBe(true);
   });
 });
