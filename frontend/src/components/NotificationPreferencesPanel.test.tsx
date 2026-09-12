@@ -98,6 +98,7 @@ describe("NotificationPreferencesPanel", () => {
     render(<NotificationPreferencesPanel />);
     fireEvent.click(await screen.findByRole("button", { name: "Bekapcsolás ezen az eszközön" }));
     await screen.findByText(/feliratkozás elkészült ezen az eszközön/i);
+    expect(pushMocks.enableWebPush).toHaveBeenCalledOnce();
     expect(mocks.updateNotificationPreferences).not.toHaveBeenCalled();
   });
 
@@ -106,6 +107,7 @@ describe("NotificationPreferencesPanel", () => {
     render(<NotificationPreferencesPanel />);
     fireEvent.click(await screen.findByRole("button", { name: "Bekapcsolás ezen az eszközön" }));
     await screen.findByText(/feliratkozás elkészült ezen az eszközön/i);
+    expect(pushMocks.enableWebPush).toHaveBeenCalledOnce();
     expect(mocks.updateNotificationPreferences).not.toHaveBeenCalled();
   });
 

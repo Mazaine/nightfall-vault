@@ -43,6 +43,21 @@ describe("Web Push subscription", () => {
     configureBrowser();
   });
 
+  it.each([
+    ["Android Chrome böngészőből", "Mozilla/5.0 (Linux; Android 15) AppleWebKit/537.36 Chrome/140 Mobile Safari/537.36", false],
+    ["telepített PWA-ból", "Mozilla/5.0 (Linux; Android 15) AppleWebKit/537.36 Chrome/140 Mobile Safari/537.36", true],
+    ["támogatott desktop böngészőből", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/140 Safari/537.36", false],
+  ])("%s a támogatás és rendszerengedély alapján feliratkozhat", async (_label, userAgent, standalone) => {
+    Object.defineProperty(navigator, "userAgent", { configurable: true, value: userAgent });
+    Object.defineProperty(window, "matchMedia", { configurable: true, value: vi.fn().mockReturnValue({ matches: standalone }) });
+    const browser = configureBrowser();
+
+    await expect(enableWebPush()).resolves.toEqual({ alreadySubscribed: false });
+
+    expect(browser.subscribe).toHaveBeenCalledOnce();
+    expect(api.registerWebPushSubscription).toHaveBeenCalledOnce();
+  });
+
   it("felismeri a nem támogatott környezetet és a Notification hiányát", () => {
     Object.defineProperty(window, "Notification", { configurable: true, value: undefined });
     expect(getWebPushSupport().supported).toBe(false);
