@@ -27,6 +27,7 @@ class Notification(Base):
     in_app_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     browser_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     email_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    push_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     is_read: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
@@ -37,7 +38,7 @@ class Notification(Base):
 
 class NotificationOutbox(Base):
     __tablename__ = "notification_outbox"
-    TASK_TYPES = ("realtime", "email")
+    TASK_TYPES = ("realtime", "email", "push")
     STATUSES = ("pending", "processing", "retry", "delivered", "failed")
     __table_args__ = (
         CheckConstraint(f"task_type IN {TASK_TYPES}", name="ck_notification_outbox_task_type"),
@@ -48,6 +49,15 @@ class NotificationOutbox(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     notification_id: Mapped[int] = mapped_column(ForeignKey("notifications.id", ondelete="CASCADE"), nullable=False, index=True)
+    web_push_subscription_id: Mapped[int | None] = mapped_column(
+        ForeignKey(
+            "web_push_subscriptions.id",
+            name="fk_notification_outbox_web_push_subscription_id",
+            ondelete="CASCADE",
+        ),
+        nullable=True,
+        index=True,
+    )
     event_key: Mapped[str] = mapped_column(String(220), nullable=False)
     task_type: Mapped[str] = mapped_column(String(30), nullable=False)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending")
@@ -59,6 +69,7 @@ class NotificationOutbox(Base):
     last_error: Mapped[str | None] = mapped_column(String(120), nullable=True)
 
     notification = relationship("Notification")
+    web_push_subscription = relationship("WebPushSubscription")
 
 
 class NotificationPreference(Base):
@@ -75,6 +86,31 @@ class NotificationPreference(Base):
     in_app: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     browser: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     email: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    push: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+
+    user = relationship("User")
+
+
+class WebPushSubscription(Base):
+    __tablename__ = "web_push_subscriptions"
+    __table_args__ = (
+        UniqueConstraint("endpoint", name="uq_web_push_subscriptions_endpoint"),
+        CheckConstraint("endpoint LIKE 'https://%'", name="ck_web_push_subscriptions_https_endpoint"),
+        CheckConstraint("length(p256dh) BETWEEN 40 AND 512", name="ck_web_push_subscriptions_p256dh_length"),
+        CheckConstraint("length(auth) BETWEEN 8 AND 256", name="ck_web_push_subscriptions_auth_length"),
+        Index("ix_web_push_subscriptions_user_active", "user_id", "revoked_at"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    endpoint: Mapped[str] = mapped_column(String(2048), nullable=False)
+    p256dh: Mapped[str] = mapped_column(String(512), nullable=False)
+    auth: Mapped[str] = mapped_column(String(256), nullable=False)
+    user_agent: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    last_success_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     user = relationship("User")
 

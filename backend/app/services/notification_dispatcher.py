@@ -4,7 +4,8 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.models.notification import Notification, NotificationOutbox, NotificationPreference
+from app.core.config import settings
+from app.models.notification import Notification, NotificationOutbox, NotificationPreference, WebPushSubscription
 from app.models.user import User
 from app.models.auction import Auction
 from app.services.demo_visibility import can_access_demo_auctions
@@ -29,13 +30,14 @@ class DeliveryPreference:
     in_app: bool = True
     browser: bool = False
     email: bool = False
+    push: bool = False
 
 
 def preference_for(db: Session, user_id: int, category: str) -> DeliveryPreference:
     row = db.scalar(select(NotificationPreference).where(NotificationPreference.user_id == user_id, NotificationPreference.category == category))
     if row is None:
         return DeliveryPreference()
-    return DeliveryPreference(in_app=row.in_app, browser=row.browser, email=row.email)
+    return DeliveryPreference(in_app=row.in_app, browser=row.browser, email=row.email, push=row.push)
 
 
 def dispatch_notification(
@@ -62,11 +64,26 @@ def dispatch_notification(
         if existing is not None:
             return existing
 
+    push_configured = bool(
+        settings.web_push_enabled
+        and settings.vapid_public_key
+        and settings.vapid_private_key
+        and settings.vapid_subject
+    )
+    push_subscriptions = []
+    if user is not None and preference.push and push_configured:
+        push_subscriptions = list(db.scalars(
+            select(WebPushSubscription).where(
+                WebPushSubscription.user_id == user_id,
+                WebPushSubscription.revoked_at.is_(None),
+            ).order_by(WebPushSubscription.id.asc())
+        ).all())
+
     notification = Notification(
         user_id=user_id, auction_id=auction_id, type=notification_type, category=category,
         title=title, message=message, target_url=resolved_target,
         event_key=event_key, in_app_enabled=preference.in_app, browser_enabled=preference.browser,
-        email_enabled=preference.email and send_email,
+        email_enabled=preference.email and send_email, push_enabled=bool(push_subscriptions),
     )
     try:
         with db.begin_nested():
@@ -83,6 +100,13 @@ def dispatch_notification(
                     notification_id=notification.id,
                     event_key=delivery_event_key,
                     task_type="email",
+                ))
+            for subscription in push_subscriptions:
+                db.add(NotificationOutbox(
+                    notification_id=notification.id,
+                    web_push_subscription_id=subscription.id,
+                    event_key=f"{delivery_event_key}:push:{subscription.id}",
+                    task_type="push",
                 ))
             db.flush()
     except IntegrityError:

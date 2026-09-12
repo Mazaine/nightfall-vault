@@ -116,7 +116,7 @@ export async function verifyEmail(token: string) {
   return apiRequest<MessageResponse>(`/api/auth/verify-email?${query.toString()}`, { authenticated: false });
 }
 
-export type NotificationChannelPreference = { in_app: boolean; browser: boolean; email: boolean };
+export type NotificationChannelPreference = { in_app: boolean; browser: boolean; email: boolean; push: boolean };
 export type NotificationPreferences = { categories: Record<string, NotificationChannelPreference> };
 
 export async function getNotificationPreferences() {
@@ -127,5 +127,35 @@ export async function updateNotificationPreferences(payload: NotificationPrefere
   return apiRequest<NotificationPreferences>("/api/notifications/preferences", {
     method: "PUT",
     body: JSON.stringify(payload),
+  });
+}
+
+export type WebPushSubscriptionPayload = {
+  endpoint: string;
+  keys: { p256dh: string; auth: string };
+};
+
+export function getWebPushPublicKey() {
+  return apiRequest<{ enabled: boolean; public_key: string | null }>("/api/notifications/push/public-key");
+}
+
+export function registerWebPushSubscription(payload: WebPushSubscriptionPayload) {
+  return apiRequest<{ active: boolean }>("/api/notifications/push/subscriptions", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function getWebPushSubscriptionStatus(endpoint: string) {
+  return apiRequest<{ active: boolean }>("/api/notifications/push/subscriptions/status", {
+    method: "POST",
+    body: JSON.stringify({ endpoint }),
+  });
+}
+
+export function revokeWebPushSubscription(endpoint: string) {
+  return apiRequest<{ active: boolean }>("/api/notifications/push/subscriptions", {
+    method: "DELETE",
+    body: JSON.stringify({ endpoint }),
   });
 }

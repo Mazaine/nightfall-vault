@@ -43,6 +43,22 @@ def validate_production_settings(settings: Settings) -> None:
         smtp_ready = bool(settings.smtp_host and settings.smtp_user and settings.smtp_password and settings.smtp_from_email)
         if not (brevo_ready or smtp_ready):
             errors.append("Email delivery requires a complete Brevo or SMTP configuration.")
+    if settings.web_push_enabled:
+        if not settings.vapid_public_key:
+            errors.append("VAPID_PUBLIC_KEY is required when Web Push is enabled.")
+        if not settings.vapid_private_key:
+            errors.append("VAPID_PRIVATE_KEY is required when Web Push is enabled.")
+        subject = settings.vapid_subject or ""
+        parsed_subject = urlparse(subject)
+        valid_mailto = parsed_subject.scheme == "mailto" and "@" in parsed_subject.path and not parsed_subject.netloc
+        valid_https = parsed_subject.scheme == "https" and bool(parsed_subject.netloc)
+        if not (valid_mailto or valid_https):
+            errors.append("VAPID_SUBJECT must be a valid mailto: or HTTPS URI when Web Push is enabled.")
+        allowed_push_hosts = [value.strip() for value in settings.web_push_allowed_host_suffixes if value.strip()]
+        if not allowed_push_hosts or any("*" in value or "://" in value or "/" in value for value in allowed_push_hosts):
+            errors.append("WEB_PUSH_ALLOWED_HOST_SUFFIXES must contain plain host suffixes without wildcards or URLs.")
+        if not 1 <= settings.web_push_request_timeout_seconds <= 30:
+            errors.append("WEB_PUSH_REQUEST_TIMEOUT_SECONDS must be between 1 and 30.")
     if not settings.trusted_proxy_cidrs:
         errors.append("TRUSTED_PROXY_CIDRS must contain the reverse proxy network.")
     if settings.realtime_stream_max_length < 100:

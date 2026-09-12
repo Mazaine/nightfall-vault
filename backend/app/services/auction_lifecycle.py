@@ -18,6 +18,7 @@ PUBLIC_AUCTION_STATUSES = {"scheduled", "active", "ended", "sold", "unsold"}
 EDITABLE_OWNER_STATUSES = {"draft", "scheduled", "active"}
 CRITICAL_AUCTION_FIELDS = {"starting_price", "bid_increment", "buy_now_price", "starts_at"}
 FIVE_MINUTE_EXTENSION = timedelta(minutes=5)
+AUCTION_START_PAST_TOLERANCE = timedelta(minutes=10)
 
 ALLOWED_STATUS_TRANSITIONS: dict[str, set[str]] = {
     "draft": {"scheduled", "active", "cancelled"},
@@ -51,6 +52,20 @@ def normalize_datetime(value: datetime) -> datetime:
     if value.tzinfo is None or value.utcoffset() is None:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Az időpontnak időzóna-információt is tartalmaznia kell.")
     return value.astimezone(timezone.utc)
+
+
+def normalize_start_for_activation(starts_at: datetime, current_time: datetime | None = None) -> datetime:
+    """Clamp a slightly stale requested start to now, but reject genuinely old starts."""
+    requested_start = normalize_datetime(starts_at)
+    reference_time = normalize_datetime(current_time) if current_time is not None else now_utc()
+    if requested_start >= reference_time:
+        return requested_start
+    if reference_time - requested_start <= AUCTION_START_PAST_TOLERANCE:
+        return reference_time
+    raise HTTPException(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        detail="A kezdési idő legfeljebb 10 perccel lehet korábbi a jelenlegi időpontnál.",
+    )
 
 
 def normalize_money(value: Decimal) -> Decimal:
@@ -327,10 +342,14 @@ def validate_activation_requirements(auction: Auction) -> None:
 def activate_auction(db: Session, auction: Auction, user: User) -> Auction:
     require_owner_or_admin(auction, user)
     validate_activation_requirements(auction)
+    current_time = now_utc()
+    auction.starts_at = normalize_start_for_activation(auction.starts_at, current_time)
+    if auction.ends_at <= auction.starts_at:
+        raise HTTPException(status_code=422, detail="A lejárati időnek későbbinek kell lennie a tényleges kezdési időnél.")
     if user.role != "admin":
         from app.services.membership import require_available_auction_slot
         require_available_auction_slot(db, user)
-    next_status = "scheduled" if auction.starts_at > now_utc() else "active"
+    next_status = "scheduled" if auction.starts_at > current_time else "active"
     ensure_transition_allowed(auction.status, next_status)
     auction.status = next_status
     db.add(auction)

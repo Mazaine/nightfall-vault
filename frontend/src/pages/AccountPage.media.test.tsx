@@ -1,7 +1,8 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { AccountPage } from "./AccountPage";
+import { AccountPage, validateAuctionDates } from "./AccountPage";
+import { ApiError } from "../api/client";
 
 const mocks = vi.hoisted(() => ({
   listMyAuctions: vi.fn(),
@@ -108,11 +109,22 @@ describe("AccountPage media upload", () => {
 
     await waitFor(() => expect(mocks.showToast).toHaveBeenCalledWith({
       title: "Aukció létrehozva",
-      message: "A képek feltöltése és az aukció aktiválása vagy időzítése sikeres.",
+      message: "A képek feltöltése és az aukció időzítése sikeres.",
       targetUrl: "/account/auctions",
     }));
     expect(document.querySelector('input[name="title"]')).toHaveValue("");
     expect(screen.queryByText(/Cannot read properties of null/)).not.toBeInTheDocument();
+  });
+
+  it("azonnali indulásnál egyértelmű magyar visszajelzést ad", async () => {
+    mocks.activateAuction.mockResolvedValue({ id: 91, status: "active" });
+    renderPage();
+    fireEvent.change(await screen.findByLabelText("Képek"), { target: { files: [file("card.jpg", "image/jpeg")] } });
+    fillRequiredForm();
+    fireEvent.click(screen.getByRole("button", { name: "Aukció indítása vagy ütemezése" }));
+
+    expect(await screen.findByText("Az aukció azonnal elindult. A kezdési időt a szerver az aktuális időpontra állította.")).toBeInTheDocument();
+    expect(mocks.showToast).toHaveBeenCalledWith(expect.objectContaining({ message: "Az aukció azonnal elindult." }));
   });
 
   it("a piszkozat ismételt mentése ugyanazt az aukciót folytatja", async () => {
@@ -135,6 +147,27 @@ describe("AccountPage media upload", () => {
     await waitFor(() => expect(screen.getByText("huge.png: A kép pixelszáma túl nagy.")).toBeInTheDocument());
   });
 
+  it("a JPG képet image/jpeg MIME-típussal elfogadja és feltölti", async () => {
+    renderPage();
+    const jpg = file("facebook-photo.jpg", "image/jpeg");
+    fireEvent.change(await screen.findByLabelText("Képek"), { target: { files: [jpg] } });
+    fillRequiredForm();
+    fireEvent.click(screen.getByRole("button", { name: "Aukció indítása vagy ütemezése" }));
+
+    await waitFor(() => expect(mocks.uploadAuctionImage).toHaveBeenCalledWith(91, jpg, true));
+  });
+
+  it("a HTTP feltöltési hibát nem mutatja kapcsolódási hibaként", async () => {
+    mocks.uploadAuctionImage.mockRejectedValue(new ApiError("A feltöltött fájl túl nagy.", 413));
+    renderPage();
+    fireEvent.change(await screen.findByLabelText("Képek"), { target: { files: [file("large.jpg", "image/jpeg")] } });
+    fillRequiredForm();
+    fireEvent.click(screen.getByRole("button", { name: "Aukció indítása vagy ütemezése" }));
+
+    expect(await screen.findByText("large.jpg: A fájl túl nagy, vagy a kép méretei meghaladják a megengedett korlátot.")).toBeInTheDocument();
+    expect(screen.queryByText(/Nem sikerült kapcsolódni/)).not.toBeInTheDocument();
+  });
+
   it("magyar hibaüzenetet ad múltbeli kezdési dátumnál", async () => {
     renderPage();
     fillRequiredForm();
@@ -145,7 +178,7 @@ describe("AccountPage media upload", () => {
     fireEvent.change(screen.getByLabelText(/^Lejárati dátum/), { target: { value: localValue(future) } });
     fireEvent.click(screen.getByRole("button", { name: "Aukció indítása vagy ütemezése" }));
 
-    expect(await screen.findByText("A kezdési dátum nem lehet korábbi a jelenlegi időpontnál.")).toBeInTheDocument();
+    expect(await screen.findByText("A kezdési dátum legfeljebb 10 perccel lehet korábbi a jelenlegi időpontnál.")).toBeInTheDocument();
     expect(document.querySelector('input[name="starts_at"]')).toHaveAttribute("aria-invalid", "true");
     expect(mocks.createAuction).not.toHaveBeenCalled();
   });
@@ -223,5 +256,20 @@ describe("AccountPage media upload", () => {
     expect(editor.getByText("A leírás legalább 10 karakter hosszú legyen.")).toBeInTheDocument();
     expect(editor.getByRole("alert")).toHaveTextContent("Javítsd a megjelölt mezőket.");
     expect(mocks.updateAuction).not.toHaveBeenCalled();
+  });
+});
+
+describe("aukciókezdés frontend toleranciája", () => {
+  it("pontosan tíz perc múltat elfogad, a régebbi időt elutasítja", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-12T12:00:00Z"));
+    try {
+      expect(validateAuctionDates("2026-09-12T11:50:00Z", "2026-09-12T13:00:00Z")).toEqual({});
+      expect(validateAuctionDates("2026-09-12T11:49:59Z", "2026-09-12T13:00:00Z")).toEqual({
+        startsAt: "A kezdési dátum legfeljebb 10 perccel lehet korábbi a jelenlegi időpontnál.",
+      });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

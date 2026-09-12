@@ -8,10 +8,11 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.db.session import SessionLocal
-from app.models.notification import Notification, NotificationOutbox
+from app.models.notification import Notification, NotificationOutbox, WebPushSubscription
 from app.models.user import User
 from app.services.notification_email import send_notification_email, should_email
 from app.services.realtime import publish_user_event
+from app.services.web_push_delivery import WebPushDeliveryError, build_web_push_payload, send_web_push
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +41,7 @@ def notification_payload(notification: Notification) -> dict:
         "in_app_enabled": notification.in_app_enabled,
         "browser_enabled": notification.browser_enabled,
         "email_enabled": notification.email_enabled,
+        "push_enabled": notification.push_enabled,
         "created_at": notification.created_at.isoformat() if notification.created_at else None,
     }
 
@@ -93,6 +95,30 @@ def deliver_outbox_item(db: Session, item_id: int) -> None:
             raise DeliveryError("email_delivery_disabled", transient=False)
         if not send_notification_email(user, notification):
             raise DeliveryError("email_delivery_failed", transient=True)
+        return
+    if item.task_type == "push":
+        if not settings.web_push_enabled or not notification.push_enabled:
+            return
+        subscription = db.get(WebPushSubscription, item.web_push_subscription_id)
+        if (
+            subscription is None
+            or subscription.revoked_at is not None
+            or subscription.user_id != notification.user_id
+        ):
+            return
+        try:
+            payload = build_web_push_payload(notification)
+            send_web_push(subscription, payload)
+        except WebPushDeliveryError as exc:
+            if exc.expired:
+                subscription.revoked_at = now_utc()
+                subscription.updated_at = subscription.revoked_at
+                db.add(subscription)
+                return
+            raise DeliveryError(exc.code, transient=exc.transient) from exc
+        subscription.last_success_at = now_utc()
+        subscription.updated_at = subscription.last_success_at
+        db.add(subscription)
         return
     raise DeliveryError("unsupported_task_type", transient=False)
 

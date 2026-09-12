@@ -76,6 +76,17 @@ class Settings(BaseSettings):
     notification_outbox_base_backoff_seconds: int = 5
     notification_outbox_max_backoff_seconds: int = 900
     notification_outbox_lock_timeout_seconds: int = 300
+    web_push_enabled: bool = False
+    vapid_public_key: str | None = None
+    vapid_private_key: str | None = None
+    vapid_subject: str | None = None
+    web_push_subscription_rate_limit_per_minute: int = 10
+    web_push_request_timeout_seconds: float = 10.0
+    web_push_allowed_host_suffixes: list[str] = [
+        "fcm.googleapis.com",
+        "updates.push.services.mozilla.com",
+        "notify.windows.com",
+    ]
     google_oauth_client_id: str | None = None
     google_oauth_client_secret: str | None = None
     google_oauth_redirect_uri: str | None = None

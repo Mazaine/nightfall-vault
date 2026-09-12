@@ -4,6 +4,7 @@ import { API_BASE_URL, getStoredToken } from "./api/client";
 import { getUnreadNotificationCount, listMyNotifications, markAllNotificationsRead, markNotificationCategoryRead, markNotificationRead, type NotificationItem } from "./api/auctions";
 import { useAuth } from "./AuthContext";
 import { localizeModerationMessage } from "./utils/moderationFormat";
+import { isWebPushActiveForCurrentUser, WEB_PUSH_STATE_CHANNEL, WEB_PUSH_STATE_EVENT } from "./utils/webPush";
 
 export type RealtimeEvent = { id: string; type: string; payload: Record<string, unknown> };
 type Listener = (event: RealtimeEvent) => void;
@@ -31,6 +32,22 @@ export function isInAppNotificationEnabled(item: Pick<NotificationItem, "in_app_
   return item.in_app_enabled !== false;
 }
 
+export function shouldShowSseSystemNotification(notificationId: number, storage: Storage = window.localStorage, currentTime = Date.now()) {
+  const key = `nightfall:sse-system-notification:${notificationId}`;
+  try {
+    const previous = Number(storage.getItem(key) || 0);
+    if (previous > 0 && currentTime - previous < 60_000) return false;
+    storage.setItem(key, String(currentTime));
+    return true;
+  } catch {
+    return true;
+  }
+}
+
+export function sseSystemNotificationIsFallback(pushEnabled: boolean | undefined, webPushActive: boolean) {
+  return !(pushEnabled && webPushActive);
+}
+
 function parseEvent(block: string): RealtimeEvent | null {
   const lines = block.split("\n");
   const id = lines.find((line) => line.startsWith("id:"))?.slice(3).trim() ?? "";
@@ -47,6 +64,8 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   const [unreadCount, setUnreadCount] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [toasts, setToasts] = useState<Toast[]>([]);
+  const [webPushActive, setWebPushActive] = useState(false);
+  const [webPushStateReady, setWebPushStateReady] = useState(false);
   const listeners = useRef(new Set<Listener>());
   const seenEventIds = useRef(new Set<string>());
 
@@ -69,7 +88,34 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   useEffect(() => { if (isAuthenticated) void reload(); else { setNotifications([]); setUnreadCount(0); } }, [isAuthenticated, reload]);
 
   useEffect(() => {
-    if (!isAuthenticated) return;
+    let cancelled = false;
+    setWebPushStateReady(false);
+    if (!isAuthenticated) {
+      setWebPushActive(false);
+      setWebPushStateReady(true);
+      return;
+    }
+    void isWebPushActiveForCurrentUser().then((active) => {
+      if (!cancelled) setWebPushActive(active);
+    }).catch(() => {
+      if (!cancelled) setWebPushActive(false);
+    }).finally(() => {
+      if (!cancelled) setWebPushStateReady(true);
+    });
+    const update = (value: unknown) => {
+      const active = Boolean((value as { active?: unknown } | null)?.active);
+      setWebPushActive(active);
+      setWebPushStateReady(true);
+    };
+    const onLocalState = (event: Event) => update((event as CustomEvent).detail);
+    window.addEventListener(WEB_PUSH_STATE_EVENT, onLocalState);
+    const channel = "BroadcastChannel" in window ? new BroadcastChannel(WEB_PUSH_STATE_CHANNEL) : null;
+    if (channel) channel.onmessage = (event) => update(event.data);
+    return () => { cancelled = true; window.removeEventListener(WEB_PUSH_STATE_EVENT, onLocalState); channel?.close(); };
+  }, [isAuthenticated, user?.id]);
+
+  useEffect(() => {
+    if (!isAuthenticated || !webPushStateReady) return;
     let stopped = false;
     let controller: AbortController | null = null;
     let retryMs = 1000;
@@ -114,8 +160,8 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
                   setToasts((items) => [...items.filter((entry) => entry.id !== toast.id), toast].slice(-4));
                   window.setTimeout(() => setToasts((items) => items.filter((entry) => entry.id !== toast.id)), 6500);
                 }
-                if (item.browser_enabled && Notification.permission === "granted" && document.visibilityState !== "visible") {
-                  const browserNotification = new Notification(item.title, { body: localizeModerationMessage(item.message), tag: `nightfall-${item.id}` });
+                if (sseSystemNotificationIsFallback(item.push_enabled, webPushActive) && item.browser_enabled && typeof window.Notification !== "undefined" && window.Notification.permission === "granted" && document.visibilityState !== "visible" && shouldShowSseSystemNotification(item.id)) {
+                  const browserNotification = new window.Notification(item.title, { body: localizeModerationMessage(item.message), tag: `nightfall-${item.id}` });
                   browserNotification.onclick = () => { window.focus(); navigate(targetUrl); browserNotification.close(); };
                 }
               } else if (event.type === "notification_read") {
@@ -153,7 +199,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       sendHeartbeat();
     }, 25000);
     return () => { stopped = true; controller?.abort(); window.clearInterval(heartbeat); };
-  }, [isAuthenticated, navigate, user?.id]);
+  }, [isAuthenticated, navigate, user?.id, webPushActive, webPushStateReady]);
 
   const markRead = useCallback(async (id: number) => {
     const existing = notifications.find((item) => item.id === id);

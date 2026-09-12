@@ -7,26 +7,29 @@ vi.mock("../api/auth", () => ({ ...mocks }));
 
 const categories = ["bids", "chat", "follows", "transactions", "reviews", "moderation", "system"];
 const labels = ["Licitek", "Chat", "Követések", "Tranzakciók", "Értékelések", "Moderáció", "Rendszer"];
-const channels = ["Alkalmazáson belül", "Böngésző", "E-mail"];
+const channels = ["Alkalmazáson belüli értesítés", "Értesítés megnyitott alkalmazásnál", "Telefonos push értesítés", "E-mail"];
 
 function matrix() {
-  return { categories: Object.fromEntries(categories.map((category) => [category, { in_app: true, browser: false, email: false }])) };
+  return { categories: Object.fromEntries(categories.map((category) => [category, { in_app: true, browser: false, push: false, email: false }])) };
 }
 
 describe("NotificationPreferencesPanel", () => {
   beforeEach(() => {
+    Object.defineProperty(window, "isSecureContext", { configurable: true, value: false });
     Object.defineProperty(window, "Notification", { configurable: true, value: { permission: "granted", requestPermission: vi.fn().mockResolvedValue("granted") } });
     mocks.getNotificationPreferences.mockReset().mockResolvedValue(matrix());
     mocks.updateNotificationPreferences.mockReset().mockImplementation(async (payload) => payload);
   });
 
-  it("mind a hét kategóriához mindhárom csatornakapcsolót megjeleníti", async () => {
+  it("mind a hét kategóriához mind a négy csatornakapcsolót megjeleníti", async () => {
     render(<NotificationPreferencesPanel />);
     await screen.findByText("Licitek");
     for (const category of labels) {
       for (const channel of channels) expect(screen.getByLabelText(`${category} – ${channel}`)).toBeInTheDocument();
     }
-    expect(screen.getAllByRole("checkbox")).toHaveLength(21);
+    expect(screen.getAllByRole("checkbox")).toHaveLength(28);
+    expect(screen.getByRole("heading", { name: "Telefonos push ezen az eszközön" })).toBeInTheDocument();
+    expect(screen.getByText(/tényleges háttérbeli kézbesítés egy következő/i)).toBeInTheDocument();
   });
 
   it("a kapcsoló módosítását azonnal menti és a szerverválasszal tartja meg", async () => {

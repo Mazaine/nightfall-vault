@@ -231,6 +231,7 @@ def test_scheduler_ignores_withdrawn_bid_and_closes_without_winner() -> None:
         assert row is not None
         row.five_minute_rule_enabled = False
         row.ends_at = datetime.now(timezone.utc) - timedelta(seconds=1)
+        row.starts_at = row.ends_at - timedelta(minutes=1)
         db.commit()
         assert close_expired_auctions(db) == 1
         db.refresh(row)

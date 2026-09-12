@@ -123,10 +123,49 @@ class NotificationChannelPreference(BaseModel):
     in_app: bool = True
     browser: bool = False
     email: bool = False
+    push: bool = False
 
 
 class NotificationPreferenceMatrix(BaseModel):
     categories: dict[str, NotificationChannelPreference]
+
+
+class WebPushPublicKeyRead(BaseModel):
+    enabled: bool
+    public_key: str | None = None
+
+
+class WebPushSubscriptionKeys(BaseModel):
+    p256dh: str = Field(min_length=40, max_length=512, pattern=r"^[A-Za-z0-9_-]+={0,2}$")
+    auth: str = Field(min_length=8, max_length=256, pattern=r"^[A-Za-z0-9_-]+={0,2}$")
+
+
+def _validate_web_push_endpoint(value: str) -> str:
+    if value != value.strip():
+        raise ValueError("A push endpoint nem tartalmazhat környező szóközt.")
+    from app.services.web_push_security import PushEndpointValidationError, validate_push_service_endpoint
+
+    try:
+        return validate_push_service_endpoint(value, resolve_dns=False)
+    except PushEndpointValidationError as exc:
+        raise ValueError("Csak támogatott, biztonságos HTTPS push endpoint fogadható el.") from exc
+
+
+class WebPushSubscriptionEndpoint(BaseModel):
+    endpoint: str = Field(min_length=12, max_length=2048)
+
+    @field_validator("endpoint")
+    @classmethod
+    def validate_endpoint(cls, value: str) -> str:
+        return _validate_web_push_endpoint(value)
+
+
+class WebPushSubscriptionCreate(WebPushSubscriptionEndpoint):
+    keys: WebPushSubscriptionKeys
+
+
+class WebPushSubscriptionState(BaseModel):
+    active: bool
 
 
 class UserProfileUpdate(BaseModel):

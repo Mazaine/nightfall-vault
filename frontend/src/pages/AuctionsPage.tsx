@@ -1,4 +1,4 @@
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { listAuctions, type Auction, type AuctionListParams, type HatalomEra } from "../api/auctions";
 import { createSavedSearch, deleteSavedSearch, listSavedSearches, type SavedSearch } from "../api/searches";
@@ -58,6 +58,32 @@ const PUBLIC_STATUS_ORDER: Partial<Record<Auction["status"], number>> = {
   scheduled: 1,
 };
 
+const MOBILE_FILTER_MEDIA_QUERY = "(max-width: 760px)";
+
+function isMobileFilterViewport() {
+  return typeof window !== "undefined" && Boolean(window.matchMedia?.(MOBILE_FILTER_MEDIA_QUERY).matches);
+}
+
+function activeFilterEntries(filters: FilterState) {
+  const condition = CARD_CONDITIONS.find((item) => item.value === filters.condition)?.nameHu;
+  const eraLabels: Record<string, string> = { retro: "RETRO", ujkor: "Újkor", uj_nemzedek: "Új nemzedék" };
+  return [
+    filters.q ? { key: "q", label: `Keresés: ${filters.q}` } : null,
+    filters.title ? { key: "title", label: `Cím: ${filters.title}` } : null,
+    filters.description ? { key: "description", label: `Leírás: ${filters.description}` } : null,
+    filters.category ? { key: "category", label: `Kategória: ${filters.category}` } : null,
+    filters.hatalom_era ? { key: "hatalom_era", label: `Korszak: ${eraLabels[filters.hatalom_era]}` } : null,
+    filters.condition ? { key: "condition", label: `Állapot: ${condition ?? filters.condition}` } : null,
+    filters.min_price ? { key: "min_price", label: `Minimum ár: ${filters.min_price} Ft` } : null,
+    filters.max_price ? { key: "max_price", label: `Maximum ár: ${filters.max_price} Ft` } : null,
+    filters.min_bids ? { key: "min_bids", label: `Minimum licit: ${filters.min_bids}` } : null,
+    filters.buy_now ? { key: "buy_now", label: filters.buy_now === "true" ? "Csak villámáras" : "Villámár nélkül" } : null,
+    filters.soon_ending ? { key: "soon_ending", label: "Hamarosan lejár" } : null,
+    filters.new_only ? { key: "new_only", label: "Új aukciók" } : null,
+    filters.sort !== INITIAL_FILTERS.sort ? { key: "sort", label: `Rendezés: ${SORT_OPTIONS.find(([value]) => value === filters.sort)?.[1] ?? filters.sort}` } : null,
+  ].filter((item): item is { key: keyof FilterState; label: string } => item !== null);
+}
+
 function orderAuctionsByStatus(items: Auction[]) {
   return [...items].sort((left, right) => (PUBLIC_STATUS_ORDER[left.status] ?? 4) - (PUBLIC_STATUS_ORDER[right.status] ?? 4));
 }
@@ -103,6 +129,24 @@ export function AuctionsPage() {
   const [savedSearches, setSavedSearches] = useState<SavedSearch[]>([]);
   const [selectedSavedSearchId, setSelectedSavedSearchId] = useState<number | null>(null);
   const [showMoreSavedSearches, setShowMoreSavedSearches] = useState(false);
+  const [isMobile, setIsMobile] = useState(isMobileFilterViewport);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const resultsRef = useRef<HTMLDivElement>(null);
+  const appliedFilterEntries = useMemo(() => activeFilterEntries(appliedFilters), [appliedFilters]);
+
+  useEffect(() => {
+    if (!window.matchMedia) return;
+    const mediaQuery = window.matchMedia(MOBILE_FILTER_MEDIA_QUERY);
+    const updateViewport = () => setIsMobile(mediaQuery.matches);
+    updateViewport();
+    mediaQuery.addEventListener?.("change", updateViewport);
+    return () => mediaQuery.removeEventListener?.("change", updateViewport);
+  }, []);
+
+  const focusResultsOnMobile = () => {
+    if (!isMobile) return;
+    window.requestAnimationFrame(() => resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  };
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -149,17 +193,20 @@ export function AuctionsPage() {
   }, [load]);
 
   useEffect(() => {
+    if (isMobile) return;
     const timeout = window.setTimeout(() => {
       setOffset(0);
       setAppliedFilters(filters);
     }, 250);
     return () => window.clearTimeout(timeout);
-  }, [filters]);
+  }, [filters, isMobile]);
 
   const submitFilters = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setOffset(0);
     setAppliedFilters(filters);
+    if (isMobile) setFiltersOpen(false);
+    focusResultsOnMobile();
   };
 
   const resetFilters = () => {
@@ -167,6 +214,7 @@ export function AuctionsPage() {
     setAppliedFilters(INITIAL_FILTERS);
     setSelectedSavedSearchId(null);
     setOffset(0);
+    focusResultsOnMobile();
   };
 
   const applySavedSearch = (item: SavedSearch) => {
@@ -194,6 +242,21 @@ export function AuctionsPage() {
     setFilters(nextFilters);
     setAppliedFilters(nextFilters);
     setOffset(0);
+    if (isMobile) setFiltersOpen(false);
+    focusResultsOnMobile();
+  };
+
+  const removeAppliedFilter = (key: keyof FilterState) => {
+    const nextFilters = {
+      ...appliedFilters,
+      [key]: INITIAL_FILTERS[key],
+      ...(key === "category" ? { hatalom_era: "" } : {}),
+    } as FilterState;
+    setFilters(nextFilters);
+    setAppliedFilters(nextFilters);
+    setSelectedSavedSearchId(null);
+    setOffset(0);
+    focusResultsOnMobile();
   };
 
   const saveSearch = async () => {
@@ -241,7 +304,17 @@ export function AuctionsPage() {
         <Link className="button button-primary" to="/auctions/create">Aukció létrehozása</Link>
       </div>
 
-      <form className="filter-panel side-panel" onSubmit={submitFilters}>
+      <button
+        className="mobile-filter-toggle side-panel"
+        type="button"
+        aria-expanded={!isMobile || filtersOpen}
+        aria-controls="auction-filter-panel"
+        onClick={() => setFiltersOpen((open) => !open)}
+      >
+        <span>Keresés és szűrés</span>
+        <span className="filter-count" aria-label={`${appliedFilterEntries.length} aktív szűrő`}>{appliedFilterEntries.length}</span>
+      </button>
+      <form id="auction-filter-panel" className="filter-panel side-panel" onSubmit={submitFilters} hidden={isMobile && !filtersOpen}>
         {isAuthenticated && savedSearches.length ? <div className="saved-search-strip filter-wide" aria-label="Mentett keresések">
           <strong>Mentett keresések</strong>
           <div className="filter-quick-chips">
@@ -325,11 +398,20 @@ export function AuctionsPage() {
         </label>
         <div className="filter-actions">
           <button className="button button-secondary" type="button" onClick={resetFilters}>Alaphelyzet</button>
+          <button className="button button-primary" type="submit">Szűrők alkalmazása</button>
           {isAuthenticated ? <button className="button button-ghost" type="button" onClick={saveSearch}>Keresés mentése</button> : null}
           {isAuthenticated ? <button className="button button-danger" type="button" disabled={selectedSavedSearchId === null} onClick={() => void removeSelectedSearch()}>Keresés törlése</button> : null}
         </div>
       </form>
       {saveMessage ? <p className="form-message" role="status">{saveMessage}</p> : null}
+
+      <div ref={resultsRef} className="auction-results-start" tabIndex={-1}>
+        {appliedFilterEntries.length > 0 ? <div className="active-filter-summary" aria-label="Aktív szűrők">
+          <div className="active-filter-chips">
+            {appliedFilterEntries.map((item) => <button type="button" className="active-filter-chip" aria-label={`${item.label} eltávolítása`} onClick={() => removeAppliedFilter(item.key)} key={item.key}>{item.label}<span aria-hidden="true"> ×</span></button>)}
+          </div>
+          <button className="button button-ghost" type="button" onClick={resetFilters}>Szűrők törlése</button>
+        </div> : null}
 
       {isLoading ? <LoadingState label="Aukciók betöltése" cards={4} /> : null}
       {error ? <ErrorState message={error} onRetry={() => void load()} /> : null}
@@ -337,6 +419,8 @@ export function AuctionsPage() {
 
       <div className="auction-grid page-grid" aria-busy={isLoading}>
         {auctions.map((auction, index) => <AuctionCard item={toAuctionCardItem(auction)} index={index} detailPath={`/auctions/${auction.id}`} key={auction.id} />)}
+      </div>
+
       </div>
 
       {!isLoading && total > auctions.length ? (

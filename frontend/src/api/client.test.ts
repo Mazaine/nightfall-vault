@@ -25,6 +25,24 @@ describe("apiRequest magyar hibaállapotok", () => {
     });
   });
 
+  it("a proxy nem JSON-os 413 válaszát nem nevezi hálózati hibának", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("Request Entity Too Large", { status: 413 })));
+
+    await expect(apiRequest("/api/upload", { method: "POST", body: new FormData() })).rejects.toMatchObject({
+      status: 413,
+      message: "A feltöltött fájl túl nagy.",
+    });
+  });
+
+  it("az ismeretlen HTTP elutasítást megkülönbözteti a kapcsolódási hibától", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("Bad Request", { status: 400 })));
+
+    await expect(apiRequest("/api/upload", { authenticated: false })).rejects.toMatchObject({
+      status: 400,
+      message: "A kiszolgáló visszautasította a kérést. Ellenőrizd az adatokat, majd próbáld újra.",
+    });
+  });
+
   it("magyarra fordítja a gyakori validációs mezőhibákat", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({
       detail: { message: "Validation error", errors: { email: "Value is not a valid email address", title: "Field required" } },

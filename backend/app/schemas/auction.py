@@ -320,6 +320,7 @@ class NotificationRead(BaseModel):
     in_app_enabled: bool = True
     browser_enabled: bool = False
     email_enabled: bool = False
+    push_enabled: bool = False
     is_read: bool
     created_at: datetime
     is_demo: bool = False

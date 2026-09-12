@@ -33,6 +33,34 @@ def test_valid_production_configuration() -> None:
     validate_production_settings(production_settings())
 
 
+def test_valid_web_push_production_configuration() -> None:
+    validate_production_settings(production_settings(
+        web_push_enabled=True,
+        vapid_public_key="public-key",
+        vapid_private_key="private-key",
+        vapid_subject="mailto:security@example.invalid",
+    ))
+
+
+@pytest.mark.parametrize("override", [
+    {"vapid_public_key": None},
+    {"vapid_private_key": None},
+    {"vapid_subject": None},
+    {"vapid_subject": "security@example.invalid"},
+    {"vapid_subject": "http://example.invalid"},
+])
+def test_incomplete_web_push_production_configuration_is_rejected(override) -> None:
+    values = dict(
+        web_push_enabled=True,
+        vapid_public_key="public-key",
+        vapid_private_key="private-key",
+        vapid_subject="https://example.invalid/push-contact",
+    )
+    values.update(override)
+    with pytest.raises(RuntimeError, match="Invalid production configuration"):
+        validate_production_settings(production_settings(**values))
+
+
 def test_developer_surface_is_disabled_in_production() -> None:
     assert developer_surface_enabled("production") is False
     assert developer_surface_enabled("development") is True

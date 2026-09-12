@@ -3,7 +3,7 @@ from app.models.auction import Auction, AuctionBidExclusion, AuctionImage, Aucti
 from app.models.email_verification_token import EmailVerificationToken
 from app.models.newsletter import NewsletterCampaign, NewsletterSubscriber
 from app.models.moderation import ModerationAction, Report, UserBlock, UserStrike
-from app.models.notification import Notification, NotificationOutbox, NotificationPreference, WatchlistReminder
+from app.models.notification import Notification, NotificationOutbox, NotificationPreference, WatchlistReminder, WebPushSubscription
 from app.models.order import Order, OrderItem
 from app.models.password_reset_token import PasswordResetToken
 from app.models.pickup_point import PickupPoint
@@ -37,6 +37,7 @@ __all__ = [
     "NotificationOutbox",
     "NotificationPreference",
     "WatchlistReminder",
+    "WebPushSubscription",
     "Order",
     "OrderItem",
     "PasswordResetToken",

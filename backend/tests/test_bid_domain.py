@@ -273,6 +273,7 @@ def test_expired_active_auction_sets_winner_from_highest_bid() -> None:
         assert auction_row is not None
         auction_row.five_minute_rule_enabled = False
         auction_row.ends_at = datetime.now(timezone.utc) - timedelta(seconds=1)
+        auction_row.starts_at = auction_row.ends_at - timedelta(minutes=1)
         db.add(auction_row)
         db.commit()
     finally:
@@ -297,6 +298,7 @@ def test_expired_active_auction_without_bid_becomes_unsold() -> None:
         assert auction_row is not None
         auction_row.five_minute_rule_enabled = False
         auction_row.ends_at = datetime.now(timezone.utc) - timedelta(seconds=1)
+        auction_row.starts_at = auction_row.ends_at - timedelta(minutes=1)
         db.add(auction_row)
         db.commit()
     finally:
@@ -374,6 +376,7 @@ def test_scheduler_closes_expired_active_auction_as_sold() -> None:
         assert auction_row is not None
         auction_row.five_minute_rule_enabled = False
         auction_row.ends_at = datetime.now(timezone.utc) - timedelta(seconds=1)
+        auction_row.starts_at = auction_row.ends_at - timedelta(minutes=1)
         db.add(auction_row)
         db.commit()
         closed_count = close_expired_auctions(db)
@@ -397,6 +400,7 @@ def test_scheduler_closes_expired_active_auction_as_unsold() -> None:
         assert auction_row is not None
         auction_row.five_minute_rule_enabled = False
         auction_row.ends_at = datetime.now(timezone.utc) - timedelta(seconds=1)
+        auction_row.starts_at = auction_row.ends_at - timedelta(minutes=1)
         db.add(auction_row)
         db.commit()
         closed_count = close_expired_auctions(db)
@@ -442,6 +446,7 @@ def test_five_minute_rule_restarts_after_every_last_minute_bid() -> None:
         assert auction_row.status == "active"
 
         auction_row.ends_at = datetime.now(timezone.utc) - timedelta(seconds=1)
+        auction_row.starts_at = auction_row.ends_at - timedelta(minutes=1)
         db.add(auction_row)
         db.commit()
         closed_count = close_expired_auctions(db)

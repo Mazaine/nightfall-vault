@@ -87,9 +87,12 @@ function normalizeApiErrorMessage(value: unknown, status: number) {
   if (status === 403) return "Nincs jogosultságod ehhez a művelethez.";
   if (status === 404) return "A keresett adat nem található.";
   if (status === 409) return "A művelet az adat jelenlegi állapota miatt nem végezhető el.";
+  if (status === 413) return "A feltöltött fájl túl nagy.";
+  if (status === 415) return "A feltöltött fájl formátuma nem támogatott.";
   if (status === 422) return "Ellenőrizd a megadott adatokat.";
   if (status >= 500) return "A kiszolgáló átmenetileg nem érhető el. Próbáld újra később.";
-  return "Nem sikerült kapcsolódni a kiszolgálóhoz. Ellenőrizd a kapcsolatot, majd próbáld újra.";
+  if (status === 0) return "Nem sikerült kapcsolódni a kiszolgálóhoz. Ellenőrizd a kapcsolatot, majd próbáld újra.";
+  return "A kiszolgáló visszautasította a kérést. Ellenőrizd az adatokat, majd próbáld újra.";
 }
 
 export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
@@ -126,7 +129,7 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
     const errorBody = await response.json().catch(() => null);
     const rawMessage = typeof errorBody?.detail === "string"
       ? errorBody.detail
-      : errorBody?.detail?.message ?? errorBody?.message ?? "A kérés nem sikerült.";
+      : errorBody?.detail?.message ?? errorBody?.message ?? null;
     const message = normalizeApiErrorMessage(rawMessage, response.status);
     const fieldErrors = normalizeFieldErrors(errorBody?.detail?.errors ?? errorBody?.errors);
     if (response.status === 401 && options.authenticated !== false) {

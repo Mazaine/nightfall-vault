@@ -60,10 +60,23 @@ describe("minimal PWA foundation", () => {
     expect(serviceWorker).not.toContain("clients.claim");
   });
 
-  it("registers the service worker only in production and tolerates failure", () => {
+  it("contains validated push and notification click handlers with local assets", () => {
+    const serviceWorker = readProjectFile("public/service-worker.js");
+    expect(serviceWorker).toMatch(/addEventListener\s*\(\s*["']push["']/);
+    expect(serviceWorker).toMatch(/addEventListener\s*\(\s*["']notificationclick["']/);
+    expect(serviceWorker).toContain("registration.showNotification");
+    expect(serviceWorker).toContain('icon: "/icons/icon-192.png"');
+    expect(serviceWorker).not.toMatch(/icon:\s*payload\./);
+  });
+
+  it("registers the same root-scoped service worker in production and secure localhost development", () => {
     const registration = readProjectFile("src/registerServiceWorker.ts");
     expect(registration).toContain("import.meta.env.PROD");
-    expect(registration).toContain('navigator.serviceWorker.register("/service-worker.js")');
+    expect(registration).toContain('SERVICE_WORKER_PATH = "/service-worker.js"');
+    expect(registration).toContain('SERVICE_WORKER_SCOPE = "/"');
+    expect(registration).toContain("isLocalhost");
+    expect(registration).toContain("isSecureContext");
+    expect(registration).toContain("SERVICE_WORKER_READY_TIMEOUT_MS = 10_000");
     expect(registration).toContain(".catch(");
   });
 

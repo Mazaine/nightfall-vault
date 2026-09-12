@@ -202,6 +202,7 @@ export type NotificationItem = {
   in_app_enabled: boolean;
   browser_enabled: boolean;
   email_enabled: boolean;
+  push_enabled?: boolean;
   is_read: boolean;
   created_at: string;
   is_demo?: boolean;

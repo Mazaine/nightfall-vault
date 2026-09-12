@@ -17,6 +17,7 @@ import { openFacebookAuctionShare } from "../utils/auctionShare";
 
 const MAX_AUCTION_IMAGES = 5;
 const MAX_IMAGE_FILE_SIZE_BYTES = 20 * 1024 * 1024;
+const AUCTION_START_PAST_TOLERANCE_MS = 10 * 60 * 1000;
 const HATALOM_CATEGORY = "Hatalom Kártyái Kártyajáték";
 const HATALOM_ERAS: { value: HatalomEra; label: string }[] = [
   { value: "retro", label: "RETRO" },
@@ -113,15 +114,14 @@ function isoToLocalDateTime(value: string) {
   return localDate.toISOString().slice(0, 16);
 }
 
-function validateAuctionDates(startsAtValue: FormDataEntryValue | null, endsAtValue: FormDataEntryValue | null) {
+export function validateAuctionDates(startsAtValue: FormDataEntryValue | null, endsAtValue: FormDataEntryValue | null) {
   const startsAt = new Date(String(startsAtValue ?? ""));
   const endsAt = new Date(String(endsAtValue ?? ""));
-  const currentMinute = new Date();
-  currentMinute.setSeconds(0, 0);
+  const currentTime = new Date();
   const errors: { startsAt?: string; endsAt?: string } = {};
 
   if (Number.isNaN(startsAt.getTime())) errors.startsAt = "Adj meg érvényes kezdési dátumot.";
-  else if (startsAt < currentMinute) errors.startsAt = "A kezdési dátum nem lehet korábbi a jelenlegi időpontnál.";
+  else if (startsAt.getTime() < currentTime.getTime() - AUCTION_START_PAST_TOLERANCE_MS) errors.startsAt = "A kezdési dátum legfeljebb 10 perccel lehet korábbi a jelenlegi időpontnál.";
 
   if (Number.isNaN(endsAt.getTime())) errors.endsAt = "Adj meg érvényes lejárati dátumot.";
   else if (!errors.startsAt && endsAt <= startsAt) errors.endsAt = "A lejárati dátumnak későbbinek kell lennie a kezdési dátumnál.";
@@ -172,14 +172,37 @@ function validateAuctionEditDates(formData: FormData, auction: Auction) {
   const endsAt = hasBids ? new Date(auction.ends_at) : new Date(String(formData.get("ends_at") ?? ""));
   const currentMinute = new Date();
   currentMinute.setSeconds(0, 0);
+  const currentTime = new Date();
   const errors: { startsAt?: string; endsAt?: string } = {};
 
   if (Number.isNaN(startsAt.getTime())) errors.startsAt = "Adj meg érvényes kezdési dátumot.";
-  else if (isDraft && startsAt < currentMinute) errors.startsAt = "A kezdési dátum nem lehet korábbi a jelenlegi időpontnál.";
+  else if (isDraft && startsAt.getTime() < currentTime.getTime() - AUCTION_START_PAST_TOLERANCE_MS) errors.startsAt = "A kezdési dátum legfeljebb 10 perccel lehet korábbi a jelenlegi időpontnál.";
   if (Number.isNaN(endsAt.getTime())) errors.endsAt = "Adj meg érvényes lejárati dátumot.";
   else if (endsAt <= currentMinute) errors.endsAt = "A lejárati dátumnak későbbinek kell lennie a jelenlegi időpontnál.";
   else if (!errors.startsAt && endsAt <= startsAt) errors.endsAt = "A lejárati dátumnak későbbinek kell lennie a kezdési dátumnál.";
   return errors;
+}
+
+function imageSelectionError(file: File) {
+  if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+    return `${file.name}: nem támogatott képformátum. JPEG/JPG, PNG vagy WEBP képet válassz.`;
+  }
+  if (file.size > MAX_IMAGE_FILE_SIZE_BYTES) {
+    return `${file.name}: a fájl túl nagy. Egy kép legfeljebb 20 MB lehet.`;
+  }
+  return "";
+}
+
+function imageUploadError(error: unknown) {
+  if (error instanceof ApiError) {
+    if (error.status === 0) return "Valódi hálózati vagy kapcsolódási hiba történt. Ellenőrizd a kapcsolatot, majd próbáld újra.";
+    if (error.status === 413) return "A fájl túl nagy, vagy a kép méretei meghaladják a megengedett korlátot.";
+    if (error.status === 415 || /formátum|JPEG|PNG|WEBP|MIME/i.test(error.message)) return "Nem támogatott képformátum. JPEG/JPG, PNG vagy WEBP képet válassz.";
+    if (error.status === 400 && /sérült|feldolgoz|képfájl üres|animált/i.test(error.message)) return "A kép sérült vagy nem feldolgozható.";
+    if (error.status >= 500) return "Váratlan szerverhiba történt a kép feltöltése közben. Próbáld újra később.";
+    if (error.status >= 400) return `A kiszolgáló visszautasította a feltöltést. ${error.message}`;
+  }
+  return error instanceof Error ? error.message : "A feltöltés váratlan hiba miatt nem sikerült.";
 }
 
 export function AccountPage({ section }: { section: "bids" | "auctions" | "create" }) {
@@ -325,9 +348,9 @@ export function AccountPage({ section }: { section: "bids" | "auctions" | "creat
 
   const handleImageChange = (event: ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = Array.from(event.target.files ?? []);
-    const invalidFile = selectedFiles.find((file) => !["image/jpeg", "image/png", "image/webp"].includes(file.type) || file.size > MAX_IMAGE_FILE_SIZE_BYTES);
+    const invalidFile = selectedFiles.find((file) => imageSelectionError(file));
     if (invalidFile) {
-      setImageMessage(`${invalidFile.name}: csak JPEG, PNG vagy WEBP kép tölthető fel, legfeljebb 20 MB méretben.`);
+      setImageMessage(imageSelectionError(invalidFile));
       event.target.value = "";
       return;
     }
@@ -409,22 +432,25 @@ export function AccountPage({ section }: { section: "bids" | "auctions" | "creat
         } catch (error) {
           setAuctionImages(auctionImages.slice(index));
           setCoverImageIndex(Math.max(0, coverImageIndex - index));
-          throw new Error(`${file.name}: ${error instanceof Error ? error.message : "a feltöltés nem sikerült."}`);
+          throw new Error(`${file.name}: ${imageUploadError(error)}`);
         }
       }
 
-      if (!saveAsDraft) await activateAuction(auction.id);
+      const activatedAuction = !saveAsDraft ? await activateAuction(auction.id) : null;
       await refreshMyAuctions();
       await refreshMyBids();
       setAuctionImages([]);
       setImageMessage("");
       setAuctionDateErrors({});
       setAuctionFieldErrors({});
-      setFormMessage(saveAsDraft ? "A piszkozatot elmentettük. Innen folytathatod, új példány nem jött létre." : "Az aukció létrejött, a képek feltöltődtek, és az aktiválás/időzítés sikeres.");
+      const activationMessage = activatedAuction?.status === "active"
+        ? "Az aukció azonnal elindult. A kezdési időt a szerver az aktuális időpontra állította."
+        : "Az aukció létrejött, a képek feltöltődtek, és az időzítés sikeres.";
+      setFormMessage(saveAsDraft ? "A piszkozatot elmentettük. Innen folytathatod, új példány nem jött létre." : activationMessage);
       setUploadProgress(saveAsDraft ? "A piszkozat mentése sikeres." : "Minden kép feltöltése és feldolgozása sikeres.");
       showToast({
         title: saveAsDraft ? "Piszkozat elmentve" : "Aukció létrehozva",
-        message: saveAsDraft ? "A mentést később ugyaninnen folytathatod." : "A képek feltöltése és az aukció aktiválása vagy időzítése sikeres.",
+        message: saveAsDraft ? "A mentést később ugyaninnen folytathatod." : activatedAuction?.status === "active" ? "Az aukció azonnal elindult." : "A képek feltöltése és az aukció időzítése sikeres.",
         targetUrl: "/account/auctions",
       });
       if (!saveAsDraft) {
@@ -488,10 +514,10 @@ export function AccountPage({ section }: { section: "bids" | "auctions" | "creat
 
   const handleEditImageChange = (event: ChangeEvent<HTMLInputElement>, auction: Auction) => {
     const selectedFiles = Array.from(event.target.files ?? []);
-    const invalidFile = selectedFiles.find((file) => !["image/jpeg", "image/png", "image/webp"].includes(file.type) || file.size > MAX_IMAGE_FILE_SIZE_BYTES);
+    const invalidFile = selectedFiles.find((file) => imageSelectionError(file));
     if (invalidFile) {
       setEditAuctionImages([]);
-      setEditImageMessage(`${invalidFile.name}: csak JPEG, PNG vagy WEBP kép tölthető fel, legfeljebb 20 MB méretben.`);
+      setEditImageMessage(imageSelectionError(invalidFile));
       event.target.value = "";
       return;
     }
@@ -562,7 +588,11 @@ export function AccountPage({ section }: { section: "bids" | "auctions" | "creat
       await updateAuction(auction.id, updatePayload);
       for (const [index, file] of editAuctionImages.entries()) {
         setEditUploadProgress(`${index + 1}/${editAuctionImages.length}: ${file.name} feltöltése és feldolgozása...`);
-        await uploadAuctionImage(auction.id, file, editCoverImageIndex === index);
+        try {
+          await uploadAuctionImage(auction.id, file, editCoverImageIndex === index);
+        } catch (error) {
+          throw new Error(`${file.name}: ${imageUploadError(error)}`);
+        }
       }
       await refreshMyAuctions();
       stopEditingAuction();

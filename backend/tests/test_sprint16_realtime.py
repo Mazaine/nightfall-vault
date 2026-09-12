@@ -61,7 +61,12 @@ def test_notification_matrix_roundtrip() -> None:
     assert initial.status_code == 200 and set(initial.json()["categories"]) == {"bids", "chat", "follows", "transactions", "reviews", "moderation", "system"}
     payload = initial.json()
     for category in payload["categories"]:
-        payload["categories"][category] = {"in_app": category != "system", "browser": True, "email": category in {"bids", "transactions", "moderation"}}
+        payload["categories"][category] = {
+            "in_app": category != "system",
+            "browser": True,
+            "email": category in {"bids", "transactions", "moderation"},
+            "push": False,
+        }
     updated = client.put("/api/notifications/preferences", json=payload, headers=headers(user))
     reloaded = client.get("/api/notifications/preferences", headers=headers(user))
     assert updated.status_code == 200

@@ -1,20 +1,79 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
+from app.core.config import settings
+from app.core.rate_limit import check_rate_limit
 from app.dependencies.auth import require_active_user
-from app.models.notification import Notification
-from app.models.notification import NotificationPreference
+from app.models.notification import Notification, NotificationPreference, WebPushSubscription
 from app.models.user import User
 from app.models.auction import Auction
 from app.schemas.auction import NotificationRead, NotificationUnreadCount
-from app.schemas.user import NotificationChannelPreference, NotificationPreferenceMatrix
+from app.schemas.user import (
+    NotificationChannelPreference,
+    NotificationPreferenceMatrix,
+    WebPushPublicKeyRead,
+    WebPushSubscriptionCreate,
+    WebPushSubscriptionEndpoint,
+    WebPushSubscriptionState,
+)
 from app.services.notifications import count_unread_notifications, mark_all_notifications_read, mark_notification_category_read, mark_notification_read
 from app.services.demo_visibility import auction_visibility_clause
+from app.services.web_push_subscriptions import revoke_web_push_subscription, upsert_web_push_subscription
 
 router = APIRouter(prefix="/api/notifications", tags=["notifications"])
 CATEGORIES = ("bids", "chat", "follows", "transactions", "reviews", "moderation", "system")
+
+
+def require_web_push_configuration() -> None:
+    if not (settings.web_push_enabled and settings.vapid_public_key and settings.vapid_private_key and settings.vapid_subject):
+        raise HTTPException(status_code=503, detail="A telefonos push feliratkozás jelenleg nincs engedélyezve.")
+
+
+@router.get("/push/public-key", response_model=WebPushPublicKeyRead)
+def get_web_push_public_key(current_user: User = Depends(require_active_user)) -> WebPushPublicKeyRead:
+    enabled = bool(settings.web_push_enabled and settings.vapid_public_key and settings.vapid_private_key and settings.vapid_subject)
+    return WebPushPublicKeyRead(enabled=enabled, public_key=settings.vapid_public_key if enabled else None)
+
+
+@router.post("/push/subscriptions", response_model=WebPushSubscriptionState)
+def register_web_push_subscription(
+    payload: WebPushSubscriptionCreate,
+    request: Request,
+    current_user: User = Depends(require_active_user),
+    db: Session = Depends(get_db),
+) -> WebPushSubscriptionState:
+    check_rate_limit(request, "web-push:subscription", settings.web_push_subscription_rate_limit_per_minute, str(current_user.id))
+    require_web_push_configuration()
+    upsert_web_push_subscription(db, current_user, payload, request.headers.get("user-agent"))
+    return WebPushSubscriptionState(active=True)
+
+
+@router.post("/push/subscriptions/status", response_model=WebPushSubscriptionState)
+def get_web_push_subscription_status(
+    payload: WebPushSubscriptionEndpoint,
+    current_user: User = Depends(require_active_user),
+    db: Session = Depends(get_db),
+) -> WebPushSubscriptionState:
+    active = db.scalar(select(WebPushSubscription.id).where(
+        WebPushSubscription.endpoint == payload.endpoint,
+        WebPushSubscription.user_id == current_user.id,
+        WebPushSubscription.revoked_at.is_(None),
+    )) is not None
+    return WebPushSubscriptionState(active=active)
+
+
+@router.delete("/push/subscriptions", response_model=WebPushSubscriptionState)
+def delete_web_push_subscription(
+    payload: WebPushSubscriptionEndpoint,
+    request: Request,
+    current_user: User = Depends(require_active_user),
+    db: Session = Depends(get_db),
+) -> WebPushSubscriptionState:
+    check_rate_limit(request, "web-push:subscription", settings.web_push_subscription_rate_limit_per_minute, str(current_user.id))
+    revoke_web_push_subscription(db, current_user, payload.endpoint)
+    return WebPushSubscriptionState(active=False)
 
 
 @router.get("/preferences", response_model=NotificationPreferenceMatrix)
@@ -30,7 +89,7 @@ def update_preferences(payload: NotificationPreferenceMatrix, current_user: User
     rows = {row.category: row for row in db.scalars(select(NotificationPreference).where(NotificationPreference.user_id == current_user.id)).all()}
     for category, values in payload.categories.items():
         row = rows.get(category) or NotificationPreference(user_id=current_user.id, category=category)
-        row.in_app, row.browser, row.email = values.in_app, values.browser, values.email
+        row.in_app, row.browser, row.email, row.push = values.in_app, values.browser, values.email, values.push
         db.add(row)
     db.commit()
     return get_preferences(current_user, db)
