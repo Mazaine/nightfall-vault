@@ -11,6 +11,7 @@ from app.db.session import SessionLocal
 from app.main import app
 from app.models.notification import WebPushSubscription
 from app.models.user import User
+from app.services.web_push_delivery import WebPushDeliveryError
 
 
 client = TestClient(app)
@@ -65,6 +66,7 @@ def configured_web_push(monkeypatch):
     ("get", "/api/notifications/push/public-key", None),
     ("post", "/api/notifications/push/subscriptions", payload()),
     ("post", "/api/notifications/push/subscriptions/status", {"endpoint": payload()["endpoint"]}),
+    ("post", "/api/notifications/push/subscriptions/test", {"endpoint": payload()["endpoint"]}),
     ("delete", "/api/notifications/push/subscriptions", {"endpoint": payload()["endpoint"]}),
 ])
 def test_push_endpoints_require_authentication(method: str, path: str, json: dict | None) -> None:
@@ -85,7 +87,7 @@ def test_create_update_and_transfer_subscription() -> None:
     data = payload()
     response = client.post("/api/notifications/push/subscriptions", headers=headers(first), json=data)
     assert response.status_code == 200
-    assert response.json() == {"active": True}
+    assert response.json() == {"active": True, "state": "active", "last_success_at": None}
 
     changed = payload(data["endpoint"], p256dh="C" * 44, auth="D" * 22)
     assert client.post("/api/notifications/push/subscriptions", headers=headers(first), json=changed).status_code == 200
@@ -107,8 +109,8 @@ def test_only_owner_can_revoke_and_revoke_is_idempotent() -> None:
     assert client.post("/api/notifications/push/subscriptions", headers=headers(owner), json=data).status_code == 200
     endpoint_body = {"endpoint": data["endpoint"]}
 
-    assert client.post("/api/notifications/push/subscriptions/status", headers=headers(owner), json=endpoint_body).json() == {"active": True}
-    assert client.post("/api/notifications/push/subscriptions/status", headers=headers(other), json=endpoint_body).json() == {"active": False}
+    assert client.post("/api/notifications/push/subscriptions/status", headers=headers(owner), json=endpoint_body).json() == {"active": True, "state": "active", "last_success_at": None}
+    assert client.post("/api/notifications/push/subscriptions/status", headers=headers(other), json=endpoint_body).json() == {"active": False, "state": "unsubscribed", "last_success_at": None}
 
     denied = client.request("DELETE", "/api/notifications/push/subscriptions", headers=headers(other), json=endpoint_body)
     assert denied.status_code == 404
@@ -117,8 +119,9 @@ def test_only_owner_can_revoke_and_revoke_is_idempotent() -> None:
     removed = client.request("DELETE", "/api/notifications/push/subscriptions", headers=headers(owner), json=endpoint_body)
     repeated = client.request("DELETE", "/api/notifications/push/subscriptions", headers=headers(owner), json=endpoint_body)
     assert removed.status_code == repeated.status_code == 200
-    assert removed.json() == {"active": False}
-    assert client.post("/api/notifications/push/subscriptions/status", headers=headers(owner), json=endpoint_body).json() == {"active": False}
+    assert removed.json() == {"active": False, "state": "unsubscribed", "last_success_at": None}
+    status = client.post("/api/notifications/push/subscriptions/status", headers=headers(owner), json=endpoint_body).json()
+    assert status["active"] is False and status["state"] == "needs_resubscribe"
     with SessionLocal() as db:
         assert db.scalar(select(WebPushSubscription.revoked_at).where(WebPushSubscription.endpoint == data["endpoint"])) is not None
 
@@ -151,3 +154,34 @@ def test_model_has_endpoint_uniqueness_and_active_user_index() -> None:
     assert "uq_web_push_subscriptions_endpoint" in constraint_names
     assert "ck_web_push_subscriptions_https_endpoint" in constraint_names
     assert "ix_web_push_subscriptions_user_active" in index_names
+
+
+def test_push_test_is_owner_scoped_and_updates_success(monkeypatch) -> None:
+    owner, other = create_user(), create_user()
+    data = payload()
+    assert client.post("/api/notifications/push/subscriptions", headers=headers(owner), json=data).status_code == 200
+    sent: list[int] = []
+    monkeypatch.setattr("app.api.notifications.send_web_push", lambda subscription, _payload: sent.append(subscription.id))
+
+    denied = client.post("/api/notifications/push/subscriptions/test", headers=headers(other), json={"endpoint": data["endpoint"]})
+    delivered = client.post("/api/notifications/push/subscriptions/test", headers=headers(owner), json={"endpoint": data["endpoint"]})
+
+    assert denied.status_code == 404 and data["endpoint"] not in denied.text
+    assert delivered.status_code == 200 and delivered.json()["success"] is True
+    assert delivered.json()["last_success_at"] is not None and len(sent) == 1
+
+
+@pytest.mark.parametrize("expired", [False, True])
+def test_push_test_reports_failure_and_cleans_up_expired_subscription(monkeypatch, expired: bool) -> None:
+    owner = create_user()
+    data = payload()
+    assert client.post("/api/notifications/push/subscriptions", headers=headers(owner), json=data).status_code == 200
+    error = WebPushDeliveryError("push_subscription_expired" if expired else "push_service_unavailable", transient=not expired, expired=expired)
+    monkeypatch.setattr("app.api.notifications.send_web_push", lambda *_args: (_ for _ in ()).throw(error))
+
+    response = client.post("/api/notifications/push/subscriptions/test", headers=headers(owner), json={"endpoint": data["endpoint"]})
+
+    assert response.status_code == (410 if expired else 503)
+    with SessionLocal() as db:
+        subscription = db.scalar(select(WebPushSubscription).where(WebPushSubscription.endpoint == data["endpoint"]))
+        assert (subscription.revoked_at is not None) is expired

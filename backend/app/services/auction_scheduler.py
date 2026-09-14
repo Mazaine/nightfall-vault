@@ -9,8 +9,8 @@ from sqlalchemy.orm import Session
 
 from app.db.session import SessionLocal
 from app.core.config import settings
-from app.models.auction import Auction
-from app.models.notification import WatchlistReminder
+from app.models.auction import Auction, WatchlistItem
+from app.models.notification import Notification, WatchlistReminder
 from app.models.user import User
 from app.services.membership import is_vip
 from app.services.auction_lifecycle import close_ended_active_auction, now_utc, publish_auction_change
@@ -77,6 +77,76 @@ def send_due_watchlist_reminders(db: Session, limit: int = 500) -> int:
     return sent_count
 
 
+def send_due_two_hour_reminders(db: Session, limit: int = 500) -> int:
+    """Create restart-safe standard reminders from current durable state.
+
+    Notification.event_key is the idempotency record, so there is no per-auction
+    timer or second reminder table to reconcile after an unwatch/cancellation.
+    """
+    current_time = now_utc()
+    horizon = current_time + timedelta(hours=2)
+    created = 0
+
+    watchlist_statement = (
+        select(WatchlistItem, Auction)
+        .join(Auction, Auction.id == WatchlistItem.auction_id)
+        .where(
+            Auction.status == "active",
+            Auction.deleted_at.is_(None),
+            Auction.ends_at > current_time,
+            Auction.ends_at <= horizon,
+        )
+        .order_by(Auction.ends_at.asc(), WatchlistItem.id.asc())
+        .limit(limit)
+        .with_for_update(skip_locked=True)
+    )
+    for item, auction in db.execute(watchlist_statement).all():
+        event_key = f"watchlist-reminder-2h:{item.user_id}:{auction.id}"
+        if db.scalar(select(Notification.id).where(Notification.event_key == event_key)) is not None:
+            continue
+        dispatch_notification(
+            db,
+            user_id=item.user_id,
+            auction_id=auction.id,
+            notification_type="watchlist_reminder",
+            title="Az általad figyelt aukció hamarosan lejár",
+            message=f"A(z) „{auction.title}” aukció 2 órán belül véget ér.",
+            target_url=f"/auctions/{auction.id}",
+            event_key=event_key,
+        )
+        created += 1
+
+    remaining = max(0, limit - created)
+    seller_statement = (
+        select(Auction)
+        .where(
+            Auction.status == "active",
+            Auction.deleted_at.is_(None),
+            Auction.ends_at > current_time,
+            Auction.ends_at <= horizon,
+        )
+        .order_by(Auction.ends_at.asc(), Auction.id.asc())
+        .limit(remaining)
+        .with_for_update(skip_locked=True)
+    )
+    for auction in db.scalars(seller_statement).all():
+        event_key = f"seller-auction-reminder-2h:{auction.seller_id}:{auction.id}"
+        if db.scalar(select(Notification.id).where(Notification.event_key == event_key)) is not None:
+            continue
+        dispatch_notification(
+            db,
+            user_id=auction.seller_id,
+            auction_id=auction.id,
+            notification_type="seller_auction_reminder",
+            title="A saját aukciód hamarosan lejár",
+            message=f"A(z) „{auction.title}” aukciód 2 órán belül véget ér.",
+            target_url=f"/auctions/{auction.id}",
+            event_key=event_key,
+        )
+        created += 1
+    return created
+
+
 def close_expired_auctions(db: Session, limit: int = 50) -> int:
     from app.services.transactions import archive_due_transactions
 
@@ -97,6 +167,7 @@ def close_expired_auctions(db: Session, limit: int = 50) -> int:
             closed_auctions.append(auction)
     archive_due_transactions(db)
     send_due_watchlist_reminders(db)
+    send_due_two_hour_reminders(db)
     db.commit()
     for auction in closed_auctions:
         publish_auction_change(db, auction)

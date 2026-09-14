@@ -170,14 +170,13 @@ describe("AuctionDetailPage", () => {
     await waitFor(() => expect(list.scrollTop).toBe(480));
   });
 
-  it("az archivált beszélgetést megmutatja, de az üzenetküldést nem", async () => {
+  it("lezárt tranzakciónál egy régi read-only jelző sem tiltja le az üzenetküldést", async () => {
     state.isAuthenticated = true;
     mocks.getAuction.mockResolvedValue({ ...auction, status: "sold", winner_id: 2, can_chat: true, chat_read_only: true } as Auction);
     mocks.listAuctionMessages.mockResolvedValue([{ id: 70, sender_id: 1, message: "Korábbi üzenet", created_at: "2026-07-19T18:15:00Z", read_at: null }]);
 
     render(<MemoryRouter initialEntries={["/auctions/21#auction-conversation"]}><Routes><Route path="/auctions/:auctionId" element={<AuctionDetailPage />} /></Routes></MemoryRouter>);
-    expect(await screen.findByText("Ez az archivált beszélgetés csak olvasható.")).toBeInTheDocument();
-    expect(screen.getByText("Korábbi üzenet")).toBeInTheDocument();
-    expect(screen.queryByLabelText("Üzenet a másik félnek")).not.toBeInTheDocument();
+    expect(await screen.findByText("Korábbi üzenet")).toBeInTheDocument();
+    expect(screen.getByLabelText("Üzenet a másik félnek")).toBeInTheDocument();
   });
 });

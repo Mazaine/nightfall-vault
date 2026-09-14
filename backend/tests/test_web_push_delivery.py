@@ -72,7 +72,7 @@ def isolate(monkeypatch):
 
 def dispatch_with_push(user: User, event_key: str, device_count: int = 1) -> tuple[int, list[int]]:
     with SessionLocal() as db:
-        db.add(NotificationPreference(user_id=user.id, category="bids", in_app=True, browser=True, email=False, push=True))
+        db.add(NotificationPreference(user_id=user.id, category="outbid", in_app=True, browser=True, email=False, push=True))
         for index in range(device_count):
             add_subscription(db, user, str(index))
         db.flush()
@@ -101,7 +101,7 @@ def test_push_tasks_require_enabled_preference_and_active_subscription(monkeypat
         first = dispatch_notification(db, user_id=user.id, notification_type="outbid", title="T", message="M", event_key="push:pref-off")
         db.commit()
         assert db.scalar(select(NotificationOutbox).where(NotificationOutbox.notification_id == first.id, NotificationOutbox.task_type == "push")) is None
-        db.add(NotificationPreference(user_id=user.id, category="bids", push=True))
+        db.add(NotificationPreference(user_id=user.id, category="outbid", push=True))
         subscription.revoked_at = first.created_at
         db.add(subscription)
         db.commit()
@@ -115,6 +115,28 @@ def test_push_tasks_require_enabled_preference_and_active_subscription(monkeypat
         third = dispatch_notification(db, user_id=user.id, notification_type="outbid", title="T", message="M", event_key="push:disabled")
         db.commit()
         assert db.scalar(select(NotificationOutbox).where(NotificationOutbox.notification_id == third.id, NotificationOutbox.task_type == "push")) is None
+
+
+def test_email_and_push_event_preferences_are_independent() -> None:
+    user = create_user()
+    with SessionLocal() as db:
+        add_subscription(db, user)
+        preference = NotificationPreference(user_id=user.id, category="outbid", email=False, push=True)
+        db.add(preference)
+        db.commit()
+        push_only = dispatch_notification(db, user_id=user.id, notification_type="outbid", title="T", message="M", event_key="channels:push-only")
+        db.commit()
+        push_only_tasks = {task.task_type for task in db.scalars(select(NotificationOutbox).where(NotificationOutbox.notification_id == push_only.id))}
+        assert "push" in push_only_tasks and "email" not in push_only_tasks
+
+        preference.email = True
+        preference.push = False
+        db.add(preference)
+        db.commit()
+        email_only = dispatch_notification(db, user_id=user.id, notification_type="outbid", title="T", message="M", event_key="channels:email-only")
+        db.commit()
+        email_only_tasks = {task.task_type for task in db.scalars(select(NotificationOutbox).where(NotificationOutbox.notification_id == email_only.id))}
+        assert "email" in email_only_tasks and "push" not in email_only_tasks
 
 
 def test_multiple_devices_get_idempotent_separate_push_tasks() -> None:
@@ -276,6 +298,17 @@ def test_sender_disables_redirects_and_maps_http_errors(monkeypatch) -> None:
             raise WebPushException("rejected", response=SimpleNamespace(status_code=status))
         with pytest.raises(WebPushDeliveryError) as error:
             send_web_push(subscription, "{}", send=fail, resolver=PUBLIC_DNS)
+        assert (error.value.code, error.value.transient, error.value.expired) == (expected, transient, expired)
+
+    for status, expected, transient, expired in [
+        (404, "push_subscription_expired", False, True),
+        (410, "push_subscription_expired", False, True),
+        (429, "push_rate_limited", True, False),
+        (503, "push_service_unavailable", True, False),
+        (400, "push_request_rejected", False, False),
+    ]:
+        with pytest.raises(WebPushDeliveryError) as error:
+            send_web_push(subscription, "{}", send=lambda **_kwargs: SimpleNamespace(status_code=status), resolver=PUBLIC_DNS)
         assert (error.value.code, error.value.transient, error.value.expired) == (expected, transient, expired)
 
 

@@ -1,11 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { disableWebPush, enableWebPush, getWebPushSupport, isInstalledAppDisplayMode, urlBase64ToUint8Array } from "./webPush";
+import { disableWebPush, enableWebPush, getWebPushDeviceStatus, getWebPushSupport, isInstalledAppDisplayMode, testWebPush, urlBase64ToUint8Array } from "./webPush";
 
 const api = vi.hoisted(() => ({
   getWebPushPublicKey: vi.fn(),
   getWebPushSubscriptionStatus: vi.fn(),
   registerWebPushSubscription: vi.fn(),
   revokeWebPushSubscription: vi.fn(),
+  sendWebPushTest: vi.fn(),
 }));
 vi.mock("../api/auth", () => ({ ...api }));
 
@@ -37,9 +38,10 @@ describe("Web Push subscription", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     api.getWebPushPublicKey.mockResolvedValue({ enabled: true, public_key: "AQID" });
-    api.getWebPushSubscriptionStatus.mockResolvedValue({ active: true });
-    api.registerWebPushSubscription.mockResolvedValue({ active: true });
-    api.revokeWebPushSubscription.mockResolvedValue({ active: false });
+    api.getWebPushSubscriptionStatus.mockResolvedValue({ active: true, state: "active", last_success_at: null });
+    api.registerWebPushSubscription.mockResolvedValue({ active: true, state: "active", last_success_at: null });
+    api.revokeWebPushSubscription.mockResolvedValue({ active: false, state: "unsubscribed", last_success_at: null });
+    api.sendWebPushTest.mockResolvedValue({ success: true, last_success_at: "2026-09-14T10:00:00Z" });
     configureBrowser();
   });
 
@@ -196,5 +198,26 @@ describe("Web Push subscription", () => {
   it("felismeri a telepített alkalmazás megjelenítési módját", () => {
     Object.defineProperty(window, "matchMedia", { configurable: true, value: vi.fn().mockReturnValue({ matches: true }) });
     expect(isInstalledAppDisplayMode()).toBe(true);
+  });
+
+  it("a helyi és szerveres subscriptionből aktív eszközállapotot képez", async () => {
+    const existing = subscription();
+    configureBrowser(existing);
+    await expect(getWebPushDeviceStatus()).resolves.toEqual({ state: "active", active: true, lastSuccessAt: null });
+    expect(api.getWebPushSubscriptionStatus).toHaveBeenCalledWith(existing.endpoint, expect.any(AbortSignal));
+  });
+
+  it("megtagadott engedélyt subscription lekérés nélkül jelez", async () => {
+    const browser = configureBrowser(subscription());
+    Object.defineProperty(window, "Notification", { configurable: true, value: { permission: "denied", requestPermission: vi.fn() } });
+    await expect(getWebPushDeviceStatus()).resolves.toEqual({ state: "permission_denied", active: false, lastSuccessAt: null });
+    expect(browser.pushManager.getSubscription).not.toHaveBeenCalled();
+  });
+
+  it("a tesztet kizárólag az aktuális helyi endpointtal kéri", async () => {
+    const existing = subscription();
+    configureBrowser(existing);
+    await expect(testWebPush()).resolves.toEqual({ lastSuccessAt: "2026-09-14T10:00:00Z" });
+    expect(api.sendWebPushTest).toHaveBeenCalledWith(existing.endpoint, expect.any(AbortSignal));
   });
 });

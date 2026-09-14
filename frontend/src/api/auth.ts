@@ -135,12 +135,18 @@ export type WebPushSubscriptionPayload = {
   keys: { p256dh: string; auth: string };
 };
 
+export type WebPushSubscriptionState = {
+  active: boolean;
+  state: "active" | "unsubscribed" | "needs_resubscribe";
+  last_success_at: string | null;
+};
+
 export function getWebPushPublicKey(signal?: AbortSignal) {
   return apiRequest<{ enabled: boolean; public_key: string | null }>("/api/notifications/push/public-key", { signal });
 }
 
 export function registerWebPushSubscription(payload: WebPushSubscriptionPayload, signal?: AbortSignal) {
-  return apiRequest<{ active: boolean }>("/api/notifications/push/subscriptions", {
+  return apiRequest<WebPushSubscriptionState>("/api/notifications/push/subscriptions", {
     method: "POST",
     body: JSON.stringify(payload),
     signal,
@@ -148,7 +154,7 @@ export function registerWebPushSubscription(payload: WebPushSubscriptionPayload,
 }
 
 export function getWebPushSubscriptionStatus(endpoint: string, signal?: AbortSignal) {
-  return apiRequest<{ active: boolean }>("/api/notifications/push/subscriptions/status", {
+  return apiRequest<WebPushSubscriptionState>("/api/notifications/push/subscriptions/status", {
     method: "POST",
     body: JSON.stringify({ endpoint }),
     signal,
@@ -156,8 +162,16 @@ export function getWebPushSubscriptionStatus(endpoint: string, signal?: AbortSig
 }
 
 export function revokeWebPushSubscription(endpoint: string, signal?: AbortSignal) {
-  return apiRequest<{ active: boolean }>("/api/notifications/push/subscriptions", {
+  return apiRequest<WebPushSubscriptionState>("/api/notifications/push/subscriptions", {
     method: "DELETE",
+    body: JSON.stringify({ endpoint }),
+    signal,
+  });
+}
+
+export function sendWebPushTest(endpoint: string, signal?: AbortSignal) {
+  return apiRequest<{ success: boolean; last_success_at: string }>("/api/notifications/push/subscriptions/test", {
+    method: "POST",
     body: JSON.stringify({ endpoint }),
     signal,
   });

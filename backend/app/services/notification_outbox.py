@@ -114,11 +114,16 @@ def deliver_outbox_item(db: Session, item_id: int) -> None:
                 subscription.revoked_at = now_utc()
                 subscription.updated_at = subscription.revoked_at
                 db.add(subscription)
+                logger.info(
+                    "Web push subscription revoked item_id=%s subscription_id=%s error_code=%s",
+                    item.id, subscription.id, exc.code,
+                )
                 return
             raise DeliveryError(exc.code, transient=exc.transient) from exc
         subscription.last_success_at = now_utc()
         subscription.updated_at = subscription.last_success_at
         db.add(subscription)
+        logger.info("Web push delivered item_id=%s subscription_id=%s", item.id, subscription.id)
         return
     raise DeliveryError("unsupported_task_type", transient=False)
 
@@ -169,7 +174,10 @@ def process_outbox_item(item_id: int) -> bool:
         except DeliveryError as exc:
             db.rollback()
             mark_outbox_failure(db, item_id, exc)
-            logger.warning("Notification outbox delivery failed item_id=%s task_type_error=%s", item_id, exc.code)
+            logger.warning(
+                "Notification outbox delivery failed item_id=%s error_code=%s transient=%s",
+                item_id, exc.code, exc.transient,
+            )
             return False
         except Exception:
             db.rollback()

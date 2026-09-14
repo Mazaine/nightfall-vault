@@ -167,6 +167,13 @@ class WebPushSubscriptionCreate(WebPushSubscriptionEndpoint):
 
 class WebPushSubscriptionState(BaseModel):
     active: bool
+    state: Literal["active", "unsubscribed", "needs_resubscribe"] = "unsubscribed"
+    last_success_at: datetime | None = None
+
+
+class WebPushTestResult(BaseModel):
+    success: bool
+    last_success_at: datetime
 
 
 class UserProfileUpdate(BaseModel):

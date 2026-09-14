@@ -9,17 +9,10 @@ logger = logging.getLogger(__name__)
 
 
 def should_email(user: User, notification_type: str) -> bool:
-    if notification_type == "saved_search_match":
-        return False
-    if not settings.notification_email_enabled:
-        return False
-    if notification_type == "outbid":
-        return user.notify_email_outbid
-    if notification_type in {"auction_won", "auction_lost", "auction_sold", "auction_unsold", "auction_moderation_action"}:
-        return user.notify_email_auction_result
-    if notification_type in {"report_resolved", "report_dismissed", "seller_new_auction"}:
-        return user.notify_in_app and settings.notification_email_enabled
-    return True
+    # Event-specific consent is snapshotted on Notification.email_enabled by the
+    # dispatcher. Account-security mail uses the dedicated auth email service and
+    # never enters this optional notification pipeline.
+    return settings.notification_email_enabled and user.is_active and user.deleted_at is None
 
 
 def send_notification_email(user: User, notification: Notification) -> bool:

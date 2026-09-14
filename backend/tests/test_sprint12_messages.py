@@ -65,7 +65,7 @@ def test_message_updates_conversation_preview_and_notifies_counterparty() -> Non
     cleanup_test_data()
 
 
-def test_archived_conversation_is_read_only_but_messages_remain_visible() -> None:
+def test_archived_conversation_remains_writable_and_keeps_transaction_status() -> None:
     cleanup_test_data()
     seller = create_test_user("seller-archived-chat@auction-test.local")
     winner = create_test_user("winner-archived-chat@auction-test.local")
@@ -86,11 +86,35 @@ def test_archived_conversation_is_read_only_but_messages_remain_visible() -> Non
 
     detail = client.get(f"/api/auctions/{sold['id']}", headers=auth_headers(seller))
     messages = client.get(f"/api/auctions/{sold['id']}/messages", headers=auth_headers(seller))
-    blocked_send = client.post(f"/api/auctions/{sold['id']}/messages", json={"message": "Ezt már nem szabad elküldeni."}, headers=auth_headers(seller))
-    assert detail.status_code == 200 and detail.json()["can_chat"] is True and detail.json()["chat_read_only"] is True
+    sent_after_archive = client.post(f"/api/auctions/{sold['id']}/messages", json={"message": "Archiválás után is elérhető."}, headers=auth_headers(seller))
+    assert detail.status_code == 200 and detail.json()["can_chat"] is True and detail.json()["chat_read_only"] is False
     assert messages.status_code == 200 and messages.json()[0]["message"] == "Archiválás előtti üzenet."
-    assert blocked_send.status_code == 409
-    assert blocked_send.json()["detail"] == "Az archivált tranzakció chatje csak olvasható."
+    assert sent_after_archive.status_code == 201
+    with SessionLocal() as db:
+        assert db.scalar(select(AuctionTransaction.status).where(AuctionTransaction.auction_id == sold["id"])) == "archived"
+    cleanup_test_data()
+
+
+def test_completed_transaction_allows_both_participants_but_not_an_outsider() -> None:
+    cleanup_test_data()
+    seller = create_test_user("seller-completed-chat@auction-test.local")
+    winner = create_test_user("winner-completed-chat@auction-test.local")
+    outsider = create_test_user("outsider-completed-chat@auction-test.local")
+    admin = create_test_user("admin-completed-chat@auction-test.local", role="admin")
+    sold = create_sold_auction(seller, winner, admin)
+    with SessionLocal() as db:
+        transaction = db.scalar(select(AuctionTransaction).where(AuctionTransaction.auction_id == sold["id"]))
+        transaction.status = "completed"
+        transaction.completed_at = datetime.now(timezone.utc)
+        db.add(transaction)
+        db.commit()
+
+    assert client.post(f"/api/auctions/{sold['id']}/messages", json={"message": "Eladói üzenet."}, headers=auth_headers(seller)).status_code == 201
+    assert client.post(f"/api/auctions/{sold['id']}/messages", json={"message": "Vevői üzenet."}, headers=auth_headers(winner)).status_code == 201
+    assert client.get(f"/api/auctions/{sold['id']}/messages", headers=auth_headers(outsider)).status_code == 403
+    assert client.post(f"/api/auctions/{sold['id']}/messages", json={"message": "Idegen üzenet."}, headers=auth_headers(outsider)).status_code == 403
+    with SessionLocal() as db:
+        assert db.scalar(select(AuctionTransaction.status).where(AuctionTransaction.auction_id == sold["id"])) == "completed"
     cleanup_test_data()
 
 

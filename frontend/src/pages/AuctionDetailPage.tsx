@@ -13,7 +13,7 @@ import { SafeImage } from "../components/SafeImage";
 import { ChatTransactionPanel } from "../components/ChatTransactionPanel";
 import { BidConfirmationDialog, BidWithdrawalDialog } from "../components/BidDialogs";
 import { addWatchlistItem, auctionStreamUrl, createAuctionMessage, createAuctionReview, getAuction, getAuctionPresence, listAuctionBids, listAuctionMessages, listRelatedAuctions, listSellerOtherAuctions, markAuctionMessagesRead, placeAuctionBid, listAuctionReviews, sendTyping, withdrawAuctionBid, type Auction, type AuctionBid, type AuctionMessage, type AuctionRealtimeSnapshot, type AuctionReview, type BidWithdrawalReason, type NotificationItem } from "../api/auctions";
-import { formatAuctionStatus, formatLocalDateTime, formatMoney, formatRemainingTime } from "../utils/format";
+import { formatAuctionEndDate, formatAuctionStatus, formatLocalDateTime, formatMoney, formatRemainingTime } from "../utils/format";
 import { disableBidConfirmation, isBidConfirmationDisabled } from "../utils/bidConfirmation";
 import { formatCardCondition } from "../data/cardConditions";
 import { copyAuctionLink, openFacebookAuctionShare, shareAuction } from "../utils/auctionShare";
@@ -214,7 +214,7 @@ export function AuctionDetailPage() {
 
   const sendMessage = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!auction || !postAuctionMessage.trim() || auction.chat_read_only || messageSendingRef.current) {
+    if (!auction || !postAuctionMessage.trim() || messageSendingRef.current) {
       return;
     }
     messageSendingRef.current = true;
@@ -236,7 +236,7 @@ export function AuctionDetailPage() {
   const handleMessageKeyDown = (event: ReactKeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing) return;
     event.preventDefault();
-    if (!postAuctionMessage.trim() || isMessageSending || auction?.chat_read_only) return;
+    if (!postAuctionMessage.trim() || isMessageSending) return;
     event.currentTarget.form?.requestSubmit();
   };
 
@@ -443,7 +443,7 @@ export function AuctionDetailPage() {
           <div><dt>Licitlépcső</dt><dd>{formatMoney(auction.bid_increment)}</dd></div>
           <div className={auction.five_minute_rule_enabled ? "detail-countdown-row" : undefined}><dt>Hátralévő idő</dt><dd><AuctionCountdown endsAt={auction.ends_at} status={auction.status} fiveMinuteRuleEnabled={auction.five_minute_rule_enabled} /></dd></div>
           <div><dt>Kezdés</dt><dd>{formatLocalDateTime(auction.starts_at)}</dd></div>
-          <div><dt>Zárás</dt><dd>{formatLocalDateTime(auction.ends_at)}</dd></div>
+          <div><dt>Lejár</dt><dd>{formatAuctionEndDate(auction.ends_at)}</dd></div>
           <div><dt>Eladó</dt><dd>{auction.seller?.username ? <Link className="seller-link" to={`/users/${auction.seller.username}`}>{auction.seller.full_name ?? auction.seller.username}</Link> : "Eladó"}</dd></div>
           {auction.buy_now_enabled && auction.buy_now_price ? (
             <div><dt>Villámár</dt><dd>{formatMoney(auction.buy_now_price)}</dd></div>
@@ -607,15 +607,13 @@ export function AuctionDetailPage() {
               ))}
               {typingUser ? <p className="typing-indicator" aria-live="polite">{typingUser} ír…</p> : null}
             </div>
-            {auction.chat_read_only ? <p className="chat-read-only-note" role="status">Ez az archivált beszélgetés csak olvasható.</p> : (
-              <form className="chat-composer" onSubmit={sendMessage}>
+            <form className="chat-composer" onSubmit={sendMessage}>
                 <label className="visually-hidden" htmlFor="auction-message">Üzenet a másik félnek</label>
                 <textarea ref={chatComposerRef} id="auction-message" aria-describedby="chat-keyboard-help" maxLength={2000} required value={postAuctionMessage} onChange={(event) => changeMessage(event.target.value)} onKeyDown={handleMessageKeyDown} rows={2} placeholder="Írj egy üzenetet…" />
                 <button className="button button-primary" type="submit" disabled={isMessageSending || !postAuctionMessage.trim()} aria-label="Üzenet küldése">{isMessageSending ? "Küldés..." : "Küldés"}</button>
                 <small id="chat-keyboard-help">Enter: küldés · Shift+Enter: új sor</small>
                 {messageFeedback ? <p className="form-message" role="status">{messageFeedback}</p> : null}
-              </form>
-            )}
+            </form>
           </section>
         ), document.body) : null}
 

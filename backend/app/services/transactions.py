@@ -88,9 +88,57 @@ def serialize_transaction(transaction: AuctionTransaction, user_id: int) -> dict
         "partner_completed_at": partner_completed_at,
         "can_confirm": transaction.status == "transaction_open" and own_completed_at is None,
         "can_review": transaction.status in {"completed", "reviewed"} and not has_reviewed and (transaction.review_deadline is None or transaction.review_deadline > now_utc()),
+        "own_note": transaction.seller_note if seller_role else transaction.buyer_note,
+        "can_delete": transaction.status != "transaction_open",
         "auction": transaction.auction,
         "partner": transaction.buyer if seller_role else transaction.seller,
     }
+
+
+def is_transaction_hidden_for(transaction: AuctionTransaction, user_id: int) -> bool:
+    return transaction.seller_hidden_at is not None if transaction.seller_id == user_id else transaction.buyer_hidden_at is not None
+
+
+def update_transaction_note(db: Session, transaction_id: int, user: User, note: str | None) -> AuctionTransaction:
+    transaction = get_participant_transaction(db, transaction_id, user.id, lock=True)
+    if is_transaction_hidden_for(transaction, user.id):
+        raise HTTPException(status_code=404, detail="A tranzakció nem található.")
+    if transaction.seller_id == user.id:
+        transaction.seller_note = note
+    else:
+        transaction.buyer_note = note
+    db.add(transaction)
+    create_domain_audit_log(
+        db,
+        action="transaction_note_updated",
+        user_id=user.id,
+        auction_id=transaction.auction_id,
+        metadata={"transaction_id": transaction.id, "note_present": note is not None},
+    )
+    db.commit()
+    return get_participant_transaction(db, transaction.id, user.id)
+
+
+def hide_closed_transaction(db: Session, transaction_id: int, user: User) -> None:
+    transaction = get_participant_transaction(db, transaction_id, user.id, lock=True)
+    if transaction.status == "transaction_open":
+        raise HTTPException(status_code=409, detail="Folyamatban lévő tranzakció nem törölhető.")
+    if is_transaction_hidden_for(transaction, user.id):
+        raise HTTPException(status_code=404, detail="A tranzakció nem található.")
+    timestamp = now_utc()
+    if transaction.seller_id == user.id:
+        transaction.seller_hidden_at = timestamp
+    else:
+        transaction.buyer_hidden_at = timestamp
+    db.add(transaction)
+    create_domain_audit_log(
+        db,
+        action="transaction_hidden",
+        user_id=user.id,
+        auction_id=transaction.auction_id,
+        metadata={"transaction_id": transaction.id},
+    )
+    db.commit()
 
 
 def confirm_completion(db: Session, transaction_id: int, user: User) -> AuctionTransaction:

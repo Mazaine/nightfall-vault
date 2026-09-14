@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 TransactionStatus = Literal["transaction_open", "completed", "reviewed", "archived"]
@@ -38,6 +38,8 @@ class AuctionTransactionRead(BaseModel):
     partner_completed_at: datetime | None
     can_confirm: bool
     can_review: bool
+    own_note: str | None
+    can_delete: bool
     auction: TransactionAuctionRead
     partner: TransactionUserRead
 
@@ -47,3 +49,13 @@ class AuctionTransactionPage(BaseModel):
     total: int
     limit: int
     offset: int
+
+
+class TransactionNoteUpdate(BaseModel):
+    note: str | None = Field(default=None, max_length=2000)
+
+    @field_validator("note")
+    @classmethod
+    def normalize_note(cls, value: str | None) -> str | None:
+        normalized = value.strip() if value else ""
+        return normalized or None

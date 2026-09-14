@@ -1,7 +1,12 @@
-import { getWebPushPublicKey, getWebPushSubscriptionStatus, registerWebPushSubscription, revokeWebPushSubscription, type WebPushSubscriptionPayload } from "../api/auth";
+import { getWebPushPublicKey, getWebPushSubscriptionStatus, registerWebPushSubscription, revokeWebPushSubscription, sendWebPushTest, type WebPushSubscriptionPayload } from "../api/auth";
 import { ensureServiceWorkerRegistration } from "../registerServiceWorker";
 
 export type WebPushSupport = { supported: boolean; reason?: string };
+export type WebPushDeviceStatus = {
+  state: "not_supported" | "permission_denied" | "unsubscribed" | "active" | "needs_resubscribe";
+  active: boolean;
+  lastSuccessAt: string | null;
+};
 export const WEB_PUSH_STATE_EVENT = "nightfall:web-push-state";
 export const WEB_PUSH_STATE_CHANNEL = "nightfall-web-push-state";
 export const WEB_PUSH_OPERATION_TIMEOUT_MS = 10_000;
@@ -75,10 +80,30 @@ export async function getLocalWebPushSubscription(options: WebPushOptions = {}):
 }
 
 export async function isWebPushActiveForCurrentUser(options: WebPushOptions = {}): Promise<boolean> {
+  return (await getWebPushDeviceStatus(options)).active;
+}
+
+export async function getWebPushDeviceStatus(options: WebPushOptions = {}): Promise<WebPushDeviceStatus> {
+  const support = getWebPushSupport();
+  if (!support.supported) return { state: "not_supported", active: false, lastSuccessAt: null };
+  if (window.Notification.permission === "denied") return { state: "permission_denied", active: false, lastSuccessAt: null };
   const timeoutMs = options.timeoutMs ?? WEB_PUSH_OPERATION_TIMEOUT_MS;
   const subscription = await getLocalWebPushSubscription({ timeoutMs });
-  if (!subscription) return false;
-  return (await withApiTimeout((signal) => getWebPushSubscriptionStatus(subscription.endpoint, signal), timeoutMs, "A push feliratkozás szerveres ellenőrzése időtúllépés miatt megszakadt.")).active;
+  if (!subscription) return { state: "unsubscribed", active: false, lastSuccessAt: null };
+  const status = await withApiTimeout((signal) => getWebPushSubscriptionStatus(subscription.endpoint, signal), timeoutMs, "A push feliratkozás szerveres ellenőrzése időtúllépés miatt megszakadt.");
+  return { state: status.state, active: status.active, lastSuccessAt: status.last_success_at };
+}
+
+export async function testWebPush(options: WebPushOptions = {}): Promise<{ lastSuccessAt: string }> {
+  const timeoutMs = options.timeoutMs ?? WEB_PUSH_OPERATION_TIMEOUT_MS;
+  const subscription = await getLocalWebPushSubscription({ timeoutMs });
+  if (!subscription) throw new Error("Ezen az eszközön nincs tesztelhető push-feliratkozás.");
+  const result = await withApiTimeout(
+    (signal) => sendWebPushTest(subscription.endpoint, signal),
+    timeoutMs,
+    "A tesztértesítés küldése időtúllépés miatt megszakadt.",
+  );
+  return { lastSuccessAt: result.last_success_at };
 }
 
 export function announceWebPushState(active: boolean): void {

@@ -66,3 +66,12 @@ export function BidWithdrawalDialog({ busy, onClose, onConfirm }: { busy: boolea
     <div className="form-actions"><button className="button button-secondary" type="button" disabled={busy} onClick={onClose}>Mégse</button><button className="button button-danger" type="submit" disabled={busy}>{busy ? "Visszavonás…" : "Licit visszavonása"}</button></div>
   </DialogShell>;
 }
+
+export function AuctionCancelDialog({ title, bidCount, busy, onClose, onConfirm }: { title: string; bidCount: number; busy: boolean; onClose: () => void; onConfirm: () => void }) {
+  return <DialogShell title="Biztosan megszakítod az aukciót?" onClose={onClose} busy={busy} onSubmit={(event) => { event.preventDefault(); onConfirm(); }}>
+    <p><strong>{title}</strong></p>
+    <p>Az aukció megszakítása után a tétel többé nem lesz licitálható. Ez a művelet nem vonható vissza.</p>
+    {bidCount > 0 ? <p className="destructive-warning" role="alert">Erre az aukcióra már {bidCount} licit érkezett. A jelenlegi üzleti szabály szerint a megszakítás továbbra is engedélyezett, de minden aktív licit érvényét veszti.</p> : null}
+    <div className="form-actions"><button className="button button-secondary" type="button" disabled={busy} onClick={onClose}>Mégse</button><button className="button button-danger" type="submit" disabled={busy}>{busy ? "Megszakítás…" : "Igen, aukció megszakítása"}</button></div>
+  </DialogShell>;
+}

@@ -421,10 +421,10 @@ def can_access_post_auction_features(auction: Auction, user_id: int) -> bool:
 
 
 def is_chat_read_only(db: Session, auction: Auction) -> bool:
-    from app.models.transaction import AuctionTransaction
-
-    transaction_status = db.scalar(select(AuctionTransaction.status).where(AuctionTransaction.auction_id == auction.id))
-    return transaction_status == "archived"
+    # Transaction archival only closes the workflow; it does not turn the
+    # transaction-bound participant conversation into a general public chat.
+    # Ownership, block and moderation checks remain authoritative on writes.
+    return False
 
 
 def require_post_auction_participant(auction: Auction, user: User) -> None:
@@ -439,8 +439,6 @@ def create_message(db: Session, auction: Auction, sender: User, message: str) ->
     require_post_auction_participant(auction, sender)
     from app.services.moderation_actions import require_no_restriction
     require_no_restriction(db, sender.id, "chat_ban")
-    if is_chat_read_only(db, auction):
-        raise HTTPException(status_code=409, detail="Az archivált tranzakció chatje csak olvasható.")
     ensure_not_blocked(db, sender.id, get_auction_counterparty(auction, sender.id), "Blokkolás miatt nem küldhető új chatüzenet.")
     normalized_message = message.strip()
     if not normalized_message:

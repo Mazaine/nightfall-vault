@@ -35,6 +35,17 @@ export function formatLocalDateTime(value: string) {
   }).format(new Date(value));
 }
 
+export function formatAuctionEndDate(value: string) {
+  return new Intl.DateTimeFormat("hu-HU", {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(value));
+}
+
 export function formatRemainingTime(endsAt: string, status: string) {
   if (["ended", "sold", "unsold", "cancelled", "suspended"].includes(status)) {
     return "Lezárva";
@@ -43,7 +54,13 @@ export function formatRemainingTime(endsAt: string, status: string) {
   if (remainingMs <= 0) {
     return "Lejárt";
   }
-  const hours = Math.floor(remainingMs / 3_600_000);
-  const minutes = Math.floor((remainingMs % 3_600_000) / 60_000);
-  return `${hours} óra ${minutes} perc`;
+  const totalMinutes = Math.floor(remainingMs / 60_000);
+  const days = Math.floor(totalMinutes / (24 * 60));
+  const hours = Math.floor((totalMinutes % (24 * 60)) / 60);
+  const minutes = totalMinutes % 60;
+  const parts: string[] = [];
+  if (days) parts.push(`${days} nap`);
+  if (hours) parts.push(`${hours} óra`);
+  if (minutes || parts.length === 0) parts.push(`${minutes} perc`);
+  return parts.join(" ");
 }

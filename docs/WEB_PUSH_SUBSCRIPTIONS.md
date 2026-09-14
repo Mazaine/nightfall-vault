@@ -11,6 +11,7 @@ A rendszer szabványos Web Push protokollt használ VAPID-hitelesítéssel. Nem 
 5. A dispatcher csak teljes Web Push konfiguráció, engedélyezett kategóriapreferencia és aktív subscription mellett hoz létre push-feladatot. Meglévő felhasználóknál a push alapértéke `false`.
 6. A worker eszközönként külön feladatot dolgoz fel. Siker esetén frissíti a `last_success_at` értéket; 404/410 esetén soft revoke történik; átmeneti hibánál az outbox meglévő backoffja érvényesül.
 7. A service worker szigorúan validált, verziózott payloadból helyi ikonnal jelenít meg értesítést. Kattintáskor csak azonos originű, központilag engedélyezett belső cél nyitható meg.
+8. A beállítási oldal a helyi és szerveres állapotot egyeztetve jelzi az aktív, hiányzó, tiltott vagy újrafeliratkozást igénylő állapotot. A hitelesített, rate-limitált tesztküldés kizárólag a kérő felhasználó által megadott saját aktív endpointot célozza, és siker esetén ugyanazt a `last_success_at` mezőt frissíti.
 
 A production origin mellett a fejlesztői regisztráció kizárólag böngésző által biztonságosnak tekintett `localhost`, `127.0.0.1` vagy `::1` originen engedélyezett. Mindkét környezet ugyanazt a `/service-worker.js` fájlt és `/` scope-ot használja, a meglévő azonos scope-ú regisztrációt újrahasználva. Az azonos script eltérő scope-ú régi regisztrációja nem törlődik automatikusan és nem kap párhuzamos új regisztrációt: a UI kézi webhelyadat-törlést kér. A regisztráció, az `installing`/`waiting` worker aktiválása és a Web Push hálózati/böngészőműveletek műveletenként legfeljebb 10 másodpercig várnak; timeout vagy aktiválási hiba esetén a UI újrapróbálható állapotba tér vissza. A backend POST csak érvényes PushSubscription után történhet.
 
@@ -70,7 +71,7 @@ Aktív helyi Web Push subscription mellett az SSE továbbra is frissíti az in-a
 
 ## Migráció, indítás és visszagörgetés
 
-1. Készíts biztonsági mentést, majd futtasd sorrendben a `0029_web_push_subscriptions` és `0030_web_push_delivery` migrációt.
+1. Készíts biztonsági mentést, majd futtasd sorrendben a `0029_web_push_subscriptions`, `0030_web_push_delivery` és `0031_event_preferences` migrációt. Az utolsó migráció a meglévő kategóriaszintű értékeket eseményszintű sorokra másolja, így a korábbi e-mail/push döntések nem vesznek el.
 2. Add meg a VAPID-secretet és a validált beállításokat, majd csak ezután állítsd `WEB_PUSH_ENABLED=true` értékre.
 3. Indítsd újra az API-t és a notification workert; ellenőrizd, hogy nincs folyamatos retry.
 4. Vészleállításhoz állítsd `WEB_PUSH_ENABLED=false` értékre. Ez megállítja az új push-feladatok képzését; az in-app, realtime és email csatornát nem kapcsolja ki.

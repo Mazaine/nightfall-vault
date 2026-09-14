@@ -14,6 +14,7 @@ import { useNotifications } from "../NotificationContext";
 import { useAuctionRealtime } from "../AuctionRealtimeContext";
 import { useAuth } from "../AuthContext";
 import { openFacebookAuctionShare } from "../utils/auctionShare";
+import { AuctionCancelDialog } from "../components/BidDialogs";
 
 const MAX_AUCTION_IMAGES = 5;
 const MAX_IMAGE_FILE_SIZE_BYTES = 20 * 1024 * 1024;
@@ -245,6 +246,8 @@ export function AccountPage({ section }: { section: "bids" | "auctions" | "creat
   const [editBuyNowEnabled, setEditBuyNowEnabled] = useState(false);
   const [editCategory, setEditCategory] = useState(categories[0]);
   const [descriptionTemplates, setDescriptionTemplates] = useState<DescriptionTemplate[]>([]);
+  const [cancelTarget, setCancelTarget] = useState<Auction | null>(null);
+  const [isCancellingAuction, setIsCancellingAuction] = useState(false);
 
   useEffect(() => {
     if (!user?.id) {
@@ -612,16 +615,18 @@ export function AccountPage({ section }: { section: "bids" | "auctions" | "creat
     }
   };
 
-  const handleCancelAuction = async (auction: Auction) => {
-    if (!window.confirm("Biztosan megszakítod ezt az aukciót?")) {
-      return;
-    }
+  const handleCancelAuction = async () => {
+    if (!cancelTarget || isCancellingAuction) return;
+    setIsCancellingAuction(true);
     try {
-      await cancelAuction(auction.id);
+      await cancelAuction(cancelTarget.id);
       await refreshMyAuctions();
-      setFormMessage("Az aukció megszakítva.");
+      setEditPageMessage("Az aukció megszakítva.");
+      setCancelTarget(null);
     } catch (error) {
-      setFormMessage(error instanceof Error ? error.message : "Az aukció megszakítása nem sikerült.");
+      setEditPageMessage(error instanceof Error ? error.message : "Az aukció megszakítása nem sikerült.");
+    } finally {
+      setIsCancellingAuction(false);
     }
   };
 
@@ -737,7 +742,7 @@ export function AccountPage({ section }: { section: "bids" | "auctions" | "creat
                                 setEditPageMessage("A Facebook megosztó megnyitása elindult. Ha nem jelenik meg, engedélyezd a felugró ablakokat, majd próbáld újra.");
                               }}><span aria-hidden="true">f</span> Megosztás Facebookon</button> : null}
                               {canEdit ? <button className="button button-secondary" type="button" onClick={() => isEditing ? stopEditingAuction() : void beginEditingAuction(auction)}>{isEditing ? "Szerkesztő bezárása" : "Módosítás"}</button> : null}
-                              {canEdit ? <button className="button button-danger" type="button" onClick={() => handleCancelAuction(auction)}>Megszakítás</button> : null}
+                              {canEdit ? <button className="button button-danger" type="button" onClick={() => setCancelTarget(auction)}>Megszakítás</button> : null}
                             </div>
 
                             {isEditing ? (
@@ -888,6 +893,8 @@ export function AccountPage({ section }: { section: "bids" | "auctions" | "creat
           </div>
         </div>
       </section> : null}
+
+      {cancelTarget ? <AuctionCancelDialog title={cancelTarget.title} bidCount={cancelTarget.bid_count ?? 0} busy={isCancellingAuction} onClose={() => { if (!isCancellingAuction) setCancelTarget(null); }} onConfirm={() => void handleCancelAuction()} /> : null}
 
       {section === "create" ? <section className="account-section" id="auction-create" aria-labelledby="auction-create-title">
         <div className="section-heading">

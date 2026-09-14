@@ -4,7 +4,7 @@ The notification dispatcher writes the domain `Notification` and its delivery ta
 
 ## Tasks and states
 
-One `realtime` task is created for every notification. An `email` task is created when the persisted category preference enables email. With complete Web Push configuration, an enabled category push preference, and active subscriptions, one `push` task is created for each subscription. Its stable event key includes the logical delivery event and subscription id; the task also stores that subscription's foreign key. This preserves multiple-device delivery and isolates device failures.
+One `realtime` task is created for every notification. An `email` task is created when the persisted event preference enables email. With complete Web Push configuration, an enabled event push preference, and active subscriptions, one `push` task is created for each subscription. Its stable event key includes the logical delivery event and subscription id; the task also stores that subscription's foreign key. This preserves multiple-device delivery and isolates device failures. Account-security email (verification and password reset) stays outside this optional pipeline and cannot be disabled through notification preferences.
 
 The unique `(event_key, task_type)` constraint prevents duplicate tasks for a logical event, channel, and—through the push event key—device.
 
@@ -37,6 +37,8 @@ Callers provide a deterministic `Notification.event_key` derived from stable dom
 Delivery is at-least-once. Redis publication is identifiable by notification id. Email providers in this integration do not expose an idempotency key. Web Push also has an acceptance/commit gap: a worker crash after provider acceptance but before the outbox commit can resend. Web Push uses a stable notification tag so a conforming device can replace the existing notification. The system does not claim exactly-once email or push delivery.
 
 Each push task rechecks that its subscription is active and still belongs to the notification recipient. A transferred or revoked endpoint cannot receive an earlier owner's queued notification. An expired endpoint (404/410) is soft-revoked without retry; 429, 5xx, network, DNS, and timeout errors retry; permanent payload/subscription failures fail only that device's task.
+
+The auction scheduler derives the standard two-hour watchlist and seller reminders from current `watchlist_items` and `auctions` state. It creates no process-local timer. Stable user/auction event keys on `notifications` make this restart-safe and idempotent; removed watchlist items and non-active auctions no longer match the scheduler query.
 
 ## Internal target routes and payload privacy
 

@@ -25,6 +25,52 @@ def cleanup_sprint14() -> None:
 
 def test_sold_auction_creates_one_private_transaction_and_mutual_completion() -> None:
     cleanup_sprint14()
+
+
+def test_transaction_notes_are_private_and_closed_items_can_be_hidden_per_participant() -> None:
+    cleanup_sprint14()
+    seller = create_test_user("seller-notes-s14@auction-test.local")
+    buyer = create_test_user("buyer-notes-s14@auction-test.local")
+    outsider = create_test_user("outsider-notes-s14@auction-test.local")
+    admin = create_test_user("admin-notes-s14@auction-test.local", role="admin")
+    create_sold_auction(seller, buyer, admin)
+    transaction = client.get("/api/transactions", headers=auth_headers(seller)).json()["items"][0]
+    transaction_id = transaction["id"]
+
+    assert transaction["own_note"] is None
+    assert transaction["can_delete"] is False
+    assert client.delete(f"/api/transactions/{transaction_id}", headers=auth_headers(seller)).status_code == 409
+    assert client.put(f"/api/transactions/{transaction_id}/note", json={"note": "Nincs hozzáférés"}, headers=auth_headers(outsider)).status_code == 404
+
+    seller_note = client.put(f"/api/transactions/{transaction_id}/note", json={"note": "  Személyes eladói jegyzet  "}, headers=auth_headers(seller))
+    buyer_note = client.put(f"/api/transactions/{transaction_id}/note", json={"note": "Vevő saját jegyzete"}, headers=auth_headers(buyer))
+    assert seller_note.status_code == buyer_note.status_code == 200
+    assert seller_note.json()["own_note"] == "Személyes eladói jegyzet"
+    assert buyer_note.json()["own_note"] == "Vevő saját jegyzete"
+    assert client.get(f"/api/transactions/{transaction_id}", headers=auth_headers(seller)).json()["own_note"] == "Személyes eladói jegyzet"
+    assert client.get(f"/api/transactions/{transaction_id}", headers=auth_headers(buyer)).json()["own_note"] == "Vevő saját jegyzete"
+
+    assert client.post(f"/api/transactions/{transaction_id}/confirm-completion", headers=auth_headers(seller)).status_code == 200
+    assert client.post(f"/api/transactions/{transaction_id}/confirm-completion", headers=auth_headers(buyer)).status_code == 200
+    assert client.delete(f"/api/transactions/{transaction_id}", headers=auth_headers(seller)).status_code == 204
+    assert client.get("/api/transactions", headers=auth_headers(seller)).json()["total"] == 0
+    assert client.get(f"/api/transactions/{transaction_id}", headers=auth_headers(seller)).status_code == 404
+    assert client.put(f"/api/transactions/{transaction_id}/note", json={"note": "Rejtve"}, headers=auth_headers(seller)).status_code == 404
+    buyer_view = client.get("/api/transactions", headers=auth_headers(buyer)).json()
+    assert buyer_view["total"] == 1
+    assert buyer_view["items"][0]["own_note"] == "Vevő saját jegyzete"
+
+    db = SessionLocal()
+    try:
+        stored = db.get(AuctionTransaction, transaction_id)
+        assert stored is not None
+        assert stored.seller_hidden_at is not None
+        assert stored.buyer_hidden_at is None
+        audit_actions = set(db.scalars(select(AuditLog.action).where(AuditLog.auction_id == stored.auction_id)).all())
+        assert {"transaction_note_updated", "transaction_hidden"}.issubset(audit_actions)
+    finally:
+        db.close()
+    cleanup_sprint14()
     seller = create_test_user("seller-s14@auction-test.local")
     buyer = create_test_user("buyer-s14@auction-test.local")
     outsider = create_test_user("outsider-s14@auction-test.local")

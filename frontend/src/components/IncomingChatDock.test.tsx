@@ -22,6 +22,7 @@ describe("IncomingChatDock", () => {
     mocks.listAuctionMessages.mockResolvedValue([incoming]);
     mocks.markAuctionMessagesRead.mockResolvedValue(undefined);
     mocks.sendTyping.mockResolvedValue(undefined);
+    mocks.createAuctionMessage.mockResolvedValue({ ...incoming, id: 92, sender_id: 2, message: "Lezárás utáni üzenet" });
   });
 
   it("másik oldalon automatikusan megnyitja a másik féltől érkező chatüzenetet", async () => {
@@ -66,5 +67,16 @@ describe("IncomingChatDock", () => {
     await waitFor(() => expect(screen.getByLabelText("Üzenet a felugró chatben")).toHaveFocus());
     fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
     await waitFor(() => expect(screen.getByRole("button", { name: "Legutóbbi aukciós chat megnyitása" })).toHaveFocus());
+  });
+
+  it("lezárt tranzakciónál egy régi read-only jelző mellett is írható marad", async () => {
+    mocks.getAuction.mockResolvedValue({ ...auction, chat_read_only: true });
+    render(<MemoryRouter initialEntries={["/account/profile"]}><IncomingChatDock /></MemoryRouter>);
+    await waitFor(() => expect(state.listener).not.toBeNull());
+    act(() => state.listener?.({ id: "notification-archived", type: "notification", payload: { auction_id: 81, category: "chat", in_app_enabled: true } }));
+    const composer = await screen.findByLabelText("Üzenet a felugró chatben");
+    fireEvent.change(composer, { target: { value: "Lezárás utáni üzenet" } });
+    fireEvent.keyDown(composer, { key: "Enter", code: "Enter" });
+    await waitFor(() => expect(mocks.createAuctionMessage).toHaveBeenCalledWith(81, "Lezárás utáni üzenet"));
   });
 });

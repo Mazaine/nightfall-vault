@@ -124,7 +124,7 @@ export function IncomingChatDock() {
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!auction || auction.chat_read_only || !message.trim() || sendingRef.current) return;
+    if (!auction || !message.trim() || sendingRef.current) return;
     sendingRef.current = true;
     setIsSending(true);
     setFeedback("");
@@ -143,7 +143,7 @@ export function IncomingChatDock() {
   const handleKeyDown = (event: ReactKeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing) return;
     event.preventDefault();
-    if (!message.trim() || isSending || auction?.chat_read_only) return;
+    if (!message.trim() || isSending) return;
     event.currentTarget.form?.requestSubmit();
   };
 
@@ -175,15 +175,13 @@ export function IncomingChatDock() {
         </article>)}
         {typingUser ? <p className="typing-indicator" aria-live="polite">{typingUser} ír…</p> : null}
       </div>
-      {auction?.chat_read_only ? <p className="chat-read-only-note" role="status">Ez az archivált beszélgetés csak olvasható.</p> : (
-        <form className="chat-composer" onSubmit={submit}>
+      <form className="chat-composer" onSubmit={submit}>
           <label className="visually-hidden" htmlFor="global-auction-message">Üzenet a felugró chatben</label>
           <textarea ref={composerRef} id="global-auction-message" value={message} onChange={(event) => changeMessage(event.target.value)} onKeyDown={handleKeyDown} rows={2} maxLength={2000} placeholder="Írj egy üzenetet…" disabled={!auction} />
           <button className="button button-primary" type="submit" disabled={!auction || isSending || !message.trim()}>{isSending ? "Küldés…" : "Küldés"}</button>
           <small>Enter: küldés · Shift+Enter: új sor</small>
           {feedback ? <p className="form-message" role="alert">{feedback}</p> : null}
-        </form>
-      )}
+      </form>
     </section>
   ) : (
     <button ref={launcherRef} className="button button-primary chat-launcher global-chat-launcher" type="button" aria-label="Legutóbbi aukciós chat megnyitása" onClick={openFromLauncher}>Üzenet</button>

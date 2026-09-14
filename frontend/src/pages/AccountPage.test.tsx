@@ -7,6 +7,7 @@ import { AccountPage } from "./AccountPage";
 const mocks = vi.hoisted(() => ({
   listMyBidAuctions: vi.fn(),
   listMyAuctions: vi.fn(),
+  cancelAuction: vi.fn(),
   realtimeListener: null as null | ((event: { type: string; payload: Record<string, unknown> }) => void),
   showToast: vi.fn(),
   getMe: vi.fn(),
@@ -14,7 +15,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("../api/auctions", async (importOriginal) => {
   const original = await importOriginal<typeof import("../api/auctions")>();
-  return { ...original, listMyBidAuctions: mocks.listMyBidAuctions, listMyAuctions: mocks.listMyAuctions };
+  return { ...original, cancelAuction: mocks.cancelAuction, listMyBidAuctions: mocks.listMyBidAuctions, listMyAuctions: mocks.listMyAuctions };
 });
 vi.mock("../NotificationContext", () => ({
   useNotifications: () => ({
@@ -41,7 +42,7 @@ function bidItem(id: number, status: Auction["status"], flags: Partial<MyBidAuct
 }
 
 describe("AccountPage bids", () => {
-  beforeEach(() => { mocks.listMyBidAuctions.mockReset(); mocks.listMyAuctions.mockReset(); mocks.showToast.mockReset(); mocks.getMe.mockReset(); mocks.getMe.mockResolvedValue(authUser); mocks.realtimeListener = null; });
+  beforeEach(() => { mocks.listMyBidAuctions.mockReset(); mocks.listMyAuctions.mockReset(); mocks.cancelAuction.mockReset().mockResolvedValue({ id: 1, status: "cancelled" }); mocks.showToast.mockReset(); mocks.getMe.mockReset(); mocks.getMe.mockResolvedValue(authUser); mocks.realtimeListener = null; });
 
   it("loading skeleton állapotot jelenít meg", () => {
     mocks.getMe.mockReturnValue(new Promise(() => undefined));
@@ -84,5 +85,20 @@ describe("AccountPage bids", () => {
     fireEvent.click(retry);
     expect(await screen.findByRole("heading", { name: "Még nincs licited" })).toBeInTheDocument();
     expect(mocks.listMyBidAuctions).toHaveBeenCalledTimes(2);
+  });
+
+  it("az aukciót csak a megerősítő dialog destruktív gombja után szakítja meg", async () => {
+    mocks.listMyAuctions.mockResolvedValue([auction(1, "active")]);
+    renderWithProviders(<AccountPage section="auctions" />);
+    fireEvent.click(await screen.findByRole("button", { name: "Megszakítás" }));
+    expect(screen.getByRole("dialog", { name: "Biztosan megszakítod az aukciót?" })).toBeInTheDocument();
+    expect(screen.getByText(/már 2 licit érkezett/i)).toBeInTheDocument();
+    expect(mocks.cancelAuction).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Mégse" }));
+    expect(mocks.cancelAuction).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Megszakítás" }));
+    fireEvent.click(screen.getByRole("button", { name: "Igen, aukció megszakítása" }));
+    await vi.waitFor(() => expect(mocks.cancelAuction).toHaveBeenCalledWith(1));
   });
 });

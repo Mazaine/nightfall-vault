@@ -33,7 +33,7 @@ describe("ChatTransactionPanel", () => {
 
     await waitFor(() => expect(mocks.confirmTransactionCompletion).toHaveBeenCalledWith(4));
     expect(reviewReady).toHaveBeenCalledOnce();
-    expect(screen.getByText("Tranzakció teljesítve")).toBeInTheDocument();
+    expect(screen.getByText("Tranzakció lezárva")).toBeInTheDocument();
     window.removeEventListener("nightfall:review-ready", reviewReady);
   });
 });

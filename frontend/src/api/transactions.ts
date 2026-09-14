@@ -18,6 +18,8 @@ export type AuctionTransaction = {
   partner_completed_at: string | null;
   can_confirm: boolean;
   can_review: boolean;
+  own_note: string | null;
+  can_delete: boolean;
   auction: { id: number; title: string; finalized_at: string | null };
   partner: { username: string; full_name: string };
 };
@@ -33,4 +35,15 @@ export function listTransactions(status = "", limit = 20) {
 
 export function confirmTransactionCompletion(transactionId: number) {
   return apiRequest<AuctionTransaction>(`/api/transactions/${transactionId}/confirm-completion`, { method: "POST" });
+}
+
+export function saveTransactionNote(transactionId: number, note: string) {
+  return apiRequest<AuctionTransaction>(`/api/transactions/${transactionId}/note`, {
+    method: "PUT",
+    body: JSON.stringify({ note }),
+  });
+}
+
+export function deleteClosedTransaction(transactionId: number) {
+  return apiRequest<void>(`/api/transactions/${transactionId}`, { method: "DELETE" });
 }

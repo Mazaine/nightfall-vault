@@ -80,6 +80,23 @@ def build_web_push_payload(notification: Notification) -> str:
     return serialized
 
 
+def build_web_push_test_payload(subscription_id: int) -> str:
+    timestamp = datetime.now(timezone.utc)
+    title, body = SAFE_COPY["system"]
+    payload = WebPushPayload(
+        schema_version=1,
+        notification_id=subscription_id,
+        event_key=f"push-test:{subscription_id}:{int(timestamp.timestamp())}",
+        title=title,
+        body=body,
+        target_url="/account/notifications",
+        category="system",
+        tag=f"nightfall-notification-{subscription_id}",
+        timestamp=timestamp.isoformat(),
+    )
+    return json.dumps(payload.model_dump(), ensure_ascii=False, separators=(",", ":"))
+
+
 def _topic(event_key: str) -> str:
     return hashlib.sha256(event_key.encode("utf-8")).hexdigest()[:32]
 
@@ -114,8 +131,14 @@ def send_web_push(
             requests_session=session,
         )
         status_code = int(getattr(response, "status_code", 201))
+        if status_code in (404, 410):
+            raise WebPushDeliveryError("push_subscription_expired", transient=False, expired=True)
+        if status_code == 429:
+            raise WebPushDeliveryError("push_rate_limited", transient=True)
+        if status_code >= 500:
+            raise WebPushDeliveryError("push_service_unavailable", transient=True)
         if status_code not in (200, 201, 202):
-            raise WebPushDeliveryError("push_unexpected_status", transient=status_code == 429 or status_code >= 500)
+            raise WebPushDeliveryError("push_request_rejected", transient=False)
     except WebPushDeliveryError:
         raise
     except WebPushException as exc:

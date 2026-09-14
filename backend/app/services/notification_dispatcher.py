@@ -21,8 +21,38 @@ TYPE_CATEGORY = {
     "review_received": "reviews",
     "report_resolved": "moderation", "report_dismissed": "moderation", "auction_moderation_action": "moderation",
     "moderation_action": "moderation", "moderation_strike": "moderation", "moderation_revoked": "moderation",
-    "saved_search_match": "system", "watchlist_reminder": "system",
+    "saved_search_match": "system", "watchlist_reminder": "system", "seller_auction_reminder": "system",
 }
+
+TYPE_PREFERENCE_KEY = {
+    "outbid": "outbid",
+    "auction_bid_received": "auction_bid_received",
+    "auction_won": "auction_won",
+    "auction_lost": "auction_lost",
+    "auction_sold": "auction_sold",
+    "auction_unsold": "auction_unsold",
+    "watchlist_reminder": "watchlist_reminder",
+    "seller_auction_reminder": "seller_auction_reminder",
+    "transaction_opened": "transaction_updates",
+    "transaction_confirmation": "transaction_updates",
+    "transaction_completed": "transaction_updates",
+    "auction_message": "auction_message",
+    "seller_new_auction": "seller_new_auction",
+    "review_received": "review_received",
+    "bid_withdrawn_bidder": "bid_updates",
+    "bid_withdrawn_seller": "bid_updates",
+    "bid_leader_changed_after_withdrawal": "bid_updates",
+    "bid_withdrawal_warning": "moderation",
+    "report_resolved": "moderation",
+    "report_dismissed": "moderation",
+    "auction_moderation_action": "moderation",
+    "moderation_action": "moderation",
+    "moderation_strike": "moderation",
+    "moderation_revoked": "moderation",
+    "saved_search_match": "system",
+}
+
+PREFERENCE_KEYS = NotificationPreference.PREFERENCE_KEYS
 
 
 @dataclass(frozen=True)
@@ -53,7 +83,7 @@ def dispatch_notification(
     send_email: bool = True,
 ) -> Notification | None:
     category = TYPE_CATEGORY.get(notification_type, "system")
-    preference = preference_for(db, user_id, category)
+    preference = preference_for(db, user_id, TYPE_PREFERENCE_KEY.get(notification_type, "system"))
     user = db.get(User, user_id)
     auction = db.get(Auction, auction_id) if auction_id is not None else None
     if auction is not None and auction.demo_batch_id is not None and not can_access_demo_auctions(user):

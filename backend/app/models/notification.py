@@ -8,7 +8,7 @@ from app.db.base import Base
 
 class Notification(Base):
     __tablename__ = "notifications"
-    NOTIFICATION_TYPES = ("outbid", "auction_bid_received", "auction_won", "auction_lost", "auction_sold", "auction_unsold", "seller_new_auction", "saved_search_match", "report_resolved", "report_dismissed", "auction_moderation_action", "auction_message", "transaction_opened", "transaction_confirmation", "transaction_completed", "moderation_action", "moderation_strike", "moderation_revoked", "review_received", "watchlist_reminder", "bid_withdrawn_bidder", "bid_withdrawn_seller", "bid_leader_changed_after_withdrawal", "bid_withdrawal_warning")
+    NOTIFICATION_TYPES = ("outbid", "auction_bid_received", "auction_won", "auction_lost", "auction_sold", "auction_unsold", "seller_auction_reminder", "seller_new_auction", "saved_search_match", "report_resolved", "report_dismissed", "auction_moderation_action", "auction_message", "transaction_opened", "transaction_confirmation", "transaction_completed", "moderation_action", "moderation_strike", "moderation_revoked", "review_received", "watchlist_reminder", "bid_withdrawn_bidder", "bid_withdrawn_seller", "bid_leader_changed_after_withdrawal", "bid_withdrawal_warning")
     __table_args__ = (
         CheckConstraint(f"type IN {NOTIFICATION_TYPES}", name="ck_notifications_type"),
         Index("ix_notifications_user_created", "user_id", "created_at"),
@@ -74,9 +74,13 @@ class NotificationOutbox(Base):
 
 class NotificationPreference(Base):
     __tablename__ = "notification_preferences"
-    CATEGORIES = ("bids", "chat", "follows", "transactions", "reviews", "moderation", "system")
+    PREFERENCE_KEYS = (
+        "outbid", "auction_bid_received", "auction_won", "auction_lost", "auction_sold", "auction_unsold",
+        "watchlist_reminder", "seller_auction_reminder", "transaction_updates", "auction_message",
+        "seller_new_auction", "review_received", "bid_updates", "moderation", "system",
+    )
     __table_args__ = (
-        CheckConstraint(f"category IN {CATEGORIES}", name="ck_notification_preferences_category"),
+        CheckConstraint(f"category IN {PREFERENCE_KEYS}", name="ck_notification_preferences_category"),
         UniqueConstraint("user_id", "category", name="uq_notification_preferences_user_category"),
     )
 

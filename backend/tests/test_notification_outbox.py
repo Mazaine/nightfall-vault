@@ -55,7 +55,7 @@ def isolated_outbox_data():
 def enqueue(user: User, event_key: str, *, email: bool = False) -> tuple[int, int]:
     db = SessionLocal()
     if email:
-        db.add(NotificationPreference(user_id=user.id, category="bids", in_app=True, browser=False, email=True))
+        db.add(NotificationPreference(user_id=user.id, category="outbid", in_app=True, browser=False, email=True))
         db.commit()
     notification = dispatch_notification(
         db,
@@ -79,7 +79,7 @@ def test_rollback_removes_notification_and_outbox_without_side_effects(monkeypat
     monkeypatch.setattr("app.services.notification_outbox.publish_user_event", lambda *_args: published.append(1))
     monkeypatch.setattr("app.services.notification_outbox.send_notification_email", lambda *_args: emailed.append(1))
     db = SessionLocal()
-    db.add(NotificationPreference(user_id=user.id, category="bids", in_app=True, browser=False, email=True))
+    db.add(NotificationPreference(user_id=user.id, category="outbid", in_app=True, browser=False, email=True))
     db.commit()
     dispatch_notification(db, user_id=user.id, notification_type="outbid", title="Teszt", message="Rollback", event_key="rollback:test")
     db.rollback()

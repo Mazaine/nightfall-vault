@@ -50,7 +50,7 @@ export function ChatTransactionPanel({ auctionId }: { auctionId: number }) {
 
   return (
     <section className="chat-transaction-panel" aria-label="Tranzakció lezárása">
-      <div><strong>{completed ? "Tranzakció teljesítve" : "Tranzakció lezárása"}</strong><small>Saját megerősítés: {transaction.own_completed_at ? "kész" : "hiányzik"} · Partner: {transaction.partner_completed_at ? "kész" : "hiányzik"}</small></div>
+      <div><strong>{completed ? "Tranzakció lezárva" : "Tranzakció lezárása"}</strong><small>Saját megerősítés: {transaction.own_completed_at ? "kész" : "hiányzik"} · Partner: {transaction.partner_completed_at ? "kész" : "hiányzik"}</small></div>
       {transaction.can_confirm ? <button className="button button-primary" type="button" disabled={isConfirming} onClick={() => void confirm()}>{isConfirming ? "Mentés…" : "Teljesítés megerősítése"}</button> : null}
       {!transaction.can_confirm && !completed ? <span className="transaction-waiting">Várakozás a másik félre</span> : null}
       {feedback ? <p className="form-message" role="status">{feedback}</p> : null}

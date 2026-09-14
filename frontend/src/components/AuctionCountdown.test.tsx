@@ -28,12 +28,12 @@ describe("AuctionCountdown", () => {
   it("az ötperces szabály nélkül nem kapcsol másodperces módba", () => {
     render(<AuctionCountdown endsAt="2026-07-19T18:04:02.000Z" status="active" fiveMinuteRuleEnabled={false} />);
     expect(screen.queryByRole("timer")).not.toBeInTheDocument();
-    expect(screen.getByText("0 óra 4 perc")).toBeInTheDocument();
+    expect(screen.getByText("4 perc")).toBeInTheDocument();
   });
 
   it("öt percnél távolabb normál visszaszámlálást mutat", () => {
     render(<AuctionCountdown endsAt="2026-07-19T18:06:00.000Z" status="active" fiveMinuteRuleEnabled />);
     expect(screen.queryByRole("timer")).not.toBeInTheDocument();
-    expect(screen.getByText("0 óra 6 perc")).toBeInTheDocument();
+    expect(screen.getByText("6 perc")).toBeInTheDocument();
   });
 });
