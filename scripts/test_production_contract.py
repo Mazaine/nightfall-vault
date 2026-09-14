@@ -35,6 +35,14 @@ assert '"axios"' not in package
 
 for name in ("deploy_production.sh", "backup_production.sh", "restore_production.sh", "rollback_production.sh", "smoke_test_production.sh", "release_gate.sh"):
     assert "set -Eeuo pipefail" in read(f"scripts/{name}")
+deploy = read("scripts/deploy_production.sh")
+assert all(value in deploy for value in (
+    "migration_services=(backend auction-scheduler notification-outbox)",
+    "compose stop --timeout",
+    "PGOPTIONS=-c lock_timeout=",
+    "restart_previous_apps_on_error",
+    'compose start "${services_to_restart[@]}"',
+))
 restore = read("scripts/restore_production.sh")
 assert all(value in restore for value in ("--confirm-data-loss", "ALLOW_PRODUCTION_RESTORE", "backup_production.sh"))
 env = read(".env.production.example")
