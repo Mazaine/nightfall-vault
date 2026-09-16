@@ -566,3 +566,15 @@ def test_home_overview_counts_order_and_private_watch_aggregation() -> None:
     assert detail.json()["watch_count"] == 1
     assert "watcher" not in detail.text.lower()
     cleanup_test_data()
+
+
+def test_home_personal_bid_query_compiles_with_joined_bid() -> None:
+    from sqlalchemy import true
+    from sqlalchemy.dialects import postgresql
+    from app.api.auctions import _home_personal_bid_statement
+
+    statement = _home_personal_bid_statement(user_id=1, active_filter=true())
+    sql = str(statement.compile(dialect=postgresql.dialect()))
+    assert "EXISTS (SELECT bids.id" in sql
+    assert "FROM bids" in sql
+    assert "FROM auction_bid_exclusions" in sql

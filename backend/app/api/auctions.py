@@ -275,6 +275,31 @@ def list_public_auctions(
     return AuctionListPage(items=items, total=total, limit=limit, offset=offset)
 
 
+def _home_personal_bid_statement(user_id: int, active_filter):
+    # Az outer query is csatlakoztatja a Bid táblát. A korrelációt ezért
+    # kifejezetten az Auction táblára szűkítjük, különben a belső SELECT
+    # minden FROM tábláját elveszíti SQL-fordításkor.
+    own_active_bid = exists(
+        select(Bid.id).select_from(Bid).where(
+            Bid.auction_id == Auction.id,
+            Bid.bidder_id == user_id,
+            Bid.status == "active",
+        )
+    ).correlate(Auction)
+    not_exited = ~exists(
+        select(AuctionBidExclusion.id).select_from(AuctionBidExclusion).where(
+            AuctionBidExclusion.auction_id == Auction.id,
+            AuctionBidExclusion.user_id == user_id,
+        )
+    ).correlate(Auction)
+    return (
+        select(Auction.highest_bid_id, Bid.bidder_id)
+        .select_from(Auction)
+        .outerjoin(Bid, Bid.id == Auction.highest_bid_id)
+        .where(active_filter, own_active_bid, not_exited)
+    )
+
+
 @router.get("/home", response_model=HomeAuctionOverview)
 def home_auction_overview(
     current_user: User | None = Depends(get_optional_current_user),
@@ -287,9 +312,7 @@ def home_auction_overview(
     active_count = int(db.scalar(select(func.count(Auction.id)).where(active)) or 0)
     active_bid_count = outbid_count = draft_count = open_transaction_count = 0
     if current_user is not None:
-        own_active_bid = exists(select(Bid.id).where(Bid.auction_id == Auction.id, Bid.bidder_id == current_user.id, Bid.status == "active"))
-        not_exited = ~exists(select(AuctionBidExclusion.id).where(AuctionBidExclusion.auction_id == Auction.id, AuctionBidExclusion.user_id == current_user.id))
-        personal_ids = db.execute(select(Auction.highest_bid_id, Bid.bidder_id).select_from(Auction).outerjoin(Bid, Bid.id == Auction.highest_bid_id).where(active, own_active_bid, not_exited)).all()
+        personal_ids = db.execute(_home_personal_bid_statement(current_user.id, active)).all()
         active_bid_count = len(personal_ids)
         outbid_count = sum(1 for highest_id, bidder_id in personal_ids if highest_id is not None and bidder_id != current_user.id)
         draft_count = int(db.scalar(select(func.count(Auction.id)).where(Auction.seller_id == current_user.id, Auction.status == "draft", Auction.deleted_at.is_(None), visible)) or 0)
