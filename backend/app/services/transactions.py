@@ -9,6 +9,7 @@ from app.core.config import settings
 from app.models.auction import Auction, AuctionReview
 from app.models.transaction import AuctionTransaction
 from app.models.user import User
+from app.services.demo_visibility import auction_visibility_clause
 from app.services.security_audit import create_domain_audit_log
 
 
@@ -21,6 +22,18 @@ def transaction_options():
         joinedload(AuctionTransaction.auction),
         joinedload(AuctionTransaction.seller),
         joinedload(AuctionTransaction.buyer),
+    )
+
+
+def visible_transaction_filters(user: User):
+    """Participant, personal hide state and auction visibility for list/count queries."""
+    return (
+        or_(AuctionTransaction.seller_id == user.id, AuctionTransaction.buyer_id == user.id),
+        or_(
+            and_(AuctionTransaction.seller_id == user.id, AuctionTransaction.seller_hidden_at.is_(None)),
+            and_(AuctionTransaction.buyer_id == user.id, AuctionTransaction.buyer_hidden_at.is_(None)),
+        ),
+        auction_visibility_clause(user),
     )
 
 

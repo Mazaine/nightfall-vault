@@ -1,5 +1,4 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
-from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
@@ -8,8 +7,8 @@ from app.models.transaction import AuctionTransaction
 from app.models.auction import Auction
 from app.models.user import User
 from app.schemas.transaction import AuctionTransactionPage, AuctionTransactionRead, TransactionNoteUpdate
-from app.services.transactions import confirm_completion, get_participant_transaction, hide_closed_transaction, is_transaction_hidden_for, serialize_transaction, transaction_options, update_transaction_note
-from app.services.demo_visibility import auction_visibility_clause, require_demo_auction_access
+from app.services.transactions import confirm_completion, get_participant_transaction, hide_closed_transaction, is_transaction_hidden_for, serialize_transaction, transaction_options, update_transaction_note, visible_transaction_filters
+from app.services.demo_visibility import require_demo_auction_access
 
 
 router = APIRouter(prefix="/api/transactions", tags=["transactions"])
@@ -23,14 +22,7 @@ def list_my_transactions(
     current_user: User = Depends(require_active_user),
     db: Session = Depends(get_db),
 ) -> AuctionTransactionPage:
-    query = db.query(AuctionTransaction).join(Auction, Auction.id == AuctionTransaction.auction_id).options(*transaction_options()).filter(
-        or_(AuctionTransaction.seller_id == current_user.id, AuctionTransaction.buyer_id == current_user.id)
-    ).filter(
-        or_(
-            and_(AuctionTransaction.seller_id == current_user.id, AuctionTransaction.seller_hidden_at.is_(None)),
-            and_(AuctionTransaction.buyer_id == current_user.id, AuctionTransaction.buyer_hidden_at.is_(None)),
-        )
-    ).filter(auction_visibility_clause(current_user))
+    query = db.query(AuctionTransaction).join(Auction, Auction.id == AuctionTransaction.auction_id).options(*transaction_options()).filter(*visible_transaction_filters(current_user))
     if status_filter:
         query = query.filter(AuctionTransaction.status == status_filter)
     total = query.count()

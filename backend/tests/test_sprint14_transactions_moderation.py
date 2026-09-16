@@ -1,8 +1,11 @@
 from datetime import datetime, timedelta, timezone
+from uuid import uuid4
 
 from sqlalchemy import delete, func, select
 
 from app.db.session import SessionLocal
+from app.models.auction import Auction
+from app.models.demo_auction import DemoAuctionBatch
 from app.models.moderation import ModerationAction, Report, UserStrike
 from app.models.security_log import AuditLog
 from app.models.transaction import AuctionTransaction
@@ -21,6 +24,55 @@ def cleanup_sprint14() -> None:
     finally:
         db.close()
     cleanup_test_data()
+
+
+def test_home_open_transaction_count_matches_visible_open_list() -> None:
+    cleanup_sprint14()
+    seller = create_test_user("seller-home-count@auction-test.local", role="admin")
+    buyer = create_test_user("buyer-home-count@auction-test.local")
+    create_sold_auction(seller, buyer, seller)
+    demo_sold = create_sold_auction(seller, buyer, seller)
+
+    db = SessionLocal()
+    batch_id = None
+    try:
+        batch = DemoAuctionBatch(
+            batch_key=str(uuid4()), status="active", regular_count=1,
+            featured_count=0, created_by_admin_id=seller.id,
+        )
+        db.add(batch)
+        db.flush()
+        batch_id = batch.id
+        demo_auction = db.get(Auction, demo_sold["id"])
+        assert demo_auction is not None
+        demo_auction.demo_batch_id = batch_id
+        db.commit()
+    finally:
+        db.close()
+
+    try:
+        buyer_list = client.get("/api/transactions?status=transaction_open", headers=auth_headers(buyer))
+        buyer_home = client.get("/api/auctions/home", headers=auth_headers(buyer))
+        seller_list = client.get("/api/transactions?status=transaction_open", headers=auth_headers(seller))
+        seller_home = client.get("/api/auctions/home", headers=auth_headers(seller))
+        assert buyer_list.status_code == buyer_home.status_code == 200
+        assert seller_list.status_code == seller_home.status_code == 200
+        assert buyer_list.json()["total"] == buyer_home.json()["open_transaction_count"] == 1
+        assert seller_list.json()["total"] == seller_home.json()["open_transaction_count"] == 2
+    finally:
+        db = SessionLocal()
+        try:
+            demo_auction = db.get(Auction, demo_sold["id"])
+            if demo_auction is not None:
+                demo_auction.demo_batch_id = None
+            if batch_id is not None:
+                batch = db.get(DemoAuctionBatch, batch_id)
+                if batch is not None:
+                    db.delete(batch)
+            db.commit()
+        finally:
+            db.close()
+        cleanup_sprint14()
 
 
 def test_sold_auction_creates_one_private_transaction_and_mutual_completion() -> None:

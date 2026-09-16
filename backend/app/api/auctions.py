@@ -23,7 +23,7 @@ from app.services.notifications import notify_followers_new_auction
 from app.services.membership import featured_auction_order, is_vip
 from app.services.recommendations import related_auctions, seller_other_auctions
 from app.services.saved_searches import notify_saved_search_matches
-from app.services.transactions import can_user_review_transaction
+from app.services.transactions import can_user_review_transaction, visible_transaction_filters
 from app.services.realtime import iter_stream
 from app.services.demo_visibility import auction_visibility_clause, can_access_demo_auctions
 from app.storage.paths import media_url
@@ -316,7 +316,12 @@ def home_auction_overview(
         active_bid_count = len(personal_ids)
         outbid_count = sum(1 for highest_id, bidder_id in personal_ids if highest_id is not None and bidder_id != current_user.id)
         draft_count = int(db.scalar(select(func.count(Auction.id)).where(Auction.seller_id == current_user.id, Auction.status == "draft", Auction.deleted_at.is_(None), visible)) or 0)
-        open_transaction_count = int(db.scalar(select(func.count(AuctionTransaction.id)).where(AuctionTransaction.status == "transaction_open", or_(AuctionTransaction.seller_id == current_user.id, AuctionTransaction.buyer_id == current_user.id), or_(and_(AuctionTransaction.seller_id == current_user.id, AuctionTransaction.seller_hidden_at.is_(None)), and_(AuctionTransaction.buyer_id == current_user.id, AuctionTransaction.buyer_hidden_at.is_(None))))) or 0)
+        open_transaction_count = int(db.scalar(
+            select(func.count(AuctionTransaction.id))
+            .select_from(AuctionTransaction)
+            .join(Auction, Auction.id == AuctionTransaction.auction_id)
+            .where(AuctionTransaction.status == "transaction_open", *visible_transaction_filters(current_user))
+        ) or 0)
 
     featured_base = select(Auction.id).join(User, User.id == Auction.seller_id).where(
         Auction.status.in_(("active", "scheduled")), Auction.deleted_at.is_(None), Auction.ends_at > now, visible,
