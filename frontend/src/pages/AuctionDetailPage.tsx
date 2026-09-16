@@ -441,6 +441,7 @@ export function AuctionDetailPage() {
           <div><dt>Aktuális licit</dt><dd>{formatMoney(auction.current_price ?? auction.starting_price)}</dd></div>
           <div><dt>Kezdőár</dt><dd>{formatMoney(auction.starting_price)}</dd></div>
           <div><dt>Licitlépcső</dt><dd>{formatMoney(auction.bid_increment)}</dd></div>
+          {auction.watch_count ? <div><dt>Figyelők</dt><dd>{auction.watch_count} ember figyeli</dd></div> : null}
           <div className={auction.five_minute_rule_enabled ? "detail-countdown-row" : undefined}><dt>Hátralévő idő</dt><dd><AuctionCountdown endsAt={auction.ends_at} status={auction.status} fiveMinuteRuleEnabled={auction.five_minute_rule_enabled} /></dd></div>
           <div><dt>Kezdés</dt><dd>{formatLocalDateTime(auction.starts_at)}</dd></div>
           <div><dt>Lejár</dt><dd>{formatAuctionEndDate(auction.ends_at)}</dd></div>

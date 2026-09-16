@@ -1,10 +1,9 @@
-import { useCallback, useEffect, useRef, useState, type TouchEvent } from "react";
+import { useEffect, useRef, useState, type TouchEvent } from "react";
 import { Link } from "react-router";
-import { listAuctions, type Auction } from "../../api/auctions";
+import { type Auction } from "../../api/auctions";
 import { AuctionCard } from "../../components/AuctionCard";
 import { toAuctionCardItem } from "../../utils/auctionPresentation";
 import { HomeTrustPanel } from "./HomeTrustPanel";
-import { useAuctionRealtime } from "../../AuctionRealtimeContext";
 
 const FEATURED_PAGE_SIZE = 4;
 const TABLET_FEATURED_PAGE_SIZE = 2;
@@ -17,46 +16,14 @@ function getFeaturedPageSize() {
   return FEATURED_PAGE_SIZE;
 }
 
-export function HomeFeatured() {
-  const { subscribe } = useAuctionRealtime();
-  const [auctions, setAuctions] = useState<Auction[]>([]);
+export function HomeFeatured({ auctions, isLoading = false }: { auctions: Auction[]; isLoading?: boolean }) {
   const [pageIndex, setPageIndex] = useState(0);
   const [pageSize, setPageSize] = useState(getFeaturedPageSize);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [paused, setPaused] = useState(false);
+  const [hidden, setHidden] = useState(typeof document !== "undefined" && document.hidden);
+  const [reducedMotion, setReducedMotion] = useState(false);
   const touchStartX = useRef<number | null>(null);
-
-  const loadFeatured = useCallback(async (showLoading = true, resetPage = true) => {
-    if (showLoading) setIsLoading(true);
-    setError("");
-    try {
-      const [active, scheduled] = await Promise.all([
-        listAuctions({ status: "active", sort: "soon_ending", limit: 100 }),
-        listAuctions({ status: "scheduled", sort: "oldest", limit: 100 }),
-      ]);
-      const combined = [...active.items, ...scheduled.items];
-      combined.sort((left, right) => Number(Boolean(right.is_featured)) - Number(Boolean(left.is_featured)));
-      setAuctions(combined.filter((auction) => auction.is_featured));
-      if (resetPage) setPageIndex(0);
-    } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : "A kiemelt aukciók betöltése nem sikerült.");
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void loadFeatured();
-  }, [loadFeatured]);
-
-  useEffect(() => subscribe((snapshot) => {
-    setAuctions((items) => items
-      .filter((item) => item.id !== snapshot.auction_id || (snapshot.is_listed !== false && ["active", "scheduled"].includes(snapshot.status)))
-      .map((item) => item.id === snapshot.auction_id
-        ? { ...item, status: snapshot.status, current_price: snapshot.current_price, highest_bid_id: snapshot.highest_bid_id, winner_id: snapshot.winner_id, ends_at: snapshot.ends_at, bid_count: snapshot.bid_count }
-        : item));
-    void loadFeatured(false, false);
-  }), [loadFeatured, subscribe]);
+  const manualPauseUntil = useRef(0);
 
   useEffect(() => {
     const mobileQuery = window.matchMedia("(max-width: 760px)");
@@ -74,10 +41,30 @@ export function HomeFeatured() {
     };
   }, []);
 
+  useEffect(() => {
+    const motion = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const updateMotion = () => setReducedMotion(motion.matches);
+    const updateVisibility = () => setHidden(document.hidden);
+    updateMotion();
+    document.addEventListener("visibilitychange", updateVisibility);
+    motion.addEventListener("change", updateMotion);
+    return () => { document.removeEventListener("visibilitychange", updateVisibility); motion.removeEventListener("change", updateMotion); };
+  }, []);
+
   const pageCount = Math.max(1, Math.ceil(auctions.length / pageSize));
   const visibleAuctions = auctions.slice(pageIndex * pageSize, (pageIndex + 1) * pageSize);
-  const showPreviousPage = () => setPageIndex((current) => current === 0 ? pageCount - 1 : current - 1);
-  const showNextPage = () => setPageIndex((current) => current >= pageCount - 1 ? 0 : current + 1);
+  const showPreviousPage = () => { manualPauseUntil.current = Date.now() + 12000; setPageIndex((current) => current === 0 ? pageCount - 1 : current - 1); };
+  const showNextPage = () => { manualPauseUntil.current = Date.now() + 12000; setPageIndex((current) => current >= pageCount - 1 ? 0 : current + 1); };
+
+  useEffect(() => {
+    if (pageCount <= 1 || paused || hidden || reducedMotion) return;
+    const timer = window.setInterval(() => {
+      if (Date.now() >= manualPauseUntil.current) setPageIndex((current) => current >= pageCount - 1 ? 0 : current + 1);
+    }, 6000);
+    return () => window.clearInterval(timer);
+  }, [pageCount, paused, hidden, reducedMotion]);
+
+  useEffect(() => { setPageIndex((current) => Math.min(current, pageCount - 1)); }, [pageCount]);
 
   const handleTouchEnd = (event: TouchEvent<HTMLDivElement>) => {
     if (touchStartX.current === null || pageCount <= 1) return;
@@ -89,32 +76,21 @@ export function HomeFeatured() {
   };
 
   return (
-    <section className="container home-featured-section">
+    <section className="container home-featured-section" onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)} onFocusCapture={() => setPaused(true)} onBlurCapture={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setPaused(false); }}>
       <div className="main-column">
         <div className="section-heading">
           <div><h2>Kiemelt aukciók</h2></div>
           <Link className="text-link" to="/auctions">Összes aukció</Link>
         </div>
 
-        {isLoading ? (
-          <div className="skeleton-grid" role="status" aria-label="Kiemelt aukciók betöltése">
-            {Array.from({ length: pageSize }).map((_, index) => <div className="skeleton-card" key={index} />)}
-          </div>
-        ) : null}
-        {!isLoading && error ? (
-          <div className="side-panel empty-state" role="alert">
-            <h3>A kiemelt aukciók most nem érhetők el</h3>
-            <p>{error}</p>
-            <button className="button button-secondary" type="button" onClick={() => void loadFeatured()}>Újrapróbálás</button>
-          </div>
-        ) : null}
-        {!isLoading && !error && auctions.length === 0 ? (
+        {isLoading ? <div className="skeleton-grid" role="status" aria-label="Kiemelt aukciók betöltése">{Array.from({ length: pageSize }).map((_, index) => <div className="skeleton-card" key={index} />)}</div> : null}
+        {!isLoading && auctions.length === 0 ? (
           <div className="side-panel empty-state">
             <h3>Jelenleg nincs aktív vagy hamarosan induló kiemelt aukció</h3>
             <Link className="button button-secondary" to="/auctions">Aukciók böngészése</Link>
           </div>
         ) : null}
-        {!isLoading && !error && auctions.length > 0 ? (
+        {!isLoading && auctions.length > 0 ? (
           <div
             className="auction-grid home-auction-grid"
             onTouchStart={(event) => { touchStartX.current = event.touches[0].clientX; }}
@@ -125,7 +101,7 @@ export function HomeFeatured() {
             ))}
           </div>
         ) : null}
-        {!isLoading && !error && pageCount > 1 ? (
+        {!isLoading && pageCount > 1 ? (
           <nav className="featured-carousel-controls" aria-label="Kiemelt aukciók lapozása">
             <button className="button button-secondary" type="button" onClick={showPreviousPage} aria-label="Előző kiemelt aukciók">‹ <span>Előző</span></button>
             <span className="featured-carousel-page" aria-live="polite">{pageIndex + 1} / {pageCount}</span>

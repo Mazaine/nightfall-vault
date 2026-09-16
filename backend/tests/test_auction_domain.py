@@ -505,3 +505,64 @@ def test_reviewed_user_spoofing_is_ignored_and_self_review_is_not_possible() -> 
     assert spoofed_review.status_code == 201
     assert spoofed_review.json()["reviewer_id"] == winner.id
     assert spoofed_review.json()["reviewed_user_id"] == seller.id
+
+
+def test_home_overview_counts_order_and_private_watch_aggregation() -> None:
+    from sqlalchemy import event
+    from app.db.session import engine
+
+    cleanup_test_data()
+    seller = create_test_user("seller-home@auction-test.local", role="admin")
+    bidder = create_test_user("bidder-home@auction-test.local")
+    competitor = create_test_user("competitor-home@auction-test.local")
+    watcher = create_test_user("watcher-home@auction-test.local")
+    now = datetime.now(timezone.utc)
+    ids = []
+    for number in range(6):
+        created = client.post("/api/auctions", json=auction_payload(title=f"Home {number}"), headers=auth_headers(seller))
+        assert created.status_code == 201
+        ids.append(created.json()["id"])
+    db = SessionLocal()
+    try:
+        for number, auction_id in enumerate(ids):
+            item = db.get(Auction, auction_id)
+            item.starts_at = now - timedelta(hours=number + 1)
+            item.ends_at = now + timedelta(minutes=20 + number * 30)
+            item.status = "active" if number < 3 else "scheduled" if number == 3 else "ended" if number == 4 else "cancelled"
+        own = Bid(auction_id=ids[0], bidder_id=bidder.id, amount="1100.00", status="active")
+        winner = Bid(auction_id=ids[0], bidder_id=competitor.id, amount="1200.00", status="active")
+        withdrawn = Bid(auction_id=ids[0], bidder_id=bidder.id, amount="900.00", status="withdrawn")
+        db.add_all([own, winner, withdrawn, WatchlistItem(auction_id=ids[0], user_id=watcher.id)])
+        db.flush()
+        first = db.get(Auction, ids[0])
+        first.highest_bid_id = winner.id
+        first.current_price = winner.amount
+        db.commit()
+    finally:
+        db.close()
+
+    statements = []
+    def record_statement(_connection, _cursor, statement, _parameters, _context, _executemany):
+        if statement.lstrip().upper().startswith("SELECT"):
+            statements.append(statement)
+
+    event.listen(engine, "before_cursor_execute", record_statement)
+    try:
+        response = client.get("/api/auctions/home", headers=auth_headers(bidder))
+    finally:
+        event.remove(engine, "before_cursor_execute", record_statement)
+    assert response.status_code == 200, response.text
+    data = response.json()
+    assert data["active_count"] == 3
+    assert client.get("/api/auctions?status=active").json()["total"] == 3
+    assert data["active_bid_count"] == 1
+    assert data["outbid_count"] == 1
+    assert [item["id"] for item in data["soon_ending"]] == ids[:3]
+    assert [item["id"] for item in data["new_auctions"]] == ids[:3]
+    assert next(item for item in data["featured"] if item["id"] == ids[0])["bid_count"] == 2
+    assert len(statements) <= 18  # bounded independent of the number of cards
+    detail = client.get(f"/api/auctions/{ids[0]}")
+    assert detail.status_code == 200
+    assert detail.json()["watch_count"] == 1
+    assert "watcher" not in detail.text.lower()
+    cleanup_test_data()

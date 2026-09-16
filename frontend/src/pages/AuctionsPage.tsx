@@ -28,6 +28,7 @@ type FilterState = {
   category: string;
   hatalom_era: HatalomEra | "";
   condition: string;
+  status: string;
   min_price: string;
   max_price: string;
   min_bids: string;
@@ -44,6 +45,7 @@ const INITIAL_FILTERS: FilterState = {
   category: "",
   hatalom_era: "",
   condition: "",
+  status: "",
   min_price: "",
   max_price: "",
   min_bids: "",
@@ -68,6 +70,7 @@ function activeFilterEntries(filters: FilterState) {
   const condition = CARD_CONDITIONS.find((item) => item.value === filters.condition)?.nameHu;
   const eraLabels: Record<string, string> = { retro: "RETRO", ujkor: "Újkor", uj_nemzedek: "Új nemzedék" };
   return [
+    filters.status === "active" ? { key: "status", label: "Aktív aukciók" } : null,
     filters.q ? { key: "q", label: `Keresés: ${filters.q}` } : null,
     filters.title ? { key: "title", label: `Cím: ${filters.title}` } : null,
     filters.description ? { key: "description", label: `Leírás: ${filters.description}` } : null,
@@ -96,6 +99,7 @@ function toParams(filters: FilterState, offset: number): AuctionListParams {
     category: filters.category || undefined,
     hatalom_era: filters.hatalom_era || undefined,
     condition: filters.condition || undefined,
+    status: filters.status || undefined,
     min_price: filters.min_price || undefined,
     max_price: filters.max_price || undefined,
     min_bids: filters.min_bids || undefined,

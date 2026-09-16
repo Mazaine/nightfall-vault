@@ -483,6 +483,9 @@ h3 {
   gap: var(--space-8);
 }
 
+.home-discovery-section { padding-block: var(--space-6); }
+.home-discovery-section .section-heading { margin-bottom: var(--space-3); }
+
 .home-featured-section > .side-stack {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
@@ -1769,18 +1772,26 @@ h3 {
 @media (max-width: 760px) {
   .hero-section {
     min-height: auto;
-    padding-top: 0;
+    padding: 0 0 1.5rem;
   }
 
   .hero-media {
     inset-inline: 0;
-    height: 30rem;
+    height: 100%;
+    background-position: center, center, 62% center;
+    background-image: linear-gradient(90deg, rgb(5 5 9 / .9), rgb(5 5 9 / .6)), linear-gradient(180deg, rgb(5 5 9 / .2), rgb(5 5 9 / .86)), url("/assets/nightfall-castle-background.png");
   }
 
   .hero-copy {
     min-width: 0;
     max-width: 100%;
+    padding-block: clamp(2rem, 9vw, 3.5rem);
   }
+
+  .hero-copy #hero-title { font-size: clamp(2rem, 8.4vw, 3.1rem); line-height: 1.02; }
+  .hero-lead { font-size: clamp(.95rem, 3.5vw, 1.1rem); line-height: 1.5; }
+  .hero-actions { margin-top: var(--space-5); }
+  .hero-actions .button { min-height: 44px; }
 
   .hero-copy #hero-title span {
     white-space: normal;
@@ -1820,6 +1831,7 @@ h3 {
   .featured-carousel-controls .button {
     min-width: 0;
     width: 100%;
+    min-height: 44px;
   }
 
   .my-bid-row {

@@ -64,6 +64,7 @@ export type Auction = {
   can_review?: boolean;
   is_owner?: boolean;
   bid_count?: number;
+  watch_count?: number;
   seller_average_rating?: number | null;
   seller_review_count?: number;
   is_featured?: boolean;
@@ -261,6 +262,21 @@ function toQuery(params: Record<string, string | number | boolean | undefined | 
 
 export function listAuctions(params: AuctionListParams = {}) {
   return apiRequest<AuctionPage>(`/api/auctions${toQuery(params)}`);
+}
+
+export type HomeAuctionOverview = {
+  active_count: number;
+  active_bid_count: number;
+  outbid_count: number;
+  draft_count: number;
+  open_transaction_count: number;
+  featured: Auction[];
+  soon_ending: Auction[];
+  new_auctions: Auction[];
+};
+
+export function getHomeAuctionOverview() {
+  return apiRequest<HomeAuctionOverview>("/api/auctions/home");
 }
 
 export function getAuction(auctionId: string | number) {

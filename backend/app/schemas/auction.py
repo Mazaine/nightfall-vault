@@ -409,6 +409,7 @@ class WatchlistItemRead(BaseModel):
 
 
 class AuctionResponse(AuctionListItem):
+    watch_count: int = 0
     description: str
     seller_declaration_accepted_at: datetime
     seller_declaration_version: str
@@ -420,6 +421,17 @@ class AuctionResponse(AuctionListItem):
     chat_read_only: bool = False
     can_review: bool = False
     is_owner: bool = False
+
+
+class HomeAuctionOverview(BaseModel):
+    active_count: int
+    active_bid_count: int = 0
+    outbid_count: int = 0
+    draft_count: int = 0
+    open_transaction_count: int = 0
+    featured: list[AuctionListItem]
+    soon_ending: list[AuctionListItem]
+    new_auctions: list[AuctionListItem]
 
 
 class AuctionStatusResponse(BaseModel):

@@ -4,7 +4,7 @@ from typing import Literal
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile, status
 from fastapi.responses import StreamingResponse
-from sqlalchemy import and_, case, func, or_, select
+from sqlalchemy import and_, case, exists, func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.core.config import settings
@@ -15,7 +15,7 @@ from app.models.auction import Auction, AuctionBidExclusion, AuctionMessage, Auc
 from app.models.notification import Notification
 from app.models.transaction import AuctionTransaction
 from app.models.user import User
-from app.schemas.auction import AuctionConversationRead, AuctionCreate, AuctionFinalizeRequest, AuctionImageRead, AuctionListItem, AuctionListPage, AuctionMessageCreate, AuctionMessageRead, AuctionRealtimeSnapshot, AuctionResponse, AuctionReviewCreate, AuctionReviewPage, AuctionReviewRead, AuctionStatusResponse, AuctionUpdate, BidCreate, BidHistoryItem, BidRead, MyBidAuctionItem, MyBidAuctionPage, NotificationRead, UserSummary
+from app.schemas.auction import AuctionConversationRead, AuctionCreate, AuctionFinalizeRequest, AuctionImageRead, AuctionListItem, AuctionListPage, HomeAuctionOverview, AuctionMessageCreate, AuctionMessageRead, AuctionRealtimeSnapshot, AuctionResponse, AuctionReviewCreate, AuctionReviewPage, AuctionReviewRead, AuctionStatusResponse, AuctionUpdate, BidCreate, BidHistoryItem, BidRead, MyBidAuctionItem, MyBidAuctionPage, NotificationRead, UserSummary
 from app.services.auction_images import add_auction_image, delete_auction_image, set_cover_image
 from app.services.auction_lifecycle import PUBLIC_AUCTION_STATUSES, activate_auction, can_access_post_auction_features, cancel_auction, create_auction, create_message, create_review, finalize_auction, get_auction_or_404, get_auction_statement, is_chat_read_only, require_can_view_auction, require_post_auction_participant, sync_auction_status, update_auction
 from app.services.bidding import auction_realtime_snapshot, bid_history_item_for_user, bid_to_read, bid_withdrawal_state, list_bid_history, place_bid
@@ -101,6 +101,8 @@ def _apply_auction_filters(query, *, query_text, title, description, seller, cat
         if status_filter not in PUBLIC_AUCTION_STATUSES:
             raise HTTPException(status_code=422, detail="Érvénytelen aukcióállapot.")
         query = query.filter(Auction.status == status_filter)
+        if status_filter == "active":
+            query = query.filter(Auction.starts_at <= now, Auction.ends_at > now)
     if min_price is not None:
         query = query.filter(Auction.current_price >= min_price)
     if max_price is not None:
@@ -147,7 +149,8 @@ def _apply_auction_sort(query, sort: str):
 
 def auction_response(auction: Auction, user: User | None = None, db: Session | None = None) -> AuctionResponse:
     seller_average_rating, seller_review_count = seller_rating_summary(db, auction.seller_id) if db is not None else (None, 0)
-    response = AuctionResponse.model_validate(auction).model_copy(update={"seller_average_rating": seller_average_rating, "seller_review_count": seller_review_count, "is_featured": bool(auction.seller and is_vip(auction.seller))})
+    watch_count = db.scalar(select(func.count(WatchlistItem.id)).where(WatchlistItem.auction_id == auction.id)) if db is not None else 0
+    response = AuctionResponse.model_validate(auction).model_copy(update={"seller_average_rating": seller_average_rating, "seller_review_count": seller_review_count, "is_featured": bool(auction.seller and is_vip(auction.seller)), "watch_count": int(watch_count or 0)})
     if user is not None:
         viewer_is_leading = bool(auction.highest_bid is not None and auction.highest_bid.bidder_id == user.id)
         withdrawal = bid_withdrawal_state(auction.highest_bid, auction, user, db=db) if viewer_is_leading and auction.highest_bid is not None else {"can_withdraw": False, "withdrawal_block_reason": None}
@@ -270,6 +273,72 @@ def list_public_auctions(
                     viewer_personal_status = "watched"
             items.append(auction_list_item(auction, bid_counts.get(auction.id, 0), db=db, seller_average_rating=average, seller_review_count=review_count, viewer=current_user, viewer_personal_status=viewer_personal_status, viewer_is_watched=auction.id in viewer_watched_auction_ids))
     return AuctionListPage(items=items, total=total, limit=limit, offset=offset)
+
+
+@router.get("/home", response_model=HomeAuctionOverview)
+def home_auction_overview(
+    current_user: User | None = Depends(get_optional_current_user),
+    db: Session = Depends(get_db),
+) -> HomeAuctionOverview:
+    """Bounded, batched home data; auction eligibility follows the public listing rules."""
+    now = datetime.now(timezone.utc)
+    visible = auction_visibility_clause(current_user)
+    active = and_(Auction.status == "active", Auction.deleted_at.is_(None), Auction.starts_at <= now, Auction.ends_at > now, visible)
+    active_count = int(db.scalar(select(func.count(Auction.id)).where(active)) or 0)
+    active_bid_count = outbid_count = draft_count = open_transaction_count = 0
+    if current_user is not None:
+        own_active_bid = exists(select(Bid.id).where(Bid.auction_id == Auction.id, Bid.bidder_id == current_user.id, Bid.status == "active"))
+        not_exited = ~exists(select(AuctionBidExclusion.id).where(AuctionBidExclusion.auction_id == Auction.id, AuctionBidExclusion.user_id == current_user.id))
+        personal_ids = db.execute(select(Auction.highest_bid_id, Bid.bidder_id).select_from(Auction).outerjoin(Bid, Bid.id == Auction.highest_bid_id).where(active, own_active_bid, not_exited)).all()
+        active_bid_count = len(personal_ids)
+        outbid_count = sum(1 for highest_id, bidder_id in personal_ids if highest_id is not None and bidder_id != current_user.id)
+        draft_count = int(db.scalar(select(func.count(Auction.id)).where(Auction.seller_id == current_user.id, Auction.status == "draft", Auction.deleted_at.is_(None), visible)) or 0)
+        open_transaction_count = int(db.scalar(select(func.count(AuctionTransaction.id)).where(AuctionTransaction.status == "transaction_open", or_(AuctionTransaction.seller_id == current_user.id, AuctionTransaction.buyer_id == current_user.id), or_(and_(AuctionTransaction.seller_id == current_user.id, AuctionTransaction.seller_hidden_at.is_(None)), and_(AuctionTransaction.buyer_id == current_user.id, AuctionTransaction.buyer_hidden_at.is_(None))))) or 0)
+
+    featured_base = select(Auction.id).join(User, User.id == Auction.seller_id).where(
+        Auction.status.in_(("active", "scheduled")), Auction.deleted_at.is_(None), Auction.ends_at > now, visible,
+        or_(User.role == "admin", User.vip_expires_at > now),
+    )
+    featured_total = int(db.scalar(select(func.count()).select_from(featured_base.subquery())) or 0)
+    featured_ids: list[int] = []
+    if featured_total:
+        # A napi kezdőpont egyenletesen körbejár; nincs költséges ORDER BY random().
+        start = (now.date().toordinal() * 4) % featured_total
+        ordered = featured_base.order_by(Auction.ends_at.asc(), Auction.id.asc())
+        featured_ids = list(db.scalars(ordered.offset(start).limit(24)).all())
+        if len(featured_ids) < min(24, featured_total):
+            featured_ids.extend(db.scalars(ordered.limit(min(24, featured_total) - len(featured_ids))).all())
+    soon_ids = list(db.scalars(select(Auction.id).where(active, Auction.ends_at <= now + timedelta(hours=24)).order_by(Auction.ends_at.asc(), Auction.id.asc()).limit(4)).all())
+    new_ids = list(db.scalars(select(Auction.id).where(active).order_by(Auction.starts_at.desc(), Auction.id.desc()).limit(4)).all())
+    all_ids = set(featured_ids + soon_ids + new_ids)
+    if not all_ids:
+        return HomeAuctionOverview(active_count=active_count, active_bid_count=active_bid_count, outbid_count=outbid_count, draft_count=draft_count, open_transaction_count=open_transaction_count, featured=[], soon_ending=[], new_auctions=[])
+    auctions = {auction.id: auction for auction in db.scalars(select(Auction).options(selectinload(Auction.seller), selectinload(Auction.images), selectinload(Auction.highest_bid)).where(Auction.id.in_(all_ids))).all()}
+    bid_counts = dict(db.execute(select(Bid.auction_id, func.count(Bid.id)).where(Bid.auction_id.in_(all_ids), Bid.status == "active").group_by(Bid.auction_id)).all())
+    seller_ids = {auction.seller_id for auction in auctions.values()}
+    ratings = {seller_id: (round(float(average), 2), int(count)) for seller_id, average, count in db.execute(select(AuctionReview.reviewed_user_id, func.avg(AuctionReview.rating), func.count(AuctionReview.id)).where(AuctionReview.reviewed_user_id.in_(seller_ids)).group_by(AuctionReview.reviewed_user_id)).all()}
+    watched_ids: set[int] = set()
+    own_bid_ids: set[int] = set()
+    exited_ids: set[int] = set()
+    if current_user is not None:
+        watched_ids = set(db.scalars(select(WatchlistItem.auction_id).where(WatchlistItem.auction_id.in_(all_ids), WatchlistItem.user_id == current_user.id)).all())
+        own_bid_ids = set(db.scalars(select(Bid.auction_id).where(Bid.auction_id.in_(all_ids), Bid.bidder_id == current_user.id, Bid.status == "active").distinct()).all())
+        exited_ids = set(db.scalars(select(AuctionBidExclusion.auction_id).where(AuctionBidExclusion.auction_id.in_(all_ids), AuctionBidExclusion.user_id == current_user.id)).all())
+    items: dict[int, AuctionListItem] = {}
+    for auction_id, auction in auctions.items():
+        average, review_count = ratings.get(auction.seller_id, (None, 0))
+        personal_status = None
+        if current_user is not None:
+            if auction_id in exited_ids:
+                personal_status = "exited"
+            elif auction.highest_bid is not None and auction.highest_bid.bidder_id == current_user.id:
+                personal_status = "leading"
+            elif auction_id in own_bid_ids:
+                personal_status = "outbid"
+            elif auction_id in watched_ids:
+                personal_status = "watched"
+        items[auction_id] = auction_list_item(auction, int(bid_counts.get(auction_id, 0)), seller_average_rating=average, seller_review_count=review_count, viewer=current_user, viewer_personal_status=personal_status, viewer_is_watched=auction_id in watched_ids)
+    return HomeAuctionOverview(active_count=active_count, active_bid_count=active_bid_count, outbid_count=outbid_count, draft_count=draft_count, open_transaction_count=open_transaction_count, featured=[items[id] for id in featured_ids], soon_ending=[items[id] for id in soon_ids], new_auctions=[items[id] for id in new_ids])
 
 
 @router.post("", response_model=AuctionResponse, status_code=status.HTTP_201_CREATED)
