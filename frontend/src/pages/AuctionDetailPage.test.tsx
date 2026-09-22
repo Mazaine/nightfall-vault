@@ -36,6 +36,12 @@ describe("AuctionDetailPage", () => {
     expect(screen.queryByRole("button", { name: "Licitálok" })).not.toBeInTheDocument();
   });
 
+  it("a licittörténetben a publikus felhasználónevet profilhivatkozásként mutatja", async () => {
+    mocks.listAuctionBids.mockResolvedValue([{ id: 30, amount: "1200.00", created_at: new Date().toISOString(), bidder_label: "@gyujto-anna", bidder_username: "gyujto-anna", is_highest: true }]);
+    render(<MemoryRouter initialEntries={["/auctions/21"]}><Routes><Route path="/auctions/:auctionId" element={<AuctionDetailPage />} /></Routes></MemoryRouter>);
+    expect(await screen.findByRole("link", { name: "@gyujto-anna" })).toHaveAttribute("href", "/users/gyujto-anna");
+  });
+
   it("hibás slugnál civilizált 404 nézetet ad API-hívás nélkül", async () => {
     render(<MemoryRouter initialEntries={["/auctions/nem-letezik"]}><Routes><Route path="/auctions/:auctionId" element={<AuctionDetailPage />} /></Routes></MemoryRouter>);
     expect(await screen.findByRole("heading", { name: "Az aukció nem található" })).toBeInTheDocument();
@@ -82,7 +88,7 @@ describe("AuctionDetailPage", () => {
       viewer_can_withdraw: false,
       viewer_withdrawal_block_reason: "Az aukció utolsó 5 percében a licit már nem vonható vissza.",
     });
-    mocks.listAuctionBids.mockResolvedValue([{ id: 31, amount: "1200.00", created_at: new Date().toISOString(), bidder_label: "Te", is_highest: true }]);
+    mocks.listAuctionBids.mockResolvedValue([{ id: 31, amount: "1200.00", created_at: new Date().toISOString(), bidder_label: "@licit-vezeto", bidder_username: "licit-vezeto", is_highest: true }]);
 
     render(<MemoryRouter initialEntries={["/auctions/21"]}><Routes><Route path="/auctions/:auctionId" element={<AuctionDetailPage />} /></Routes></MemoryRouter>);
 

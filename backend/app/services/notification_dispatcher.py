@@ -66,8 +66,15 @@ class DeliveryPreference:
 def preference_for(db: Session, user_id: int, category: str) -> DeliveryPreference:
     row = db.scalar(select(NotificationPreference).where(NotificationPreference.user_id == user_id, NotificationPreference.category == category))
     if row is None:
-        return DeliveryPreference()
+        user = db.get(User, user_id)
+        return default_preference(user, category)
     return DeliveryPreference(in_app=row.in_app, browser=row.browser, email=row.email, push=row.push)
+
+
+def default_preference(user: User | None, category: str) -> DeliveryPreference:
+    if category == "auction_won":
+        return DeliveryPreference(email=bool(user and user.notify_email_auction_result))
+    return DeliveryPreference()
 
 
 def dispatch_notification(

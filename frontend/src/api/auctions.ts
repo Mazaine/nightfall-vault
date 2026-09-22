@@ -138,6 +138,7 @@ export type AuctionBid = {
   amount: string;
   created_at: string;
   bidder_label: string;
+  bidder_username: string;
   is_highest: boolean;
   reaches_buy_now?: boolean;
   status?: "active" | "withdrawn";

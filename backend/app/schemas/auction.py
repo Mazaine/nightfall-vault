@@ -265,6 +265,7 @@ class BidRead(BaseModel):
     amount: Decimal
     created_at: datetime
     bidder_label: str
+    bidder_username: str
     is_highest: bool = False
     reaches_buy_now: bool = False
     status: str = "active"
@@ -275,6 +276,7 @@ class BidHistoryItem(BaseModel):
     amount: Decimal
     created_at: datetime
     bidder_label: str
+    bidder_username: str
     is_highest: bool = False
     status: str = "active"
     withdrawn_at: datetime | None = None

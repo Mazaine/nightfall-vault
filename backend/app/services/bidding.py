@@ -27,7 +27,7 @@ def format_bid_amount(amount: Decimal) -> str:
 
 
 def bidder_label(bid: Bid) -> str:
-    return f"Licitáló #{bid.bidder_id}"
+    return f"@{bid.bidder.username}"
 
 
 def reaches_buy_now(auction: Auction, amount: Decimal) -> bool:
@@ -41,6 +41,7 @@ def bid_to_read(bid: Bid, auction: Auction) -> dict:
         "amount": bid.amount,
         "created_at": bid.created_at,
         "bidder_label": bidder_label(bid),
+        "bidder_username": bid.bidder.username,
         "is_highest": auction.highest_bid_id == bid.id,
         "reaches_buy_now": reaches_buy_now(auction, bid.amount),
         "status": bid.status,
@@ -48,7 +49,7 @@ def bid_to_read(bid: Bid, auction: Auction) -> dict:
 
 
 def auction_realtime_snapshot(db: Session, auction: Auction) -> dict:
-    history = list(db.scalars(select(Bid).where(Bid.auction_id == auction.id).order_by(Bid.amount.desc(), Bid.created_at.asc(), Bid.id.asc())).all())
+    history = list(db.scalars(select(Bid).options(selectinload(Bid.bidder)).where(Bid.auction_id == auction.id).order_by(Bid.amount.desc(), Bid.created_at.asc(), Bid.id.asc())).all())
     active_count = sum(1 for bid in history if bid.status == ACTIVE_BID_STATUS)
     transaction_status = db.scalar(select(AuctionTransaction.status).where(AuctionTransaction.auction_id == auction.id))
     is_listed = auction.status in {"scheduled", "active", "ended"} or (auction.status == "sold" and transaction_status == "transaction_open")
@@ -72,6 +73,7 @@ def bid_to_history_item(bid: Bid, auction: Auction) -> dict:
         "amount": bid.amount,
         "created_at": bid.created_at,
         "bidder_label": bidder_label(bid),
+        "bidder_username": bid.bidder.username,
         "is_highest": auction.highest_bid_id == bid.id,
         "status": bid.status,
         "withdrawn_at": bid.withdrawn_at,
@@ -124,7 +126,7 @@ def list_bid_history(db: Session, auction: Auction, user: User | None) -> list[B
     sync_auction_status(db, auction)
     if not can_view_auction(auction, user):
         raise HTTPException(status_code=404, detail="Az aukció nem található.")
-    statement = select(Bid).where(Bid.auction_id == auction.id).order_by(Bid.amount.desc(), Bid.created_at.asc(), Bid.id.asc())
+    statement = select(Bid).options(selectinload(Bid.bidder)).where(Bid.auction_id == auction.id).order_by(Bid.amount.desc(), Bid.created_at.asc(), Bid.id.asc())
     return list(db.scalars(statement).all())
 
 
@@ -396,7 +398,7 @@ def place_bid(db: Session, auction_id: int, bidder: User, amount: Decimal) -> tu
             auction_id=auction.id,
             notification_type="outbid",
             title="Túllicitáltak",
-            message=f"Valaki magasabb licitet tett erre az aukcióra: {auction.title}",
+            message=f"@{bidder.username} magasabb licitet tett erre az aukcióra: {auction.title}",
             event_key=f"outbid:{auction.id}:{bid.id}:{previous_highest_bidder_id}",
         )
     dispatch_notification(
@@ -405,7 +407,7 @@ def place_bid(db: Session, auction_id: int, bidder: User, amount: Decimal) -> tu
         auction_id=auction.id,
         notification_type="auction_bid_received",
         title="Új licit érkezett",
-        message=f"A(z) {auction.title} aukciódra {format_bid_amount(normalized_amount)} összegű licit érkezett.",
+        message=f"@{bidder.username} {format_bid_amount(normalized_amount)} összegű licitet tett a(z) {auction.title} aukciódra.",
         event_key=f"auction-bid-received:{auction.id}:{bid.id}:{auction.seller_id}",
     )
     create_domain_audit_log(db, action="auction_bid", user_id=bidder.id, auction_id=auction.id, metadata={"amount": str(normalized_amount), "extended_until": extended_until})

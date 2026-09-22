@@ -1696,8 +1696,14 @@ h3 {
   padding: var(--space-3);
 }
 
-.bid-history-list span {
+.bid-history-list span,
+.bid-history-list a {
   color: var(--color-text-muted);
+}
+
+.bid-history-list a:hover,
+.bid-history-list a:focus-visible {
+  color: var(--color-accent-gold);
 }
 
 .bid-history-list em {

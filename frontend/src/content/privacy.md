@@ -178,7 +178,7 @@ Licit elhelyezése során a rendszer különösen kezeli:
 
 **Jogalap:** GDPR 6. cikk (1) bekezdés b) pont.
 
-A publikus licittörténetben a rendszer a licitálók adatait korlátozott vagy anonimizált módon jelenítheti meg. A teljes belső licitadat nem válik minden látogató számára hozzáférhetővé.
+A publikus licittörténetben megjelenik a licitáló nyilvános felhasználóneve, a licit összege, időpontja és állapota. A licitáló e-mail-címe, belső technikai azonosítója és a teljes belső licitadat nem válik minden látogató számára hozzáférhetővé.
 
 A lezárt aukcióhoz kapcsolódó licittörténet a tranzakció és az esetleges későbbi viták, visszaélések kivizsgálásához szükséges ideig megőrizhető.
 

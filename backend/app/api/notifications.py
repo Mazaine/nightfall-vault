@@ -24,7 +24,7 @@ from app.schemas.user import (
 )
 from app.services.notifications import count_unread_notifications, delete_read_notifications, mark_all_notifications_read, mark_notification_category_read, mark_notification_read
 from app.services.demo_visibility import auction_visibility_clause
-from app.services.notification_dispatcher import PREFERENCE_KEYS
+from app.services.notification_dispatcher import PREFERENCE_KEYS, default_preference
 from app.services.web_push_subscriptions import revoke_web_push_subscription, upsert_web_push_subscription
 from app.services.web_push_delivery import WebPushDeliveryError, build_web_push_test_payload, send_web_push
 
@@ -128,7 +128,7 @@ def test_web_push_subscription(
 def get_preferences(current_user: User = Depends(require_active_user), db: Session = Depends(get_db)) -> NotificationPreferenceMatrix:
     rows = {row.category: row for row in db.scalars(select(NotificationPreference).where(NotificationPreference.user_id == current_user.id)).all()}
     return NotificationPreferenceMatrix(
-        categories={key: NotificationChannelPreference.model_validate(rows[key], from_attributes=True) if key in rows else NotificationChannelPreference() for key in PREFERENCE_KEYS},
+        categories={key: NotificationChannelPreference.model_validate(rows[key] if key in rows else default_preference(current_user, key), from_attributes=True) for key in PREFERENCE_KEYS},
         push_defaults_eligible=not rows,
     )
 

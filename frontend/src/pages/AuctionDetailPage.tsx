@@ -557,7 +557,7 @@ export function AuctionDetailPage() {
               {bidHistory.map((bid) => (
                 <p className={bid.status === "withdrawn" ? "is-withdrawn" : undefined} key={bid.id}>
                   <strong>{formatMoney(bid.amount)}</strong>
-                  <span>{bid.bidder_label}</span>
+                  <Link to={`/users/${encodeURIComponent(bid.bidder_username)}`}>{bid.bidder_label}</Link>
                   {bid.status === "withdrawn" ? <em>Visszavonva</em> : bid.is_highest ? <em>Legmagasabb</em> : null}
                   {bid.can_withdraw ? <button className="button button-danger bid-withdraw-button" type="button" onClick={() => setWithdrawBidTarget(bid)}>Licit visszavonása</button> : null}
                 </p>

@@ -44,7 +44,7 @@ const biddingRules = [
   "A részletes oldalon üresen hagyott összegmező szintén a következő teljes licitlépcsőt használja. Egyedi, magasabb összeg csak egész licitlépcsőkkel adható meg.",
   "Példa: 35 000 Ft aktuális ár és 1000 Ft licitlépcső mellett 36 000, 37 000 vagy 38 000 Ft érvényes; 36 500 Ft nem érvényes.",
   "Minden beküldéskor a szerver az éppen aktuális árból számol. Ha közben más licitált, magyar hibaüzenet jelzi az új minimumot; az elavult ajánlat nem írhatja felül a magasabbat.",
-  "A licitek és az aktuális ár valós időben frissülnek. A túllicitált felhasználó értesítést kap, a licittörténetben pedig a licitálók anonimizált azonosítóval szerepelnek.",
+  "A licitek és az aktuális ár valós időben frissülnek. A túllicitált felhasználó értesítést kap, a licittörténetben pedig a licitálók publikus felhasználóneve szerepel.",
   "Normál licit előtt megerősítő kérdés jelenik meg. Ez eszközönként kikapcsolható, majd a Profilbeállítások oldalon visszakapcsolható. A Villámvásárlás mindig külön megerősítést kér.",
 ] as const;
 

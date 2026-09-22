@@ -115,8 +115,8 @@ def notify_auction_closed(db: Session, auction: Auction) -> None:
             user_id=auction.winner_id,
             auction_id=auction.id,
             notification_type="auction_won",
-            title="Megnyert aukcio",
-            message=f"Megnyerted ezt az aukciot: {auction.title}",
+            title="Megnyert aukció",
+            message=f"Megnyerted ezt az aukciót: {auction.title}",
             event_key=f"auction-won:{auction.id}:{auction.winner_id}",
         )
         create_notification(

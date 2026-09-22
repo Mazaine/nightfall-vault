@@ -235,13 +235,21 @@ def test_scheduler_creates_close_notifications_and_audit_log() -> None:
         db.add(auction_row)
         db.commit()
         assert close_expired_auctions(db) == 1
-        notification_types = [row[0] for row in db.execute(select(Notification.type).where(Notification.auction_id == auction["id"])).all()]
+        notifications = list(db.scalars(select(Notification).where(Notification.auction_id == auction["id"])).all())
+        notification_types = [notification.type for notification in notifications]
+        winner_notification = next(notification for notification in notifications if notification.type == "auction_won")
+        winner_email_queued = db.scalar(select(NotificationOutbox.id).where(
+            NotificationOutbox.notification_id == winner_notification.id,
+            NotificationOutbox.task_type == "email",
+        )) is not None
         audit_exists = db.scalar(select(AuditLog).where(AuditLog.auction_id == auction["id"], AuditLog.action == "auction_status_changed")) is not None
     finally:
         db.close()
 
     assert "auction_won" in notification_types
     assert "auction_sold" in notification_types
+    assert winner_notification.email_enabled is True
+    assert winner_email_queued is True
     assert audit_exists is True
 
 

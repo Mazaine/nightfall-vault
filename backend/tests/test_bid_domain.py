@@ -241,7 +241,7 @@ def test_concurrent_bids_keep_single_highest_price() -> None:
     assert refreshed.json()["current_price"] == "1100.00"
 
 
-def test_bid_history_is_public_and_anonymized() -> None:
+def test_bid_history_is_public_and_identifies_bidders_by_public_username() -> None:
     cleanup_test_data()
     seller = create_test_user("seller-history@bid-test.local")
     bidder_one = create_test_user("bidder-one-history@bid-test.local")
@@ -255,6 +255,8 @@ def test_bid_history_is_public_and_anonymized() -> None:
     assert history.status_code == 200
     assert [item["amount"] for item in history.json()] == ["1200.00", "1100.00"]
     assert all("bidder_id" not in item for item in history.json())
+    assert [item["bidder_username"] for item in history.json()] == [bidder_two.username, bidder_one.username]
+    assert [item["bidder_label"] for item in history.json()] == [f"@{bidder_two.username}", f"@{bidder_one.username}"]
     assert history.json()[0]["is_highest"] is True
 
 
