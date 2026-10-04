@@ -81,6 +81,50 @@ def test_edition_import_is_atomic_on_capacity_shortage(monkeypatch) -> None:
         cleanup()
 
 
+def test_search_result_can_be_wanted_without_an_owned_copy() -> None:
+    cleanup(); user = create_test_user("wanted-zero@vault-test.local")
+    try:
+        folder = client.post("/api/vault/folders", json={"name": "Keresett lapok", "capacity": 3}, headers=auth_headers(user)).json()
+        payload = card_payload("wanted-zero", "Orkling bűzisten", 1)
+        payload.pop("quantity")
+
+        created = client.post("/api/vault/cards/wanted", json={**payload, "folder_id": folder["id"]}, headers=auth_headers(user))
+        assert created.status_code == 201
+        assert created.json()["quantity"] == 0
+        assert created.json()["wanted"] is True
+        assert created.json()["wanted_quantity"] == 3
+
+        repeated = client.post("/api/vault/cards/wanted", json={**payload, "folder_id": folder["id"]}, headers=auth_headers(user))
+        assert repeated.status_code == 201 and repeated.json()["id"] == created.json()["id"]
+        assert len(client.get("/api/vault/cards", headers=auth_headers(user)).json()) == 1
+
+        trader = create_test_user("wanted-trader@vault-test.local")
+        offered = client.post("/api/vault/trade", json={**payload, "quantity": 1}, headers=auth_headers(trader))
+        assert offered.status_code == 201
+        matches = client.get("/api/vault/matches", headers=auth_headers(user)).json()
+        assert matches[0]["id"] == created.json()["id"] and matches[0]["offer_count"] == 1
+
+        removed = client.put(f"/api/vault/cards/{created.json()['id']}/wanted", json={"wanted": False}, headers=auth_headers(user))
+        assert removed.status_code == 204
+        assert client.get("/api/vault/cards", headers=auth_headers(user)).json() == []
+
+        owned = client.post("/api/vault/cards", json={**card_payload("wanted-owned", "Meglévő lap", 1), "folder_id": folder["id"]}, headers=auth_headers(user)).json()
+        owned_payload = card_payload("wanted-owned", "Meglévő lap", 1)
+        owned_payload.pop("quantity")
+        marked = client.post("/api/vault/cards/wanted", json={**owned_payload, "folder_id": folder["id"]}, headers=auth_headers(user))
+        assert marked.status_code == 201 and marked.json()["id"] == owned["id"]
+        assert marked.json()["quantity"] == 1 and marked.json()["wanted_quantity"] == 2
+
+        full = client.post("/api/vault/cards", json={**card_payload("wanted-full", "Teljes playset", 3), "folder_id": folder["id"]}, headers=auth_headers(user)).json()
+        full_payload = card_payload("wanted-full", "Teljes playset", 1)
+        full_payload.pop("quantity")
+        denied = client.post("/api/vault/cards/wanted", json={**full_payload, "folder_id": folder["id"]}, headers=auth_headers(user))
+        assert denied.status_code == 409
+        assert full["quantity"] == 3
+    finally:
+        cleanup()
+
+
 def test_explicit_owner_entitlement_is_unlimited_but_other_admin_is_not(monkeypatch) -> None:
     cleanup(); owner = create_test_user("mazaine89@gmail.com"); admin = create_test_user("other-admin@vault-test.local", role="admin")
     monkeypatch.setattr(vault_service, "hkk_edition_cards", lambda edition_id: edition_cards())

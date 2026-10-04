@@ -7,7 +7,7 @@ from app.db.session import get_db
 from app.dependencies.auth import require_active_user
 from app.models.user import User
 from app.models.vault import VaultCollectionCard, VaultFolder, VaultPointTransaction, VaultTrade, VaultTradeCard, VaultTradeMessage, VaultTradeReview
-from app.schemas.vault import CardRead, CollectionCardCreate, CollectionCardUpdate, FolderCreate, FolderRead, FolderReorder, FolderUpdate, HkkEditionCards, HkkEditionImport, HkkEditionImportResult, HkkEditionRead, HkkSearchResult, PointHistory, PointTransactionRead, PublicTradeCardRead, QuantityUpdate, TradeCardCreate, TradeMessageCreate, TradeRead, TradeReviewCreate, TradeReviewRead, VaultSummary, WantedUpdate
+from app.schemas.vault import CardRead, CollectionCardCreate, CollectionCardUpdate, FolderCreate, FolderRead, FolderReorder, FolderUpdate, HkkEditionCards, HkkEditionImport, HkkEditionImportResult, HkkEditionRead, HkkSearchResult, PointHistory, PointTransactionRead, PublicTradeCardRead, QuantityUpdate, TradeCardCreate, TradeMessageCreate, TradeRead, TradeReviewCreate, TradeReviewRead, VaultSummary, WantedCardCreate, WantedUpdate
 from app.services.vault import account_for, buy_capacity_pack, card_snapshot_values, collection_card_for_user, complete_trade, fetch_hkk_card_image, folder_for_user, folder_used, grant_points, hkk_edition_cards, import_hkk_edition, list_hkk_editions, point_balance, require_allocatable, require_valid_card_snapshot, search_hkk_cards, total_collection_capacity, trade_for_participant, utc_now
 from app.services.user_blocks import ensure_not_blocked
 
@@ -148,6 +148,36 @@ def add_card(payload: CollectionCardCreate, current_user: User = Depends(require
     return card_read(db, existing)
 
 
+@router.post("/cards/wanted", response_model=CardRead, status_code=status.HTTP_201_CREATED)
+def add_wanted_card(payload: WantedCardCreate, current_user: User = Depends(require_active_user), db: Session = Depends(get_db)) -> CardRead:
+    require_valid_card_snapshot(payload)
+    account = account_for(db, current_user.id, lock=True)
+    folder = folder_for_user(db, payload.folder_id, current_user.id, lock=True)
+    existing = db.scalar(select(VaultCollectionCard).where(VaultCollectionCard.user_id == current_user.id, VaultCollectionCard.external_card_id == payload.external_card_id).with_for_update())
+    if existing is None:
+        if not account.vault_unlimited and folder_used(db, folder.id) >= folder.capacity:
+            raise HTTPException(status_code=409, detail="A célmappa megtelt.")
+        existing = VaultCollectionCard(
+            user_id=current_user.id,
+            folder_id=folder.id,
+            quantity=0,
+            wanted=True,
+            wanted_quantity=3,
+            **card_snapshot_values(payload),
+        )
+        db.add(existing)
+    else:
+        if existing.quantity >= 3:
+            raise HTTPException(status_code=409, detail="A teljes playset már megvan.")
+        existing.wanted = True
+        existing.wanted_quantity = 3 - existing.quantity
+        for key, value in card_snapshot_values(payload).items():
+            setattr(existing, key, value)
+    db.commit()
+    db.refresh(existing)
+    return card_read(db, existing)
+
+
 @router.patch("/cards/{card_id}", response_model=CardRead)
 def update_card(card_id: int, payload: CollectionCardUpdate, current_user: User = Depends(require_active_user), db: Session = Depends(get_db)) -> CardRead | Response:
     account = account_for(db, current_user.id, lock=True)
@@ -172,11 +202,15 @@ def update_card(card_id: int, payload: CollectionCardUpdate, current_user: User 
 
 
 @router.put("/cards/{card_id}/wanted", response_model=CardRead)
-def update_wanted(card_id: int, payload: WantedUpdate, current_user: User = Depends(require_active_user), db: Session = Depends(get_db)) -> CardRead:
+def update_wanted(card_id: int, payload: WantedUpdate, current_user: User = Depends(require_active_user), db: Session = Depends(get_db)) -> CardRead | Response:
     card = collection_card_for_user(db, card_id, current_user.id, lock=True)
     missing = 3 - card.quantity
     if payload.wanted and missing <= 0:
         raise HTTPException(status_code=409, detail="A teljes playset már megvan.")
+    if not payload.wanted and card.quantity == 0:
+        db.delete(card)
+        db.commit()
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
     card.wanted = payload.wanted
     card.wanted_quantity = min(payload.quantity or missing, missing) if payload.wanted else 0
     db.commit()

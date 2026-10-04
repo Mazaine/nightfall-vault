@@ -49,8 +49,8 @@ class VaultCollectionCard(Base):
     __tablename__ = "vault_collection_cards"
     __table_args__ = (
         UniqueConstraint("user_id", "external_card_id", name="uq_vault_collection_cards_user_card"),
-        CheckConstraint("quantity BETWEEN 1 AND 3", name="ck_vault_collection_cards_quantity"),
-        CheckConstraint("wanted_quantity BETWEEN 0 AND 2", name="ck_vault_collection_cards_wanted_quantity"),
+        CheckConstraint("quantity BETWEEN 0 AND 3", name="ck_vault_collection_cards_quantity"),
+        CheckConstraint("wanted_quantity BETWEEN 0 AND 3", name="ck_vault_collection_cards_wanted_quantity"),
         Index("ix_vault_collection_cards_folder_name", "folder_id", "card_name"),
     )
 

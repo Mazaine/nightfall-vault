@@ -41,6 +41,10 @@ class CollectionCardCreate(CardSnapshot):
     quantity: int = Field(ge=1, le=3)
 
 
+class WantedCardCreate(CardSnapshot):
+    folder_id: int
+
+
 class CollectionCardUpdate(BaseModel):
     quantity: int | None = Field(default=None, ge=0, le=3)
     folder_id: int | None = None
@@ -48,7 +52,7 @@ class CollectionCardUpdate(BaseModel):
 
 class WantedUpdate(BaseModel):
     wanted: bool
-    quantity: int | None = Field(default=None, ge=1, le=2)
+    quantity: int | None = Field(default=None, ge=1, le=3)
 
 
 class TradeCardCreate(CardSnapshot):

@@ -36,6 +36,7 @@ export const listVaultCards = (params: { folderId?: number; query?: string; want
   return apiRequest<VaultCard[]>(`/api/vault/cards?${search}`, { authenticated: true });
 };
 export const addVaultCard = (card: HkkCard, folder_id: number, quantity: number) => apiRequest<VaultCard>("/api/vault/cards", { method: "POST", authenticated: true, body: JSON.stringify({ ...card, folder_id, quantity }) });
+export const addWantedCard = (card: HkkCard, folder_id: number) => apiRequest<VaultCard>("/api/vault/cards/wanted", { method: "POST", authenticated: true, body: JSON.stringify({ ...card, folder_id }) });
 export const updateVaultCard = (id: number, payload: { quantity?: number; folder_id?: number }) => apiRequest<VaultCard>(`/api/vault/cards/${id}`, { method: "PATCH", authenticated: true, body: JSON.stringify(payload) });
 export const setVaultWanted = (id: number, wanted: boolean, quantity?: number) => apiRequest<VaultCard>(`/api/vault/cards/${id}/wanted`, { method: "PUT", authenticated: true, body: JSON.stringify({ wanted, quantity }) });
 export const deleteVaultCard = (id: number) => apiRequest<void>(`/api/vault/cards/${id}`, { method: "DELETE", authenticated: true });

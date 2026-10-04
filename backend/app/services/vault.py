@@ -364,7 +364,7 @@ def import_hkk_edition(
     skipped = 0
     for snapshot in cards:
         existing = existing_by_id.get(snapshot["external_card_id"])
-        if existing is not None and missing_only:
+        if existing is not None and missing_only and existing.quantity > 0:
             skipped += 1
             continue
         values = {key: snapshot[key] for key in ("external_card_id", "card_name", "image_url", "edition", "card_type", "subtype", "color", "rarity")}

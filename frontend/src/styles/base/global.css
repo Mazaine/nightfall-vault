@@ -3052,6 +3052,7 @@ h3 {
 .vault-edition-fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-3); }
 .vault-edition-fields label { display: grid; gap: .35rem; color: var(--color-text-muted); font-size: .85rem; }
 .vault-search-results { display: grid; gap: var(--space-3); }
+.vault-search-results-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
 .vault-search-result { display: grid; grid-template-columns: 4rem minmax(0, 1fr) auto; align-items: center; gap: var(--space-3); border-top: 1px solid var(--color-divider); padding-top: var(--space-3); }
 .vault-search-result img, .vault-search-result .vault-card-placeholder { width: 4rem; aspect-ratio: 5 / 7; border-radius: var(--radius-sm); object-fit: cover; }
 .vault-search-result > div:nth-child(2) { display: grid; min-width: 0; gap: .25rem; }
@@ -3095,6 +3096,12 @@ h3 {
 .vault-stat-grid article { display: grid; gap: .35rem; border: 1px solid var(--color-divider); border-radius: var(--radius-md); padding: var(--space-4); }
 .vault-stat-grid span { color: var(--color-text-muted); }
 .vault-stat-grid strong { color: var(--color-accent-gold); font-size: 1.7rem; }
+.vault-points-guide { display: grid; gap: var(--space-3); margin-top: var(--space-5); border: 1px solid rgb(168 85 247 / .35); border-radius: var(--radius-md); background: rgb(124 58 237 / .07); padding: var(--space-4); }
+.vault-points-guide h2, .vault-points-guide p { margin: 0; }
+.vault-points-guide ul { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); margin: 0; padding: 0; list-style: none; }
+.vault-points-guide li { display: grid; gap: .25rem; border: 1px solid var(--color-divider); border-radius: var(--radius-sm); background: rgb(255 255 255 / .025); padding: var(--space-3); }
+.vault-points-guide li strong { color: var(--color-accent-gold); font-size: 1.2rem; }
+.vault-points-guide li span, .vault-points-guide p { color: var(--color-text-muted); }
 .vault-purchase { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); margin-block: var(--space-5); border: 1px solid rgb(234 179 8 / .35); border-radius: var(--radius-md); background: rgb(234 179 8 / .06); padding: var(--space-4); }
 .vault-purchase h2, .vault-purchase p { margin: 0; }
 .vault-purchase p { color: var(--color-text-muted); }
@@ -3140,6 +3147,7 @@ h3 {
   .vault-card-actions .button { width: 100%; }
   .vault-stat-grid { grid-template-columns: 1fr 1fr; gap: var(--space-2); }
   .vault-stat-grid article { padding: var(--space-3); }
+  .vault-points-guide ul { grid-template-columns: 1fr; }
   .vault-purchase { align-items: stretch; flex-direction: column; }
   .vault-purchase .button { width: 100%; }
 }
