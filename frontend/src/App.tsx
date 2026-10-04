@@ -38,6 +38,8 @@ const AccountConversationsPage = lazy(() => import("./pages/AccountConversations
 const AccountTransactionsPage = lazy(() => import("./pages/AccountTransactionsPage").then((module) => ({ default: module.AccountTransactionsPage })));
 const NotificationsPage = lazy(() => import("./pages/NotificationsPage").then((module) => ({ default: module.NotificationsPage })));
 const VipMembershipPage = lazy(() => import("./pages/VipMembershipPage").then((module) => ({ default: module.VipMembershipPage })));
+const VirtualVaultPage = lazy(() => import("./pages/VirtualVaultPage").then((module) => ({ default: module.VirtualVaultPage })));
+const PublicTradeFolderPage = lazy(() => import("./pages/PublicTradeFolderPage").then((module) => ({ default: module.PublicTradeFolderPage })));
 const AdminLayout = lazy(() => import("./pages/admin/AdminLayout").then((module) => ({ default: module.AdminLayout })));
 const AdminDashboardPage = lazy(() => import("./pages/admin/AdminDashboardPage").then((module) => ({ default: module.AdminDashboardPage })));
 const AdminUsersPage = lazy(() => import("./pages/admin/AdminUsersPage").then((module) => ({ default: module.AdminUsersPage })));
@@ -77,6 +79,7 @@ function App() {
             <Route path="/auctions" element={<AuctionsPage />} />
             <Route path="/auctions/:auctionId" element={<AuctionDetailPage />} />
             <Route path="/users/:username" element={<UserProfilePage />} />
+            <Route path="/vault/users/:username" element={<PublicTradeFolderPage />} />
             <Route path="/categories" element={<Navigate to="/auctions" replace />} />
             <Route element={<ProtectedRoute />}>
               <Route path="/auctions/create" element={<AuctionCreatePage />} />
@@ -96,6 +99,7 @@ function App() {
               </Route>
               <Route path="/notifications" element={<Navigate to="/account/notifications" replace />} />
               <Route path="/my-bids" element={<MyBidsPage />} />
+              <Route path="/vault" element={<VirtualVaultPage />} />
               <Route path="/watchlist" element={<Navigate to="/my-bids?state=watched" replace />} />
               <Route path="/saved-searches" element={<Navigate to="/auctions" replace />} />
             </Route>

@@ -134,6 +134,9 @@ def activate_code(db: Session, user: User, raw_code: str) -> datetime:
     code.redeemed_by_user_id = user.id
     code.redeemed_at = now
     db.add_all([locked_user, code])
+    db.flush()
+    from app.services.vault import VIP_ACTIVATION_SLOTS, grant_capacity
+    grant_capacity(db, user.id, VIP_ACTIVATION_SLOTS, "VIP_ACTIVATION", str(code.id))
     create_domain_audit_log(db, action="vip_membership_activated", user_id=user.id, metadata={"duration_months": code.duration_months, "code_last_four": code.code_last_four, "batch_id": code.batch_id})
     db.commit()
     db.refresh(locked_user)

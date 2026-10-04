@@ -19,6 +19,9 @@ export function HomeHero() {
             <Link className="button button-primary" to="/auctions">
               Aukciók felfedezése
             </Link>
+            <Link className="button button-secondary" to="/vault">
+              Virtuális mappám
+            </Link>
           </div>
         </div>
       </div>

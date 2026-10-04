@@ -45,9 +45,11 @@ describe("SiteHeader", () => {
     authenticate();
     render(<MemoryRouter><SiteHeader /></MemoryRouter>);
     fireEvent.click(screen.getByRole("button", { name: "Felhasználói menü" }));
+    expect(screen.getByRole("menuitem", { name: "Virtuális mappám" })).toHaveAttribute("href", "/vault");
     expect(screen.getByRole("menuitem", { name: "Profilbeállítások" })).toHaveAttribute("href", "/account/profile");
     expect(screen.getByRole("link", { name: "Licitjeim" })).toHaveAttribute("href", "/my-bids");
-    await waitFor(() => expect(screen.getByRole("menuitem", { name: "Profilbeállítások" })).toHaveFocus());
+    expect(screen.queryByRole("link", { name: "HKK Mappa" })).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("menuitem", { name: "Virtuális mappám" })).toHaveFocus());
   });
 
   it("Escape-re bezárja a dropdownot és visszaadja a fókuszt", async () => {
@@ -65,8 +67,8 @@ describe("SiteHeader", () => {
     authenticate();
     render(<MemoryRouter><SiteHeader /></MemoryRouter>);
     fireEvent.click(screen.getByRole("button", { name: "Felhasználói menü" }));
-    const firstItem = screen.getByRole("menuitem", { name: "Profilbeállítások" });
-    const secondItem = screen.getByRole("menuitem", { name: "Értesítések" });
+    const firstItem = screen.getByRole("menuitem", { name: "Virtuális mappám" });
+    const secondItem = screen.getByRole("menuitem", { name: "Profilbeállítások" });
     await waitFor(() => expect(firstItem).toHaveFocus());
     fireEvent.keyDown(firstItem, { key: "ArrowDown" });
     expect(secondItem).toHaveFocus();
@@ -101,6 +103,11 @@ describe("SiteHeader", () => {
 
   it("védi a közvetlen account URL-t kijelentkezve", async () => {
     render(<MemoryRouter initialEntries={["/account/bids"]}><App /></MemoryRouter>);
+    expect(await screen.findByRole("heading", { name: "Üdvözlünk újra" })).toBeInTheDocument();
+  });
+
+  it("védi a közvetlen virtuális mappa URL-t kijelentkezve", async () => {
+    render(<MemoryRouter initialEntries={["/vault"]}><App /></MemoryRouter>);
     expect(await screen.findByRole("heading", { name: "Üdvözlünk újra" })).toBeInTheDocument();
   });
 });

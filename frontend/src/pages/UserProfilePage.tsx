@@ -162,6 +162,7 @@ export function UserProfilePage() {
           <h1>{profile.full_name}</h1>
           <p className="section-note">@{profile.username} · regisztrált: {formatLocalDateTime(profile.created_at)}</p>
           <div className="profile-rating"><Stars value={stats.average_rating} /><strong>{stats.average_rating?.toLocaleString("hu-HU", { maximumFractionDigits: 1 }) ?? "Nincs"}</strong><span>{stats.review_count} értékelés</span></div>
+          {isAuthenticated ? <Link className="button button-ghost" to={`/vault/users/${encodeURIComponent(profile.username)}`}>Publikus cseremappa</Link> : null}
         </div>
         {canUseTrustActions ? (
           <div className="profile-actions">

@@ -507,6 +507,8 @@ def create_review(db: Session, auction: Auction, reviewer: User, rating: int, co
     )
     db.add(review)
     db.flush()
+    from app.services.vault import grant_points
+    grant_points(db, reviewer.id, 5, "TRANSACTION_REVIEW", "auction_review", str(review.id))
     from app.services.notification_dispatcher import dispatch_notification
     dispatch_notification(
         db, user_id=reviewed_user_id, auction_id=auction.id, notification_type="review_received",

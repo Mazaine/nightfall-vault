@@ -197,6 +197,8 @@ def confirm_completion(db: Session, transaction_id: int, user: User) -> AuctionT
         transaction.review_deadline = timestamp + timedelta(days=settings.transaction_review_window_days)
         create_domain_audit_log(db, action="transaction_completed", auction_id=transaction.auction_id, metadata={"transaction_id": transaction.id})
         for participant_id in (transaction.seller_id, transaction.buyer_id):
+            from app.services.vault import grant_points
+            grant_points(db, participant_id, 15, "AUCTION_TRANSACTION_COMPLETED", "auction_transaction", str(transaction.id))
             create_notification(
                 db,
                 user_id=participant_id,

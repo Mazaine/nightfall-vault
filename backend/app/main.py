@@ -31,6 +31,7 @@ from app.api.moderation_actions import router as moderation_actions_router
 from app.api.membership import router as membership_router
 from app.api.users import router as users_router
 from app.api.watchlist import router as watchlist_router
+from app.api.vault import router as vault_router
 from app.core.config import settings
 from app.core.logging_config import configure_logging
 from app.core.production import validate_production_settings
@@ -110,6 +111,7 @@ PRIVATE_API_PREFIXES = (
     "/api/watchlist",
     "/api/transactions",
     "/api/membership",
+    "/api/vault",
 )
 
 FIELD_LABELS = {
@@ -365,3 +367,4 @@ app.include_router(watchlist_router)
 app.include_router(transactions_router)
 app.include_router(moderation_actions_router)
 app.include_router(membership_router)
+app.include_router(vault_router)

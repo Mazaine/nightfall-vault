@@ -1,0 +1,80 @@
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { VirtualVaultPage } from "./VirtualVaultPage";
+
+const mocks = vi.hoisted(() => ({
+  getVaultSummary: vi.fn(), listVaultCards: vi.fn(), listTradeCards: vi.fn(), listNegotiations: vi.fn(), getPointHistory: vi.fn(),
+  searchHkk: vi.fn(), createVaultFolder: vi.fn(), addVaultCard: vi.fn(), addTradeCard: vi.fn(), setVaultWanted: vi.fn(),
+  listHkkEditions: vi.fn(), previewHkkEdition: vi.fn(), importHkkEdition: vi.fn(),
+  updateVaultCard: vi.fn(), deleteVaultCard: vi.fn(), deleteTradeCard: vi.fn(), buyVaultCapacity: vi.fn(), postTradeMessage: vi.fn(), confirmVaultTrade: vi.fn(), reviewVaultTrade: vi.fn(),
+}));
+vi.mock("../api/vault", () => mocks);
+
+const summary = { total_collection_capacity: 500, assigned_collection_capacity: 200, free_collection_capacity: 300, used_collection_slots: 1, trade_capacity: 200, used_trade_slots: 0, vp_balance: 120, folders: [{ id: 1, name: "Xenó", capacity: 200, position: 0, color: "#7c3aed", used_slots: 1 }] };
+const card = { id: 5, external_card_id: "hkk-1", card_name: "Xenó lárva", image_url: null, edition: "Teszt", card_type: "Lény", subtype: null, color: null, rarity: null, quantity: 2, folder_id: 1, wanted: false, wanted_quantity: 0, offer_count: 7 };
+
+describe("VirtualVaultPage", () => {
+  beforeEach(() => {
+    vi.clearAllMocks(); mocks.getVaultSummary.mockResolvedValue(summary); mocks.listVaultCards.mockResolvedValue([card]); mocks.listTradeCards.mockResolvedValue([]); mocks.listNegotiations.mockResolvedValue([]); mocks.getPointHistory.mockResolvedValue({ balance: 120, items: [] });
+  });
+
+  it("mobilon is kártyás gyűjteményt, playsetet és Keresem műveletet ad", async () => {
+    render(<VirtualVaultPage />);
+    expect(await screen.findByRole("heading", { name: "Virtuális HKK Mappa" })).toBeInTheDocument();
+    expect(await screen.findByText("Xenó lárva")).toBeInTheDocument();
+    expect(screen.getByText("2/3")).toBeInTheDocument();
+    mocks.setVaultWanted.mockResolvedValue({ ...card, wanted: true, wanted_quantity: 1 });
+    fireEvent.click(within(screen.getByText("Xenó lárva").closest("article")!).getByRole("button", { name: "Keresem" }));
+    await waitFor(() => expect(mocks.setVaultWanted).toHaveBeenCalledWith(5, true, 1));
+  });
+
+  it("megjeleníti a kapacitást és engedi a fix árú bővítést", async () => {
+    mocks.buyVaultCapacity.mockResolvedValue({ ...summary, total_collection_capacity: 550, vp_balance: 20 });
+    render(<VirtualVaultPage />);
+    await screen.findByText("Xenó lárva");
+    fireEvent.click(screen.getByRole("button", { name: "VP / kapacitás" }));
+    expect(screen.getByText("500")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Feloldás 100 VP-ért" }));
+    await waitFor(() => expect(mocks.buyVaultCapacity).toHaveBeenCalledTimes(1));
+  });
+
+  it("desktopon és mobilon elérhető kiegészítő importot ad", async () => {
+    mocks.listHkkEditions.mockResolvedValue([{ id: "220", name: "Résföld" }]);
+    mocks.previewHkkEdition.mockResolvedValue({ edition: { id: "220", name: "Résföld" }, count: 87, cards: [] });
+    mocks.importHkkEdition.mockResolvedValue({ edition: { id: "220", name: "Résföld" }, total_cards: 87, added_cards: 87, updated_cards: 0, skipped_cards: 0 });
+    render(<VirtualVaultPage />);
+    await screen.findByText("Xenó lárva");
+    fireEvent.click(screen.getByRole("tab", { name: "Kiegészítő hozzáadása" }));
+    await waitFor(() => expect(mocks.listHkkEditions).toHaveBeenCalledTimes(1));
+    fireEvent.change(screen.getByLabelText("Kiegészítő"), { target: { value: "220" } });
+    expect(await screen.findByText("87")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Alapértelmezett darabszám"), { target: { value: "3" } });
+    fireEvent.click(screen.getByRole("button", { name: "Teljes kiegészítő hozzáadása" }));
+    await waitFor(() => expect(mocks.importHkkEdition).toHaveBeenCalledWith({ edition_id: "220", folder_id: 1, quantity: 3, missing_only: false }));
+  });
+
+  it("korlátlan accountnál végtelen kapacitást mutat és elrejti a vásárlást", async () => {
+    mocks.getVaultSummary.mockResolvedValue({ ...summary, vault_unlimited: true });
+    render(<VirtualVaultPage />);
+    expect(await screen.findByText("∞ Korlátlan")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "VP / kapacitás" }));
+    expect(screen.getByText("Korlátlan Virtuális Mappa")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Feloldás 100 VP-ért" })).not.toBeInTheDocument();
+  });
+
+  it("metaadat szerint rendezi a mappát és magyarítja a gyakoriságot", async () => {
+    mocks.listVaultCards.mockResolvedValue([
+      { ...card, id: 6, external_card_id: "20", card_name: "Ritka lap", edition: "Roxat céhei", card_type: "Szörny", subtype: "féreg", color: "Fairlight · Nincs", rarity: "rare" },
+      { ...card, id: 7, external_card_id: "3", card_name: "Gyakori lap", rarity: "common" },
+      { ...card, id: 8, external_card_id: "11", card_name: "Nem gyakori lap", rarity: "uncommun" },
+    ]);
+    const { container } = render(<VirtualVaultPage />);
+    expect(await screen.findByText(/rare – Ritka$/)).toBeInTheDocument();
+    expect(screen.getByText(/common – Gyakori$/)).toBeInTheDocument();
+    expect(screen.getByText(/uncommun – Nem gyakori$/)).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Mappa rendezése"), { target: { value: "external_card_id" } });
+    const names = Array.from(container.querySelectorAll(".vault-card-grid .vault-card .vault-card-body > div:first-child > strong")).map((node) => node.textContent);
+    expect(names).toEqual(["Gyakori lap", "Nem gyakori lap", "Ritka lap"]);
+  });
+});

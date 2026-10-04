@@ -16,6 +16,7 @@ from app.models.demo_auction import DemoAuctionBatch
 from app.models.refresh_session import RefreshSession
 from app.models.transaction import AuctionTransaction
 from app.models.user import SavedSearch, SellerFollow, User, UserAuthIdentity, VipActivationCode
+from app.models.vault import VaultAccount, VaultCapacityGrant, VaultCollectionCard, VaultFolder, VaultPointTransaction, VaultTrade, VaultTradeCard, VaultTradeMessage, VaultTradeReview
 
 __all__ = [
     "Category",
@@ -56,4 +57,13 @@ __all__ = [
     "SellerFollow",
     "SavedSearch",
     "VipActivationCode",
+    "VaultAccount",
+    "VaultCapacityGrant",
+    "VaultCollectionCard",
+    "VaultFolder",
+    "VaultPointTransaction",
+    "VaultTrade",
+    "VaultTradeCard",
+    "VaultTradeMessage",
+    "VaultTradeReview",
 ]

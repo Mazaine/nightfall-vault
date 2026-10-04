@@ -15,6 +15,7 @@ const navItems = [
 ];
 
 const accountItems = [
+  ["Virtuális mappám", "/vault"],
   ["Profilbeállítások", "/account/profile"],
   ["Értesítések", "/account/notifications"],
   ["Jelentéseim", "/account/reports"],

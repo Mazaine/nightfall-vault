@@ -1,6 +1,7 @@
 ﻿from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import field_validator
+from urllib.parse import urlsplit
 
 
 class Settings(BaseSettings):
@@ -82,6 +83,8 @@ class Settings(BaseSettings):
     vapid_subject: str | None = None
     web_push_subscription_rate_limit_per_minute: int = 10
     web_push_request_timeout_seconds: float = 10.0
+    hkk_catalog_base_url: str = "https://lapkereso.hkk.hu"
+    hkk_catalog_request_timeout_seconds: float = Field(default=5.0, gt=0, le=30)
     web_push_allowed_host_suffixes: list[str] = [
         "fcm.googleapis.com",
         "updates.push.services.mozilla.com",
@@ -105,6 +108,15 @@ class Settings(BaseSettings):
         normalized = "/" + value.strip("/")
         if normalized in {"/", "/api"} or ".." in normalized or "\\" in normalized:
             raise ValueError("MEDIA_URL_PREFIX must be a safe dedicated URL prefix.")
+        return normalized
+
+    @field_validator("hkk_catalog_base_url")
+    @classmethod
+    def validate_hkk_catalog_base_url(cls, value: str) -> str:
+        normalized = value.strip().rstrip("/")
+        parsed = urlsplit(normalized)
+        if parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password or parsed.query or parsed.fragment:
+            raise ValueError("HKK_CATALOG_BASE_URL must be a safe HTTPS origin.")
         return normalized
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore", populate_by_name=True)
