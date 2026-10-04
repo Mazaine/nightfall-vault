@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, Response, status
 from sqlalchemy import func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -8,7 +8,7 @@ from app.dependencies.auth import require_active_user
 from app.models.user import User
 from app.models.vault import VaultCollectionCard, VaultFolder, VaultPointTransaction, VaultTrade, VaultTradeCard, VaultTradeMessage, VaultTradeReview
 from app.schemas.vault import CardRead, CollectionCardCreate, CollectionCardUpdate, FolderCreate, FolderRead, FolderReorder, FolderUpdate, HkkEditionCards, HkkEditionImport, HkkEditionImportResult, HkkEditionRead, HkkSearchResult, PointHistory, PointTransactionRead, PublicTradeCardRead, QuantityUpdate, TradeCardCreate, TradeMessageCreate, TradeRead, TradeReviewCreate, TradeReviewRead, VaultSummary, WantedUpdate
-from app.services.vault import account_for, buy_capacity_pack, card_snapshot_values, collection_card_for_user, complete_trade, folder_for_user, folder_used, grant_points, hkk_edition_cards, import_hkk_edition, list_hkk_editions, point_balance, require_allocatable, require_valid_card_snapshot, search_hkk_cards, total_collection_capacity, trade_for_participant, utc_now
+from app.services.vault import account_for, buy_capacity_pack, card_snapshot_values, collection_card_for_user, complete_trade, fetch_hkk_card_image, folder_for_user, folder_used, grant_points, hkk_edition_cards, import_hkk_edition, list_hkk_editions, point_balance, require_allocatable, require_valid_card_snapshot, search_hkk_cards, total_collection_capacity, trade_for_participant, utc_now
 from app.services.user_blocks import ensure_not_blocked
 
 
@@ -345,6 +345,16 @@ def purchase_capacity(current_user: User = Depends(require_active_user), db: Ses
 def hkk_search(q: str = Query(min_length=2, max_length=120), limit: int = Query(default=20, ge=1, le=50), current_user: User = Depends(require_active_user)) -> list[HkkSearchResult]:
     del current_user
     return [HkkSearchResult.model_validate(item) for item in search_hkk_cards(q.strip(), limit)]
+
+
+@router.get("/hkk/images/{card_id}", include_in_schema=False)
+def hkk_card_image(card_id: int = Path(gt=0)) -> Response:
+    content, media_type = fetch_hkk_card_image(card_id)
+    return Response(
+        content=content,
+        media_type=media_type,
+        headers={"Cache-Control": "public, max-age=86400, stale-while-revalidate=604800"},
+    )
 
 
 @router.get("/hkk/editions", response_model=list[HkkEditionRead])

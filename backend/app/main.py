@@ -113,6 +113,7 @@ PRIVATE_API_PREFIXES = (
     "/api/membership",
     "/api/vault",
 )
+PUBLIC_CACHE_API_PREFIXES = ("/api/vault/hkk/images/",)
 
 FIELD_LABELS = {
     "email": "e-mail-cím",
@@ -277,7 +278,8 @@ async def security_headers_middleware(request: Request, call_next):
     response = await call_next(request)
     for header_name, header_value in SECURITY_HEADERS.items():
         response.headers.setdefault(header_name, header_value)
-    if request.headers.get("authorization") or request.url.path.startswith(PRIVATE_API_PREFIXES):
+    is_public_cache_endpoint = request.url.path.startswith(PUBLIC_CACHE_API_PREFIXES)
+    if request.headers.get("authorization") or (request.url.path.startswith(PRIVATE_API_PREFIXES) and not is_public_cache_endpoint):
         response.headers["Cache-Control"] = "no-store, private"
         response.headers["Pragma"] = "no-cache"
         vary = {item.strip() for item in response.headers.get("Vary", "").split(",") if item.strip()}

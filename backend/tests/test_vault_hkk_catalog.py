@@ -1,15 +1,22 @@
 import httpx
 import pytest
 from fastapi import HTTPException
+from fastapi.testclient import TestClient
 
 from app.core.config import settings
+from app.main import app
 from app.services import vault
 
 
+client = TestClient(app)
+
+
 class FakeResponse:
-    def __init__(self, payload: object, *, status_error: bool = False):
+    def __init__(self, payload: object, *, status_error: bool = False, content: bytes = b"", content_type: str = "application/json"):
         self.payload = payload
         self.status_error = status_error
+        self.content = content
+        self.headers = {"content-type": content_type}
 
     def raise_for_status(self) -> None:
         if self.status_error:
@@ -109,3 +116,37 @@ def test_signed_snapshot_rejects_changed_or_invalid_card_id(monkeypatch) -> None
         vault.require_valid_card_snapshot(payload)
     assert exc_info.value.status_code == 422
     assert vault.parse_hkk_item({"ID": "-1", "name": "Hibás"}, (frozenset(), {})) is None
+
+
+def test_hkk_card_image_proxy_accepts_only_valid_bounded_images(monkeypatch) -> None:
+    calls: list[str] = []
+
+    def fake_get(url: str, *, timeout: float):
+        calls.append(url)
+        return FakeResponse({}, content=b"jpeg-data", content_type="image/jpg")
+
+    monkeypatch.setattr(vault.httpx, "get", fake_get)
+    content, media_type = vault.fetch_hkk_card_image(9888)
+    assert content == b"jpeg-data"
+    assert media_type == "image/jpeg"
+    assert calls == ["https://lapkereso.hkk.hu/HKKCardImage.php?cardID=9888"]
+
+    monkeypatch.setattr(vault.httpx, "get", lambda url, timeout: FakeResponse({}, content=b"not-an-image", content_type="text/html"))
+    with pytest.raises(HTTPException) as exc_info:
+        vault.fetch_hkk_card_image(9888)
+    assert exc_info.value.status_code == 502
+
+    monkeypatch.setattr(vault.httpx, "get", lambda url, timeout: FakeResponse({}, content=b"x" * (vault.HKK_CARD_IMAGE_MAX_BYTES + 1), content_type="image/jpeg"))
+    with pytest.raises(HTTPException) as exc_info:
+        vault.fetch_hkk_card_image(9888)
+    assert exc_info.value.status_code == 502
+
+
+def test_hkk_card_image_endpoint_is_same_origin_and_publicly_cacheable(monkeypatch) -> None:
+    monkeypatch.setattr("app.api.vault.fetch_hkk_card_image", lambda card_id: (b"jpeg-data", "image/jpeg"))
+    response = client.get("/api/vault/hkk/images/9888")
+    assert response.status_code == 200
+    assert response.content == b"jpeg-data"
+    assert response.headers["content-type"] == "image/jpeg"
+    assert response.headers["cache-control"] == "public, max-age=86400, stale-while-revalidate=604800"
+    assert client.get("/api/vault/hkk/images/0").status_code == 422

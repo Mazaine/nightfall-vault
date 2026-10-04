@@ -2,7 +2,7 @@ import { FormEvent, useCallback, useEffect, useState } from "react";
 import { ApiError } from "../api/client";
 import * as vaultApi from "../api/vault";
 import type { HkkCard, PublicTradeCard, VaultCard, VaultSummary, VaultTrade } from "../api/vault";
-import { formatHkkRarity } from "../utils/hkk";
+import { formatHkkRarity, hkkCardImageUrl } from "../utils/hkk";
 
 type Tab = "collection" | "trade" | "wanted" | "matches" | "points";
 type AddMode = "card" | "edition";
@@ -23,8 +23,9 @@ function compareCards(left: VaultCard, right: VaultCard, sortKey: SortKey, direc
   return direction === "asc" ? result : -result;
 }
 
-function CardImage({ card }: { card: Pick<VaultCard, "card_name" | "image_url"> }) {
-  return card.image_url ? <img src={card.image_url} alt="" loading="lazy" /> : <div className="vault-card-placeholder" aria-hidden="true">HKK</div>;
+function CardImage({ card }: { card: Pick<VaultCard, "external_card_id" | "card_name" | "image_url"> }) {
+  const imageUrl = hkkCardImageUrl(card.external_card_id, card.image_url);
+  return imageUrl ? <img src={imageUrl} alt="" loading="lazy" /> : <div className="vault-card-placeholder" aria-hidden="true">HKK</div>;
 }
 
 function CardMeta({ card }: { card: Pick<VaultCard, "edition" | "card_type" | "subtype" | "color" | "rarity"> }) {

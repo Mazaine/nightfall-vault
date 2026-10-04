@@ -23,6 +23,8 @@ CAPACITY_PACK_SLOTS = 50
 CAPACITY_PACK_COST = 100
 VIP_ACTIVATION_SLOTS = 100
 HKK_CONSTANTS_CACHE_TTL_SECONDS = 60 * 60
+HKK_CARD_IMAGE_MAX_BYTES = 8 * 1024 * 1024
+HKK_CARD_IMAGE_MEDIA_TYPES = frozenset({"image/jpeg", "image/png", "image/webp", "image/gif"})
 _hkk_constants_cache: tuple[float, tuple[frozenset[str], dict[str, str]]] | None = None
 
 
@@ -224,6 +226,23 @@ def _load_hkk_constants() -> tuple[frozenset[str], dict[str, str]]:
 
 def _joined(values: list[str], max_length: int) -> str | None:
     return " · ".join(values)[:max_length] or None
+
+
+def fetch_hkk_card_image(card_id: int) -> tuple[bytes, str]:
+    if card_id <= 0:
+        raise HTTPException(status_code=422, detail="Érvénytelen HKK lapazonosító.")
+    url = f"{settings.hkk_catalog_base_url.rstrip('/')}/HKKCardImage.php?{urlencode({'cardID': card_id})}"
+    try:
+        response = httpx.get(url, timeout=settings.hkk_catalog_request_timeout_seconds)
+        response.raise_for_status()
+    except httpx.HTTPError as exc:
+        raise HTTPException(status_code=503, detail="A HKK kártyakép jelenleg nem érhető el.") from exc
+    media_type = response.headers.get("content-type", "").split(";", 1)[0].strip().lower()
+    if media_type == "image/jpg":
+        media_type = "image/jpeg"
+    if media_type not in HKK_CARD_IMAGE_MEDIA_TYPES or not response.content or len(response.content) > HKK_CARD_IMAGE_MAX_BYTES:
+        raise HTTPException(status_code=502, detail="A HKK kártyakép válasza érvénytelen.")
+    return response.content, media_type
 
 
 def parse_hkk_item(item: object, constants: tuple[frozenset[str], dict[str, str]]) -> dict | None:
