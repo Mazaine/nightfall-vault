@@ -16,7 +16,7 @@ vi.mock("../api/auth", () => ({ ...mocks }));
 vi.mock("../utils/webPush", () => ({ ...pushMocks }));
 
 const categories = ["outbid", "auction_bid_received", "auction_won", "auction_lost", "auction_sold", "auction_unsold", "watchlist_reminder", "seller_auction_reminder", "transaction_updates", "auction_message", "seller_new_auction", "review_received", "bid_updates", "moderation", "system"];
-const labels = ["Rám licitáltak", "Új licit érkezett a saját aukciómra", "Megnyertem az aukciót", "Nem én nyertem az aukciót", "Sikeresen lezárult a saját aukcióm", "A saját aukcióm eladatlanul zárult", "Figyelt aukció hamarosan lejár", "Saját aukcióm hamarosan lejár", "Tranzakcióval kapcsolatos értesítés", "Új tranzakciós chatüzenet", "Követett eladó új aukciója", "Új értékelés érkezett", "Licit visszavonása vagy licitvezető-változás", "Moderációs értesítés", "Egyéb rendszerértesítés"];
+const labels = ["Rám licitáltak", "Új licit érkezett a saját aukciómra", "Megnyertem az aukciót", "Nem én nyertem az aukciót", "Sikeresen lezárult a saját aukcióm", "A saját aukcióm eladatlanul zárult", "Figyelt aukció hamarosan lejár", "Saját aukcióm hamarosan lejár", "Tranzakcióval kapcsolatos értesítés", "Új egyeztetési chatüzenet", "Követett eladó új aukciója", "Új értékelés érkezett", "Licit visszavonása vagy licitvezető-változás", "Moderációs értesítés", "Egyéb rendszerértesítés"];
 const channels = ["E-mail", "Telefonos push"];
 
 function matrix() {
@@ -132,7 +132,7 @@ describe("NotificationPreferencesPanel", () => {
 
   it("a kapcsoló módosítását azonnal menti és a szerverválasszal tartja meg", async () => {
     render(<NotificationPreferencesPanel />);
-    const checkbox = await screen.findByLabelText("Új tranzakciós chatüzenet – E-mail");
+    const checkbox = await screen.findByLabelText("Új egyeztetési chatüzenet – E-mail");
     fireEvent.click(checkbox);
     await waitFor(() => expect(mocks.updateNotificationPreferences).toHaveBeenCalledTimes(1));
     expect(mocks.updateNotificationPreferences.mock.calls[0][0].categories.auction_message.email).toBe(true);

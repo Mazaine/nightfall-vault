@@ -168,6 +168,7 @@ def test_delivery_failure_does_not_rollback_committed_domain_data(monkeypatch) -
     "/account/transactions",
     "/account/notifications",
     "/account/messages",
+    "/vault",
     "/users/teszt-felhasznalo",
 ])
 def test_valid_notification_targets_are_accepted(target: str) -> None:

@@ -53,6 +53,17 @@ describe("VirtualVaultPage", () => {
     expect(screen.queryByPlaceholderText("Keresés lapnévre…")).not.toBeInTheDocument();
   });
 
+  it("az egyeztetésben publikus felhasználóneveket mutat e-mail-cím helyett", async () => {
+    mocks.listNegotiations.mockResolvedValue([{ id: 12, requester_id: 1, requester_username: "admin", requester_display_name: "admin", owner_id: 2, owner_username: "omronraktar@gmail.com", owner_display_name: "omronraktar", status: "open", requester_confirmed_at: null, owner_confirmed_at: null, completed_at: null, card: { ...card, card_name: "Az élet teremtése (2026)" }, messages: [{ id: 3, sender_id: 2, sender_username: "omronraktar@gmail.com", sender_display_name: "omronraktar", message: "szia", created_at: "2026-10-04T14:00:00Z" }] }]);
+    render(<VirtualVaultPage />);
+    await screen.findByText("Xenó lárva");
+    fireEvent.click(screen.getByRole("button", { name: "Match-ek" }));
+
+    expect(await screen.findByText("@admin ↔ @omronraktar · egyeztetés")).toBeInTheDocument();
+    expect(screen.getByText("@omronraktar")).toBeInTheDocument();
+    expect(screen.queryByText(/omronraktar@gmail\.com/)).not.toBeInTheDocument();
+  });
+
   it("megjeleníti a kapacitást és engedi a fix árú bővítést", async () => {
     mocks.buyVaultCapacity.mockResolvedValue({ ...summary, total_collection_capacity: 550, vp_balance: 20 });
     render(<VirtualVaultPage />);

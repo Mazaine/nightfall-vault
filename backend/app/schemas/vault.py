@@ -176,6 +176,7 @@ class TradeMessageRead(BaseModel):
     id: int
     sender_id: int
     sender_username: str
+    sender_display_name: str
     message: str
     created_at: datetime
 
@@ -184,8 +185,10 @@ class TradeRead(BaseModel):
     id: int
     requester_id: int
     requester_username: str
+    requester_display_name: str
     owner_id: int
     owner_username: str
+    owner_display_name: str
     status: str
     requester_confirmed_at: datetime | None
     owner_confirmed_at: datetime | None

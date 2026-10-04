@@ -18,9 +18,9 @@ export type HkkEditionImportResult = { edition: HkkEdition; total_cards: number;
 export type PointTransaction = { id: number; amount: number; reason: string; reference_type: string | null; reference_id: string | null; created_at: string };
 export type PointHistory = { balance: number; items: PointTransaction[] };
 export type VaultTrade = {
-  id: number; requester_id: number; requester_username: string; owner_id: number; owner_username: string; status: string;
+  id: number; requester_id: number; requester_username: string; requester_display_name: string; owner_id: number; owner_username: string; owner_display_name: string; status: string;
   requester_confirmed_at: string | null; owner_confirmed_at: string | null; completed_at: string | null; card: VaultCard;
-  messages: { id: number; sender_id: number; sender_username: string; message: string; created_at: string }[];
+  messages: { id: number; sender_id: number; sender_username: string; sender_display_name: string; message: string; created_at: string }[];
 };
 
 export const getVaultSummary = () => apiRequest<VaultSummary>("/api/vault/summary", { authenticated: true });

@@ -2,6 +2,7 @@ import re
 
 
 ACCOUNT_TARGETS = {
+    "/vault",
     "/account/auctions",
     "/account/blocked-users",
     "/account/messages",

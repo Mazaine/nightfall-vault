@@ -8,11 +8,19 @@ from app.dependencies.auth import require_active_user
 from app.models.user import User
 from app.models.vault import VaultCollectionCard, VaultFolder, VaultPointTransaction, VaultTrade, VaultTradeCard, VaultTradeMessage, VaultTradeReview
 from app.schemas.vault import CardRead, CollectionCardCreate, CollectionCardUpdate, FolderCreate, FolderRead, FolderReorder, FolderUpdate, HkkEditionCards, HkkEditionImport, HkkEditionImportResult, HkkEditionRead, HkkSearchResult, PointHistory, PointTransactionRead, PublicTradeCardRead, QuantityUpdate, TradeCardCreate, TradeMessageCreate, TradeRead, TradeReviewCreate, TradeReviewRead, VaultSummary, WantedCardCreate, WantedUpdate
+from app.services.notifications import create_notification
 from app.services.vault import account_for, buy_capacity_pack, card_snapshot_values, collection_card_for_user, complete_trade, fetch_hkk_card_image, folder_for_user, folder_used, grant_points, hkk_edition_cards, import_hkk_edition, list_hkk_editions, point_balance, require_allocatable, require_valid_card_snapshot, search_hkk_cards, total_collection_capacity, trade_for_participant, utc_now
 from app.services.user_blocks import ensure_not_blocked
 
 
 router = APIRouter(prefix="/api/vault", tags=["virtual-vault"])
+
+
+def public_user_label(user: User) -> str:
+    username = user.username.strip()
+    if "@" not in username:
+        return username
+    return user.full_name.strip() or username.split("@", 1)[0]
 
 
 def card_read(db: Session, card: VaultCollectionCard) -> CardRead:
@@ -28,10 +36,12 @@ def trade_read(trade: VaultTrade) -> TradeRead:
     messages = sorted(trade.messages, key=lambda item: (item.created_at, item.id))
     return TradeRead(
         id=trade.id, requester_id=trade.requester_id, requester_username=trade.requester.username,
-        owner_id=trade.owner_id, owner_username=trade.owner.username, status=trade.status,
+        requester_display_name=public_user_label(trade.requester),
+        owner_id=trade.owner_id, owner_username=trade.owner.username,
+        owner_display_name=public_user_label(trade.owner), status=trade.status,
         requester_confirmed_at=trade.requester_confirmed_at, owner_confirmed_at=trade.owner_confirmed_at,
         completed_at=trade.completed_at, card=CardRead.model_validate(trade.offered_card),
-        messages=[{"id": item.id, "sender_id": item.sender_id, "sender_username": item.sender.username, "message": item.message, "created_at": item.created_at} for item in messages],
+        messages=[{"id": item.id, "sender_id": item.sender_id, "sender_username": item.sender.username, "sender_display_name": public_user_label(item.sender), "message": item.message, "created_at": item.created_at} for item in messages],
     )
 
 
@@ -326,7 +336,19 @@ def post_trade_message(trade_id: int, payload: TradeMessageCreate, current_user:
     if trade.status != "open":
         raise HTTPException(status_code=409, detail="A lezárt egyeztetéshez nem küldhető üzenet.")
     ensure_not_blocked(db, trade.requester_id, trade.owner_id, "Blokkolás miatt nem küldhető új üzenet.")
-    db.add(VaultTradeMessage(trade_id=trade.id, sender_id=current_user.id, message=payload.message.strip()))
+    message = VaultTradeMessage(trade_id=trade.id, sender_id=current_user.id, message=payload.message.strip())
+    db.add(message)
+    db.flush()
+    recipient_id = trade.owner_id if current_user.id == trade.requester_id else trade.requester_id
+    create_notification(
+        db,
+        user_id=recipient_id,
+        notification_type="auction_message",
+        title="Új üzenet a Virtuális HKK Mappában",
+        message=f"{public_user_label(current_user)} új üzenetet küldött a(z) {trade.offered_card.card_name} lap egyeztetéséhez.",
+        target_url="/vault",
+        event_key=f"vault-message:{message.id}:{recipient_id}",
+    )
     db.commit()
     return trade_read(trade_for_participant(db, trade.id, current_user.id))
 

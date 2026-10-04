@@ -22,7 +22,7 @@ const eventLabels: Record<string, string> = {
   watchlist_reminder: "Figyelt aukció hamarosan lejár",
   seller_auction_reminder: "Saját aukcióm hamarosan lejár",
   transaction_updates: "Tranzakcióval kapcsolatos értesítés",
-  auction_message: "Új tranzakciós chatüzenet",
+  auction_message: "Új egyeztetési chatüzenet",
   seller_new_auction: "Követett eladó új aukciója",
   review_received: "Új értékelés érkezett",
   bid_updates: "Licit visszavonása vagy licitvezető-változás",

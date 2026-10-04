@@ -6,6 +6,7 @@ from app.db.session import SessionLocal
 from app.models.user import User, VipActivationCode
 from app.models.security_log import AuditLog
 from app.models.moderation import UserBlock
+from app.models.notification import Notification, NotificationOutbox
 from app.models.vault import VaultAccount, VaultCapacityGrant, VaultCollectionCard, VaultFolder, VaultPointTransaction, VaultTrade, VaultTradeCard, VaultTradeMessage, VaultTradeReview
 from app.services.membership import activate_code, generate_codes
 from app.services.vault import grant_capacity, grant_points, sign_card_snapshot
@@ -21,6 +22,9 @@ def cleanup() -> None:
         for model in (VaultTradeReview, VaultTradeMessage, VaultTrade, VaultTradeCard, VaultCollectionCard, VaultFolder, VaultCapacityGrant, VaultPointTransaction, VaultAccount, VipActivationCode):
             db.execute(delete(model))
         if user_ids:
+            notification_ids = select(Notification.id).where(Notification.user_id.in_(user_ids))
+            db.execute(delete(NotificationOutbox).where(NotificationOutbox.notification_id.in_(notification_ids)))
+            db.execute(delete(Notification).where(Notification.user_id.in_(user_ids)))
             db.execute(delete(UserBlock).where((UserBlock.blocker_id.in_(user_ids)) | (UserBlock.blocked_id.in_(user_ids))))
             db.execute(delete(AuditLog).where(AuditLog.user_id.in_(user_ids)))
         db.execute(delete(User).where(test_users))
@@ -185,6 +189,16 @@ def test_base_capacities_folder_limits_playset_move_and_idor() -> None:
 
 def test_public_trade_matching_interest_completion_and_idempotent_rewards() -> None:
     cleanup(); seeker = create_test_user("seeker@vault-test.local"); owner = create_test_user("trader@vault-test.local")
+    db = SessionLocal()
+    try:
+        stored_owner = db.get(User, owner.id)
+        stored_owner.username = "omronraktar@vault-test.local"
+        stored_owner.full_name = "raktár Omron"
+        db.commit()
+        owner.username = stored_owner.username
+        owner.full_name = stored_owner.full_name
+    finally:
+        db.close()
     try:
         folder = client.post("/api/vault/folders", json={"name": "Főmappa", "capacity": 10}, headers=auth_headers(seeker)).json()
         collected = client.post("/api/vault/cards", json={**card_payload(), "folder_id": folder["id"]}, headers=auth_headers(seeker)).json()
@@ -202,6 +216,18 @@ def test_public_trade_matching_interest_completion_and_idempotent_rewards() -> N
         assert client.post(f"/api/vault/trade/{offered.json()['id']}/interest", headers=auth_headers(seeker)).json()["id"] == trade["id"]
         chatted = client.post(f"/api/vault/negotiations/{trade['id']}/messages", json={"message": "Egyezzünk meg!"}, headers=auth_headers(seeker))
         assert chatted.status_code == 200 and chatted.json()["messages"][0]["message"] == "Egyezzünk meg!"
+        assert chatted.json()["requester_display_name"] == seeker.username
+        assert chatted.json()["owner_display_name"] == "raktár Omron"
+        assert chatted.json()["messages"][0]["sender_display_name"] == seeker.username
+        db = SessionLocal()
+        try:
+            notification = db.scalar(select(Notification).where(Notification.user_id == owner.id, Notification.type == "auction_message"))
+            assert notification is not None
+            assert notification.title == "Új üzenet a Virtuális HKK Mappában"
+            assert notification.target_url == "/vault"
+            assert db.scalar(select(NotificationOutbox).where(NotificationOutbox.notification_id == notification.id, NotificationOutbox.task_type == "realtime")) is not None
+        finally:
+            db.close()
         assert client.post(f"/api/vault/negotiations/{trade['id']}/confirm", headers=auth_headers(seeker)).json()["status"] == "open"
         with ThreadPoolExecutor(max_workers=2) as executor:
             completed_responses = list(executor.map(lambda _: client.post(f"/api/vault/negotiations/{trade['id']}/confirm", headers=auth_headers(owner)), range(2)))
