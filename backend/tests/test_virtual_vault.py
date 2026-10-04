@@ -134,7 +134,7 @@ def test_explicit_owner_entitlement_is_unlimited_but_other_admin_is_not(monkeypa
     monkeypatch.setattr(vault_service, "hkk_edition_cards", lambda edition_id: edition_cards())
     db = SessionLocal()
     try:
-        owner_account = VaultAccount(user_id=owner.id, base_collection_capacity=500, trade_capacity=0, vault_unlimited=True)
+        owner_account = VaultAccount(user_id=owner.id, base_collection_capacity=1000, trade_capacity=0, vault_unlimited=True)
         db.add(owner_account); db.commit()
         assert grant_capacity(db, owner.id, 100, "VIP_ACTIVATION", "owner-vip") is True
         db.commit()
@@ -143,7 +143,7 @@ def test_explicit_owner_entitlement_is_unlimited_but_other_admin_is_not(monkeypa
         assert imported.status_code == 200 and imported.json()["added_cards"] == 3
         owner_summary = client.get("/api/vault/summary", headers=auth_headers(owner)).json()
         assert owner_summary["vault_unlimited"] is True
-        assert owner_summary["total_collection_capacity"] == 600
+        assert owner_summary["total_collection_capacity"] == 1100
         assert client.post("/api/vault/points/buy-capacity", headers=auth_headers(owner)).status_code == 409
         assert client.post("/api/vault/trade", json=card_payload("owner-trade", "Owner cserelap", 1), headers=auth_headers(owner)).status_code == 201
 
@@ -152,7 +152,7 @@ def test_explicit_owner_entitlement_is_unlimited_but_other_admin_is_not(monkeypa
         assert denied.status_code == 409
         admin_summary = client.get("/api/vault/summary", headers=auth_headers(admin)).json()
         assert admin_summary["vault_unlimited"] is False
-        assert admin_summary["total_collection_capacity"] == 500 and admin_summary["trade_capacity"] == 200
+        assert admin_summary["total_collection_capacity"] == 1000 and admin_summary["trade_capacity"] == 200
     finally:
         db.close(); cleanup()
 
@@ -162,11 +162,11 @@ def test_base_capacities_folder_limits_playset_move_and_idor() -> None:
     try:
         summary = client.get("/api/vault/summary", headers=auth_headers(owner))
         assert summary.status_code == 200
-        assert summary.json()["total_collection_capacity"] == 500
+        assert summary.json()["total_collection_capacity"] == 1000
         assert summary.json()["trade_capacity"] == 200
         xen = client.post("/api/vault/folders", json={"name": "Xenó", "capacity": 2}, headers=auth_headers(owner)).json()
         other = client.post("/api/vault/folders", json={"name": "Paklialapok", "capacity": 10}, headers=auth_headers(owner)).json()
-        too_much = client.post("/api/vault/folders", json={"name": "Túl nagy", "capacity": 489}, headers=auth_headers(owner))
+        too_much = client.post("/api/vault/folders", json={"name": "Túl nagy", "capacity": 989}, headers=auth_headers(owner))
         assert too_much.status_code == 409
         created = client.post("/api/vault/cards", json={**card_payload(), "folder_id": xen["id"]}, headers=auth_headers(owner))
         assert created.status_code == 201 and created.json()["quantity"] == 2
@@ -249,13 +249,13 @@ def test_vp_capacity_purchase_and_each_vip_activation_grants_permanent_slots() -
     try:
         grant_points(db, user.id, 200, "TEST_GRANT", "test", "grant-1"); grant_points(db, user.id, 200, "TEST_GRANT", "test", "grant-1"); db.commit()
         bought = client.post("/api/vault/points/buy-capacity", headers=auth_headers(user))
-        assert bought.status_code == 200 and bought.json()["total_collection_capacity"] == 550 and bought.json()["vp_balance"] == 100
+        assert bought.status_code == 200 and bought.json()["total_collection_capacity"] == 1050 and bought.json()["vp_balance"] == 100
         _, _, codes = generate_codes(db, admin, 2, 1)
         activate_code(db, user, codes[0]); activate_code(db, user, codes[1])
         summary = client.get("/api/vault/summary", headers=auth_headers(user)).json()
-        assert summary["total_collection_capacity"] == 750
+        assert summary["total_collection_capacity"] == 1250
         user.vip_expires_at = None; db.add(user); db.commit()
-        assert client.get("/api/vault/summary", headers=auth_headers(user)).json()["total_collection_capacity"] == 750
+        assert client.get("/api/vault/summary", headers=auth_headers(user)).json()["total_collection_capacity"] == 1250
         grants = db.scalars(select(VaultCapacityGrant).where(VaultCapacityGrant.user_id == user.id, VaultCapacityGrant.source_type == "VIP_ACTIVATION")).all()
         assert len(grants) == 2
     finally:
@@ -279,6 +279,6 @@ def test_blocked_users_cannot_start_trade_and_vp_purchase_is_concurrency_safe() 
         assert sorted(response.status_code for response in responses) == [200, 409]
         summary = client.get("/api/vault/summary", headers=auth_headers(buyer)).json()
         assert summary["vp_balance"] == 0
-        assert summary["total_collection_capacity"] == 550
+        assert summary["total_collection_capacity"] == 1050
     finally:
         cleanup()

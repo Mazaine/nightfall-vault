@@ -14,7 +14,7 @@ class VaultAccount(Base):
     )
 
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
-    base_collection_capacity: Mapped[int] = mapped_column(Integer, nullable=False, default=500, server_default="500")
+    base_collection_capacity: Mapped[int] = mapped_column(Integer, nullable=False, default=1000, server_default="1000")
     trade_capacity: Mapped[int] = mapped_column(Integer, nullable=False, default=200, server_default="200")
     vault_unlimited: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())

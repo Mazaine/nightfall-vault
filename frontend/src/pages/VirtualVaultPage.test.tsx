@@ -10,7 +10,7 @@ const mocks = vi.hoisted(() => ({
 }));
 vi.mock("../api/vault", () => mocks);
 
-const summary = { total_collection_capacity: 500, assigned_collection_capacity: 200, free_collection_capacity: 300, used_collection_slots: 1, trade_capacity: 200, used_trade_slots: 0, vp_balance: 120, folders: [{ id: 1, name: "Xenó", capacity: 200, position: 0, color: "#7c3aed", used_slots: 1 }] };
+const summary = { total_collection_capacity: 1000, assigned_collection_capacity: 200, free_collection_capacity: 800, used_collection_slots: 1, trade_capacity: 200, used_trade_slots: 0, vp_balance: 120, folders: [{ id: 1, name: "Xenó", capacity: 200, position: 0, color: "#7c3aed", used_slots: 1 }] };
 const card = { id: 5, external_card_id: "hkk-1", card_name: "Xenó lárva", image_url: null, edition: "Teszt", card_type: "Lény", subtype: null, color: null, rarity: null, quantity: 2, folder_id: 1, wanted: false, wanted_quantity: 0, offer_count: 7 };
 
 describe("VirtualVaultPage", () => {
@@ -65,11 +65,11 @@ describe("VirtualVaultPage", () => {
   });
 
   it("megjeleníti a kapacitást és engedi a fix árú bővítést", async () => {
-    mocks.buyVaultCapacity.mockResolvedValue({ ...summary, total_collection_capacity: 550, vp_balance: 20 });
+    mocks.buyVaultCapacity.mockResolvedValue({ ...summary, total_collection_capacity: 1050, vp_balance: 20 });
     render(<VirtualVaultPage />);
     await screen.findByText("Xenó lárva");
     fireEvent.click(screen.getByRole("button", { name: "VP / kapacitás" }));
-    expect(screen.getByText("500")).toBeInTheDocument();
+    expect(screen.getByText("1000")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Hogyan szerezhetsz VP-t?" })).toBeInTheDocument();
     for (const reward of ["+15 VP", "+20 VP", "+10 VP", "+5 VP"]) expect(screen.getByText(reward)).toBeInTheDocument();
     expect(screen.getByText(/100 VP = \+50 permanens gyűjtőzseb/)).toBeInTheDocument();

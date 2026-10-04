@@ -17,7 +17,7 @@ from app.models.user import User
 from app.models.vault import VaultAccount, VaultCapacityGrant, VaultCollectionCard, VaultFolder, VaultPointTransaction, VaultTrade, VaultTradeCard, VaultTradeMessage
 
 
-BASE_COLLECTION_CAPACITY = 500
+BASE_COLLECTION_CAPACITY = 1000
 BASE_TRADE_CAPACITY = 200
 CAPACITY_PACK_SLOTS = 50
 CAPACITY_PACK_COST = 100
