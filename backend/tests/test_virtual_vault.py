@@ -87,6 +87,24 @@ def test_edition_import_is_atomic_on_capacity_shortage(monkeypatch) -> None:
         cleanup()
 
 
+def test_edition_import_can_filter_by_rarity(monkeypatch) -> None:
+    cleanup(); user = create_test_user("rarity-import@vault-test.local")
+    edition, cards = edition_cards()
+    rarities = ["common", "uncommun", "rare", "ultrarare"]
+    filtered_cards = [{**card, "external_card_id": f"rarity-{index}", "rarity": rarity} for index, (card, rarity) in enumerate(zip([cards[0], cards[1], cards[2], cards[0]], rarities), start=1)]
+    filtered_cards = [{**card, "source_token": sign_card_snapshot({key: value for key, value in card.items() if key != "source_token"})} for card in filtered_cards]
+    monkeypatch.setattr(vault_service, "hkk_edition_cards", lambda edition_id: (edition, filtered_cards))
+    try:
+        folder = client.post("/api/vault/folders", json={"name": "UR lapok", "capacity": 2}, headers=auth_headers(user)).json()
+        response = client.post("/api/vault/hkk/editions/import", json={"edition_id": "220", "folder_id": folder["id"], "quantity": 2, "missing_only": False, "rarities": ["ultrarare"]}, headers=auth_headers(user))
+        assert response.status_code == 200
+        assert response.json()["total_cards"] == 1 and response.json()["added_cards"] == 1
+        imported = client.get("/api/vault/cards", headers=auth_headers(user)).json()
+        assert len(imported) == 1 and imported[0]["rarity"] == "ultrarare" and imported[0]["quantity"] == 2
+    finally:
+        cleanup()
+
+
 def test_search_result_can_be_wanted_without_an_owned_copy() -> None:
     cleanup(); user = create_test_user("wanted-zero@vault-test.local")
     try:
@@ -171,12 +189,15 @@ def test_base_capacities_folder_limits_playset_move_and_idor() -> None:
         too_much = client.post("/api/vault/folders", json={"name": "Túl nagy", "capacity": 989}, headers=auth_headers(owner))
         assert too_much.status_code == 409
         created = client.post("/api/vault/cards", json={**card_payload(), "folder_id": xen["id"]}, headers=auth_headers(owner))
-        assert created.status_code == 201 and created.json()["quantity"] == 2
+        assert created.status_code == 201 and created.json()["quantity"] == 2 and created.json()["print_variant"] == "normal"
         duplicate = client.post("/api/vault/cards", json={**card_payload(quantity=3), "folder_id": xen["id"]}, headers=auth_headers(owner))
         assert duplicate.status_code == 201 and duplicate.json()["id"] == created.json()["id"] and duplicate.json()["quantity"] == 3
         assert client.post("/api/vault/cards", json={**card_payload("bad", "Hibás", 4), "folder_id": xen["id"]}, headers=auth_headers(owner)).status_code == 422
         moved = client.patch(f"/api/vault/cards/{created.json()['id']}", json={"folder_id": other["id"], "quantity": 2}, headers=auth_headers(owner))
         assert moved.status_code == 200 and moved.json()["folder_id"] == other["id"]
+        foil = client.patch(f"/api/vault/cards/{created.json()['id']}", json={"print_variant": "foil"}, headers=auth_headers(owner))
+        assert foil.status_code == 200 and foil.json()["print_variant"] == "foil"
+        assert client.patch(f"/api/vault/cards/{created.json()['id']}", json={"print_variant": "etched"}, headers=auth_headers(owner)).status_code == 422
         wanted = client.put(f"/api/vault/cards/{created.json()['id']}/wanted", json={"wanted": True, "quantity": 1}, headers=auth_headers(owner))
         assert wanted.status_code == 200 and wanted.json()["wanted_quantity"] == 1
         zeroed = client.patch(f"/api/vault/cards/{created.json()['id']}", json={"quantity": 0}, headers=auth_headers(owner))
@@ -215,11 +236,13 @@ def test_public_trade_matching_interest_completion_and_idempotent_rewards() -> N
         folder = client.post("/api/vault/folders", json={"name": "Főmappa", "capacity": 10}, headers=auth_headers(seeker)).json()
         collected = client.post("/api/vault/cards", json={**card_payload(), "folder_id": folder["id"]}, headers=auth_headers(seeker)).json()
         client.put(f"/api/vault/cards/{collected['id']}/wanted", json={"wanted": True, "quantity": 1}, headers=auth_headers(seeker))
-        offered = client.post("/api/vault/trade", json=card_payload(quantity=1), headers=auth_headers(owner))
-        assert offered.status_code == 201
+        offered = client.post("/api/vault/trade", json={**card_payload(quantity=1), "print_variant": "gfa"}, headers=auth_headers(owner))
+        assert offered.status_code == 201 and offered.json()["print_variant"] == "gfa"
+        changed_variant = client.patch(f"/api/vault/trade/{offered.json()['id']}", json={"quantity": 1, "print_variant": "fa"}, headers=auth_headers(owner))
+        assert changed_variant.status_code == 200 and changed_variant.json()["print_variant"] == "fa"
         assert client.patch(f"/api/vault/trade/{offered.json()['id']}", json={"quantity": 3}, headers=auth_headers(seeker)).status_code == 404
         public = client.get(f"/api/vault/public/{owner.username}")
-        assert public.status_code == 200 and public.json()[0]["owner_username"] == owner.username
+        assert public.status_code == 200 and public.json()[0]["owner_username"] == owner.username and public.json()[0]["print_variant"] == "fa"
         assert client.get("/api/vault/cards", headers=auth_headers(owner)).json() == []
         match = client.get("/api/vault/matches", headers=auth_headers(seeker)).json()[0]
         assert match["offer_count"] == 1

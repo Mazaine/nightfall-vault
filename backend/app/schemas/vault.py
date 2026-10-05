@@ -1,6 +1,10 @@
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+
+PrintVariant = Literal["normal", "foil", "fa", "gfa"]
 
 
 class CardSnapshot(BaseModel):
@@ -39,6 +43,7 @@ class FolderReorder(BaseModel):
 class CollectionCardCreate(CardSnapshot):
     folder_id: int
     quantity: int = Field(ge=1, le=3)
+    print_variant: PrintVariant | None = None
 
 
 class WantedCardCreate(CardSnapshot):
@@ -48,6 +53,7 @@ class WantedCardCreate(CardSnapshot):
 class CollectionCardUpdate(BaseModel):
     quantity: int | None = Field(default=None, ge=0, le=3)
     folder_id: int | None = None
+    print_variant: PrintVariant | None = None
 
 
 class WantedUpdate(BaseModel):
@@ -57,10 +63,12 @@ class WantedUpdate(BaseModel):
 
 class TradeCardCreate(CardSnapshot):
     quantity: int = Field(ge=1, le=3)
+    print_variant: PrintVariant | None = None
 
 
 class QuantityUpdate(BaseModel):
     quantity: int = Field(ge=1, le=3)
+    print_variant: PrintVariant | None = None
 
 
 class FolderRead(BaseModel):
@@ -85,6 +93,7 @@ class CardRead(BaseModel):
     color: str | None
     rarity: str | None
     quantity: int
+    print_variant: PrintVariant = "normal"
     folder_id: int | None = None
     wanted: bool = False
     wanted_quantity: int = 0
@@ -143,6 +152,7 @@ class HkkEditionImport(BaseModel):
     folder_id: int
     quantity: int = Field(ge=1, le=3)
     missing_only: bool = False
+    rarities: list[Literal["common", "uncommun", "rare", "ultrarare"]] | None = Field(default=None, min_length=1, max_length=4)
 
 
 class HkkEditionImportResult(BaseModel):

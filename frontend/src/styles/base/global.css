@@ -3044,13 +3044,20 @@ h3 {
 .vault-search-panel { display: grid; gap: var(--space-4); }
 .vault-search-panel h2, .vault-folder-panel h2, .vault-content h2 { margin: 0; }
 .vault-search-panel > div > p { margin: .3rem 0 0; color: var(--color-text-muted); }
-.vault-search-panel > form, .vault-toolbar, .vault-negotiations form { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-2); }
+.vault-search-panel > form { display: grid; grid-template-columns: minmax(0, 1fr) minmax(12rem, auto) auto; align-items: end; gap: var(--space-2); }
+.vault-toolbar, .vault-negotiations form { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-2); }
+.vault-search-edition { display: grid; gap: .3rem; color: var(--color-text-muted); font-size: .8rem; }
 .vault-add-mode { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 .vault-add-mode button { min-height: 2.6rem; border: 1px solid var(--color-divider); border-radius: var(--radius-sm); background: rgb(255 255 255 / .035); color: var(--color-text-muted); padding: .55rem .9rem; cursor: pointer; }
 .vault-add-mode button.is-active { border-color: var(--color-primary); background: rgb(124 58 237 / .18); color: var(--color-text); }
 .vault-edition-import { display: grid; gap: var(--space-3); }
 .vault-edition-fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-3); }
 .vault-edition-fields label { display: grid; gap: .35rem; color: var(--color-text-muted); font-size: .85rem; }
+.vault-rarity-options { display: flex; flex-wrap: wrap; gap: var(--space-2); margin: 0; border: 1px solid var(--color-divider); border-radius: var(--radius-sm); padding: var(--space-3); }
+.vault-rarity-options legend { padding-inline: .35rem; color: var(--color-text-muted); font-size: .85rem; }
+.vault-rarity-options label { display: flex; align-items: center; gap: .4rem; border: 1px solid var(--color-divider); border-radius: 999px; background: rgb(255 255 255 / .025); padding: .4rem .7rem; cursor: pointer; }
+.vault-rarity-options input { width: auto; min-height: auto; }
+.vault-rarity-options small { color: var(--color-text-muted); }
 .vault-search-results { display: grid; gap: var(--space-3); }
 .vault-search-results-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
 .vault-search-result { display: grid; grid-template-columns: 4rem minmax(0, 1fr) auto; align-items: center; gap: var(--space-3); border-top: 1px solid var(--color-divider); padding-top: var(--space-3); }

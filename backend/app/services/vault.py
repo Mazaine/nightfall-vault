@@ -25,6 +25,7 @@ VIP_ACTIVATION_SLOTS = 100
 HKK_CONSTANTS_CACHE_TTL_SECONDS = 60 * 60
 HKK_CARD_IMAGE_MAX_BYTES = 8 * 1024 * 1024
 HKK_CARD_IMAGE_MEDIA_TYPES = frozenset({"image/jpeg", "image/png", "image/webp", "image/gif"})
+HKK_RARITIES = frozenset({"common", "uncommun", "rare", "ultrarare"})
 _hkk_constants_cache: tuple[float, tuple[frozenset[str], dict[str, str]]] | None = None
 
 
@@ -270,12 +271,19 @@ def parse_hkk_item(item: object, constants: tuple[frozenset[str], dict[str, str]
     }
 
 
-def search_hkk_cards(query: str, limit: int) -> list[dict]:
+def search_hkk_cards(query: str, limit: int, edition_id: str | None = None) -> list[dict]:
     try:
         constants = _load_hkk_constants()
-        response = httpx.get(_hkk_catalog_url("lapkereso/kereses", {"nev": query.strip()}), timeout=settings.hkk_catalog_request_timeout_seconds)
+        if edition_id is not None and edition_id not in constants[1]:
+            raise HTTPException(status_code=404, detail="A HKK kiegészítő nem található.")
+        parameters = {"nev": query.strip()}
+        if edition_id is not None:
+            parameters["kiegeszito"] = edition_id
+        response = httpx.get(_hkk_catalog_url("lapkereso/kereses", parameters), timeout=settings.hkk_catalog_request_timeout_seconds)
         response.raise_for_status()
         payload = response.json()
+    except HTTPException:
+        raise
     except (httpx.HTTPError, ValueError) as exc:
         raise HTTPException(status_code=503, detail="A HKK lapkereső jelenleg nem érhető el.") from exc
     if not isinstance(payload, dict) or not isinstance(payload.get("cards"), list):
@@ -283,6 +291,8 @@ def search_hkk_cards(query: str, limit: int) -> list[dict]:
     results: list[dict] = []
     seen_external_ids: set[str] = set()
     for item in payload["cards"]:
+        if edition_id is not None and (not isinstance(item, dict) or edition_id not in _hkk_values(item.get("editions"), max_items=100, max_length=20)):
+            continue
         parsed = parse_hkk_item(item, constants)
         if parsed is not None and parsed["external_card_id"] not in seen_external_ids:
             seen_external_ids.add(parsed["external_card_id"])
@@ -341,8 +351,12 @@ def import_hkk_edition(
     folder_id: int,
     quantity: int,
     missing_only: bool,
+    rarities: list[str] | None = None,
 ) -> dict:
     edition, cards = hkk_edition_cards(edition_id)
+    if rarities is not None:
+        selected_rarities = set(rarities) & HKK_RARITIES
+        cards = [card for card in cards if str(card.get("rarity") or "").casefold() in selected_rarities]
     account = account_for(db, user_id, lock=True)
     folder = folder_for_user(db, folder_id, user_id, lock=True)
     external_ids = [card["external_card_id"] for card in cards]

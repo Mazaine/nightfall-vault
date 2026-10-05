@@ -51,6 +51,7 @@ class VaultCollectionCard(Base):
         UniqueConstraint("user_id", "external_card_id", name="uq_vault_collection_cards_user_card"),
         CheckConstraint("quantity BETWEEN 0 AND 3", name="ck_vault_collection_cards_quantity"),
         CheckConstraint("wanted_quantity BETWEEN 0 AND 3", name="ck_vault_collection_cards_wanted_quantity"),
+        CheckConstraint("print_variant IN ('normal', 'foil', 'fa', 'gfa')", name="ck_vault_collection_cards_print_variant"),
         Index("ix_vault_collection_cards_folder_name", "folder_id", "card_name"),
     )
 
@@ -66,6 +67,7 @@ class VaultCollectionCard(Base):
     color: Mapped[str | None] = mapped_column(String(80), nullable=True)
     rarity: Mapped[str | None] = mapped_column(String(80), nullable=True)
     quantity: Mapped[int] = mapped_column(Integer, nullable=False)
+    print_variant: Mapped[str] = mapped_column(String(10), nullable=False, default="normal", server_default="normal")
     wanted: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
     wanted_quantity: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
@@ -79,6 +81,7 @@ class VaultTradeCard(Base):
     __table_args__ = (
         UniqueConstraint("user_id", "external_card_id", name="uq_vault_trade_cards_user_card"),
         CheckConstraint("quantity BETWEEN 1 AND 3", name="ck_vault_trade_cards_quantity"),
+        CheckConstraint("print_variant IN ('normal', 'foil', 'fa', 'gfa')", name="ck_vault_trade_cards_print_variant"),
         Index("ix_vault_trade_cards_external_name", "external_card_id", "card_name"),
     )
 
@@ -93,6 +96,7 @@ class VaultTradeCard(Base):
     color: Mapped[str | None] = mapped_column(String(80), nullable=True)
     rarity: Mapped[str | None] = mapped_column(String(80), nullable=True)
     quantity: Mapped[int] = mapped_column(Integer, nullable=False)
+    print_variant: Mapped[str] = mapped_column(String(10), nullable=False, default="normal", server_default="normal")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
 

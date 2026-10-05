@@ -69,6 +69,25 @@ def test_search_returns_empty_list_for_valid_empty_response(monkeypatch) -> None
     assert vault.search_hkk_cards("nincs ilyen lap", 20) == []
 
 
+def test_search_can_be_limited_to_an_edition(monkeypatch) -> None:
+    calls: list[str] = []
+
+    def fake_get(url: str, *, timeout: float):
+        calls.append(url)
+        if "cardConstants" in url:
+            return FakeResponse({"subTypes": [], "editions": [{"id": 220, "nev": "Résföld"}, {"id": 221, "nev": "Másik"}]})
+        return FakeResponse({"cards": [
+            {"ID": 1, "name": "Résföldi lap", "editions": [220]},
+            {"ID": 2, "name": "Másik lap", "editions": [221]},
+        ]})
+
+    monkeypatch.setattr(vault.httpx, "get", fake_get)
+    result = vault.search_hkk_cards("lap", 20, "220")
+
+    assert [card["external_card_id"] for card in result] == ["1"]
+    assert calls[-1].endswith("?lapkereso/kereses&nev=lap&kiegeszito=220")
+
+
 def test_editions_and_full_edition_cards_use_real_lapkereso_parameter(monkeypatch) -> None:
     calls: list[str] = []
 

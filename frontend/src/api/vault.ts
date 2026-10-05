@@ -1,10 +1,11 @@
 import { apiRequest } from "./client";
 
 export type VaultFolder = { id: number; name: string; capacity: number; position: number; color: string | null; used_slots: number };
+export type PrintVariant = "normal" | "foil" | "fa" | "gfa";
 export type VaultCard = {
   id: number; external_card_id: string; card_name: string; image_url: string | null; edition: string | null;
   card_type: string | null; subtype: string | null; color: string | null; rarity: string | null; quantity: number;
-  folder_id: number | null; wanted: boolean; wanted_quantity: number; offer_count: number;
+  folder_id: number | null; wanted: boolean; wanted_quantity: number; offer_count: number; print_variant: PrintVariant;
 };
 export type PublicTradeCard = VaultCard & { owner_id: number; owner_username: string };
 export type VaultSummary = {
@@ -12,6 +13,7 @@ export type VaultSummary = {
   used_collection_slots: number; trade_capacity: number; used_trade_slots: number; vp_balance: number; vault_unlimited?: boolean; folders: VaultFolder[];
 };
 export type HkkCard = Pick<VaultCard, "external_card_id" | "card_name" | "image_url" | "edition" | "card_type" | "subtype" | "color" | "rarity"> & { source_token: string };
+export type HkkRarity = "common" | "uncommun" | "rare" | "ultrarare";
 export type HkkEdition = { id: string; name: string };
 export type HkkEditionPreview = { edition: HkkEdition; count: number; cards: HkkCard[] };
 export type HkkEditionImportResult = { edition: HkkEdition; total_cards: number; added_cards: number; updated_cards: number; skipped_cards: number };
@@ -37,16 +39,20 @@ export const listVaultCards = (params: { folderId?: number; query?: string; want
 };
 export const addVaultCard = (card: HkkCard, folder_id: number, quantity: number) => apiRequest<VaultCard>("/api/vault/cards", { method: "POST", authenticated: true, body: JSON.stringify({ ...card, folder_id, quantity }) });
 export const addWantedCard = (card: HkkCard, folder_id: number) => apiRequest<VaultCard>("/api/vault/cards/wanted", { method: "POST", authenticated: true, body: JSON.stringify({ ...card, folder_id }) });
-export const updateVaultCard = (id: number, payload: { quantity?: number; folder_id?: number }) => apiRequest<VaultCard>(`/api/vault/cards/${id}`, { method: "PATCH", authenticated: true, body: JSON.stringify(payload) });
+export const updateVaultCard = (id: number, payload: { quantity?: number; folder_id?: number; print_variant?: PrintVariant }) => apiRequest<VaultCard>(`/api/vault/cards/${id}`, { method: "PATCH", authenticated: true, body: JSON.stringify(payload) });
 export const setVaultWanted = (id: number, wanted: boolean, quantity?: number) => apiRequest<VaultCard>(`/api/vault/cards/${id}/wanted`, { method: "PUT", authenticated: true, body: JSON.stringify({ wanted, quantity }) });
 export const deleteVaultCard = (id: number) => apiRequest<void>(`/api/vault/cards/${id}`, { method: "DELETE", authenticated: true });
-export const searchHkk = (query: string) => apiRequest<HkkCard[]>(`/api/vault/hkk/search?q=${encodeURIComponent(query)}`, { authenticated: true });
+export const searchHkk = (query: string, editionId?: string) => {
+  const search = new URLSearchParams({ q: query });
+  if (editionId) search.set("edition_id", editionId);
+  return apiRequest<HkkCard[]>(`/api/vault/hkk/search?${search}`, { authenticated: true });
+};
 export const listHkkEditions = () => apiRequest<HkkEdition[]>("/api/vault/hkk/editions", { authenticated: true });
 export const previewHkkEdition = (editionId: string) => apiRequest<HkkEditionPreview>(`/api/vault/hkk/editions/${encodeURIComponent(editionId)}/cards`, { authenticated: true });
-export const importHkkEdition = (payload: { edition_id: string; folder_id: number; quantity: number; missing_only: boolean }) => apiRequest<HkkEditionImportResult>("/api/vault/hkk/editions/import", { method: "POST", authenticated: true, body: JSON.stringify(payload) });
+export const importHkkEdition = (payload: { edition_id: string; folder_id: number; quantity: number; missing_only: boolean; rarities: HkkRarity[] }) => apiRequest<HkkEditionImportResult>("/api/vault/hkk/editions/import", { method: "POST", authenticated: true, body: JSON.stringify(payload) });
 export const listTradeCards = () => apiRequest<PublicTradeCard[]>("/api/vault/trade", { authenticated: true });
 export const addTradeCard = (card: HkkCard, quantity: number) => apiRequest<PublicTradeCard>("/api/vault/trade", { method: "POST", authenticated: true, body: JSON.stringify({ ...card, quantity }) });
-export const updateTradeCard = (id: number, quantity: number) => apiRequest<PublicTradeCard>(`/api/vault/trade/${id}`, { method: "PATCH", authenticated: true, body: JSON.stringify({ quantity }) });
+export const updateTradeCard = (id: number, payload: { quantity: number; print_variant?: PrintVariant }) => apiRequest<PublicTradeCard>(`/api/vault/trade/${id}`, { method: "PATCH", authenticated: true, body: JSON.stringify(payload) });
 export const deleteTradeCard = (id: number) => apiRequest<void>(`/api/vault/trade/${id}`, { method: "DELETE", authenticated: true });
 export const listMatches = () => apiRequest<VaultCard[]>("/api/vault/matches", { authenticated: true });
 export const listMatchingOffers = (cardId: number) => apiRequest<PublicTradeCard[]>(`/api/vault/cards/${cardId}/offers`, { authenticated: true });

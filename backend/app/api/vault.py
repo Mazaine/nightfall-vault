@@ -152,13 +152,15 @@ def add_card(payload: CollectionCardCreate, current_user: User = Depends(require
     if existing is None:
         if not account.vault_unlimited and folder_used(db, folder.id) >= folder.capacity:
             raise HTTPException(status_code=409, detail="A célmappa megtelt.")
-        existing = VaultCollectionCard(user_id=current_user.id, folder_id=folder.id, quantity=payload.quantity, **card_snapshot_values(payload))
+        existing = VaultCollectionCard(user_id=current_user.id, folder_id=folder.id, quantity=payload.quantity, print_variant=payload.print_variant or "normal", **card_snapshot_values(payload))
         db.add(existing)
     else:
         if not account.vault_unlimited and existing.folder_id != folder.id and folder_used(db, folder.id) >= folder.capacity:
             raise HTTPException(status_code=409, detail="A célmappa megtelt.")
         existing.folder_id = folder.id
         existing.quantity = payload.quantity
+        if payload.print_variant is not None:
+            existing.print_variant = payload.print_variant
         for key, value in card_snapshot_values(payload).items():
             setattr(existing, key, value)
         if existing.wanted:
@@ -213,6 +215,8 @@ def update_card(card_id: int, payload: CollectionCardUpdate, current_user: User 
         if card.wanted:
             card.wanted_quantity = min(card.wanted_quantity, 3 - card.quantity)
             card.wanted = card.wanted_quantity > 0
+    if payload.print_variant is not None:
+        card.print_variant = payload.print_variant
     db.commit()
     db.refresh(card)
     return card_read(db, card)
@@ -258,10 +262,12 @@ def add_trade_card(payload: TradeCardCreate, current_user: User = Depends(requir
         used = int(db.scalar(select(func.count()).select_from(VaultTradeCard).where(VaultTradeCard.user_id == current_user.id)) or 0)
         if not account.vault_unlimited and used >= account.trade_capacity:
             raise HTTPException(status_code=409, detail="A cseremappád megtelt.")
-        card = VaultTradeCard(user_id=current_user.id, quantity=payload.quantity, **card_snapshot_values(payload))
+        card = VaultTradeCard(user_id=current_user.id, quantity=payload.quantity, print_variant=payload.print_variant or "normal", **card_snapshot_values(payload))
         db.add(card)
     else:
         card.quantity = payload.quantity
+        if payload.print_variant is not None:
+            card.print_variant = payload.print_variant
         for key, value in card_snapshot_values(payload).items():
             setattr(card, key, value)
     db.commit()
@@ -275,6 +281,8 @@ def update_trade_card(card_id: int, payload: QuantityUpdate, current_user: User 
     if card is None:
         raise HTTPException(status_code=404, detail="A cserelap nem található.")
     card.quantity = payload.quantity
+    if payload.print_variant is not None:
+        card.print_variant = payload.print_variant
     db.commit(); db.refresh(card)
     return trade_card_read(card)
 
@@ -405,9 +413,9 @@ def purchase_capacity(current_user: User = Depends(require_active_user), db: Ses
 
 
 @router.get("/hkk/search", response_model=list[HkkSearchResult])
-def hkk_search(q: str = Query(min_length=2, max_length=120), limit: int = Query(default=20, ge=1, le=50), current_user: User = Depends(require_active_user)) -> list[HkkSearchResult]:
+def hkk_search(q: str = Query(min_length=2, max_length=120), limit: int = Query(default=20, ge=1, le=50), edition_id: str | None = Query(default=None, pattern=r"^[1-9][0-9]*$"), current_user: User = Depends(require_active_user)) -> list[HkkSearchResult]:
     del current_user
-    return [HkkSearchResult.model_validate(item) for item in search_hkk_cards(q.strip(), limit)]
+    return [HkkSearchResult.model_validate(item) for item in search_hkk_cards(q.strip(), limit, edition_id)]
 
 
 @router.get("/hkk/images/{card_id}", include_in_schema=False)
@@ -444,5 +452,6 @@ def hkk_edition_import(payload: HkkEditionImport, current_user: User = Depends(r
         folder_id=payload.folder_id,
         quantity=payload.quantity,
         missing_only=payload.missing_only,
+        rarities=payload.rarities,
     )
     return HkkEditionImportResult.model_validate(result)
