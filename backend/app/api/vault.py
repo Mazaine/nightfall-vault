@@ -32,13 +32,14 @@ def trade_card_read(card: VaultTradeCard) -> PublicTradeCardRead:
     return PublicTradeCardRead.model_validate({**card.__dict__, "owner_id": card.user_id, "owner_username": card.user.username})
 
 
-def trade_read(trade: VaultTrade) -> TradeRead:
+def trade_read(trade: VaultTrade, viewer_id: int) -> TradeRead:
     messages = sorted(trade.messages, key=lambda item: (item.created_at, item.id))
     return TradeRead(
         id=trade.id, requester_id=trade.requester_id, requester_username=trade.requester.username,
         requester_display_name=public_user_label(trade.requester),
         owner_id=trade.owner_id, owner_username=trade.owner.username,
         owner_display_name=public_user_label(trade.owner), status=trade.status,
+        reviewed_by_current_user=any(review.reviewer_id == viewer_id for review in trade.reviews),
         requester_confirmed_at=trade.requester_confirmed_at, owner_confirmed_at=trade.owner_confirmed_at,
         completed_at=trade.completed_at, card=CardRead.model_validate(trade.offered_card),
         messages=[{"id": item.id, "sender_id": item.sender_id, "sender_username": item.sender.username, "sender_display_name": public_user_label(item.sender), "message": item.message, "created_at": item.created_at} for item in messages],
@@ -110,10 +111,20 @@ def reorder_folders(payload: FolderReorder, current_user: User = Depends(require
 
 
 @router.delete("/folders/{folder_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_folder(folder_id: int, current_user: User = Depends(require_active_user), db: Session = Depends(get_db)) -> Response:
+def delete_folder(folder_id: int, move_to_folder_id: int | None = Query(default=None), current_user: User = Depends(require_active_user), db: Session = Depends(get_db)) -> Response:
     folder = folder_for_user(db, folder_id, current_user.id, lock=True)
-    if folder_used(db, folder.id):
-        raise HTTPException(status_code=409, detail="Nem üres mappa nem törölhető. Előbb mozgasd át vagy töröld a lapjait.")
+    used = folder_used(db, folder.id)
+    if used:
+        if move_to_folder_id is None:
+            raise HTTPException(status_code=409, detail="A mappa lapokat tartalmaz. Válassz célmappát az áthelyezésükhöz.")
+        if move_to_folder_id == folder.id:
+            raise HTTPException(status_code=422, detail="A célmappa nem lehet azonos a törlendő mappával.")
+        target = folder_for_user(db, move_to_folder_id, current_user.id, lock=True)
+        cards = db.scalars(select(VaultCollectionCard).where(VaultCollectionCard.folder_id == folder.id).with_for_update()).all()
+        for card in cards:
+            card.folder = target
+        target.capacity += folder.capacity
+        db.flush()
     db.delete(folder)
     db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
@@ -192,10 +203,6 @@ def add_wanted_card(payload: WantedCardCreate, current_user: User = Depends(requ
 def update_card(card_id: int, payload: CollectionCardUpdate, current_user: User = Depends(require_active_user), db: Session = Depends(get_db)) -> CardRead | Response:
     account = account_for(db, current_user.id, lock=True)
     card = collection_card_for_user(db, card_id, current_user.id, lock=True)
-    if payload.quantity == 0:
-        db.delete(card)
-        db.commit()
-        return Response(status_code=status.HTTP_204_NO_CONTENT)
     if payload.folder_id is not None and payload.folder_id != card.folder_id:
         target = folder_for_user(db, payload.folder_id, current_user.id, lock=True)
         if not account.vault_unlimited and folder_used(db, target.id) >= target.capacity:
@@ -321,13 +328,13 @@ def express_interest(card_id: int, current_user: User = Depends(require_active_u
     if trade is None:
         trade = VaultTrade(requester_id=current_user.id, owner_id=offered.user_id, offered_card_id=offered.id)
         db.add(trade); db.commit(); db.refresh(trade)
-    return trade_read(trade_for_participant(db, trade.id, current_user.id))
+    return trade_read(trade_for_participant(db, trade.id, current_user.id), current_user.id)
 
 
 @router.get("/negotiations", response_model=list[TradeRead])
 def list_negotiations(current_user: User = Depends(require_active_user), db: Session = Depends(get_db)) -> list[TradeRead]:
     ids = db.scalars(select(VaultTrade.id).where(or_(VaultTrade.requester_id == current_user.id, VaultTrade.owner_id == current_user.id)).order_by(VaultTrade.updated_at.desc())).all()
-    return [trade_read(trade_for_participant(db, trade_id, current_user.id)) for trade_id in ids]
+    return [trade_read(trade_for_participant(db, trade_id, current_user.id), current_user.id) for trade_id in ids]
 
 
 @router.post("/negotiations/{trade_id}/messages", response_model=TradeRead)
@@ -350,14 +357,14 @@ def post_trade_message(trade_id: int, payload: TradeMessageCreate, current_user:
         event_key=f"vault-message:{message.id}:{recipient_id}",
     )
     db.commit()
-    return trade_read(trade_for_participant(db, trade.id, current_user.id))
+    return trade_read(trade_for_participant(db, trade.id, current_user.id), current_user.id)
 
 
 @router.post("/negotiations/{trade_id}/confirm", response_model=TradeRead)
 def confirm_trade(trade_id: int, current_user: User = Depends(require_active_user), db: Session = Depends(get_db)) -> TradeRead:
     trade = trade_for_participant(db, trade_id, current_user.id, lock=True)
     if trade.status == "completed":
-        return trade_read(trade_for_participant(db, trade.id, current_user.id))
+        return trade_read(trade_for_participant(db, trade.id, current_user.id), current_user.id)
     if trade.status != "open":
         raise HTTPException(status_code=409, detail="Ez az egyeztetés már nem erősíthető meg.")
     if current_user.id == trade.requester_id:
@@ -366,7 +373,7 @@ def confirm_trade(trade_id: int, current_user: User = Depends(require_active_use
         trade.owner_confirmed_at = trade.owner_confirmed_at or utc_now()
     complete_trade(db, trade)
     db.commit()
-    return trade_read(trade_for_participant(db, trade.id, current_user.id))
+    return trade_read(trade_for_participant(db, trade.id, current_user.id), current_user.id)
 
 
 @router.post("/negotiations/{trade_id}/reviews", response_model=TradeReviewRead, status_code=status.HTTP_201_CREATED)

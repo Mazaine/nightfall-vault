@@ -190,6 +190,7 @@ class TradeRead(BaseModel):
     owner_username: str
     owner_display_name: str
     status: str
+    reviewed_by_current_user: bool = False
     requester_confirmed_at: datetime | None
     owner_confirmed_at: datetime | None
     completed_at: datetime | None

@@ -18,7 +18,7 @@ export type HkkEditionImportResult = { edition: HkkEdition; total_cards: number;
 export type PointTransaction = { id: number; amount: number; reason: string; reference_type: string | null; reference_id: string | null; created_at: string };
 export type PointHistory = { balance: number; items: PointTransaction[] };
 export type VaultTrade = {
-  id: number; requester_id: number; requester_username: string; requester_display_name: string; owner_id: number; owner_username: string; owner_display_name: string; status: string;
+  id: number; requester_id: number; requester_username: string; requester_display_name: string; owner_id: number; owner_username: string; owner_display_name: string; status: string; reviewed_by_current_user: boolean;
   requester_confirmed_at: string | null; owner_confirmed_at: string | null; completed_at: string | null; card: VaultCard;
   messages: { id: number; sender_id: number; sender_username: string; sender_display_name: string; message: string; created_at: string }[];
 };
@@ -26,7 +26,7 @@ export type VaultTrade = {
 export const getVaultSummary = () => apiRequest<VaultSummary>("/api/vault/summary", { authenticated: true });
 export const createVaultFolder = (payload: { name: string; capacity: number; color?: string | null }) => apiRequest<VaultFolder>("/api/vault/folders", { method: "POST", authenticated: true, body: JSON.stringify(payload) });
 export const updateVaultFolder = (id: number, payload: Partial<Pick<VaultFolder, "name" | "capacity" | "color">>) => apiRequest<VaultFolder>(`/api/vault/folders/${id}`, { method: "PATCH", authenticated: true, body: JSON.stringify(payload) });
-export const deleteVaultFolder = (id: number) => apiRequest<void>(`/api/vault/folders/${id}`, { method: "DELETE", authenticated: true });
+export const deleteVaultFolder = (id: number, moveToFolderId?: number) => apiRequest<void>(`/api/vault/folders/${id}${moveToFolderId ? `?move_to_folder_id=${moveToFolderId}` : ""}`, { method: "DELETE", authenticated: true });
 export const reorderVaultFolders = (folder_ids: number[]) => apiRequest<VaultFolder[]>("/api/vault/folders/reorder", { method: "PUT", authenticated: true, body: JSON.stringify({ folder_ids }) });
 export const listVaultCards = (params: { folderId?: number; query?: string; wanted?: boolean } = {}) => {
   const search = new URLSearchParams();

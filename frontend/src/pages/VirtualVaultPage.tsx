@@ -61,18 +61,24 @@ export function VirtualVaultPage() {
         vaultApi.getVaultSummary(), vaultApi.listVaultCards({ query: filter || undefined }), vaultApi.listTradeCards(), vaultApi.listNegotiations(), vaultApi.getPointHistory(),
       ]);
       setSummary(nextSummary); setCards(nextCards); setTradeCards(nextTrade); setNegotiations(nextNegotiations); setPoints(nextPoints);
-      if (!selectedFolder && nextSummary.folders.length) {
+      setSelectedFolder((current) => {
+        if (current || !nextSummary.folders.length) return current;
         const remembered = Number(localStorage.getItem(LAST_FOLDER_KEY));
-        setSelectedFolder(nextSummary.folders.some((folder) => folder.id === remembered) ? remembered : nextSummary.folders[0].id);
-      }
+        return nextSummary.folders.some((folder) => folder.id === remembered) ? remembered : nextSummary.folders[0].id;
+      });
     } catch (error) { report(error); }
-  }, [filter, selectedFolder]);
+  }, [filter]);
 
   useEffect(() => { void reload(); }, [reload]);
 
   async function createFolder(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); const data = new FormData(event.currentTarget);
-    try { setBusy(true); await vaultApi.createVaultFolder({ name: String(data.get("name")), capacity: Number(data.get("capacity")), color: String(data.get("color")) || null }); event.currentTarget.reset(); await reload(); }
+    event.preventDefault(); const form = event.currentTarget; const data = new FormData(form);
+    try {
+      setBusy(true);
+      const created = await vaultApi.createVaultFolder({ name: String(data.get("name")), capacity: Number(data.get("capacity")), color: String(data.get("color")) || null });
+      setSummary((current) => current ? { ...current, assigned_collection_capacity: current.assigned_collection_capacity + created.capacity, free_collection_capacity: Math.max(current.free_collection_capacity - created.capacity, 0), folders: [...current.folders, created] } : current);
+      setSelectedFolder(created.id); localStorage.setItem(LAST_FOLDER_KEY, String(created.id)); setMessage(`${created.name} létrehozva.`); form.reset();
+    }
     catch (error) { report(error); } finally { setBusy(false); }
   }
 
@@ -149,8 +155,22 @@ export function VirtualVaultPage() {
   }
 
   async function removeFolder(folder: vaultApi.VaultFolder) {
-    if (!window.confirm(`Törlöd ezt az üres almappát: ${folder.name}? A ${folder.capacity} zseb visszakerül a szabad kapacitásba.`)) return;
-    try { setBusy(true); await vaultApi.deleteVaultFolder(folder.id); setSelectedFolder(undefined); await reload(); } catch (error) { report(error); } finally { setBusy(false); }
+    if (!summary) return;
+    const otherFolders = summary.folders.filter((item) => item.id !== folder.id);
+    let target: vaultApi.VaultFolder | undefined;
+    if (folder.used_slots > 0) {
+      if (!otherFolders.length) { setMessage("A mappa lapokat tartalmaz. Előbb hozz létre egy másik célmappát."); return; }
+      const targetName = window.prompt(`A mappa ${folder.used_slots} lapot tartalmaz. Add meg a célmappa nevét, ahová a lapok és a kiosztott zsebek átkerüljenek:\n${otherFolders.map((item) => item.name).join(", ")}`, otherFolders[0].name);
+      if (targetName === null) return;
+      target = otherFolders.find((item) => item.name.toLocaleLowerCase("hu-HU") === targetName.trim().toLocaleLowerCase("hu-HU"));
+      if (!target) { setMessage("A megadott célmappa nem található."); return; }
+    } else if (!window.confirm(`Törlöd ezt az üres almappát: ${folder.name}? A ${folder.capacity} zseb visszakerül a szabad kapacitásba.`)) return;
+    try {
+      setBusy(true); await vaultApi.deleteVaultFolder(folder.id, target?.id);
+      setCards((current) => target ? current.map((card) => card.folder_id === folder.id ? { ...card, folder_id: target!.id } : card) : current);
+      setSummary((current) => current ? { ...current, assigned_collection_capacity: target ? current.assigned_collection_capacity : current.assigned_collection_capacity - folder.capacity, free_collection_capacity: target ? current.free_collection_capacity : current.free_collection_capacity + folder.capacity, folders: current.folders.filter((item) => item.id !== folder.id).map((item) => item.id === target?.id ? { ...item, capacity: item.capacity + folder.capacity, used_slots: item.used_slots + folder.used_slots } : item) } : current);
+      const nextFolderId = target?.id ?? otherFolders[0]?.id; setSelectedFolder(nextFolderId); if (nextFolderId) localStorage.setItem(LAST_FOLDER_KEY, String(nextFolderId)); else localStorage.removeItem(LAST_FOLDER_KEY); setMessage(`${folder.name} törölve.`);
+    } catch (error) { report(error); } finally { setBusy(false); }
   }
 
   async function moveFolder(folderId: number, direction: -1 | 1) {
@@ -193,7 +213,7 @@ export function VirtualVaultPage() {
 
     {tab === "trade" ? <section className="vault-content"><div className="section-heading"><div><h2>Publikus cseremappa</h2><p>{summary?.vault_unlimited ? `${summary.used_trade_slots} lap · ∞ Korlátlan` : `${summary?.used_trade_slots || 0} / ${summary?.trade_capacity || 200} zseb`}</p></div></div><div className="vault-card-grid">{tradeCards.map((card) => <article className="vault-card" key={card.id}><CardImage card={card} /><div className="vault-card-body"><div><strong>{card.card_name}</strong><span className="playset-badge">{card.quantity} db</span></div><CardMeta card={card} /><label>Példányszám<select value={card.quantity} onChange={(event) => void vaultApi.updateTradeCard(card.id, Number(event.target.value)).then(reload).catch(report)}>{[1, 2, 3].map((value) => <option key={value} value={value}>{value}</option>)}</select></label><div className="vault-card-actions"><button className="button button-ghost" onClick={() => { if (window.confirm("Eltávolítod a cseremappából?")) void vaultApi.deleteTradeCard(card.id).then(reload).catch(report); }}>Eltávolítás</button></div></div></article>)}</div></section> : null}
     {tab === "wanted" ? <section className="vault-content"><div className="section-heading"><div><h2>Keresem</h2><p>Csak a saját döntésed alapján megjelölt hiányzó példányok.</p></div></div><div className="vault-card-grid">{wantedCards.map((card) => <article className="vault-card" key={card.id}><CardImage card={card} /><div className="vault-card-body"><strong>{card.card_name}</strong><p>{card.wanted_quantity} hiányzik a playsethez</p><p><strong>{card.offer_count}</strong> felhasználó kínálja</p></div></article>)}</div></section> : null}
-    {tab === "matches" ? <section className="vault-content"><div className="section-heading"><div><h2>Match-ek és egyeztetések</h2><p>A lezárt csere mindkét fél megerősítését igényli.</p></div></div>{wantedCards.map((card) => <div className="vault-match-row" key={card.id}><div><strong>{card.card_name}</strong><span>{card.wanted_quantity} hiányzik · {card.offer_count} kínálat</span></div><button className="button button-secondary" disabled={!card.offer_count} onClick={() => void vaultApi.listMatchingOffers(card.id).then(setOffers).catch(report)}>Ajánlatok</button></div>)}{offers.length ? <div className="vault-offers"><h3>Kínálatok</h3>{offers.map((offer) => <article key={offer.id}><div><strong>{offer.card_name}</strong><small>@{offer.owner_username} · {offer.quantity} db</small></div><button className="button button-primary" onClick={() => void vaultApi.expressTradeInterest(offer.id).then(() => { setOffers([]); return reload(); }).catch(report)}>Érdekel</button></article>)}</div> : null}<div className="vault-negotiations">{negotiations.map((trade) => <article key={trade.id}><div><strong>{trade.card.card_name}</strong><small>@{trade.requester_display_name} ↔ @{trade.owner_display_name} · {trade.status === "completed" ? "lezárva" : "egyeztetés"}</small></div><div className="vault-messages">{trade.messages.map((item) => <p key={item.id}><strong>@{item.sender_display_name}</strong> {item.message}</p>)}</div>{trade.status === "open" ? <><form onSubmit={(event) => { event.preventDefault(); const input = event.currentTarget.elements.namedItem("message") as HTMLInputElement; void vaultApi.postTradeMessage(trade.id, input.value).then(() => { input.value = ""; return reload(); }).catch(report); }}><input name="message" maxLength={2000} required placeholder="Üzenet az egyeztetéshez…" /><button className="button button-secondary">Küldés</button></form><button className="button button-primary" onClick={() => void vaultApi.confirmVaultTrade(trade.id).then(reload).catch(report)}>Csere megerősítése</button></> : <button className="button button-secondary" onClick={() => void reviewTrade(trade)}>Partner értékelése</button>}</article>)}</div></section> : null}
+    {tab === "matches" ? <section className="vault-content"><div className="section-heading"><div><h2>Match-ek és egyeztetések</h2><p>A lezárt csere mindkét fél megerősítését igényli.</p></div></div>{wantedCards.map((card) => <div className="vault-match-row" key={card.id}><div><strong>{card.card_name}</strong><span>{card.wanted_quantity} hiányzik · {card.offer_count} kínálat</span></div><button className="button button-secondary" disabled={!card.offer_count} onClick={() => void vaultApi.listMatchingOffers(card.id).then(setOffers).catch(report)}>Ajánlatok</button></div>)}{offers.length ? <div className="vault-offers"><h3>Kínálatok</h3>{offers.map((offer) => <article key={offer.id}><div><strong>{offer.card_name}</strong><small>@{offer.owner_username} · {offer.quantity} db</small></div><button className="button button-primary" onClick={() => void vaultApi.expressTradeInterest(offer.id).then(() => { setOffers([]); return reload(); }).catch(report)}>Érdekel</button></article>)}</div> : null}<div className="vault-negotiations">{negotiations.map((trade) => <article key={trade.id}><div><strong>{trade.card.card_name}</strong><small>@{trade.requester_display_name} ↔ @{trade.owner_display_name} · {trade.status === "completed" ? "lezárva" : "egyeztetés"}</small></div><div className="vault-messages">{trade.messages.map((item) => <p key={item.id}><strong>@{item.sender_display_name}</strong> {item.message}</p>)}</div>{trade.status === "open" ? <><form onSubmit={(event) => { event.preventDefault(); const input = event.currentTarget.elements.namedItem("message") as HTMLInputElement; void vaultApi.postTradeMessage(trade.id, input.value).then(() => { input.value = ""; return reload(); }).catch(report); }}><input name="message" maxLength={2000} required placeholder="Üzenet az egyeztetéshez…" /><button className="button button-secondary">Küldés</button></form><button className="button button-primary" onClick={() => void vaultApi.confirmVaultTrade(trade.id).then(reload).catch(report)}>Csere megerősítése</button></> : trade.reviewed_by_current_user ? <button className="button button-secondary" disabled>Értékelve</button> : <button className="button button-secondary" onClick={() => void reviewTrade(trade)}>Partner értékelése</button>}</article>)}</div></section> : null}
     {tab === "points" && summary ? <section className="vault-content">
       <div className="vault-stat-grid"><article><span>Összes kapacitás</span><strong>{summary.vault_unlimited ? "∞" : summary.total_collection_capacity}</strong></article><article><span>Mappákhoz rendelve</span><strong>{summary.vault_unlimited ? "∞" : summary.assigned_collection_capacity}</strong></article><article><span>Szabad zseb</span><strong>{summary.vault_unlimited ? "Korlátlan" : summary.free_collection_capacity}</strong></article><article><span>VP egyenleg</span><strong>{summary.vp_balance}</strong></article></div>
       <section className="vault-points-guide" aria-labelledby="vault-points-guide-title"><h2 id="vault-points-guide-title">Hogyan szerezhetsz VP-t?</h2><ul><li><strong>+15 VP</strong><span>Sikeresen lezárt aukciós adásvétel résztvevőjeként.</span></li><li><strong>+20 VP</strong><span>Sikeresen lezárt virtuális mappás csere mindkét résztvevőjének.</span></li><li><strong>+10 VP</strong><span>Egyszeri bónusz az első sikeres mappás egyezésért.</span></li><li><strong>+5 VP</strong><span>Minden leadott partnerértékelésért aukció vagy mappás csere után.</span></li></ul><p><strong>100 VP = +50 permanens gyűjtőzseb.</strong> Egy VIP-kód aktiválása ezen felül +100 permanens zsebet ad, VP levonása nélkül.</p></section>

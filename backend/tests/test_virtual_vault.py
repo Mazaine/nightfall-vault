@@ -46,7 +46,7 @@ def edition_cards() -> tuple[dict[str, str], list[dict]]:
     return {"id": "220", "name": "Teszt kiegészítő"}, cards
 
 
-def test_full_edition_import_quantities_missing_only_idempotence_and_zero_removal(monkeypatch) -> None:
+def test_full_edition_import_quantities_missing_only_idempotence_and_zero_persistence(monkeypatch) -> None:
     cleanup(); user = create_test_user("edition@vault-test.local")
     monkeypatch.setattr(vault_service, "hkk_edition_cards", lambda edition_id: edition_cards())
     try:
@@ -63,9 +63,11 @@ def test_full_edition_import_quantities_missing_only_idempotence_and_zero_remova
 
         assert client.patch(f"/api/vault/cards/{cards[0]['id']}", json={"quantity": 1}, headers=auth_headers(user)).status_code == 200
         assert client.patch(f"/api/vault/cards/{cards[1]['id']}", json={"quantity": 3}, headers=auth_headers(user)).status_code == 200
-        assert client.patch(f"/api/vault/cards/{cards[2]['id']}", json={"quantity": 0}, headers=auth_headers(user)).status_code == 204
+        zeroed = client.patch(f"/api/vault/cards/{cards[2]['id']}", json={"quantity": 0}, headers=auth_headers(user))
+        assert zeroed.status_code == 200 and zeroed.json()["quantity"] == 0
+        assert len(client.get("/api/vault/cards", headers=auth_headers(user)).json()) == 3
         missing = client.post("/api/vault/hkk/editions/import", json={"edition_id": "220", "folder_id": folder["id"], "quantity": 1, "missing_only": True}, headers=auth_headers(user))
-        assert missing.status_code == 200 and missing.json()["added_cards"] == 1 and missing.json()["skipped_cards"] == 2
+        assert missing.status_code == 200 and missing.json()["added_cards"] == 0 and missing.json()["updated_cards"] == 1 and missing.json()["skipped_cards"] == 2
         quantities = {card["external_card_id"]: card["quantity"] for card in client.get("/api/vault/cards", headers=auth_headers(user)).json()}
         assert quantities == {"edition-1": 1, "edition-2": 3, "edition-3": 1}
     finally:
@@ -177,12 +179,22 @@ def test_base_capacities_folder_limits_playset_move_and_idor() -> None:
         assert moved.status_code == 200 and moved.json()["folder_id"] == other["id"]
         wanted = client.put(f"/api/vault/cards/{created.json()['id']}/wanted", json={"wanted": True, "quantity": 1}, headers=auth_headers(owner))
         assert wanted.status_code == 200 and wanted.json()["wanted_quantity"] == 1
+        zeroed = client.patch(f"/api/vault/cards/{created.json()['id']}", json={"quantity": 0}, headers=auth_headers(owner))
+        assert zeroed.status_code == 200 and zeroed.json()["folder_id"] == other["id"] and zeroed.json()["quantity"] == 0
         assert client.patch(f"/api/vault/cards/{created.json()['id']}", json={"quantity": 1}, headers=auth_headers(stranger)).status_code == 404
         assert client.patch(f"/api/vault/folders/{other['id']}", json={"capacity": 20}, headers=auth_headers(stranger)).status_code == 404
         own_summary = client.get("/api/vault/summary", headers=auth_headers(stranger)).json()
         assert own_summary["folders"] == []
         assert client.patch(f"/api/vault/folders/{other['id']}", json={"capacity": 0}, headers=auth_headers(owner)).status_code == 409
         assert client.delete(f"/api/vault/folders/{other['id']}", headers=auth_headers(owner)).status_code == 409
+        destination = client.post("/api/vault/folders", json={"name": "Archívum", "capacity": 5}, headers=auth_headers(owner)).json()
+        assert client.delete(f"/api/vault/folders/{xen['id']}", headers=auth_headers(owner)).status_code == 204
+        moved_delete = client.delete(f"/api/vault/folders/{other['id']}?move_to_folder_id={destination['id']}", headers=auth_headers(owner))
+        assert moved_delete.status_code == 204
+        remaining = client.get("/api/vault/cards", headers=auth_headers(owner)).json()
+        assert len(remaining) == 1 and remaining[0]["folder_id"] == destination["id"] and remaining[0]["quantity"] == 0
+        destination_after = next(folder for folder in client.get("/api/vault/summary", headers=auth_headers(owner)).json()["folders"] if folder["id"] == destination["id"])
+        assert destination_after["capacity"] == 15 and destination_after["used_slots"] == 1
     finally:
         cleanup()
 
@@ -237,6 +249,10 @@ def test_public_trade_matching_interest_completion_and_idempotent_rewards() -> N
         assert client.get("/api/vault/points", headers=auth_headers(owner)).json()["balance"] == 30
         review = client.post(f"/api/vault/negotiations/{trade['id']}/reviews", json={"rating": 5, "comment": "Korrekt csere."}, headers=auth_headers(seeker))
         assert review.status_code == 201
+        refreshed_trade = next(item for item in client.get("/api/vault/negotiations", headers=auth_headers(seeker)).json() if item["id"] == trade["id"])
+        assert refreshed_trade["reviewed_by_current_user"] is True
+        owner_trade = next(item for item in client.get("/api/vault/negotiations", headers=auth_headers(owner)).json() if item["id"] == trade["id"])
+        assert owner_trade["reviewed_by_current_user"] is False
         assert client.post(f"/api/vault/negotiations/{trade['id']}/reviews", json={"rating": 5}, headers=auth_headers(seeker)).status_code == 409
         assert client.get("/api/vault/points", headers=auth_headers(seeker)).json()["balance"] == 35
     finally:

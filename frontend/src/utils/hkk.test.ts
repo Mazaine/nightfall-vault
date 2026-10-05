@@ -16,5 +16,6 @@ describe("HKK megjelenítési segédek", () => {
     expect(formatHkkRarity("rare")).toBe("rare – Ritka");
     expect(formatHkkRarity("common")).toBe("common – Gyakori");
     expect(formatHkkRarity("uncommun")).toBe("uncommun – Nem gyakori");
+    expect(formatHkkRarity("ultrarare")).toBe("ultrarare – Ultraritka");
   });
 });

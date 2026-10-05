@@ -5,6 +5,7 @@ const rarityLabels: Record<string, string> = {
   common: "Gyakori",
   uncommon: "Nem gyakori",
   uncommun: "Nem gyakori",
+  ultrarare: "Ultraritka",
 };
 
 export function formatHkkRarity(value: string | null | undefined): string | null {
