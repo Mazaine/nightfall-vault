@@ -8,7 +8,7 @@ from app.models.user import User, VipActivationCode
 from app.models.security_log import AuditLog
 from app.models.moderation import UserBlock
 from app.models.notification import Notification, NotificationOutbox
-from app.models.vault import VaultAccount, VaultCapacityGrant, VaultCardLoan, VaultCollectionCard, VaultFolder, VaultPointTransaction, VaultTrade, VaultTradeCard, VaultTradeMessage, VaultTradeReview
+from app.models.vault import VaultAccount, VaultCapacityGrant, VaultCardLoan, VaultCollectionCard, VaultDeck, VaultDeckCard, VaultFolder, VaultPointTransaction, VaultTrade, VaultTradeCard, VaultTradeMessage, VaultTradeReview
 from app.services.membership import activate_code, generate_codes
 from app.services.vault import grant_capacity, grant_points, sign_card_snapshot
 from app.services import vault as vault_service
@@ -20,7 +20,7 @@ def cleanup() -> None:
     try:
         test_users = or_(User.email.like("%@vault-test.local"), User.email == "mazaine89@gmail.com")
         user_ids = list(db.scalars(select(User.id).where(test_users)).all())
-        for model in (VaultTradeReview, VaultTradeMessage, VaultTrade, VaultTradeCard, VaultCardLoan, VaultCollectionCard, VaultFolder, VaultCapacityGrant, VaultPointTransaction, VaultAccount, VipActivationCode):
+        for model in (VaultTradeReview, VaultTradeMessage, VaultTrade, VaultTradeCard, VaultCardLoan, VaultDeckCard, VaultDeck, VaultCollectionCard, VaultFolder, VaultCapacityGrant, VaultPointTransaction, VaultAccount, VipActivationCode):
             db.execute(delete(model))
         if user_ids:
             notification_ids = select(Notification.id).where(Notification.user_id.in_(user_ids))
@@ -394,5 +394,48 @@ def test_folder_can_be_deleted_with_hundreds_of_cards_without_idor_or_orphan_loa
         assert client.get("/api/vault/cards", headers=auth_headers(owner)).json() == []
         history = client.get("/api/vault/loans", headers=auth_headers(owner)).json()
         assert history[0]["id"] == loan_id and history[0]["status"] == "cancelled" and history[0]["collection_card_id"] is None
+    finally:
+        cleanup()
+
+
+def test_deck_crud_counts_all_owned_variants_and_external_trade_availability() -> None:
+    cleanup(); owner = create_test_user("deck-owner@vault-test.local"); trader = create_test_user("deck-trader@vault-test.local")
+    try:
+        folder = client.post("/api/vault/folders", json={"name": "Paklilapok", "capacity": 10}, headers=auth_headers(owner)).json()
+        client.post("/api/vault/cards", json={**card_payload("deck-card", "Paklilap", 2), "folder_id": folder["id"], "print_variant": "normal"}, headers=auth_headers(owner))
+        client.post("/api/vault/cards", json={**card_payload("deck-card", "Paklilap", 1), "folder_id": folder["id"], "print_variant": "foil"}, headers=auth_headers(owner))
+        client.post("/api/vault/trade", json={**card_payload("deck-card", "Paklilap", 2), "print_variant": "gfa"}, headers=auth_headers(trader))
+        created = client.post("/api/vault/decks", json={"name": "Versenypakli"}, headers=auth_headers(owner))
+        assert created.status_code == 201
+        added = client.post(f"/api/vault/decks/{created.json()['id']}/cards", json={**card_payload("deck-card", "Paklilap"), "required_quantity": 4}, headers=auth_headers(owner))
+        assert added.status_code == 201
+        deck = added.json()
+        assert deck["total_required_quantity"] == 4 and deck["missing_quantity"] == 1
+        assert deck["cards"][0]["owned_quantity"] == 3 and deck["cards"][0]["available_trade_quantity"] == 1
+        assert client.get("/api/vault/decks", headers=auth_headers(trader)).json() == []
+        summary = client.get("/api/vault/summary", headers=auth_headers(owner)).json()
+        assert summary["owned_card_quantity"] == 3 and summary["deck_missing_quantity"] == 1
+        assert client.delete(f"/api/vault/decks/{created.json()['id']}", headers=auth_headers(trader)).status_code == 404
+        assert client.delete(f"/api/vault/decks/{created.json()['id']}", headers=auth_headers(owner)).status_code == 204
+    finally:
+        cleanup()
+
+
+def test_trade_card_seekers_are_owner_scoped_and_use_public_labels() -> None:
+    cleanup(); owner = create_test_user("seeker-owner@vault-test.local"); seeker = create_test_user("seeker-person@vault-test.local"); stranger = create_test_user("seeker-stranger@vault-test.local")
+    try:
+        owner_headers, seeker_headers, stranger_headers = auth_headers(owner), auth_headers(seeker), auth_headers(stranger)
+        seeker_id, seeker_username = seeker.id, seeker.username
+        folder = client.post("/api/vault/folders", json={"name": "Keresem", "capacity": 5}, headers=seeker_headers).json()
+        wanted = client.post("/api/vault/cards/wanted", json={**card_payload("demand-card", "Keresett lap"), "folder_id": folder["id"]}, headers=seeker_headers)
+        assert wanted.status_code == 201
+        offered = client.post("/api/vault/trade", json=card_payload("demand-card", "Keresett lap", 1), headers=owner_headers).json()
+        own_cards = client.get("/api/vault/trade", headers=owner_headers).json()
+        assert own_cards[0]["seeker_count"] == 1
+        assert client.get(f"/api/vault/trade/{offered['id']}/seekers", headers=stranger_headers).status_code == 404
+        seekers = client.get(f"/api/vault/trade/{offered['id']}/seekers", headers=owner_headers).json()
+        assert seekers == [{"user_id": seeker_id, "username": seeker_username, "display_name": seeker_username, "wanted_quantity": 3}]
+        summary = client.get("/api/vault/summary", headers=owner_headers).json()
+        assert summary["cards_wanted_by_others"] == 1
     finally:
         cleanup()

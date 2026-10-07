@@ -24,4 +24,10 @@ describe("RouteMetadata", () => {
     renderAt("/account/profile");
     await waitFor(() => expect(document.head.querySelector('meta[name="robots"]')).toHaveAttribute("content", "noindex, nofollow"));
   });
+
+  it("a virtuális mappának nem a 404 címet adja", async () => {
+    renderAt("/vault");
+    await waitFor(() => expect(document.title).toBe("Virtuális HKK Mappa | Nightfall Vault"));
+    expect(document.head.querySelector('meta[name="robots"]')).toHaveAttribute("content", "noindex, nofollow");
+  });
 });

@@ -136,6 +136,45 @@ class VaultCardLoan(Base):
     collection_card = relationship("VaultCollectionCard", back_populates="loans")
 
 
+class VaultDeck(Base):
+    __tablename__ = "vault_decks"
+    __table_args__ = (
+        UniqueConstraint("user_id", "name", name="uq_vault_decks_user_name"),
+        CheckConstraint("length(trim(name)) > 0", name="ck_vault_decks_name"),
+        Index("ix_vault_decks_user_updated", "user_id", "updated_at"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    name: Mapped[str] = mapped_column(String(120), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
+
+    user = relationship("User")
+    cards = relationship("VaultDeckCard", back_populates="deck", cascade="all, delete-orphan", order_by="VaultDeckCard.card_name")
+
+
+class VaultDeckCard(Base):
+    __tablename__ = "vault_deck_cards"
+    __table_args__ = (
+        UniqueConstraint("deck_id", "external_card_id", name="uq_vault_deck_cards_deck_card"),
+        CheckConstraint("required_quantity BETWEEN 1 AND 99", name="ck_vault_deck_cards_quantity"),
+        Index("ix_vault_deck_cards_deck_name", "deck_id", "card_name"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    deck_id: Mapped[int] = mapped_column(ForeignKey("vault_decks.id", ondelete="CASCADE"), nullable=False, index=True)
+    external_card_id: Mapped[str] = mapped_column(String(120), nullable=False)
+    card_name: Mapped[str] = mapped_column(String(180), nullable=False)
+    image_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    edition: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    required_quantity: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
+
+    deck = relationship("VaultDeck", back_populates="cards")
+
+
 class VaultPointTransaction(Base):
     __tablename__ = "vault_point_transactions"
     __table_args__ = (

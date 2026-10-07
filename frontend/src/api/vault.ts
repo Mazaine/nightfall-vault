@@ -7,10 +7,13 @@ export type VaultCard = {
   card_type: string | null; subtype: string | null; color: string | null; rarity: string | null; quantity: number;
   folder_id: number | null; wanted: boolean; wanted_quantity: number; offer_count: number; print_variant: PrintVariant;
 };
-export type PublicTradeCard = VaultCard & { owner_id: number; owner_username: string };
+export type PublicTradeCard = VaultCard & { owner_id: number; owner_username: string; seeker_count: number };
+export type TradeCardSeeker = { user_id: number; username: string; display_name: string; wanted_quantity: number };
 export type VaultSummary = {
   total_collection_capacity: number; assigned_collection_capacity: number; free_collection_capacity: number;
-  used_collection_slots: number; trade_capacity: number; used_trade_slots: number; vp_balance: number; vault_unlimited?: boolean; folders: VaultFolder[];
+  used_collection_slots: number; trade_capacity: number; used_trade_slots: number; vp_balance: number; vault_unlimited?: boolean;
+  owned_card_quantity: number; new_trade_opportunities: number; cards_wanted_by_others: number; deck_missing_quantity: number; active_loan_count: number;
+  folders: VaultFolder[];
 };
 export type HkkCard = Pick<VaultCard, "external_card_id" | "card_name" | "image_url" | "edition" | "card_type" | "subtype" | "color" | "rarity"> & { source_token: string };
 export type HkkRarity = "common" | "uncommun" | "rare" | "ultrarare";
@@ -29,6 +32,11 @@ export type VaultCardLoan = {
   quantity: number; borrower_name: string; borrower_user_id: number | null; lent_at: string; due_at: string | null;
   note: string | null; status: "active" | "returned" | "cancelled"; returned_at: string | null; created_at: string;
 };
+export type VaultDeckCard = {
+  id: number; external_card_id: string; card_name: string; image_url: string | null; edition: string | null;
+  required_quantity: number; owned_quantity: number; missing_quantity: number; available_trade_quantity: number;
+};
+export type VaultDeck = { id: number; name: string; total_required_quantity: number; owned_quantity: number; missing_quantity: number; available_trade_quantity: number; cards: VaultDeckCard[] };
 
 export const getVaultSummary = () => apiRequest<VaultSummary>("/api/vault/summary", { authenticated: true });
 export const createVaultFolder = (payload: { name: string; capacity: number; color?: string | null }) => apiRequest<VaultFolder>("/api/vault/folders", { method: "POST", authenticated: true, body: JSON.stringify(payload) });
@@ -65,6 +73,7 @@ export const listTradeCards = () => apiRequest<PublicTradeCard[]>("/api/vault/tr
 export const addTradeCard = (card: HkkCard, quantity: number, print_variant: PrintVariant = "normal") => apiRequest<PublicTradeCard>("/api/vault/trade", { method: "POST", authenticated: true, body: JSON.stringify({ ...card, quantity, print_variant }) });
 export const updateTradeCard = (id: number, payload: { quantity: number; print_variant?: PrintVariant }) => apiRequest<PublicTradeCard>(`/api/vault/trade/${id}`, { method: "PATCH", authenticated: true, body: JSON.stringify(payload) });
 export const deleteTradeCard = (id: number) => apiRequest<void>(`/api/vault/trade/${id}`, { method: "DELETE", authenticated: true });
+export const listTradeCardSeekers = (id: number) => apiRequest<TradeCardSeeker[]>(`/api/vault/trade/${id}/seekers`, { authenticated: true });
 export const listMatches = () => apiRequest<VaultCard[]>("/api/vault/matches", { authenticated: true });
 export const listMatchingOffers = (cardId: number) => apiRequest<PublicTradeCard[]>(`/api/vault/cards/${cardId}/offers`, { authenticated: true });
 export const getPublicTradeFolder = (username: string, query = "") => apiRequest<PublicTradeCard[]>(`/api/vault/public/${encodeURIComponent(username)}${query ? `?query=${encodeURIComponent(query)}` : ""}`);
@@ -78,3 +87,11 @@ export const reviewVaultTrade = (tradeId: number, rating: number, comment?: stri
 export const listCardLoans = () => apiRequest<VaultCardLoan[]>("/api/vault/loans", { authenticated: true });
 export const createCardLoan = (cardId: number, payload: { quantity: number; borrower_name: string; lent_at: string; due_at?: string | null; note?: string | null }) => apiRequest<VaultCardLoan>(`/api/vault/cards/${cardId}/loans`, { method: "POST", authenticated: true, body: JSON.stringify(payload) });
 export const returnCardLoan = (loanId: number) => apiRequest<VaultCardLoan>(`/api/vault/loans/${loanId}/return`, { method: "POST", authenticated: true });
+export const listDecks = () => apiRequest<VaultDeck[]>("/api/vault/decks", { authenticated: true });
+export const createDeck = (name: string) => apiRequest<VaultDeck>("/api/vault/decks", { method: "POST", authenticated: true, body: JSON.stringify({ name }) });
+export const updateDeck = (id: number, name: string) => apiRequest<VaultDeck>(`/api/vault/decks/${id}`, { method: "PATCH", authenticated: true, body: JSON.stringify({ name }) });
+export const deleteDeck = (id: number) => apiRequest<void>(`/api/vault/decks/${id}`, { method: "DELETE", authenticated: true });
+export const addDeckCard = (deckId: number, card: HkkCard, required_quantity: number) => apiRequest<VaultDeck>(`/api/vault/decks/${deckId}/cards`, { method: "POST", authenticated: true, body: JSON.stringify({ ...card, required_quantity }) });
+export const updateDeckCard = (deckId: number, cardId: number, required_quantity: number) => apiRequest<VaultDeck>(`/api/vault/decks/${deckId}/cards/${cardId}`, { method: "PATCH", authenticated: true, body: JSON.stringify({ required_quantity }) });
+export const deleteDeckCard = (deckId: number, cardId: number) => apiRequest<VaultDeck>(`/api/vault/decks/${deckId}/cards/${cardId}`, { method: "DELETE", authenticated: true });
+export const listDeckCardOffers = (deckId: number, cardId: number) => apiRequest<PublicTradeCard[]>(`/api/vault/decks/${deckId}/cards/${cardId}/offers`, { authenticated: true });

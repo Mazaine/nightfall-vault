@@ -104,6 +104,14 @@ class CardRead(BaseModel):
 class PublicTradeCardRead(CardRead):
     owner_id: int
     owner_username: str
+    seeker_count: int = 0
+
+
+class TradeCardSeekerRead(BaseModel):
+    user_id: int
+    username: str
+    display_name: str
+    wanted_quantity: int
 
 
 class VaultSummary(BaseModel):
@@ -115,7 +123,50 @@ class VaultSummary(BaseModel):
     used_trade_slots: int
     vp_balance: int
     vault_unlimited: bool = False
+    owned_card_quantity: int = 0
+    new_trade_opportunities: int = 0
+    cards_wanted_by_others: int = 0
+    deck_missing_quantity: int = 0
+    active_loan_count: int = 0
     folders: list[FolderRead]
+
+
+class DeckCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+
+
+class DeckUpdate(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+
+
+class DeckCardCreate(CardSnapshot):
+    required_quantity: int = Field(ge=1, le=99)
+
+
+class DeckCardUpdate(BaseModel):
+    required_quantity: int = Field(ge=1, le=99)
+
+
+class DeckCardRead(BaseModel):
+    id: int
+    external_card_id: str
+    card_name: str
+    image_url: str | None
+    edition: str | None
+    required_quantity: int
+    owned_quantity: int
+    missing_quantity: int
+    available_trade_quantity: int
+
+
+class DeckRead(BaseModel):
+    id: int
+    name: str
+    total_required_quantity: int
+    owned_quantity: int
+    missing_quantity: int
+    available_trade_quantity: int
+    cards: list[DeckCardRead]
 
 
 class PointTransactionRead(BaseModel):
