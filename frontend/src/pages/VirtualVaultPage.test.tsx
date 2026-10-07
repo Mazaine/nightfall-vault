@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   searchHkk: vi.fn(), createVaultFolder: vi.fn(), updateVaultFolder: vi.fn(), deleteVaultFolder: vi.fn(), reorderVaultFolders: vi.fn(), addVaultCard: vi.fn(), addWantedCard: vi.fn(), addTradeCard: vi.fn(), setVaultWanted: vi.fn(),
   listHkkEditions: vi.fn(), previewHkkEdition: vi.fn(), importHkkEdition: vi.fn(),
   updateVaultCard: vi.fn(), updateTradeCard: vi.fn(), deleteVaultCard: vi.fn(), deleteTradeCard: vi.fn(), buyVaultCapacity: vi.fn(), postTradeMessage: vi.fn(), confirmVaultTrade: vi.fn(), reviewVaultTrade: vi.fn(),
+  listCardLoans: vi.fn(), createCardLoan: vi.fn(), returnCardLoan: vi.fn(), listMatchingOffers: vi.fn(), expressTradeInterest: vi.fn(),
 }));
 vi.mock("../api/vault", () => mocks);
 
@@ -15,7 +16,7 @@ const card = { id: 5, external_card_id: "hkk-1", card_name: "Xenó lárva", imag
 
 describe("VirtualVaultPage", () => {
   beforeEach(() => {
-    vi.clearAllMocks(); localStorage.clear(); mocks.getVaultSummary.mockResolvedValue(summary); mocks.listVaultCards.mockResolvedValue([card]); mocks.listTradeCards.mockResolvedValue([]); mocks.listNegotiations.mockResolvedValue([]); mocks.getPointHistory.mockResolvedValue({ balance: 120, items: [] }); mocks.listHkkEditions.mockResolvedValue([]);
+    vi.restoreAllMocks(); vi.clearAllMocks(); localStorage.clear(); mocks.getVaultSummary.mockResolvedValue(summary); mocks.listVaultCards.mockResolvedValue([card]); mocks.listTradeCards.mockResolvedValue([]); mocks.listNegotiations.mockResolvedValue([]); mocks.getPointHistory.mockResolvedValue({ balance: 120, items: [] }); mocks.listHkkEditions.mockResolvedValue([]); mocks.listCardLoans.mockResolvedValue([]);
   });
 
   it("mobilon is kártyás gyűjteményt, playsetet és Keresem műveletet ad", async () => {
@@ -68,7 +69,9 @@ describe("VirtualVaultPage", () => {
     render(<VirtualVaultPage />);
     await screen.findByText("Xenó lárva");
     fireEvent.click(screen.getByRole("button", { name: "Xenó törlése" }));
-    await waitFor(() => expect(mocks.deleteVaultFolder).toHaveBeenCalledWith(1, 2));
+    expect(await screen.findByRole("dialog", { name: "Almappa törlése" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Lapok áthelyezése és mappa törlése" }));
+    await waitFor(() => expect(mocks.deleteVaultFolder).toHaveBeenCalledWith(1, { moveToFolderId: 2, deleteContents: false }));
     expect(screen.queryByRole("button", { name: "Xenó törlése" })).not.toBeInTheDocument();
     prompt.mockRestore();
   });
@@ -88,7 +91,7 @@ describe("VirtualVaultPage", () => {
     const resultCard = (await screen.findByText("Orkling bűzisten")).closest("article")!;
     fireEvent.click(within(resultCard).getByRole("button", { name: "Keresem" }));
 
-    await waitFor(() => expect(mocks.addWantedCard).toHaveBeenCalledWith(result, 1));
+    await waitFor(() => expect(mocks.addWantedCard).toHaveBeenCalledWith(result, 1, "normal"));
     fireEvent.click(screen.getByRole("button", { name: "Találatok törlése" }));
     expect(screen.queryByText("Orkling bűzisten")).not.toBeInTheDocument();
   });
@@ -186,5 +189,69 @@ describe("VirtualVaultPage", () => {
     fireEvent.change(screen.getByLabelText("Gyűjtemény gyakoriság szűrő"), { target: { value: "ultrarare" } });
     expect(screen.getByText("Ultraritka lap")).toBeInTheDocument();
     expect(screen.queryByText("Ritka lap")).not.toBeInTheDocument();
+  });
+
+  it("kiválasztott kiegészítőt keresőszó nélkül is teljesen böngész", async () => {
+    const result = { ...card, external_card_id: "22001", card_name: "HKK30 lap", source_token: "signed", print_variant: undefined };
+    mocks.listHkkEditions.mockResolvedValue([{ id: "220", name: "HKK30" }]);
+    mocks.searchHkk.mockResolvedValue([result]);
+    render(<VirtualVaultPage />);
+    await screen.findByText("Xenó lárva");
+    fireEvent.change(screen.getByLabelText("Lapkeresés kiegészítője"), { target: { value: "220" } });
+    fireEvent.click(screen.getByRole("button", { name: "Kiegészítő lapjai" }));
+    await waitFor(() => expect(mocks.searchHkk).toHaveBeenCalledWith("", "220"));
+    expect(await screen.findByText("HKK30 lap")).toBeInTheDocument();
+  });
+
+  it("a tartalommal együtt csak névbeírásos megerősítés után törli a mappát", async () => {
+    mocks.deleteVaultFolder.mockResolvedValue(undefined);
+    vi.spyOn(window, "prompt").mockReturnValue("Xenó");
+    render(<VirtualVaultPage />);
+    await screen.findByText("Xenó lárva");
+    fireEvent.click(screen.getByRole("button", { name: "Xenó törlése" }));
+    const dialog = await screen.findByRole("dialog", { name: "Almappa törlése" });
+    expect(within(dialog).getByText("Xenó")).toBeInTheDocument();
+    expect(within(dialog).getByText(/1 lapbejegyzés/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Mappa és 1 lap törlése" }));
+    await waitFor(() => expect(mocks.deleteVaultFolder).toHaveBeenCalledWith(1, { moveToFolderId: undefined, deleteContents: true }));
+  });
+
+  it("a match nézet csak a tényleges találatokat teszi a reszponzív gridbe", async () => {
+    mocks.listVaultCards.mockResolvedValue([
+      { ...card, wanted: true, wanted_quantity: 1, offer_count: 2 },
+      { ...card, id: 6, external_card_id: "none", card_name: "Még nincs ajánlat", wanted: true, wanted_quantity: 2, offer_count: 0 },
+    ]);
+    const { container } = render(<VirtualVaultPage />);
+    await screen.findByText("Xenó lárva");
+    fireEvent.click(screen.getByRole("button", { name: "Match-ek" }));
+    expect(container.querySelectorAll(".vault-match-card")).toHaveLength(1);
+    expect(screen.getByText("1 keresett laphoz még nincs ajánlat.")).toBeInTheDocument();
+  });
+
+  it("külön nyomtatási változatot adhat hozzá ugyanabból a találatból", async () => {
+    const result = { external_card_id: "41234", card_name: "Foil próba", image_url: null, edition: "HKK30", card_type: "Lény", subtype: null, color: null, rarity: "rare", source_token: "signed" };
+    mocks.searchHkk.mockResolvedValue([result]); mocks.addVaultCard.mockResolvedValue({ ...card, ...result, print_variant: "foil", quantity: 1 });
+    vi.spyOn(window, "prompt").mockReturnValue("1");
+    render(<VirtualVaultPage />);
+    await screen.findByText("Xenó lárva");
+    fireEvent.change(screen.getByPlaceholderText("Keresés lapnévre…"), { target: { value: "foil" } });
+    fireEvent.click(screen.getByRole("button", { name: "Keresés" }));
+    const article = (await screen.findByText("Foil próba")).closest("article")!;
+    fireEvent.change(within(article).getByLabelText("Foil próba hozzáadandó változata"), { target: { value: "foil" } });
+    fireEvent.click(within(article).getByRole("button", { name: "Mappába teszem" }));
+    await waitFor(() => expect(mocks.addVaultCard).toHaveBeenCalledWith(result, 1, 1, "foil"));
+  });
+
+  it("kölcsönadást rögzít és aktív kölcsönt lezár", async () => {
+    const loan = { id: 9, collection_card_id: 5, external_card_id: "hkk-1", card_name: "Xenó lárva", print_variant: "normal", quantity: 1, borrower_name: "Játékos", borrower_user_id: null, lent_at: "2026-10-07", due_at: null, note: null, status: "active", returned_at: null, created_at: "2026-10-07T10:00:00Z" };
+    mocks.createCardLoan.mockResolvedValue(loan); mocks.listCardLoans.mockResolvedValue([loan]); mocks.returnCardLoan.mockResolvedValue({ ...loan, status: "returned" });
+    const prompt = vi.spyOn(window, "prompt"); prompt.mockReturnValueOnce("Játékos").mockReturnValueOnce("1").mockReturnValueOnce("2026-10-07").mockReturnValueOnce("").mockReturnValueOnce("");
+    render(<VirtualVaultPage />);
+    const cardArticle = (await screen.findByText("Xenó lárva")).closest("article")!;
+    fireEvent.click(within(cardArticle).getByRole("button", { name: "Kölcsönadom" }));
+    await waitFor(() => expect(mocks.createCardLoan).toHaveBeenCalledWith(5, expect.objectContaining({ quantity: 1, borrower_name: "Játékos" })));
+    fireEvent.click(screen.getByRole("button", { name: "Kölcsönadott lapjaim" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Visszakaptam" }));
+    await waitFor(() => expect(mocks.returnCardLoan).toHaveBeenCalledWith(9));
   });
 });

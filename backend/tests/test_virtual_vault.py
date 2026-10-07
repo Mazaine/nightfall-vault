@@ -1,4 +1,5 @@
 from concurrent.futures import ThreadPoolExecutor
+from datetime import date
 
 from sqlalchemy import delete, or_, select
 
@@ -7,7 +8,7 @@ from app.models.user import User, VipActivationCode
 from app.models.security_log import AuditLog
 from app.models.moderation import UserBlock
 from app.models.notification import Notification, NotificationOutbox
-from app.models.vault import VaultAccount, VaultCapacityGrant, VaultCollectionCard, VaultFolder, VaultPointTransaction, VaultTrade, VaultTradeCard, VaultTradeMessage, VaultTradeReview
+from app.models.vault import VaultAccount, VaultCapacityGrant, VaultCardLoan, VaultCollectionCard, VaultFolder, VaultPointTransaction, VaultTrade, VaultTradeCard, VaultTradeMessage, VaultTradeReview
 from app.services.membership import activate_code, generate_codes
 from app.services.vault import grant_capacity, grant_points, sign_card_snapshot
 from app.services import vault as vault_service
@@ -19,7 +20,7 @@ def cleanup() -> None:
     try:
         test_users = or_(User.email.like("%@vault-test.local"), User.email == "mazaine89@gmail.com")
         user_ids = list(db.scalars(select(User.id).where(test_users)).all())
-        for model in (VaultTradeReview, VaultTradeMessage, VaultTrade, VaultTradeCard, VaultCollectionCard, VaultFolder, VaultCapacityGrant, VaultPointTransaction, VaultAccount, VipActivationCode):
+        for model in (VaultTradeReview, VaultTradeMessage, VaultTrade, VaultTradeCard, VaultCardLoan, VaultCollectionCard, VaultFolder, VaultCapacityGrant, VaultPointTransaction, VaultAccount, VipActivationCode):
             db.execute(delete(model))
         if user_ids:
             notification_ids = select(Notification.id).where(Notification.user_id.in_(user_ids))
@@ -101,6 +102,19 @@ def test_edition_import_can_filter_by_rarity(monkeypatch) -> None:
         assert response.json()["total_cards"] == 1 and response.json()["added_cards"] == 1
         imported = client.get("/api/vault/cards", headers=auth_headers(user)).json()
         assert len(imported) == 1 and imported[0]["rarity"] == "ultrarare" and imported[0]["quantity"] == 2
+    finally:
+        cleanup()
+
+
+def test_edition_search_works_without_query_and_filters_with_query(monkeypatch) -> None:
+    cleanup(); user = create_test_user("edition-search@vault-test.local")
+    monkeypatch.setattr("app.api.vault.hkk_edition_cards", lambda edition_id: edition_cards())
+    try:
+        all_cards = client.get("/api/vault/hkk/search?edition_id=220", headers=auth_headers(user))
+        assert all_cards.status_code == 200 and len(all_cards.json()) == 3
+        filtered = client.get("/api/vault/hkk/search?edition_id=220&q=lap%202", headers=auth_headers(user))
+        assert filtered.status_code == 200 and [card["external_card_id"] for card in filtered.json()] == ["edition-2"]
+        assert client.get("/api/vault/hkk/search", headers=auth_headers(user)).status_code == 422
     finally:
         cleanup()
 
@@ -319,5 +333,66 @@ def test_blocked_users_cannot_start_trade_and_vp_purchase_is_concurrency_safe() 
         summary = client.get("/api/vault/summary", headers=auth_headers(buyer)).json()
         assert summary["vp_balance"] == 0
         assert summary["total_collection_capacity"] == 1050
+    finally:
+        cleanup()
+
+
+def test_same_hkk_card_can_store_separate_variants_and_quantities() -> None:
+    cleanup(); user = create_test_user("variants@vault-test.local")
+    try:
+        folder = client.post("/api/vault/folders", json={"name": "Változatok", "capacity": 10}, headers=auth_headers(user)).json()
+        normal = client.post("/api/vault/cards", json={**card_payload("variant-card", "Változatos lap", 2), "folder_id": folder["id"], "print_variant": "normal"}, headers=auth_headers(user))
+        foil = client.post("/api/vault/cards", json={**card_payload("variant-card", "Változatos lap", 1), "folder_id": folder["id"], "print_variant": "foil"}, headers=auth_headers(user))
+        assert normal.status_code == 201 and foil.status_code == 201
+        cards = client.get("/api/vault/cards", headers=auth_headers(user)).json()
+        assert {(card["print_variant"], card["quantity"]) for card in cards} == {("normal", 2), ("foil", 1)}
+        assert client.patch(f"/api/vault/cards/{foil.json()['id']}", json={"print_variant": "normal"}, headers=auth_headers(user)).status_code == 409
+
+        trade_normal = client.post("/api/vault/trade", json={**card_payload("variant-trade", "Csereváltozat", 2), "print_variant": "normal"}, headers=auth_headers(user))
+        trade_gfa = client.post("/api/vault/trade", json={**card_payload("variant-trade", "Csereváltozat", 1), "print_variant": "gfa"}, headers=auth_headers(user))
+        assert trade_normal.status_code == 201 and trade_gfa.status_code == 201
+        assert {(card["print_variant"], card["quantity"]) for card in client.get("/api/vault/trade", headers=auth_headers(user)).json()} == {("normal", 2), ("gfa", 1)}
+    finally:
+        cleanup()
+
+
+def test_card_loans_enforce_owned_quantity_and_keep_history() -> None:
+    cleanup(); owner = create_test_user("loans@vault-test.local"); stranger = create_test_user("loan-stranger@vault-test.local")
+    try:
+        folder = client.post("/api/vault/folders", json={"name": "Kölcsön", "capacity": 5}, headers=auth_headers(owner)).json()
+        card = client.post("/api/vault/cards", json={**card_payload("loan-card", "Kölcsönlap", 2), "folder_id": folder["id"], "print_variant": "foil"}, headers=auth_headers(owner)).json()
+        payload = {"quantity": 1, "borrower_name": "Teszt Elek", "lent_at": "2026-10-07", "due_at": "2026-10-20", "note": "Versenyre"}
+        loan = client.post(f"/api/vault/cards/{card['id']}/loans", json=payload, headers=auth_headers(owner))
+        assert loan.status_code == 201 and loan.json()["status"] == "active" and loan.json()["print_variant"] == "foil"
+        assert client.post(f"/api/vault/cards/{card['id']}/loans", json={**payload, "quantity": 2}, headers=auth_headers(owner)).status_code == 409
+        assert client.patch(f"/api/vault/cards/{card['id']}", json={"quantity": 0}, headers=auth_headers(owner)).status_code == 409
+        assert client.post(f"/api/vault/loans/{loan.json()['id']}/return", headers=auth_headers(stranger)).status_code == 404
+        returned = client.post(f"/api/vault/loans/{loan.json()['id']}/return", headers=auth_headers(owner))
+        assert returned.status_code == 200 and returned.json()["status"] == "returned" and returned.json()["returned_at"]
+        assert client.patch(f"/api/vault/cards/{card['id']}", json={"quantity": 0}, headers=auth_headers(owner)).status_code == 200
+        history = client.get("/api/vault/loans", headers=auth_headers(owner)).json()
+        assert len(history) == 1 and history[0]["status"] == "returned"
+    finally:
+        cleanup()
+
+
+def test_folder_can_be_deleted_with_hundreds_of_cards_without_idor_or_orphan_loans() -> None:
+    cleanup(); owner = create_test_user("folder-delete@vault-test.local"); stranger = create_test_user("folder-delete-stranger@vault-test.local")
+    try:
+        folder = client.post("/api/vault/folders", json={"name": "Nagy import", "capacity": 350}, headers=auth_headers(owner)).json()
+        db = SessionLocal()
+        try:
+            cards = [VaultCollectionCard(user_id=owner.id, folder_id=folder["id"], external_card_id=f"bulk-{index}", card_name=f"Lap {index}", quantity=1, print_variant="normal") for index in range(300)]
+            db.add_all(cards); db.flush()
+            loan = VaultCardLoan(user_id=owner.id, collection_card_id=cards[0].id, external_card_id=cards[0].external_card_id, card_name=cards[0].card_name, print_variant="normal", quantity=1, borrower_name="Tesztelő", lent_at=date(2026, 10, 7))
+            db.add(loan); db.commit(); loan_id = loan.id
+        finally:
+            db.close()
+        assert client.delete(f"/api/vault/folders/{folder['id']}?delete_contents=true", headers=auth_headers(stranger)).status_code == 404
+        deleted = client.delete(f"/api/vault/folders/{folder['id']}?delete_contents=true", headers=auth_headers(owner))
+        assert deleted.status_code == 204
+        assert client.get("/api/vault/cards", headers=auth_headers(owner)).json() == []
+        history = client.get("/api/vault/loans", headers=auth_headers(owner)).json()
+        assert history[0]["id"] == loan_id and history[0]["status"] == "cancelled" and history[0]["collection_card_id"] is None
     finally:
         cleanup()

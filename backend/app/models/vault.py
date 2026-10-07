@@ -1,6 +1,6 @@
-from datetime import datetime
+from datetime import date, datetime
 
-from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint, func
+from sqlalchemy import Boolean, CheckConstraint, Date, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -48,7 +48,7 @@ class VaultFolder(Base):
 class VaultCollectionCard(Base):
     __tablename__ = "vault_collection_cards"
     __table_args__ = (
-        UniqueConstraint("user_id", "external_card_id", name="uq_vault_collection_cards_user_card"),
+        UniqueConstraint("user_id", "external_card_id", "print_variant", name="uq_vault_collection_cards_user_card_variant"),
         CheckConstraint("quantity BETWEEN 0 AND 3", name="ck_vault_collection_cards_quantity"),
         CheckConstraint("wanted_quantity BETWEEN 0 AND 3", name="ck_vault_collection_cards_wanted_quantity"),
         CheckConstraint("print_variant IN ('normal', 'foil', 'fa', 'gfa')", name="ck_vault_collection_cards_print_variant"),
@@ -74,12 +74,13 @@ class VaultCollectionCard(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
 
     folder = relationship("VaultFolder", back_populates="cards")
+    loans = relationship("VaultCardLoan", back_populates="collection_card")
 
 
 class VaultTradeCard(Base):
     __tablename__ = "vault_trade_cards"
     __table_args__ = (
-        UniqueConstraint("user_id", "external_card_id", name="uq_vault_trade_cards_user_card"),
+        UniqueConstraint("user_id", "external_card_id", "print_variant", name="uq_vault_trade_cards_user_card_variant"),
         CheckConstraint("quantity BETWEEN 1 AND 3", name="ck_vault_trade_cards_quantity"),
         CheckConstraint("print_variant IN ('normal', 'foil', 'fa', 'gfa')", name="ck_vault_trade_cards_print_variant"),
         Index("ix_vault_trade_cards_external_name", "external_card_id", "card_name"),
@@ -101,6 +102,38 @@ class VaultTradeCard(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
 
     user = relationship("User")
+
+
+class VaultCardLoan(Base):
+    __tablename__ = "vault_card_loans"
+    __table_args__ = (
+        CheckConstraint("quantity BETWEEN 1 AND 3", name="ck_vault_card_loans_quantity"),
+        CheckConstraint("status IN ('active', 'returned', 'cancelled')", name="ck_vault_card_loans_status"),
+        CheckConstraint("length(trim(borrower_name)) > 0", name="ck_vault_card_loans_borrower_name"),
+        Index("ix_vault_card_loans_user_status", "user_id", "status"),
+        Index("ix_vault_card_loans_card_status", "collection_card_id", "status"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    collection_card_id: Mapped[int | None] = mapped_column(ForeignKey("vault_collection_cards.id", ondelete="SET NULL"), nullable=True, index=True)
+    borrower_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    external_card_id: Mapped[str] = mapped_column(String(120), nullable=False)
+    card_name: Mapped[str] = mapped_column(String(180), nullable=False)
+    print_variant: Mapped[str] = mapped_column(String(10), nullable=False, default="normal", server_default="normal")
+    quantity: Mapped[int] = mapped_column(Integer, nullable=False)
+    borrower_name: Mapped[str] = mapped_column(String(180), nullable=False)
+    lent_at: Mapped[date] = mapped_column(Date, nullable=False)
+    due_at: Mapped[date | None] = mapped_column(Date, nullable=True)
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="active", server_default="active")
+    returned_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
+
+    owner = relationship("User", foreign_keys=[user_id])
+    borrower_user = relationship("User", foreign_keys=[borrower_user_id])
+    collection_card = relationship("VaultCollectionCard", back_populates="loans")
 
 
 class VaultPointTransaction(Base):

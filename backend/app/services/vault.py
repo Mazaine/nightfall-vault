@@ -365,9 +365,15 @@ def import_hkk_edition(
         .where(VaultCollectionCard.user_id == user_id, VaultCollectionCard.external_card_id.in_(external_ids))
         .with_for_update()
     ).all() if external_ids else []
-    existing_by_id = {card.external_card_id: card for card in existing_cards}
-    new_cards = [card for card in cards if card["external_card_id"] not in existing_by_id]
-    moved_cards = [] if missing_only else [card for card in existing_cards if card.folder_id != folder.id]
+    existing_by_id: dict[str, list[VaultCollectionCard]] = {}
+    for existing_card in existing_cards:
+        existing_by_id.setdefault(existing_card.external_card_id, []).append(existing_card)
+    normal_by_id = {
+        external_id: next((card for card in variants if card.print_variant == "normal"), None)
+        for external_id, variants in existing_by_id.items()
+    }
+    new_cards = [card for card in cards if normal_by_id.get(card["external_card_id"]) is None and not (missing_only and existing_by_id.get(card["external_card_id"]))]
+    moved_cards = [] if missing_only else [card for card in normal_by_id.values() if card is not None and card.folder_id != folder.id]
     required_slots = len(new_cards) + len(moved_cards)
     free_slots = max(folder.capacity - folder_used(db, folder.id), 0)
     if not account.vault_unlimited and required_slots > free_slots:
@@ -377,13 +383,14 @@ def import_hkk_edition(
     updated = 0
     skipped = 0
     for snapshot in cards:
-        existing = existing_by_id.get(snapshot["external_card_id"])
-        if existing is not None and missing_only and existing.quantity > 0:
+        variants = existing_by_id.get(snapshot["external_card_id"], [])
+        existing = normal_by_id.get(snapshot["external_card_id"])
+        if missing_only and any(card.quantity > 0 for card in variants):
             skipped += 1
             continue
         values = {key: snapshot[key] for key in ("external_card_id", "card_name", "image_url", "edition", "card_type", "subtype", "color", "rarity")}
         if existing is None:
-            db.add(VaultCollectionCard(user_id=user_id, folder_id=folder.id, quantity=quantity, **values))
+            db.add(VaultCollectionCard(user_id=user_id, folder_id=folder.id, quantity=quantity, print_variant="normal", **values))
             added += 1
             continue
         existing.folder_id = folder.id

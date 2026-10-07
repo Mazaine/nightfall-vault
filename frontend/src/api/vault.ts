@@ -24,11 +24,21 @@ export type VaultTrade = {
   requester_confirmed_at: string | null; owner_confirmed_at: string | null; completed_at: string | null; card: VaultCard;
   messages: { id: number; sender_id: number; sender_username: string; sender_display_name: string; message: string; created_at: string }[];
 };
+export type VaultCardLoan = {
+  id: number; collection_card_id: number | null; external_card_id: string; card_name: string; print_variant: PrintVariant;
+  quantity: number; borrower_name: string; borrower_user_id: number | null; lent_at: string; due_at: string | null;
+  note: string | null; status: "active" | "returned" | "cancelled"; returned_at: string | null; created_at: string;
+};
 
 export const getVaultSummary = () => apiRequest<VaultSummary>("/api/vault/summary", { authenticated: true });
 export const createVaultFolder = (payload: { name: string; capacity: number; color?: string | null }) => apiRequest<VaultFolder>("/api/vault/folders", { method: "POST", authenticated: true, body: JSON.stringify(payload) });
 export const updateVaultFolder = (id: number, payload: Partial<Pick<VaultFolder, "name" | "capacity" | "color">>) => apiRequest<VaultFolder>(`/api/vault/folders/${id}`, { method: "PATCH", authenticated: true, body: JSON.stringify(payload) });
-export const deleteVaultFolder = (id: number, moveToFolderId?: number) => apiRequest<void>(`/api/vault/folders/${id}${moveToFolderId ? `?move_to_folder_id=${moveToFolderId}` : ""}`, { method: "DELETE", authenticated: true });
+export const deleteVaultFolder = (id: number, options: { moveToFolderId?: number; deleteContents?: boolean } = {}) => {
+  const search = new URLSearchParams();
+  if (options.moveToFolderId) search.set("move_to_folder_id", String(options.moveToFolderId));
+  if (options.deleteContents) search.set("delete_contents", "true");
+  return apiRequest<void>(`/api/vault/folders/${id}${search.size ? `?${search}` : ""}`, { method: "DELETE", authenticated: true });
+};
 export const reorderVaultFolders = (folder_ids: number[]) => apiRequest<VaultFolder[]>("/api/vault/folders/reorder", { method: "PUT", authenticated: true, body: JSON.stringify({ folder_ids }) });
 export const listVaultCards = (params: { folderId?: number; query?: string; wanted?: boolean } = {}) => {
   const search = new URLSearchParams();
@@ -37,13 +47,14 @@ export const listVaultCards = (params: { folderId?: number; query?: string; want
   if (params.wanted !== undefined) search.set("wanted", String(params.wanted));
   return apiRequest<VaultCard[]>(`/api/vault/cards?${search}`, { authenticated: true });
 };
-export const addVaultCard = (card: HkkCard, folder_id: number, quantity: number) => apiRequest<VaultCard>("/api/vault/cards", { method: "POST", authenticated: true, body: JSON.stringify({ ...card, folder_id, quantity }) });
-export const addWantedCard = (card: HkkCard, folder_id: number) => apiRequest<VaultCard>("/api/vault/cards/wanted", { method: "POST", authenticated: true, body: JSON.stringify({ ...card, folder_id }) });
+export const addVaultCard = (card: HkkCard, folder_id: number, quantity: number, print_variant: PrintVariant = "normal") => apiRequest<VaultCard>("/api/vault/cards", { method: "POST", authenticated: true, body: JSON.stringify({ ...card, folder_id, quantity, print_variant }) });
+export const addWantedCard = (card: HkkCard, folder_id: number, print_variant: PrintVariant = "normal") => apiRequest<VaultCard>("/api/vault/cards/wanted", { method: "POST", authenticated: true, body: JSON.stringify({ ...card, folder_id, print_variant }) });
 export const updateVaultCard = (id: number, payload: { quantity?: number; folder_id?: number; print_variant?: PrintVariant }) => apiRequest<VaultCard>(`/api/vault/cards/${id}`, { method: "PATCH", authenticated: true, body: JSON.stringify(payload) });
 export const setVaultWanted = (id: number, wanted: boolean, quantity?: number) => apiRequest<VaultCard>(`/api/vault/cards/${id}/wanted`, { method: "PUT", authenticated: true, body: JSON.stringify({ wanted, quantity }) });
 export const deleteVaultCard = (id: number) => apiRequest<void>(`/api/vault/cards/${id}`, { method: "DELETE", authenticated: true });
 export const searchHkk = (query: string, editionId?: string) => {
-  const search = new URLSearchParams({ q: query });
+  const search = new URLSearchParams();
+  if (query.trim()) search.set("q", query.trim());
   if (editionId) search.set("edition_id", editionId);
   return apiRequest<HkkCard[]>(`/api/vault/hkk/search?${search}`, { authenticated: true });
 };
@@ -51,7 +62,7 @@ export const listHkkEditions = () => apiRequest<HkkEdition[]>("/api/vault/hkk/ed
 export const previewHkkEdition = (editionId: string) => apiRequest<HkkEditionPreview>(`/api/vault/hkk/editions/${encodeURIComponent(editionId)}/cards`, { authenticated: true });
 export const importHkkEdition = (payload: { edition_id: string; folder_id: number; quantity: number; missing_only: boolean; rarities: HkkRarity[] }) => apiRequest<HkkEditionImportResult>("/api/vault/hkk/editions/import", { method: "POST", authenticated: true, body: JSON.stringify(payload) });
 export const listTradeCards = () => apiRequest<PublicTradeCard[]>("/api/vault/trade", { authenticated: true });
-export const addTradeCard = (card: HkkCard, quantity: number) => apiRequest<PublicTradeCard>("/api/vault/trade", { method: "POST", authenticated: true, body: JSON.stringify({ ...card, quantity }) });
+export const addTradeCard = (card: HkkCard, quantity: number, print_variant: PrintVariant = "normal") => apiRequest<PublicTradeCard>("/api/vault/trade", { method: "POST", authenticated: true, body: JSON.stringify({ ...card, quantity, print_variant }) });
 export const updateTradeCard = (id: number, payload: { quantity: number; print_variant?: PrintVariant }) => apiRequest<PublicTradeCard>(`/api/vault/trade/${id}`, { method: "PATCH", authenticated: true, body: JSON.stringify(payload) });
 export const deleteTradeCard = (id: number) => apiRequest<void>(`/api/vault/trade/${id}`, { method: "DELETE", authenticated: true });
 export const listMatches = () => apiRequest<VaultCard[]>("/api/vault/matches", { authenticated: true });
@@ -64,3 +75,6 @@ export const expressTradeInterest = (cardId: number) => apiRequest<VaultTrade>(`
 export const postTradeMessage = (tradeId: number, message: string) => apiRequest<VaultTrade>(`/api/vault/negotiations/${tradeId}/messages`, { method: "POST", authenticated: true, body: JSON.stringify({ message }) });
 export const confirmVaultTrade = (tradeId: number) => apiRequest<VaultTrade>(`/api/vault/negotiations/${tradeId}/confirm`, { method: "POST", authenticated: true });
 export const reviewVaultTrade = (tradeId: number, rating: number, comment?: string) => apiRequest<{ id: number }>(`/api/vault/negotiations/${tradeId}/reviews`, { method: "POST", authenticated: true, body: JSON.stringify({ rating, comment: comment || null }) });
+export const listCardLoans = () => apiRequest<VaultCardLoan[]>("/api/vault/loans", { authenticated: true });
+export const createCardLoan = (cardId: number, payload: { quantity: number; borrower_name: string; lent_at: string; due_at?: string | null; note?: string | null }) => apiRequest<VaultCardLoan>(`/api/vault/cards/${cardId}/loans`, { method: "POST", authenticated: true, body: JSON.stringify(payload) });
+export const returnCardLoan = (loanId: number) => apiRequest<VaultCardLoan>(`/api/vault/loans/${loanId}/return`, { method: "POST", authenticated: true });

@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -48,6 +48,7 @@ class CollectionCardCreate(CardSnapshot):
 
 class WantedCardCreate(CardSnapshot):
     folder_id: int
+    print_variant: PrintVariant = "normal"
 
 
 class CollectionCardUpdate(BaseModel):
@@ -179,6 +180,40 @@ class TradeReviewRead(BaseModel):
     reviewed_user_id: int
     rating: int
     comment: str | None
+    created_at: datetime
+
+
+class CardLoanCreate(BaseModel):
+    quantity: int = Field(ge=1, le=3)
+    borrower_name: str = Field(min_length=1, max_length=180)
+    lent_at: date
+    due_at: date | None = None
+    note: str | None = Field(default=None, max_length=1000)
+
+    @field_validator("borrower_name")
+    @classmethod
+    def strip_borrower_name(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("A kölcsönvevő neve kötelező.")
+        return value
+
+
+class CardLoanRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    collection_card_id: int | None
+    external_card_id: str
+    card_name: str
+    print_variant: PrintVariant
+    quantity: int
+    borrower_name: str
+    borrower_user_id: int | None
+    lent_at: date
+    due_at: date | None
+    note: str | None
+    status: Literal["active", "returned", "cancelled"]
+    returned_at: datetime | None
     created_at: datetime
 
 
