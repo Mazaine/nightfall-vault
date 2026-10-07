@@ -52,6 +52,20 @@ describe("SiteHeader", () => {
     await waitFor(() => expect(screen.getByRole("menuitem", { name: "Virtuális mappám" })).toHaveFocus());
   });
 
+  it("a Virtuális mappám normál, félkövér nav elemként a Szabályok előtt áll és aktív marad", async () => {
+    authenticate();
+    render(<MemoryRouter initialEntries={["/vault"]}><SiteHeader /></MemoryRouter>);
+    const navigation = screen.getByRole("navigation", { name: "Elsődleges navigáció" });
+    expect(Array.from(navigation.querySelectorAll("a")).map((link) => link.textContent)).toEqual([
+      "Kezdőlap", "Aukciók", "Licitjeim", "Aukció indítása", "Saját aukcióim", "Virtuális mappám", "Szabályok",
+    ]);
+    const vaultLink = screen.getByRole("link", { name: "Virtuális mappám" });
+    expect(vaultLink).toHaveClass("nav-vault-link", "active");
+    expect(vaultLink).not.toHaveClass("nav-vault-entry", "nav-primary-action");
+    fireEvent.click(screen.getByRole("button", { name: "Menü megnyitása" }));
+    await waitFor(() => expect(vaultLink).toBeVisible());
+  });
+
   it("Escape-re bezárja a dropdownot és visszaadja a fókuszt", async () => {
     authenticate();
     render(<MemoryRouter><SiteHeader /></MemoryRouter>);

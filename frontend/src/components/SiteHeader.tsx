@@ -5,13 +5,13 @@ import { getUnreadNotificationCount } from "../api/auctions";
 import { useNotifications } from "../NotificationContext";
 import { UNREAD_NOTIFICATION_COUNT_CHANGED } from "../utils/notificationEvents";
 
-const navItems = [
+const navItems: { label: string; to: string; authenticated?: boolean; primary?: boolean; emphasis?: boolean }[] = [
   { label: "Kezdőlap", to: "/" },
   { label: "Aukciók", to: "/auctions" },
   { label: "Licitjeim", to: "/my-bids", authenticated: true },
-  { label: "Virtuális mappám", to: "/vault", authenticated: true, vault: true },
   { label: "Aukció indítása", to: "/auctions/create", authenticated: true, primary: true },
   { label: "Saját aukcióim", to: "/account/auctions", authenticated: true },
+  { label: "Virtuális mappám", to: "/vault", authenticated: true, emphasis: true },
   { label: "Szabályok", to: "/how-it-works" },
 ];
 
@@ -122,7 +122,7 @@ export function SiteHeader() {
         {isMenuOpen ? <div className="menu-backdrop" aria-hidden="true" onClick={closeMobileMenu} /> : null}
 
         <nav ref={primaryNavRef} className={isMenuOpen ? "site-nav is-open" : "site-nav"} id="primary-navigation" aria-label="Elsődleges navigáció">
-          {navItems.filter((item) => !item.authenticated || isAuthenticated).map((item) => <NavLink className={[item.primary ? "nav-primary-action" : "", item.vault ? "nav-vault-entry" : ""].filter(Boolean).join(" ") || undefined} to={item.to} key={item.to} end={item.to === "/"}>{item.label}</NavLink>)}
+          {navItems.filter((item) => !item.authenticated || isAuthenticated).map((item) => <NavLink className={[item.primary ? "nav-primary-action" : "", item.emphasis ? "nav-vault-link" : ""].filter(Boolean).join(" ") || undefined} to={item.to} key={item.to} end={item.to === "/"}>{item.label}</NavLink>)}
           {!isAuthenticated ? <div className="mobile-auth-links"><NavLink to="/login">Belépés</NavLink><NavLink to="/register">Regisztráció</NavLink></div> : null}
         </nav>
 

@@ -5,7 +5,7 @@ import { VirtualVaultPage } from "./VirtualVaultPage";
 const mocks = vi.hoisted(() => Object.fromEntries([
   "getVaultSummary", "listVaultCards", "listTradeCards", "listNegotiations", "getPointHistory", "listCardLoans", "listDecks", "listHkkEditions",
   "searchHkk", "createVaultFolder", "deleteVaultFolder", "addVaultCard", "addWantedCard", "addTradeCard", "setVaultWanted", "previewHkkEdition", "importHkkEdition",
-  "updateVaultCard", "deleteVaultCard", "buyVaultCapacity", "postTradeMessage", "listMatchingOffers", "expressTradeInterest", "createCardLoan", "returnCardLoan",
+  "updateVaultCard", "deleteVaultCard", "deleteTradeCard", "buyVaultCapacity", "postTradeMessage", "listMatchingOffers", "expressTradeInterest", "createCardLoan", "returnCardLoan",
   "listTradeCardSeekers", "createDeck", "deleteDeck", "addDeckCard", "updateDeckCard", "deleteDeckCard", "listDeckCardOffers",
 ].map((name) => [name, vi.fn()])) as Record<string, ReturnType<typeof vi.fn>>);
 vi.mock("../api/vault", () => mocks);
@@ -76,6 +76,21 @@ describe("VirtualVaultPage", () => {
     fireEvent.click(await screen.findByRole("button", { name: /Ki keresi ezt a lapot/ }));
     expect(await screen.findByText("Játékos")).toBeInTheDocument(); expect(screen.getByText(/@jatek/)).toBeInTheDocument();
     expect(mocks.listTradeCardSeekers).toHaveBeenCalledWith(5);
+  });
+
+  it("a cseremappából eltávolít, miközben a gyűjteménypéldány megmarad és a nézet frissül", async () => {
+    mocks.deleteTradeCard.mockResolvedValue(undefined);
+    render(<VirtualVaultPage />);
+    await screen.findByText("Mi történt a mappádban?");
+    fireEvent.click(screen.getByRole("button", { name: "Csere" }));
+    expect(await screen.findByRole("button", { name: "Eltávolítás a cseremappából" })).toBeInTheDocument();
+    mocks.listTradeCards.mockResolvedValueOnce([]);
+    fireEvent.click(screen.getByRole("button", { name: "Eltávolítás a cseremappából" }));
+    await waitFor(() => expect(mocks.deleteTradeCard).toHaveBeenCalledWith(5));
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Eltávolítás a cseremappából" })).not.toBeInTheDocument());
+    expect(mocks.deleteVaultCard).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Gyűjtemény" }));
+    expect(await screen.findByText("Xenó lárva")).toBeInTheDocument();
   });
 
   it("paklit létrehoz, HKK találatot szükséges mennyiséggel hozzáad", async () => {
