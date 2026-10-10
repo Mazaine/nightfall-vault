@@ -7,6 +7,8 @@ export type VaultCard = {
   card_type: string | null; subtype: string | null; color: string | null; rarity: string | null; quantity: number;
   folder_id: number | null; wanted: boolean; wanted_quantity: number; offer_count: number; print_variant: PrintVariant;
 };
+export type BulkCardAction = "move" | "trade_add" | "trade_remove" | "wanted_on" | "wanted_off" | "delete";
+export type VaultMaintenance = { stale_after_days: number; acquired_wanted: VaultCard[]; stale_trade_cards: PublicTradeCard[]; overdue_loans: VaultCardLoan[] };
 export type PublicTradeCard = VaultCard & { owner_id: number; owner_username: string; seeker_count: number };
 export type TradeCardSeeker = { user_id: number; username: string; display_name: string; wanted_quantity: number };
 export type VaultSummary = {
@@ -60,6 +62,7 @@ export const addWantedCard = (card: HkkCard, folder_id: number, print_variant: P
 export const updateVaultCard = (id: number, payload: { quantity?: number; folder_id?: number; print_variant?: PrintVariant }) => apiRequest<VaultCard>(`/api/vault/cards/${id}`, { method: "PATCH", authenticated: true, body: JSON.stringify(payload) });
 export const setVaultWanted = (id: number, wanted: boolean, quantity?: number) => apiRequest<VaultCard>(`/api/vault/cards/${id}/wanted`, { method: "PUT", authenticated: true, body: JSON.stringify({ wanted, quantity }) });
 export const deleteVaultCard = (id: number) => apiRequest<void>(`/api/vault/cards/${id}`, { method: "DELETE", authenticated: true });
+export const bulkUpdateVaultCards = (card_ids: number[], action: BulkCardAction, folder_id?: number) => apiRequest<{ action: string; processed_count: number }>("/api/vault/cards/bulk", { method: "POST", authenticated: true, body: JSON.stringify({ card_ids, action, folder_id }) });
 export const searchHkk = (query: string, editionId?: string) => {
   const search = new URLSearchParams();
   if (query.trim()) search.set("q", query.trim());
@@ -73,11 +76,13 @@ export const listTradeCards = () => apiRequest<PublicTradeCard[]>("/api/vault/tr
 export const addTradeCard = (card: HkkCard, quantity: number, print_variant: PrintVariant = "normal") => apiRequest<PublicTradeCard>("/api/vault/trade", { method: "POST", authenticated: true, body: JSON.stringify({ ...card, quantity, print_variant }) });
 export const updateTradeCard = (id: number, payload: { quantity: number; print_variant?: PrintVariant }) => apiRequest<PublicTradeCard>(`/api/vault/trade/${id}`, { method: "PATCH", authenticated: true, body: JSON.stringify(payload) });
 export const deleteTradeCard = (id: number) => apiRequest<void>(`/api/vault/trade/${id}`, { method: "DELETE", authenticated: true });
+export const verifyTradeCard = (id: number) => apiRequest<PublicTradeCard>(`/api/vault/trade/${id}/verify`, { method: "POST", authenticated: true });
 export const listTradeCardSeekers = (id: number) => apiRequest<TradeCardSeeker[]>(`/api/vault/trade/${id}/seekers`, { authenticated: true });
 export const listMatches = () => apiRequest<VaultCard[]>("/api/vault/matches", { authenticated: true });
 export const listMatchingOffers = (cardId: number) => apiRequest<PublicTradeCard[]>(`/api/vault/cards/${cardId}/offers`, { authenticated: true });
 export const getPublicTradeFolder = (username: string, query = "") => apiRequest<PublicTradeCard[]>(`/api/vault/public/${encodeURIComponent(username)}${query ? `?query=${encodeURIComponent(query)}` : ""}`);
 export const getPointHistory = () => apiRequest<PointHistory>("/api/vault/points", { authenticated: true });
+export const getVaultMaintenance = () => apiRequest<VaultMaintenance>("/api/vault/maintenance", { authenticated: true });
 export const buyVaultCapacity = () => apiRequest<VaultSummary>("/api/vault/points/buy-capacity", { method: "POST", authenticated: true });
 export const listNegotiations = () => apiRequest<VaultTrade[]>("/api/vault/negotiations", { authenticated: true });
 export const expressTradeInterest = (cardId: number) => apiRequest<VaultTrade>(`/api/vault/trade/${cardId}/interest`, { method: "POST", authenticated: true });

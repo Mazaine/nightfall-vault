@@ -85,6 +85,7 @@ class Settings(BaseSettings):
     web_push_request_timeout_seconds: float = 10.0
     hkk_catalog_base_url: str = "https://lapkereso.hkk.hu"
     hkk_catalog_request_timeout_seconds: float = Field(default=5.0, gt=0, le=30)
+    vault_trade_review_days: int = Field(default=21, ge=1, le=365)
     web_push_allowed_host_suffixes: list[str] = [
         "fcm.googleapis.com",
         "updates.push.services.mozilla.com",

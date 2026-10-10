@@ -62,6 +62,24 @@ class WantedUpdate(BaseModel):
     quantity: int | None = Field(default=None, ge=1, le=3)
 
 
+class BulkCardOperation(BaseModel):
+    card_ids: list[int] = Field(min_length=1, max_length=500)
+    action: Literal["move", "trade_add", "trade_remove", "wanted_on", "wanted_off", "delete"]
+    folder_id: int | None = None
+
+    @field_validator("card_ids")
+    @classmethod
+    def unique_card_ids(cls, value: list[int]) -> list[int]:
+        if len(value) != len(set(value)) or any(card_id <= 0 for card_id in value):
+            raise ValueError("A lapazonosítóknak pozitívnak és egyedinek kell lenniük.")
+        return value
+
+
+class BulkCardOperationResult(BaseModel):
+    action: str
+    processed_count: int
+
+
 class TradeCardCreate(CardSnapshot):
     quantity: int = Field(ge=1, le=3)
     print_variant: PrintVariant | None = None
@@ -266,6 +284,13 @@ class CardLoanRead(BaseModel):
     status: Literal["active", "returned", "cancelled"]
     returned_at: datetime | None
     created_at: datetime
+
+
+class VaultMaintenanceRead(BaseModel):
+    stale_after_days: int
+    acquired_wanted: list[CardRead] = Field(default_factory=list)
+    stale_trade_cards: list[PublicTradeCardRead] = Field(default_factory=list)
+    overdue_loans: list[CardLoanRead] = Field(default_factory=list)
 
 
 class TradeMessageRead(BaseModel):

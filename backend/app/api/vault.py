@@ -1,13 +1,16 @@
+from datetime import date, timedelta
+
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, Response, status
 from sqlalchemy import delete, func, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.db.session import get_db
 from app.dependencies.auth import require_active_user
 from app.models.user import User
 from app.models.vault import VaultCardLoan, VaultCollectionCard, VaultDeck, VaultDeckCard, VaultFolder, VaultPointTransaction, VaultTrade, VaultTradeCard, VaultTradeMessage, VaultTradeReview
-from app.schemas.vault import CardLoanCreate, CardLoanRead, CardRead, CollectionCardCreate, CollectionCardUpdate, DeckCardCreate, DeckCardRead, DeckCardUpdate, DeckCreate, DeckRead, DeckUpdate, FolderCreate, FolderRead, FolderReorder, FolderUpdate, HkkEditionCards, HkkEditionImport, HkkEditionImportResult, HkkEditionRead, HkkSearchResult, PointHistory, PointTransactionRead, PublicTradeCardRead, QuantityUpdate, TradeCardCreate, TradeCardSeekerRead, TradeMessageCreate, TradeRead, TradeReviewCreate, TradeReviewRead, VaultSummary, WantedCardCreate, WantedUpdate
+from app.schemas.vault import BulkCardOperation, BulkCardOperationResult, CardLoanCreate, CardLoanRead, CardRead, CollectionCardCreate, CollectionCardUpdate, DeckCardCreate, DeckCardRead, DeckCardUpdate, DeckCreate, DeckRead, DeckUpdate, FolderCreate, FolderRead, FolderReorder, FolderUpdate, HkkEditionCards, HkkEditionImport, HkkEditionImportResult, HkkEditionRead, HkkSearchResult, PointHistory, PointTransactionRead, PublicTradeCardRead, QuantityUpdate, TradeCardCreate, TradeCardSeekerRead, TradeMessageCreate, TradeRead, TradeReviewCreate, TradeReviewRead, VaultMaintenanceRead, VaultSummary, WantedCardCreate, WantedUpdate
 from app.services.notifications import create_notification
 from app.services.vault import account_for, buy_capacity_pack, card_snapshot_values, collection_card_for_user, complete_trade, fetch_hkk_card_image, folder_for_user, folder_used, grant_points, hkk_edition_cards, import_hkk_edition, list_hkk_editions, point_balance, require_allocatable, require_valid_card_snapshot, search_hkk_cards, total_collection_capacity, trade_for_participant, utc_now
 from app.services.user_blocks import ensure_not_blocked
@@ -46,7 +49,6 @@ def refresh_wanted_quantity(db: Session, user_id: int, external_card_id: str) ->
     if wanted_card is None:
         return
     wanted_card.wanted_quantity = max(3 - owned_card_quantity(db, user_id, external_card_id), 0)
-    wanted_card.wanted = wanted_card.wanted_quantity > 0
 
 
 def trade_card_read(card: VaultTradeCard, seeker_count: int = 0) -> PublicTradeCardRead:
@@ -126,14 +128,40 @@ def summary(current_user: User = Depends(require_active_user), db: Session = Dep
     folder_reads = [FolderRead.model_validate({**folder.__dict__, "used_slots": folder_used(db, folder.id)}) for folder in folders]
     used_trade = int(db.scalar(select(func.count()).select_from(VaultTradeCard).where(VaultTradeCard.user_id == current_user.id)) or 0)
     owned = owned_quantities(db, current_user.id)
-    wanted_ids = set(db.scalars(select(VaultCollectionCard.external_card_id).where(VaultCollectionCard.user_id == current_user.id, VaultCollectionCard.wanted.is_(True))).all())
+    wanted_ids = set(db.scalars(select(VaultCollectionCard.external_card_id).where(VaultCollectionCard.user_id == current_user.id, VaultCollectionCard.wanted.is_(True), VaultCollectionCard.wanted_quantity > 0)).all())
     offered_ids = set(db.scalars(select(VaultTradeCard.external_card_id).where(VaultTradeCard.user_id != current_user.id, VaultTradeCard.external_card_id.in_(wanted_ids))).all()) if wanted_ids else set()
     own_trade_ids = set(db.scalars(select(VaultTradeCard.external_card_id).where(VaultTradeCard.user_id == current_user.id)).all())
-    demanded_ids = set(db.scalars(select(VaultCollectionCard.external_card_id).where(VaultCollectionCard.user_id != current_user.id, VaultCollectionCard.wanted.is_(True), VaultCollectionCard.external_card_id.in_(own_trade_ids))).all()) if own_trade_ids else set()
+    demanded_ids = set(db.scalars(select(VaultCollectionCard.external_card_id).where(VaultCollectionCard.user_id != current_user.id, VaultCollectionCard.wanted.is_(True), VaultCollectionCard.wanted_quantity > 0, VaultCollectionCard.external_card_id.in_(own_trade_ids))).all()) if own_trade_ids else set()
     decks = db.scalars(select(VaultDeck).where(VaultDeck.user_id == current_user.id)).all()
     deck_missing = sum(max(card.required_quantity - owned.get(card.external_card_id, 0), 0) for deck in decks for card in deck.cards)
     active_loans = int(db.scalar(select(func.count()).select_from(VaultCardLoan).where(VaultCardLoan.user_id == current_user.id, VaultCardLoan.status == "active")) or 0)
     return VaultSummary(total_collection_capacity=total, assigned_collection_capacity=assigned, free_collection_capacity=max(total - assigned, 0), used_collection_slots=sum(item.used_slots for item in folder_reads), trade_capacity=account.trade_capacity, used_trade_slots=used_trade, vp_balance=point_balance(db, current_user.id), vault_unlimited=account.vault_unlimited, owned_card_quantity=sum(owned.values()), new_trade_opportunities=len(offered_ids), cards_wanted_by_others=len(demanded_ids), deck_missing_quantity=deck_missing, active_loan_count=active_loans, folders=folder_reads)
+
+
+@router.get("/maintenance", response_model=VaultMaintenanceRead)
+def maintenance(current_user: User = Depends(require_active_user), db: Session = Depends(get_db)) -> VaultMaintenanceRead:
+    acquired = db.scalars(
+        select(VaultCollectionCard)
+        .where(VaultCollectionCard.user_id == current_user.id, VaultCollectionCard.wanted.is_(True), VaultCollectionCard.wanted_quantity == 0)
+        .order_by(VaultCollectionCard.card_name, VaultCollectionCard.id)
+    ).all()
+    stale_before = utc_now() - timedelta(days=settings.vault_trade_review_days)
+    stale_trade = db.scalars(
+        select(VaultTradeCard)
+        .where(VaultTradeCard.user_id == current_user.id, VaultTradeCard.updated_at <= stale_before)
+        .order_by(VaultTradeCard.updated_at, VaultTradeCard.id)
+    ).all()
+    overdue = db.scalars(
+        select(VaultCardLoan)
+        .where(VaultCardLoan.user_id == current_user.id, VaultCardLoan.status == "active", VaultCardLoan.due_at < date.today())
+        .order_by(VaultCardLoan.due_at, VaultCardLoan.id)
+    ).all()
+    return VaultMaintenanceRead(
+        stale_after_days=settings.vault_trade_review_days,
+        acquired_wanted=[card_read(db, card) for card in acquired],
+        stale_trade_cards=[trade_card_read(card) for card in stale_trade],
+        overdue_loans=[CardLoanRead.model_validate(loan) for loan in overdue],
+    )
 
 
 @router.post("/folders", response_model=FolderRead, status_code=status.HTTP_201_CREATED)
@@ -248,6 +276,105 @@ def list_cards(folder_id: int | None = None, query: str | None = Query(default=N
     return [card_read(db, card) for card in db.scalars(statement.order_by(VaultCollectionCard.card_name, VaultCollectionCard.id)).all()]
 
 
+@router.post("/cards/bulk", response_model=BulkCardOperationResult)
+def bulk_cards(payload: BulkCardOperation, current_user: User = Depends(require_active_user), db: Session = Depends(get_db)) -> BulkCardOperationResult:
+    account = account_for(db, current_user.id, lock=True)
+    cards = db.scalars(
+        select(VaultCollectionCard)
+        .where(VaultCollectionCard.user_id == current_user.id, VaultCollectionCard.id.in_(payload.card_ids))
+        .order_by(VaultCollectionCard.id)
+        .with_for_update()
+    ).all()
+    if len(cards) != len(payload.card_ids):
+        raise HTTPException(status_code=404, detail="Egy vagy több kijelölt lap nem található.")
+
+    target: VaultFolder | None = None
+    if payload.action == "move":
+        if payload.folder_id is None:
+            raise HTTPException(status_code=422, detail="Az áthelyezéshez célmappa szükséges.")
+        target = folder_for_user(db, payload.folder_id, current_user.id, lock=True)
+        moving_count = sum(card.folder_id != target.id for card in cards)
+        free_slots = max(target.capacity - folder_used(db, target.id), 0)
+        if not account.vault_unlimited and moving_count > free_slots:
+            raise HTTPException(status_code=409, detail=f"{moving_count} szabad zseb szükséges, {free_slots} érhető el.")
+
+    external_ids = {card.external_card_id for card in cards}
+    trade_cards = db.scalars(
+        select(VaultTradeCard)
+        .where(VaultTradeCard.user_id == current_user.id, VaultTradeCard.external_card_id.in_(external_ids))
+        .with_for_update()
+    ).all()
+    trade_by_key = {(card.external_card_id, card.print_variant): card for card in trade_cards}
+    if payload.action == "trade_add":
+        if any(card.quantity <= 0 for card in cards):
+            raise HTTPException(status_code=409, detail="Nulla példányszámú lap nem tehető a cseremappába.")
+        new_count = sum((card.external_card_id, card.print_variant) not in trade_by_key for card in cards)
+        used_trade = int(db.scalar(select(func.count()).select_from(VaultTradeCard).where(VaultTradeCard.user_id == current_user.id)) or 0)
+        free_trade = max(account.trade_capacity - used_trade, 0)
+        if not account.vault_unlimited and new_count > free_trade:
+            raise HTTPException(status_code=409, detail=f"{new_count} új cseremappa-zseb szükséges, {free_trade} szabad.")
+
+    if payload.action == "delete":
+        active_loans = int(db.scalar(
+            select(func.count()).select_from(VaultCardLoan)
+            .where(VaultCardLoan.user_id == current_user.id, VaultCardLoan.collection_card_id.in_(payload.card_ids), VaultCardLoan.status == "active")
+        ) or 0)
+        if active_loans:
+            raise HTTPException(status_code=409, detail="Aktívan kölcsönadott lap nem törölhető.")
+
+    if payload.action == "move":
+        for card in cards:
+            card.folder_id = target.id  # type: ignore[union-attr]
+    elif payload.action == "trade_add":
+        for card in cards:
+            key = (card.external_card_id, card.print_variant)
+            trade_card = trade_by_key.get(key)
+            values = {name: getattr(card, name) for name in ("external_card_id", "card_name", "image_url", "edition", "card_type", "subtype", "color", "rarity")}
+            if trade_card is None:
+                trade_card = VaultTradeCard(user_id=current_user.id, quantity=card.quantity, print_variant=card.print_variant, **values)
+                db.add(trade_card)
+                trade_by_key[key] = trade_card
+            else:
+                trade_card.quantity = card.quantity
+                for name, value in values.items():
+                    setattr(trade_card, name, value)
+    elif payload.action == "trade_remove":
+        selected_keys = {(card.external_card_id, card.print_variant) for card in cards}
+        for key, trade_card in trade_by_key.items():
+            if key in selected_keys:
+                db.delete(trade_card)
+    elif payload.action == "wanted_on":
+        owned = owned_quantities(db, current_user.id)
+        all_variants = db.scalars(
+            select(VaultCollectionCard)
+            .where(VaultCollectionCard.user_id == current_user.id, VaultCollectionCard.external_card_id.in_(external_ids))
+            .with_for_update()
+        ).all()
+        selected_by_external = {card.external_card_id: card for card in cards}
+        for card in all_variants:
+            selected = selected_by_external[card.external_card_id]
+            card.wanted = card.id == selected.id
+            card.wanted_quantity = max(3 - owned.get(card.external_card_id, 0), 1) if card.id == selected.id else 0
+    elif payload.action == "wanted_off":
+        for card in cards:
+            card.wanted = False
+            card.wanted_quantity = 0
+            if card.quantity == 0:
+                db.delete(card)
+    elif payload.action == "delete":
+        for card in cards:
+            db.delete(card)
+    else:
+        raise HTTPException(status_code=422, detail="Ismeretlen tömeges művelet.")
+
+    db.flush()
+    if payload.action == "delete":
+        for external_card_id in external_ids:
+            refresh_wanted_quantity(db, current_user.id, external_card_id)
+    db.commit()
+    return BulkCardOperationResult(action=payload.action, processed_count=len(cards))
+
+
 @router.post("/cards", response_model=CardRead, status_code=status.HTTP_201_CREATED)
 def add_card(payload: CollectionCardCreate, current_user: User = Depends(require_active_user), db: Session = Depends(get_db)) -> CardRead:
     require_valid_card_snapshot(payload)
@@ -342,7 +469,7 @@ def update_card(card_id: int, payload: CollectionCardUpdate, current_user: User 
 def update_wanted(card_id: int, payload: WantedUpdate, current_user: User = Depends(require_active_user), db: Session = Depends(get_db)) -> CardRead | Response:
     card = collection_card_for_user(db, card_id, current_user.id, lock=True)
     missing = 3 - owned_card_quantity(db, current_user.id, card.external_card_id)
-    if payload.wanted and missing <= 0:
+    if payload.wanted and missing <= 0 and payload.quantity is None:
         raise HTTPException(status_code=409, detail="A teljes playset már megvan.")
     if not payload.wanted and card.quantity == 0:
         db.delete(card)
@@ -354,7 +481,7 @@ def update_wanted(card_id: int, payload: WantedUpdate, current_user: User = Depe
             other.wanted = False
             other.wanted_quantity = 0
     card.wanted = payload.wanted
-    card.wanted_quantity = min(payload.quantity or missing, missing) if payload.wanted else 0
+    card.wanted_quantity = (payload.quantity if payload.quantity is not None else missing) if payload.wanted else 0
     db.commit()
     db.refresh(card)
     return card_read(db, card)
@@ -531,7 +658,7 @@ def my_trade_cards(current_user: User = Depends(require_active_user), db: Sessio
     cards = db.scalars(select(VaultTradeCard).where(VaultTradeCard.user_id == current_user.id).order_by(VaultTradeCard.card_name)).all()
     wanted_counts = dict(db.execute(
         select(VaultCollectionCard.external_card_id, func.count(func.distinct(VaultCollectionCard.user_id)))
-        .where(VaultCollectionCard.user_id != current_user.id, VaultCollectionCard.wanted.is_(True), VaultCollectionCard.external_card_id.in_([card.external_card_id for card in cards]))
+        .where(VaultCollectionCard.user_id != current_user.id, VaultCollectionCard.wanted.is_(True), VaultCollectionCard.wanted_quantity > 0, VaultCollectionCard.external_card_id.in_([card.external_card_id for card in cards]))
         .group_by(VaultCollectionCard.external_card_id)
     ).all()) if cards else {}
     return [trade_card_read(card, int(wanted_counts.get(card.external_card_id, 0))) for card in cards]
@@ -544,7 +671,7 @@ def trade_card_seekers(card_id: int, current_user: User = Depends(require_active
         raise HTTPException(status_code=404, detail="A cserelap nem található.")
     wanted = db.scalars(
         select(VaultCollectionCard)
-        .where(VaultCollectionCard.external_card_id == card.external_card_id, VaultCollectionCard.user_id != current_user.id, VaultCollectionCard.wanted.is_(True))
+        .where(VaultCollectionCard.external_card_id == card.external_card_id, VaultCollectionCard.user_id != current_user.id, VaultCollectionCard.wanted.is_(True), VaultCollectionCard.wanted_quantity > 0)
         .order_by(VaultCollectionCard.updated_at.desc())
     ).all()
     seen: set[int] = set()
@@ -557,6 +684,17 @@ def trade_card_seekers(card_id: int, current_user: User = Depends(require_active
         if user is not None and user.is_active and user.deleted_at is None:
             result.append(TradeCardSeekerRead(user_id=user.id, username=user.username, display_name=public_user_label(user), wanted_quantity=item.wanted_quantity))
     return result
+
+
+@router.post("/trade/{card_id}/verify", response_model=PublicTradeCardRead)
+def verify_trade_card(card_id: int, current_user: User = Depends(require_active_user), db: Session = Depends(get_db)) -> PublicTradeCardRead:
+    card = db.scalar(select(VaultTradeCard).where(VaultTradeCard.id == card_id, VaultTradeCard.user_id == current_user.id).with_for_update())
+    if card is None:
+        raise HTTPException(status_code=404, detail="A cserelap nem található.")
+    card.updated_at = utc_now()
+    db.commit()
+    db.refresh(card)
+    return trade_card_read(card)
 
 
 @router.post("/trade", response_model=PublicTradeCardRead, status_code=status.HTTP_201_CREATED)
@@ -619,14 +757,14 @@ def public_trade_folder(username: str, query: str | None = Query(default=None, m
 
 @router.get("/matches", response_model=list[CardRead])
 def matches(current_user: User = Depends(require_active_user), db: Session = Depends(get_db)) -> list[CardRead]:
-    wanted_cards = db.scalars(select(VaultCollectionCard).where(VaultCollectionCard.user_id == current_user.id, VaultCollectionCard.wanted.is_(True)).order_by(VaultCollectionCard.card_name)).all()
+    wanted_cards = db.scalars(select(VaultCollectionCard).where(VaultCollectionCard.user_id == current_user.id, VaultCollectionCard.wanted.is_(True), VaultCollectionCard.wanted_quantity > 0).order_by(VaultCollectionCard.card_name)).all()
     return [card_read(db, card) for card in wanted_cards]
 
 
 @router.get("/cards/{card_id}/offers", response_model=list[PublicTradeCardRead])
 def matching_offers(card_id: int, current_user: User = Depends(require_active_user), db: Session = Depends(get_db)) -> list[PublicTradeCardRead]:
     card = collection_card_for_user(db, card_id, current_user.id)
-    if not card.wanted:
+    if not card.wanted or card.wanted_quantity <= 0:
         raise HTTPException(status_code=409, detail="A lap nincs Keresem állapotban.")
     offers = db.scalars(select(VaultTradeCard).where(VaultTradeCard.external_card_id == card.external_card_id, VaultTradeCard.user_id != current_user.id).order_by(VaultTradeCard.updated_at.desc())).all()
     return [trade_card_read(offer) for offer in offers]

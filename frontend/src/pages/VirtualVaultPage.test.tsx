@@ -3,10 +3,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { VirtualVaultPage } from "./VirtualVaultPage";
 
 const mocks = vi.hoisted(() => Object.fromEntries([
-  "getVaultSummary", "listVaultCards", "listTradeCards", "listNegotiations", "getPointHistory", "listCardLoans", "listDecks", "listHkkEditions",
+  "getVaultSummary", "getVaultMaintenance", "listVaultCards", "listTradeCards", "listNegotiations", "getPointHistory", "listCardLoans", "listDecks", "listHkkEditions",
   "searchHkk", "createVaultFolder", "deleteVaultFolder", "addVaultCard", "addWantedCard", "addTradeCard", "setVaultWanted", "previewHkkEdition", "importHkkEdition",
   "updateVaultCard", "deleteVaultCard", "deleteTradeCard", "buyVaultCapacity", "postTradeMessage", "listMatchingOffers", "expressTradeInterest", "createCardLoan", "returnCardLoan",
-  "listTradeCardSeekers", "createDeck", "deleteDeck", "addDeckCard", "updateDeckCard", "deleteDeckCard", "listDeckCardOffers",
+  "listTradeCardSeekers", "verifyTradeCard", "bulkUpdateVaultCards", "createDeck", "deleteDeck", "addDeckCard", "updateDeckCard", "deleteDeckCard", "listDeckCardOffers",
 ].map((name) => [name, vi.fn()])) as Record<string, ReturnType<typeof vi.fn>>);
 vi.mock("../api/vault", () => mocks);
 
@@ -26,6 +26,7 @@ describe("VirtualVaultPage", () => {
     mocks.listTradeCards.mockResolvedValue([{ ...card, owner_id: 1, owner_username: "admin", seeker_count: 1 }]);
     mocks.listNegotiations.mockResolvedValue([]); mocks.getPointHistory.mockResolvedValue({ balance: 120, items: [] });
     mocks.listCardLoans.mockResolvedValue([]); mocks.listDecks.mockResolvedValue([]);
+    mocks.getVaultMaintenance.mockResolvedValue({ stale_after_days: 21, acquired_wanted: [], stale_trade_cards: [], overdue_loans: [] });
     mocks.listHkkEditions.mockResolvedValue([{ id: "220", name: "Álomháború" }]);
   });
 
@@ -64,7 +65,9 @@ describe("VirtualVaultPage", () => {
   it("kölcsönadást natív prompt nélkül, validált űrlapon rögzít", async () => {
     mocks.createCardLoan.mockResolvedValue({}); const prompt = vi.spyOn(window, "prompt");
     render(<VirtualVaultPage />); await screen.findByText("Mi történt a mappádban?"); fireEvent.click(screen.getByRole("button", { name: "Gyűjtemény" }));
-    const article = (await screen.findByText("Xenó lárva")).closest("article")!; fireEvent.click(within(article).getByText("További műveletek")); fireEvent.click(within(article).getByRole("button", { name: "Kölcsönadom" }));
+    const article = (await screen.findByText("Xenó lárva")).closest("article")!;
+    expect(within(article).queryByText("További műveletek")).not.toBeInTheDocument();
+    fireEvent.click(within(article).getByRole("button", { name: "Kölcsönadom" }));
     const dialog = screen.getByRole("dialog"); fireEvent.change(within(dialog).getByLabelText("Kölcsönvevő neve"), { target: { value: "Béla" } }); fireEvent.click(within(dialog).getByRole("button", { name: "Kölcsönadás mentése" }));
     await waitFor(() => expect(mocks.createCardLoan).toHaveBeenCalledWith(5, expect.objectContaining({ borrower_name: "Béla", quantity: 1 })));
     expect(prompt).not.toHaveBeenCalled();
@@ -115,5 +118,64 @@ describe("VirtualVaultPage", () => {
     render(<VirtualVaultPage />); await screen.findByText("Mi történt a mappádban?"); fireEvent.click(screen.getByRole("button", { name: "Paklik & verseny" }));
     expect(await screen.findByRole("heading", { name: "Versenylista készítése" })).toBeInTheDocument();
     expect(screen.getByText("Keresem / hiányzik")).toBeInTheDocument(); expect(screen.getByText("Mások keresik")).toBeInTheDocument(); expect(screen.getByText("Kölcsön")).toBeInTheDocument();
+  });
+
+  it("az aktuális almappa adataiból kínál kiegészítőszűrőt", async () => {
+    mocks.getVaultSummary.mockResolvedValue({ ...summary, folders: [...summary.folders, { id: 2, name: "Másik", capacity: 10, position: 1, color: null, used_slots: 1 }] });
+    mocks.listVaultCards.mockResolvedValue([card, { ...card, id: 6, external_card_id: "102", card_name: "Másik lap", edition: "Másik kiegészítő", folder_id: 2 }]);
+    render(<VirtualVaultPage />); await screen.findByText("Mi történt a mappádban?"); fireEvent.click(screen.getByRole("button", { name: "Gyűjtemény" }));
+    const edition = screen.getByRole("combobox", { name: "Kiegészítő keresése" });
+    fireEvent.focus(edition);
+    expect(screen.getByRole("option", { name: "Teszt" })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "Másik kiegészítő" })).not.toBeInTheDocument();
+  });
+
+  it("többértékes, ékezetfüggetlen szűrést és összes szűrő törlését biztosít", async () => {
+    mocks.listVaultCards.mockResolvedValue([{ ...card, card_type: "Szörny", color: "Fairlight" }, { ...card, id: 6, external_card_id: "102", card_name: "Bűbájos lap", card_type: "Bűbáj", color: "Chara-din", wanted: false }]);
+    render(<VirtualVaultPage />); await screen.findByText("Mi történt a mappádban?"); fireEvent.click(screen.getByRole("button", { name: "Gyűjtemény" }));
+    fireEvent.click(screen.getByText("Szűrők"));
+    const type = screen.getByRole("combobox", { name: "Típus" });
+    fireEvent.change(type, { target: { value: "szorny" } }); fireEvent.keyDown(type, { key: "Enter" });
+    expect(screen.getByText("1 / 2 bejegyzés")).toBeInTheDocument();
+    fireEvent.change(type, { target: { value: "bubaj" } }); fireEvent.keyDown(type, { key: "Enter" });
+    expect(screen.getByText("2 / 2 bejegyzés")).toBeInTheDocument();
+    const color = screen.getByRole("combobox", { name: "Szín" });
+    fireEvent.change(color, { target: { value: "fairlight" } }); fireEvent.keyDown(color, { key: "Enter" });
+    expect(screen.getByText("1 / 2 bejegyzés")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Összes szűrő törlése" }));
+    expect(screen.getByText("2 / 2 bejegyzés")).toBeInTheDocument();
+  });
+
+  it("kijelöléssel tömegesen mozgat és cseremappába tesz", async () => {
+    mocks.bulkUpdateVaultCards.mockResolvedValue({ action: "move", processed_count: 1 });
+    mocks.getVaultSummary.mockResolvedValue({ ...summary, folders: [...summary.folders, { id: 2, name: "Cél", capacity: 10, position: 1, color: null, used_slots: 0 }] });
+    render(<VirtualVaultPage />); await screen.findByText("Mi történt a mappádban?"); fireEvent.click(screen.getByRole("button", { name: "Gyűjtemény" }));
+    fireEvent.click(screen.getByRole("button", { name: "Több lap kijelölése" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Xenó lárva kijelölése" }));
+    fireEvent.change(screen.getByLabelText("Célmappa"), { target: { value: "2" } });
+    fireEvent.click(screen.getByRole("button", { name: "Áthelyezés" }));
+    await waitFor(() => expect(mocks.bulkUpdateVaultCards).toHaveBeenCalledWith([5], "move", 2));
+    mocks.bulkUpdateVaultCards.mockResolvedValue({ action: "trade_add", processed_count: 1 });
+    fireEvent.click(screen.getByRole("checkbox", { name: "Xenó lárva kijelölése" }));
+    fireEvent.click(screen.getByRole("button", { name: "Cseremappába" }));
+    await waitFor(() => expect(mocks.bulkUpdateVaultCards).toHaveBeenCalledWith([5], "trade_add", undefined));
+  });
+
+  it("valós karbantartási javaslatokat mutat és a Később választást megjegyzi", async () => {
+    mocks.getVaultMaintenance.mockResolvedValue({ stale_after_days: 21, acquired_wanted: [{ ...card, wanted_quantity: 0 }], stale_trade_cards: [{ ...card, owner_id: 1, owner_username: "admin", seeker_count: 0 }], overdue_loans: [] });
+    render(<VirtualVaultPage />);
+    expect(await screen.findByText("Gyűjteményed átnézése")).toBeInTheDocument();
+    expect(screen.getByText((_, element) => element?.tagName === "SUMMARY" && element.textContent?.includes("1 keresett lapod már megvan") === true)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Később" }));
+    expect(screen.queryByText("Gyűjteményed átnézése")).not.toBeInTheDocument();
+    expect(Number(localStorage.getItem("nightfall-vault-maintenance-snoozed-until"))).toBeGreaterThan(Date.now());
+  });
+
+  it("a verseny utáni rendezést a meglévő műveletekkel kínálja", async () => {
+    render(<VirtualVaultPage />); await screen.findByText("Mi történt a mappádban?"); fireEvent.click(screen.getByRole("button", { name: "Paklik & verseny" }));
+    fireEvent.click(screen.getByText("Verseny utáni rendezés"));
+    expect(screen.getByRole("button", { name: "+1 példány" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Cseremappából ki" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Eltávolítás" })).toBeInTheDocument();
   });
 });

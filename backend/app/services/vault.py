@@ -397,10 +397,18 @@ def import_hkk_edition(
         existing.quantity = quantity
         for key, value in values.items():
             setattr(existing, key, value)
-        if existing.wanted:
-            existing.wanted_quantity = min(existing.wanted_quantity, 3 - quantity)
-            existing.wanted = existing.wanted_quantity > 0
         updated += 1
+    db.flush()
+    for external_id in set(external_ids):
+        refresh = db.scalar(
+            select(VaultCollectionCard)
+            .where(VaultCollectionCard.user_id == user_id, VaultCollectionCard.external_card_id == external_id, VaultCollectionCard.wanted.is_(True))
+            .order_by(VaultCollectionCard.id)
+            .with_for_update()
+        )
+        if refresh is not None:
+            owned = min(3, int(db.scalar(select(func.coalesce(func.sum(VaultCollectionCard.quantity), 0)).where(VaultCollectionCard.user_id == user_id, VaultCollectionCard.external_card_id == external_id)) or 0))
+            refresh.wanted_quantity = max(3 - owned, 0)
     db.commit()
     return {
         "edition": edition,

@@ -1,5 +1,5 @@
 from concurrent.futures import ThreadPoolExecutor
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
 
 from sqlalchemy import delete, or_, select
 
@@ -437,5 +437,83 @@ def test_trade_card_seekers_are_owner_scoped_and_use_public_labels() -> None:
         assert seekers == [{"user_id": seeker_id, "username": seeker_username, "display_name": seeker_username, "wanted_quantity": 3}]
         summary = client.get("/api/vault/summary", headers=owner_headers).json()
         assert summary["cards_wanted_by_others"] == 1
+    finally:
+        cleanup()
+
+
+def test_bulk_card_operations_are_atomic_owner_scoped_and_keep_collection_when_trade_removed() -> None:
+    cleanup(); owner = create_test_user("bulk-owner@vault-test.local"); stranger = create_test_user("bulk-stranger@vault-test.local")
+    try:
+        source = client.post("/api/vault/folders", json={"name": "Forrás", "capacity": 5}, headers=auth_headers(owner)).json()
+        target = client.post("/api/vault/folders", json={"name": "Cél", "capacity": 1}, headers=auth_headers(owner)).json()
+        stranger_folder = client.post("/api/vault/folders", json={"name": "Idegen", "capacity": 2}, headers=auth_headers(stranger)).json()
+        first = client.post("/api/vault/cards", json={**card_payload("bulk-1", "Első", 1), "folder_id": source["id"]}, headers=auth_headers(owner)).json()
+        second = client.post("/api/vault/cards", json={**card_payload("bulk-2", "Második", 2), "folder_id": source["id"]}, headers=auth_headers(owner)).json()
+        foreign = client.post("/api/vault/cards", json={**card_payload("bulk-3", "Idegen", 1), "folder_id": stranger_folder["id"]}, headers=auth_headers(stranger)).json()
+
+        denied = client.post("/api/vault/cards/bulk", json={"card_ids": [first["id"], foreign["id"]], "action": "move", "folder_id": target["id"]}, headers=auth_headers(owner))
+        assert denied.status_code == 404
+        assert {card["folder_id"] for card in client.get("/api/vault/cards", headers=auth_headers(owner)).json()} == {source["id"]}
+
+        shortage = client.post("/api/vault/cards/bulk", json={"card_ids": [first["id"], second["id"]], "action": "move", "folder_id": target["id"]}, headers=auth_headers(owner))
+        assert shortage.status_code == 409
+        assert {card["folder_id"] for card in client.get("/api/vault/cards", headers=auth_headers(owner)).json()} == {source["id"]}
+
+        moved = client.post("/api/vault/cards/bulk", json={"card_ids": [first["id"]], "action": "move", "folder_id": target["id"]}, headers=auth_headers(owner))
+        assert moved.status_code == 200 and moved.json()["processed_count"] == 1
+        added = client.post("/api/vault/cards/bulk", json={"card_ids": [first["id"], second["id"]], "action": "trade_add"}, headers=auth_headers(owner))
+        assert added.status_code == 200 and len(client.get("/api/vault/trade", headers=auth_headers(owner)).json()) == 2
+        removed = client.post("/api/vault/cards/bulk", json={"card_ids": [first["id"], second["id"]], "action": "trade_remove"}, headers=auth_headers(owner))
+        assert removed.status_code == 200 and client.get("/api/vault/trade", headers=auth_headers(owner)).json() == []
+        assert len(client.get("/api/vault/cards", headers=auth_headers(owner)).json()) == 2
+
+        wanted_on = client.post("/api/vault/cards/bulk", json={"card_ids": [first["id"], second["id"]], "action": "wanted_on"}, headers=auth_headers(owner))
+        assert wanted_on.status_code == 200
+        wanted_cards = client.get("/api/vault/cards", headers=auth_headers(owner)).json()
+        assert all(card["wanted"] for card in wanted_cards)
+        wanted_off = client.post("/api/vault/cards/bulk", json={"card_ids": [first["id"], second["id"]], "action": "wanted_off"}, headers=auth_headers(owner))
+        assert wanted_off.status_code == 200
+        assert all(not card["wanted"] for card in client.get("/api/vault/cards", headers=auth_headers(owner)).json())
+
+        deleted = client.post("/api/vault/cards/bulk", json={"card_ids": [second["id"]], "action": "delete"}, headers=auth_headers(owner))
+        assert deleted.status_code == 200 and deleted.json()["processed_count"] == 1
+        assert [card["id"] for card in client.get("/api/vault/cards", headers=auth_headers(owner)).json()] == [first["id"]]
+    finally:
+        cleanup()
+
+
+def test_maintenance_suggestions_are_computed_and_actions_are_owner_scoped() -> None:
+    cleanup(); owner = create_test_user("maintenance@vault-test.local"); stranger = create_test_user("maintenance-stranger@vault-test.local")
+    try:
+        folder = client.post("/api/vault/folders", json={"name": "Karbantartás", "capacity": 10}, headers=auth_headers(owner)).json()
+        wanted = client.post("/api/vault/cards/wanted", json={**card_payload("maint-wanted", "Már megvan"), "folder_id": folder["id"]}, headers=auth_headers(owner)).json()
+        partial = client.post("/api/vault/cards", json={**card_payload("maint-wanted", "Már megvan", 1), "folder_id": folder["id"]}, headers=auth_headers(owner))
+        assert partial.status_code == 201 and partial.json()["wanted"] is True and partial.json()["wanted_quantity"] == 2
+        assert client.get("/api/vault/maintenance", headers=auth_headers(owner)).json()["acquired_wanted"] == []
+        acquired = client.post("/api/vault/cards", json={**card_payload("maint-wanted", "Már megvan", 3), "folder_id": folder["id"]}, headers=auth_headers(owner))
+        assert acquired.status_code == 201 and acquired.json()["wanted"] is True and acquired.json()["wanted_quantity"] == 0
+        loan_card = client.post("/api/vault/cards", json={**card_payload("maint-loan", "Késő kölcsön", 1), "folder_id": folder["id"]}, headers=auth_headers(owner)).json()
+        loan = client.post(f"/api/vault/cards/{loan_card['id']}/loans", json={"quantity": 1, "borrower_name": "Teszt", "lent_at": "2026-09-01", "due_at": "2026-09-10"}, headers=auth_headers(owner))
+        assert loan.status_code == 201
+        trade = client.post("/api/vault/trade", json=card_payload("maint-trade", "Régi cserelap", 1), headers=auth_headers(owner)).json()
+        db = SessionLocal()
+        try:
+            stored_trade = db.get(VaultTradeCard, trade["id"])
+            stored_trade.updated_at = datetime.now(timezone.utc) - timedelta(days=22)
+            db.commit()
+        finally:
+            db.close()
+
+        suggestions = client.get("/api/vault/maintenance", headers=auth_headers(owner))
+        assert suggestions.status_code == 200 and suggestions.json()["stale_after_days"] == 21
+        assert [item["id"] for item in suggestions.json()["acquired_wanted"]] == [wanted["id"]]
+        assert [item["id"] for item in suggestions.json()["stale_trade_cards"]] == [trade["id"]]
+        assert [item["id"] for item in suggestions.json()["overdue_loans"]] == [loan.json()["id"]]
+
+        assert client.post(f"/api/vault/trade/{trade['id']}/verify", headers=auth_headers(stranger)).status_code == 404
+        assert client.post(f"/api/vault/trade/{trade['id']}/verify", headers=auth_headers(owner)).status_code == 200
+        assert client.get("/api/vault/maintenance", headers=auth_headers(owner)).json()["stale_trade_cards"] == []
+        kept = client.put(f"/api/vault/cards/{wanted['id']}/wanted", json={"wanted": True, "quantity": 1}, headers=auth_headers(owner))
+        assert kept.status_code == 200 and kept.json()["wanted_quantity"] == 1
     finally:
         cleanup()
