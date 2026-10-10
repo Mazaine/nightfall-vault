@@ -21,4 +21,12 @@ describe("CardImagePreview", () => {
     act(() => vi.advanceTimersByTime(70));
     expect(screen.queryByRole("img", { name: "Tesztlap nagyított képe" })).not.toBeInTheDocument();
   });
+
+  it("preview nélkül a bélyegkép hoverre sem nyit nagyítást", () => {
+    vi.useFakeTimers();
+    render(<CardImagePreview preview={false} card={{ external_card_id: "123", card_name: "Tesztlap", image_url: "https://example.invalid/card.jpg" }} />);
+    fireEvent.pointerEnter(screen.getByRole("img", { name: "Tesztlap" }).parentElement!);
+    act(() => vi.advanceTimersByTime(200));
+    expect(screen.queryByRole("img", { name: "Tesztlap nagyított képe" })).not.toBeInTheDocument();
+  });
 });

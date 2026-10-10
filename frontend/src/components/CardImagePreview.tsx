@@ -10,7 +10,7 @@ type CardImage = {
 
 type PreviewPosition = { left: number; top: number; width: number };
 
-export function CardImagePreview({ card, className = "" }: { card: CardImage; className?: string }) {
+export function CardImagePreview({ card, className = "", preview = true }: { card: CardImage; className?: string; preview?: boolean }) {
   const imageUrl = hkkCardImageUrl(card.external_card_id, card.image_url);
   const anchorRef = useRef<HTMLSpanElement>(null);
   const showTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -66,10 +66,10 @@ export function CardImagePreview({ card, className = "" }: { card: CardImage; cl
   };
 
   return <>
-    <span ref={anchorRef} className={["card-image-preview", className].filter(Boolean).join(" ")} onPointerEnter={show} onPointerLeave={hide}>
+    <span ref={anchorRef} className={["card-image-preview", className].filter(Boolean).join(" ")} onPointerEnter={preview ? show : undefined} onPointerLeave={preview ? hide : undefined}>
       <img className="card-image-preview-thumbnail" src={imageUrl} alt={card.card_name} loading="lazy" />
     </span>
-    {visible && typeof document !== "undefined" ? createPortal(
+    {preview && visible && typeof document !== "undefined" ? createPortal(
       <span className="card-image-preview-popover" style={position} role="presentation">
         <img src={imageUrl} alt={`${card.card_name} nagyított képe`} />
       </span>,
