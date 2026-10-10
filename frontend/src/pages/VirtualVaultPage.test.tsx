@@ -67,6 +67,8 @@ describe("VirtualVaultPage", () => {
     render(<VirtualVaultPage />); await screen.findByText("Mi történt a mappádban?"); fireEvent.click(screen.getByRole("button", { name: "Gyűjtemény" }));
     const article = (await screen.findByText("Xenó lárva")).closest("article")!;
     expect(within(article).queryByText("További műveletek")).not.toBeInTheDocument();
+    expect(within(article).getByRole("button", { name: "Xenó lárva törlése" })).toHaveClass("button-danger", "vault-delete-icon-button");
+    expect(within(article).queryByText("Törlés")).not.toBeInTheDocument();
     fireEvent.click(within(article).getByRole("button", { name: "Kölcsönadom" }));
     const dialog = screen.getByRole("dialog"); fireEvent.change(within(dialog).getByLabelText("Kölcsönvevő neve"), { target: { value: "Béla" } }); fireEvent.click(within(dialog).getByRole("button", { name: "Kölcsönadás mentése" }));
     await waitFor(() => expect(mocks.createCardLoan).toHaveBeenCalledWith(5, expect.objectContaining({ borrower_name: "Béla", quantity: 1 })));

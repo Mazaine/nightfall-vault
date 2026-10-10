@@ -3114,7 +3114,10 @@ h3 {
 .playset-badge.q3, .complete-playset { color: #86efac !important; }
 .vault-card-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 .vault-card-actions .button { min-height: 2.5rem; padding: .5rem .7rem; font-size: .82rem; }
-.vault-card-direct-actions { align-self: end; margin-top: auto; padding-top: var(--space-2); }
+.vault-card-direct-actions { align-self: end; flex-wrap: nowrap; margin-top: auto; padding-top: var(--space-2); }
+.vault-card-direct-actions > .button:not(.vault-delete-icon-button) { flex: 1 1 0; min-width: 0; padding-inline: .45rem; }
+.vault-delete-icon-button { display: inline-grid; width: 2.5rem; min-width: 2.5rem; padding: 0; place-items: center; }
+.vault-delete-icon-button svg { width: 1.15rem; height: 1.15rem; fill: none; stroke: currentcolor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
 .vault-card-selector { position: absolute; z-index: 3; top: .55rem; left: .55rem; display: grid; width: 2.25rem; height: 2.25rem; place-items: center; border: 1px solid rgb(255 255 255 / .35); border-radius: 999px; background: rgb(5 4 11 / .88); box-shadow: 0 .3rem 1rem rgb(0 0 0 / .45); }
 .vault-card-selector input { width: 1rem; min-height: 1rem; }
 .vault-bulk-bar { position: sticky; z-index: 12; top: 5.5rem; display: flex; align-items: end; flex-wrap: wrap; gap: var(--space-2); margin-bottom: var(--space-4); border: 1px solid rgb(168 85 247 / .42); border-radius: var(--radius-md); background: rgb(15 11 24 / .96); box-shadow: 0 .8rem 2rem rgb(0 0 0 / .32); padding: var(--space-3); }
