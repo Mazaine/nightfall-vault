@@ -34,8 +34,8 @@ def cleanup() -> None:
         db.close()
 
 
-def card_payload(card_id: str = "hkk-1", name: str = "Xenó lárva", quantity: int = 2) -> dict:
-    payload = {"external_card_id": card_id, "card_name": name, "image_url": "https://example.test/card.jpg", "edition": "Teszt kiadás", "card_type": "Lény", "subtype": None, "color": None, "rarity": None}
+def card_payload(card_id: str = "hkk-1", name: str = "Xenó lárva", quantity: int = 2, rarity: str | None = "rare") -> dict:
+    payload = {"external_card_id": card_id, "card_name": name, "image_url": "https://example.test/card.jpg", "edition": "Teszt kiadás", "card_type": "Lény", "subtype": None, "color": None, "rarity": rarity}
     return {**payload, "source_token": sign_card_snapshot(payload), "quantity": quantity}
 
 
@@ -352,6 +352,34 @@ def test_same_hkk_card_can_store_separate_variants_and_quantities() -> None:
         trade_gfa = client.post("/api/vault/trade", json={**card_payload("variant-trade", "Csereváltozat", 1), "print_variant": "gfa"}, headers=auth_headers(user))
         assert trade_normal.status_code == 201 and trade_gfa.status_code == 201
         assert {(card["print_variant"], card["quantity"]) for card in client.get("/api/vault/trade", headers=auth_headers(user)).json()} == {("normal", 2), ("gfa", 1)}
+    finally:
+        cleanup()
+
+
+def test_foil_is_limited_to_rare_cards_without_deleting_legacy_records() -> None:
+    cleanup(); user = create_test_user("foil-rules@vault-test.local")
+    try:
+        folder = client.post("/api/vault/folders", json={"name": "Foil szabály", "capacity": 10}, headers=auth_headers(user)).json()
+        common_payload = card_payload("common-card", "Gyakori lap", 2, "common")
+        normal = client.post("/api/vault/cards", json={**common_payload, "folder_id": folder["id"], "print_variant": "normal"}, headers=auth_headers(user))
+        assert normal.status_code == 201
+        assert client.post("/api/vault/cards", json={**common_payload, "folder_id": folder["id"], "print_variant": "foil"}, headers=auth_headers(user)).status_code == 422
+        assert client.patch(f"/api/vault/cards/{normal.json()['id']}", json={"print_variant": "foil"}, headers=auth_headers(user)).status_code == 422
+
+        fa = client.post("/api/vault/cards", json={**common_payload, "folder_id": folder["id"], "print_variant": "fa", "quantity": 1}, headers=auth_headers(user))
+        gfa = client.post("/api/vault/cards", json={**common_payload, "folder_id": folder["id"], "print_variant": "gfa", "quantity": 1}, headers=auth_headers(user))
+        assert fa.status_code == 201 and gfa.status_code == 201
+
+        db = SessionLocal()
+        try:
+            legacy = VaultCollectionCard(user_id=user.id, folder_id=folder["id"], external_card_id="legacy-common", card_name="Régi foil", rarity="common", quantity=2, print_variant="foil")
+            db.add(legacy); db.commit(); db.refresh(legacy); legacy_id = legacy.id
+        finally:
+            db.close()
+        assert client.patch(f"/api/vault/cards/{legacy_id}", json={"quantity": 1}, headers=auth_headers(user)).status_code == 200
+        assert client.patch(f"/api/vault/cards/{legacy_id}", json={"quantity": 3}, headers=auth_headers(user)).status_code == 422
+        legacy_cards = client.get("/api/vault/cards", headers=auth_headers(user)).json()
+        assert any(card["id"] == legacy_id and card["print_variant"] == "foil" and card["quantity"] == 1 for card in legacy_cards)
     finally:
         cleanup()
 

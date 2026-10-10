@@ -8,9 +8,22 @@ const rarityLabels: Record<string, string> = {
   ultrarare: "Ultraritka",
 };
 
+export function normalizeHkkRarity(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const normalized = value.trim().toLocaleLowerCase("hu-HU").replace(/[^a-z0-9]/g, "");
+  if (normalized === "uncommon" || normalized === "uncommun") return "uncommun";
+  return normalized || null;
+}
+
+export function canUseFoil(value: string | null | undefined): boolean {
+  const rarity = normalizeHkkRarity(value);
+  return rarity === "rare" || rarity === "ultrarare";
+}
+
 export function formatHkkRarity(value: string | null | undefined): string | null {
   if (!value) return null;
-  const normalized = value.trim().toLocaleLowerCase("hu-HU");
+  const normalized = normalizeHkkRarity(value);
+  if (!normalized) return value;
   const label = rarityLabels[normalized];
   return label ? `${value} – ${label}` : value;
 }

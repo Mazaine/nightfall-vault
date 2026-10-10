@@ -69,6 +69,12 @@ def test_search_returns_empty_list_for_valid_empty_response(monkeypatch) -> None
     assert vault.search_hkk_cards("nincs ilyen lap", 20) == []
 
 
+@pytest.mark.parametrize(("source", "expected"), [("common", "common"), ("uncommon", "uncommun"), ("rare", "rare"), ("ultraRare", "ultrarare")])
+def test_real_hkk_rarity_values_are_normalized(source: str, expected: str) -> None:
+    parsed = vault.parse_hkk_item({"ID": 1, "name": "Tesztlap", "commonness": source}, (frozenset(), {}))
+    assert parsed is not None and parsed["rarity"] == expected
+
+
 def test_search_can_be_limited_to_an_edition(monkeypatch) -> None:
     calls: list[str] = []
 

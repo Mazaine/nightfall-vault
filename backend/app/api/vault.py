@@ -12,7 +12,7 @@ from app.models.user import User
 from app.models.vault import VaultCardLoan, VaultCollectionCard, VaultDeck, VaultDeckCard, VaultFolder, VaultPointTransaction, VaultTrade, VaultTradeCard, VaultTradeMessage, VaultTradeReview
 from app.schemas.vault import BulkCardOperation, BulkCardOperationResult, CardLoanCreate, CardLoanRead, CardRead, CollectionCardCreate, CollectionCardUpdate, DeckCardCreate, DeckCardRead, DeckCardUpdate, DeckCreate, DeckRead, DeckUpdate, FolderCreate, FolderRead, FolderReorder, FolderUpdate, HkkEditionCards, HkkEditionImport, HkkEditionImportResult, HkkEditionRead, HkkSearchResult, PointHistory, PointTransactionRead, PublicTradeCardRead, QuantityUpdate, TradeCardCreate, TradeCardSeekerRead, TradeMessageCreate, TradeRead, TradeReviewCreate, TradeReviewRead, VaultMaintenanceRead, VaultSummary, WantedCardCreate, WantedUpdate
 from app.services.notifications import create_notification
-from app.services.vault import account_for, buy_capacity_pack, card_snapshot_values, collection_card_for_user, complete_trade, fetch_hkk_card_image, folder_for_user, folder_used, grant_points, hkk_edition_cards, import_hkk_edition, list_hkk_editions, point_balance, require_allocatable, require_valid_card_snapshot, search_hkk_cards, total_collection_capacity, trade_for_participant, utc_now
+from app.services.vault import account_for, buy_capacity_pack, card_snapshot_values, collection_card_for_user, complete_trade, fetch_hkk_card_image, folder_for_user, folder_used, grant_points, hkk_edition_cards, import_hkk_edition, list_hkk_editions, point_balance, require_allocatable, require_print_variant_allowed, require_valid_card_snapshot, search_hkk_cards, total_collection_capacity, trade_for_participant, utc_now
 from app.services.user_blocks import ensure_not_blocked
 
 
@@ -308,6 +308,15 @@ def bulk_cards(payload: BulkCardOperation, current_user: User = Depends(require_
     if payload.action == "trade_add":
         if any(card.quantity <= 0 for card in cards):
             raise HTTPException(status_code=409, detail="Nulla példányszámú lap nem tehető a cseremappába.")
+        for card in cards:
+            existing_trade = trade_by_key.get((card.external_card_id, card.print_variant))
+            require_print_variant_allowed(
+                card.print_variant,
+                card.rarity,
+                previous_variant=existing_trade.print_variant if existing_trade else None,
+                previous_quantity=existing_trade.quantity if existing_trade else None,
+                quantity=card.quantity,
+            )
         new_count = sum((card.external_card_id, card.print_variant) not in trade_by_key for card in cards)
         used_trade = int(db.scalar(select(func.count()).select_from(VaultTradeCard).where(VaultTradeCard.user_id == current_user.id)) or 0)
         free_trade = max(account.trade_capacity - used_trade, 0)
@@ -382,6 +391,13 @@ def add_card(payload: CollectionCardCreate, current_user: User = Depends(require
     folder = folder_for_user(db, payload.folder_id, current_user.id, lock=True)
     variant = payload.print_variant or "normal"
     existing = db.scalar(select(VaultCollectionCard).where(VaultCollectionCard.user_id == current_user.id, VaultCollectionCard.external_card_id == payload.external_card_id, VaultCollectionCard.print_variant == variant).with_for_update())
+    require_print_variant_allowed(
+        variant,
+        payload.rarity,
+        previous_variant=existing.print_variant if existing else None,
+        previous_quantity=existing.quantity if existing else None,
+        quantity=payload.quantity,
+    )
     if existing is None:
         if not account.vault_unlimited and folder_used(db, folder.id) >= folder.capacity:
             raise HTTPException(status_code=409, detail="A célmappa megtelt.")
@@ -404,6 +420,7 @@ def add_card(payload: CollectionCardCreate, current_user: User = Depends(require
 @router.post("/cards/wanted", response_model=CardRead, status_code=status.HTTP_201_CREATED)
 def add_wanted_card(payload: WantedCardCreate, current_user: User = Depends(require_active_user), db: Session = Depends(get_db)) -> CardRead:
     require_valid_card_snapshot(payload)
+    require_print_variant_allowed(payload.print_variant, payload.rarity)
     account = account_for(db, current_user.id, lock=True)
     folder = folder_for_user(db, payload.folder_id, current_user.id, lock=True)
     existing_cards = db.scalars(select(VaultCollectionCard).where(VaultCollectionCard.user_id == current_user.id, VaultCollectionCard.external_card_id == payload.external_card_id).order_by(VaultCollectionCard.print_variant == payload.print_variant, VaultCollectionCard.id).with_for_update()).all()
@@ -442,6 +459,13 @@ def add_wanted_card(payload: WantedCardCreate, current_user: User = Depends(requ
 def update_card(card_id: int, payload: CollectionCardUpdate, current_user: User = Depends(require_active_user), db: Session = Depends(get_db)) -> CardRead | Response:
     account = account_for(db, current_user.id, lock=True)
     card = collection_card_for_user(db, card_id, current_user.id, lock=True)
+    require_print_variant_allowed(
+        payload.print_variant or card.print_variant,
+        card.rarity,
+        previous_variant=card.print_variant,
+        previous_quantity=card.quantity,
+        quantity=payload.quantity,
+    )
     if payload.folder_id is not None and payload.folder_id != card.folder_id:
         target = folder_for_user(db, payload.folder_id, current_user.id, lock=True)
         if not account.vault_unlimited and folder_used(db, target.id) >= target.capacity:
@@ -703,6 +727,13 @@ def add_trade_card(payload: TradeCardCreate, current_user: User = Depends(requir
     account = account_for(db, current_user.id, lock=True)
     variant = payload.print_variant or "normal"
     card = db.scalar(select(VaultTradeCard).where(VaultTradeCard.user_id == current_user.id, VaultTradeCard.external_card_id == payload.external_card_id, VaultTradeCard.print_variant == variant).with_for_update())
+    require_print_variant_allowed(
+        variant,
+        payload.rarity,
+        previous_variant=card.print_variant if card else None,
+        previous_quantity=card.quantity if card else None,
+        quantity=payload.quantity,
+    )
     if card is None:
         used = int(db.scalar(select(func.count()).select_from(VaultTradeCard).where(VaultTradeCard.user_id == current_user.id)) or 0)
         if not account.vault_unlimited and used >= account.trade_capacity:
@@ -723,6 +754,13 @@ def update_trade_card(card_id: int, payload: QuantityUpdate, current_user: User 
     card = db.scalar(select(VaultTradeCard).where(VaultTradeCard.id == card_id, VaultTradeCard.user_id == current_user.id).with_for_update())
     if card is None:
         raise HTTPException(status_code=404, detail="A cserelap nem található.")
+    require_print_variant_allowed(
+        payload.print_variant or card.print_variant,
+        card.rarity,
+        previous_variant=card.print_variant,
+        previous_quantity=card.quantity,
+        quantity=payload.quantity,
+    )
     card.quantity = payload.quantity
     if payload.print_variant is not None:
         duplicate = db.scalar(select(VaultTradeCard.id).where(VaultTradeCard.user_id == current_user.id, VaultTradeCard.external_card_id == card.external_card_id, VaultTradeCard.print_variant == payload.print_variant, VaultTradeCard.id != card.id))

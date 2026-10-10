@@ -164,6 +164,33 @@ def require_valid_card_snapshot(payload) -> None:
         raise HTTPException(status_code=422, detail="A HKK lapadat nem hiteles vagy megváltozott. Keress rá újra a lapra.")
 
 
+def normalize_hkk_rarity(value: str | None) -> str | None:
+    if value is None:
+        return None
+    normalized = "".join(character for character in value.strip().casefold() if character.isalnum())
+    aliases = {"common": "common", "uncommon": "uncommun", "uncommun": "uncommun", "rare": "rare", "ultrarare": "ultrarare"}
+    return aliases.get(normalized, normalized or None)
+
+
+def foil_allowed(rarity: str | None) -> bool:
+    return normalize_hkk_rarity(rarity) in {"rare", "ultrarare"}
+
+
+def require_print_variant_allowed(
+    variant: str,
+    rarity: str | None,
+    *,
+    previous_variant: str | None = None,
+    previous_quantity: int | None = None,
+    quantity: int | None = None,
+) -> None:
+    if variant != "foil" or foil_allowed(rarity):
+        return
+    if previous_variant == "foil" and (quantity is None or (previous_quantity is not None and quantity <= previous_quantity)):
+        return
+    raise HTTPException(status_code=422, detail="Foil változat csak ritka vagy ultraritka lapnál rögzíthető.")
+
+
 def _hkk_catalog_url(route: str, params: dict[str, str] | None = None) -> str:
     query = route
     if params:
@@ -267,7 +294,7 @@ def parse_hkk_item(item: object, constants: tuple[frozenset[str], dict[str, str]
         "card_type": _joined(card_types, 80),
         "subtype": _joined(card_subtypes, 120),
         "color": _joined(_hkk_values(item.get("color"), max_items=50, max_length=80), 80),
-        "rarity": _hkk_text(item.get("commonness"), max_length=80),
+        "rarity": normalize_hkk_rarity(_hkk_text(item.get("commonness"), max_length=80)),
     }
 
 
