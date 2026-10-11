@@ -98,6 +98,8 @@ class FolderRead(BaseModel):
     position: int
     color: str | None
     used_slots: int = 0
+    entry_count: int = 0
+    copy_count: int = 0
 
 
 class CardRead(BaseModel):
@@ -117,6 +119,8 @@ class CardRead(BaseModel):
     wanted: bool = False
     wanted_quantity: int = 0
     offer_count: int = 0
+    in_trade: bool = False
+    trade_card_id: int | None = None
 
 
 class PublicTradeCardRead(CardRead):
@@ -143,6 +147,7 @@ class VaultSummary(BaseModel):
     vault_unlimited: bool = False
     owned_card_quantity: int = 0
     new_trade_opportunities: int = 0
+    unseen_match_count: int = 0
     cards_wanted_by_others: int = 0
     deck_missing_quantity: int = 0
     active_loan_count: int = 0
@@ -209,6 +214,24 @@ class HkkSearchResult(CardSnapshot):
 class HkkEditionRead(BaseModel):
     id: str
     name: str
+    group: Literal["zen", "alpha", "promo", "coded"] | None = None
+    release_date: str | None = None
+
+
+class VaultMatchStatus(BaseModel):
+    unseen_count: int
+    match_keys: list[str]
+
+
+class VaultMatchesSeen(BaseModel):
+    match_keys: list[str] = Field(min_length=1, max_length=1000)
+
+    @field_validator("match_keys")
+    @classmethod
+    def unique_match_keys(cls, value: list[str]) -> list[str]:
+        if len(value) != len(set(value)) or any(len(item) != 64 for item in value):
+            raise ValueError("A match azonosítók hibásak.")
+        return value
 
 
 class HkkEditionCards(BaseModel):

@@ -12,6 +12,7 @@ type Area = "dashboard" | "collection" | "trade" | "decks" | "loans" | "points";
 type TradeView = "trade" | "wanted" | "matches";
 type AddMode = "card" | "edition";
 type SortKey = "card_name" | "edition" | "card_type" | "subtype" | "color" | "rarity" | "external_card_id";
+type VaultCardGroup = { key: string; card: VaultCard; variants: VaultCard[] };
 const LAST_FOLDER_KEY = "nightfall-vault-last-folder";
 const CHECKLIST_KEY = "nightfall-vault-tournament-checklist";
 const MAINTENANCE_SNOOZE_KEY = "nightfall-vault-maintenance-snoozed-until";
@@ -20,9 +21,13 @@ const RARITIES: { value: vaultApi.HkkRarity; label: string }[] = [
   { value: "common", label: "Gyakori" }, { value: "uncommun", label: "Nem gyakori" },
   { value: "rare", label: "Ritka" }, { value: "ultrarare", label: "Ultraritka" },
 ];
-const VARIANTS: { value: vaultApi.PrintVariant; label: string }[] = [
-  { value: "normal", label: "Normál" }, { value: "foil", label: "Foil" },
-  { value: "fa", label: "FA – Full Art" }, { value: "gfa", label: "GFA – Golden Full Art" },
+const VARIANTS: { value: vaultApi.PrintVariant; label: string; title: string }[] = [
+  { value: "normal", label: "Normál", title: "Normál" }, { value: "foil", label: "Foil", title: "Foil" },
+  { value: "fa", label: "FA", title: "Full Art" }, { value: "gfa", label: "GFA", title: "Golden Full Art" },
+];
+const EDITION_GROUPS: { value: vaultApi.HkkEditionGroup; label: string }[] = [
+  { value: "zen", label: "Zén" }, { value: "alpha", label: "Alfa" },
+  { value: "promo", label: "Promo lapok" }, { value: "coded", label: "Kódos lapok" },
 ];
 
 function availableVariants(card: { rarity?: string | null; print_variant?: vaultApi.PrintVariant }) {
@@ -32,6 +37,19 @@ function availableVariants(card: { rarity?: string | null; print_variant?: vault
 function availableQuantities(card: Pick<VaultCard, "quantity" | "rarity" | "print_variant">) {
   const maximum = card.print_variant === "foil" && !canUseFoil(card.rarity) ? card.quantity : 3;
   return Array.from({ length: maximum + 1 }, (_, quantity) => quantity);
+}
+
+function groupVaultCards(cards: VaultCard[]): VaultCardGroup[] {
+  const groups = new Map<string, VaultCardGroup>();
+  cards.forEach((card) => {
+    const group = groups.get(card.external_card_id);
+    if (group) group.variants.push(card);
+    else groups.set(card.external_card_id, { key: card.external_card_id, card, variants: [card] });
+  });
+  return Array.from(groups.values()).map((group) => ({
+    ...group,
+    variants: group.variants.sort((a, b) => VARIANTS.findIndex((item) => item.value === a.print_variant) - VARIANTS.findIndex((item) => item.value === b.print_variant)),
+  }));
 }
 
 function localIsoDate() {
@@ -47,16 +65,17 @@ function TrashIcon() {
   return <svg aria-hidden="true" focusable="false" viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7m4 4v5m4-5v5"/></svg>;
 }
 
-function EditionCombobox({ editions, value, onChange, label }: { editions: vaultApi.HkkEdition[]; value: string; onChange: (id: string) => void; label: string }) {
+function EditionCombobox({ editions, value, onChange, label, showGroups = true }: { editions: vaultApi.HkkEdition[]; value: string; onChange: (id: string) => void; label: string; showGroups?: boolean }) {
   const selected = editions.find((item) => item.id === value);
   const [text, setText] = useState(selected?.name || "");
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
+  const [group, setGroup] = useState<vaultApi.HkkEditionGroup | "">("");
   useEffect(() => setText(selected?.name || ""), [selected?.name]);
   const options = useMemo(() => {
     const needle = text.trim().toLocaleLowerCase("hu-HU");
-    return editions.filter((item) => !needle || item.name.toLocaleLowerCase("hu-HU").includes(needle) || item.id.includes(needle)).slice(0, 60);
-  }, [editions, text]);
+    return editions.filter((item) => !group || item.group === group).filter((item) => !needle || item.name.toLocaleLowerCase("hu-HU").includes(needle) || item.id.includes(needle)).slice(0, 60);
+  }, [editions, group, text]);
   function choose(item: vaultApi.HkkEdition) { onChange(item.id); setText(item.name); setOpen(false); }
   function keyDown(event: KeyboardEvent<HTMLInputElement>) {
     if (event.key === "ArrowDown") { event.preventDefault(); setOpen(true); setActive((current) => Math.min(current + 1, options.length - 1)); }
@@ -64,12 +83,13 @@ function EditionCombobox({ editions, value, onChange, label }: { editions: vault
     if (event.key === "Enter" && open && options[active]) { event.preventDefault(); choose(options[active]); }
     if (event.key === "Escape") setOpen(false);
   }
-  return <label className="vault-combobox">{label}<span className="vault-combobox-field"><input role="combobox" aria-expanded={open} aria-autocomplete="list" value={text} placeholder="Név, kód vagy ID…" onFocus={() => setOpen(true)} onChange={(event) => { setText(event.target.value); onChange(""); setActive(0); setOpen(true); }} onKeyDown={keyDown} />{value ? <button type="button" aria-label={`${label} törlése`} onClick={() => { onChange(""); setText(""); }}>×</button> : null}</span>{open ? <span role="listbox" className="vault-combobox-options">{options.length ? options.map((item, index) => <button type="button" role="option" aria-selected={item.id === value} className={index === active ? "is-active" : ""} key={item.id} onMouseDown={(event) => event.preventDefault()} onClick={() => choose(item)}>{item.name}<small>#{item.id}</small></button>) : <em>Nincs találat</em>}</span> : null}</label>;
+  return <div className="vault-combobox"><span className="vault-combobox-label">{label}</span>{showGroups ? <span className="vault-edition-groups" aria-label="Kiegészítő gyorsszűrők">{EDITION_GROUPS.map((item) => <button type="button" aria-pressed={group === item.value} className={group === item.value ? "is-active" : ""} key={item.value} onClick={() => { setGroup((current) => current === item.value ? "" : item.value); setOpen(true); setActive(0); }}>{item.label}</button>)}</span> : null}<span className="vault-combobox-field"><input aria-label={label} role="combobox" aria-expanded={open} aria-autocomplete="list" value={text} placeholder="Név, kód vagy ID…" onFocus={() => setOpen(true)} onChange={(event) => { setText(event.target.value); onChange(""); setActive(0); setOpen(true); }} onKeyDown={keyDown} />{value ? <button type="button" aria-label={`${label} törlése`} onClick={() => { onChange(""); setText(""); }}>×</button> : null}</span>{open ? <span role="listbox" className="vault-combobox-options">{options.length ? options.map((item, index) => <button type="button" role="option" aria-selected={item.id === value} className={index === active ? "is-active" : ""} key={item.id} onMouseDown={(event) => event.preventDefault()} onClick={() => choose(item)}><span>{item.name}</span><small>#{item.id}{item.release_date ? ` · ${item.release_date}` : ""}</small></button>) : <em>Nincs találat</em>}</span> : null}</div>;
 }
 
 export function VirtualVaultPage() {
-  const [area, setArea] = useState<Area>("dashboard");
-  const [tradeView, setTradeView] = useState<TradeView>("trade");
+  const initialParams = useMemo(() => new URLSearchParams(window.location.search), []);
+  const [area, setArea] = useState<Area>(() => initialParams.get("area") === "trade" ? "trade" : "dashboard");
+  const [tradeView, setTradeView] = useState<TradeView>(() => initialParams.get("view") === "matches" ? "matches" : "trade");
   const [summary, setSummary] = useState<VaultSummary | null>(null);
   const [cards, setCards] = useState<VaultCard[]>([]);
   const [tradeCards, setTradeCards] = useState<PublicTradeCard[]>([]);
@@ -119,18 +139,29 @@ export function VirtualVaultPage() {
   const [selectedCardIds, setSelectedCardIds] = useState<Set<number>>(new Set());
   const [bulkTargetFolder, setBulkTargetFolder] = useState<number>();
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [unseenMatchCount, setUnseenMatchCount] = useState(0);
   const [checklist, setChecklist] = useState<Record<string, boolean>>(() => { try { return JSON.parse(localStorage.getItem(CHECKLIST_KEY) || "{}"); } catch { return {}; } });
 
   const report = (error: unknown) => setMessage(error instanceof ApiError ? error.message : "A művelet nem sikerült.");
   const reload = useCallback(async () => {
     try {
       const [s, c, t, n, p, l, d, m] = await Promise.all([vaultApi.getVaultSummary(), vaultApi.listVaultCards(), vaultApi.listTradeCards(), vaultApi.listNegotiations(), vaultApi.getPointHistory(), vaultApi.listCardLoans(), vaultApi.listDecks(), vaultApi.getVaultMaintenance()]);
-      setSummary(s); setCards(c); setTradeCards(t); setNegotiations(n); setPoints(p); setLoans(l); setDecks(d); setMaintenance(m);
+      setSummary(s); setCards(c); setTradeCards(t); setNegotiations(n); setPoints(p); setLoans(l); setDecks(d); setMaintenance(m); setUnseenMatchCount(s.unseen_match_count || 0);
       setSelectedFolder((current) => current && s.folders.some((folder) => folder.id === current) ? current : s.folders.find((folder) => folder.id === Number(localStorage.getItem(LAST_FOLDER_KEY)))?.id || s.folders[0]?.id);
       setActiveDeckId((current) => current && d.some((deck) => deck.id === current) ? current : d[0]?.id);
     } catch (error) { report(error); }
   }, []);
   useEffect(() => { void reload(); void vaultApi.listHkkEditions().then(setEditions).catch(report); }, [reload]);
+  useEffect(() => {
+    if (area !== "trade" || tradeView !== "matches") return;
+    void vaultApi.getMatchStatus().then(async (status) => {
+      setUnseenMatchCount(status.unseen_count);
+      if (!status.match_keys.length) return;
+      await vaultApi.markMatchesSeen(status.match_keys);
+      setUnseenMatchCount(0);
+      setSummary((current) => current ? { ...current, unseen_match_count: 0 } : current);
+    }).catch(report);
+  }, [area, tradeView]);
 
   async function createFolder(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); const form = event.currentTarget; const data = new FormData(form);
@@ -183,6 +214,34 @@ export function VirtualVaultPage() {
       await reload();
     } catch (error) { report(error); } finally { setBusy(false); }
   }
+  async function toggleWanted(card: VaultCard) {
+    const previous = cards;
+    const wanted = !card.wanted;
+    setCards((current) => current.map((item) => item.id === card.id ? { ...item, wanted, wanted_quantity: wanted ? Math.max(3 - card.quantity, 1) : 0 } : item));
+    try {
+      await vaultApi.setVaultWanted(card.id, wanted, wanted ? Math.max(3 - card.quantity, 1) : undefined);
+      await reload();
+    } catch (error) {
+      setCards(previous);
+      report(error);
+    }
+  }
+  async function toggleTradeGroup(group: VaultCardGroup) {
+    const activeCards = group.variants.filter((card) => card.in_trade);
+    const affectedCards = activeCards.length ? activeCards : group.variants.filter((card) => card.quantity > 0);
+    if (!affectedCards.length) return;
+    const previous = cards;
+    const inTrade = !activeCards.length;
+    const affectedIds = new Set(affectedCards.map((card) => card.id));
+    setCards((current) => current.map((card) => affectedIds.has(card.id) ? { ...card, in_trade: inTrade } : card));
+    try {
+      await vaultApi.bulkUpdateVaultCards(Array.from(affectedIds), inTrade ? "trade_add" : "trade_remove");
+      await reload();
+    } catch (error) {
+      setCards(previous);
+      report(error);
+    }
+  }
   async function createDeck(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); const form = event.currentTarget; const name = String(new FormData(form).get("name") || "").trim(); if (!name) return;
     try { const deck = await vaultApi.createDeck(name); form.reset(); setActiveDeckId(deck.id); await reload(); } catch (error) { report(error); }
@@ -216,7 +275,14 @@ export function VirtualVaultPage() {
       await reload();
     } catch (error) { report(error); } finally { setBusy(false); }
   }
-  function toggleSelectedCard(cardId: number) { setSelectedCardIds((current) => { const next = new Set(current); if (next.has(cardId)) next.delete(cardId); else next.add(cardId); return next; }); }
+  function toggleSelectedGroup(group: VaultCardGroup) {
+    setSelectedCardIds((current) => {
+      const next = new Set(current);
+      const allSelected = group.variants.every((card) => next.has(card.id));
+      group.variants.forEach((card) => allSelected ? next.delete(card.id) : next.add(card.id));
+      return next;
+    });
+  }
   function snoozeMaintenance() { const until = Date.now() + 7 * 24 * 60 * 60 * 1000; localStorage.setItem(MAINTENANCE_SNOOZE_KEY, String(until)); setMaintenanceSnoozedUntil(until); }
   function toggleChecklist(key: string) { setChecklist((current) => { const next = { ...current, [key]: !current[key] }; localStorage.setItem(CHECKLIST_KEY, JSON.stringify(next)); return next; }); }
 
@@ -230,6 +296,8 @@ export function VirtualVaultPage() {
   const collectionVariantOptions = useMemo(() => VARIANTS.filter((item) => folderCards.some((card) => card.print_variant === item.value)), [folderCards]);
   const matchesValues = (source: string | null, selected: string[]) => !selected.length || selected.some((value) => (source || "").split(" · ").map((item) => item.trim()).includes(value));
   const visibleCards = useMemo(() => folderCards.filter((card) => !filter || normalizeFilterText(card.card_name).includes(normalizeFilterText(filter))).filter((card) => matchesValues(card.edition, collectionEditions)).filter((card) => !collectionRarities.length || collectionRarities.includes(card.rarity || "")).filter((card) => !collectionVariants.length || collectionVariants.includes(card.print_variant)).filter((card) => matchesValues(card.card_type, collectionTypes)).filter((card) => matchesValues(card.subtype, collectionSubtypes)).filter((card) => matchesValues(card.color, collectionColors)).filter((card) => !collectionQuantity || card.quantity === Number(collectionQuantity)).filter((card) => !collectionWanted || card.wanted === (collectionWanted === "yes")).sort((a, b) => { const av = String(a[sortKey] || ""), bv = String(b[sortKey] || ""); const result = sortKey === "external_card_id" ? Number(av) - Number(bv) : collator.compare(av, bv); return sortDirection === "asc" ? result : -result; }), [folderCards, filter, collectionEditions, collectionRarities, collectionVariants, collectionTypes, collectionSubtypes, collectionColors, collectionQuantity, collectionWanted, sortKey, sortDirection]);
+  const visibleCardGroups = useMemo(() => groupVaultCards(visibleCards), [visibleCards]);
+  const folderCardGroupCount = useMemo(() => groupVaultCards(folderCards).length, [folderCards]);
   const activeFilterCount = collectionEditions.length + collectionRarities.length + collectionVariants.length + collectionTypes.length + collectionSubtypes.length + collectionColors.length + Number(Boolean(collectionQuantity)) + Number(Boolean(collectionWanted));
   const clearCollectionFilters = () => { setFilter(""); setCollectionEditions([]); setCollectionRarities([]); setCollectionVariants([]); setCollectionTypes([]); setCollectionSubtypes([]); setCollectionColors([]); setCollectionQuantity(""); setCollectionWanted(""); };
   const maintenanceCount = (maintenance?.acquired_wanted.length || 0) + (maintenance?.stale_trade_cards.length || 0) + (maintenance?.overdue_loans.length || 0);
@@ -249,16 +317,16 @@ export function VirtualVaultPage() {
     {message ? <p className="form-message" role="status">{message}</p> : null}
 
     {area === "dashboard" && summary ? <section className="vault-content vault-dashboard"><div><p className="eyebrow">Áttekintés</p><h2>Mi történt a mappádban?</h2></div><div className="vault-dashboard-grid">
-      {([ ["collection", "Összes saját lap", summary.owned_card_quantity], ["trade", "Új cserelehetőség", summary.new_trade_opportunities], ["trade", "Saját lapjaidat keresik", summary.cards_wanted_by_others], ["decks", "Paklikból hiányzik", summary.deck_missing_quantity], ["loans", "Aktív kölcsönadás", summary.active_loan_count] ] as [Area, string, number][]).map(([target, label, value]) => <button key={label} type="button" className={value ? "" : "is-muted"} onClick={() => { setArea(target); if (target === "trade") setTradeView(label.startsWith("Saját") ? "trade" : "matches"); }}><span>{label}</span><strong>{value}</strong><small>Megnyitás →</small></button>)}
+      {([ ["collection", "Összes saját lap", summary.owned_card_quantity], ["trade", "Új cserelehetőség", unseenMatchCount], ["trade", "Saját lapjaidat keresik", summary.cards_wanted_by_others], ["decks", "Paklikból hiányzik", summary.deck_missing_quantity], ["loans", "Aktív kölcsönadás", summary.active_loan_count] ] as [Area, string, number][]).map(([target, label, value]) => <button key={label} type="button" className={value ? "" : "is-muted"} onClick={() => { setArea(target); if (target === "trade") setTradeView(label.startsWith("Saját") ? "trade" : "matches"); }}><span>{label}</span><strong>{value}</strong><small>Megnyitás →</small></button>)}
     </div>{maintenance && maintenanceCount > 0 && Date.now() >= maintenanceSnoozedUntil ? <section className="vault-maintenance"><div className="vault-maintenance-heading"><div><p className="eyebrow">Gyűjteményed átnézése</p><h3>Néhány gyors ellenőrzés segít naprakészen tartani.</h3></div><button type="button" className="button button-ghost" onClick={snoozeMaintenance}>Később</button></div>{maintenance.acquired_wanted.length ? <details><summary><strong>{maintenance.acquired_wanted.length}</strong> keresett lapod már megvan</summary>{maintenance.acquired_wanted.map((card) => <article key={card.id}><span>{card.card_name}</span><div className="vault-card-actions"><button type="button" className="button button-secondary" onClick={() => void vaultApi.setVaultWanted(card.id, false).then(reload).catch(report)}>Frissítés</button><button type="button" className="button button-ghost" onClick={() => void vaultApi.setVaultWanted(card.id, true, 1).then(reload).catch(report)}>Megtartom a keresést</button></div></article>)}</details> : null}{maintenance.stale_trade_cards.length ? <details><summary><strong>{maintenance.stale_trade_cards.length}</strong> cserelapodat rég ellenőrizted</summary>{maintenance.stale_trade_cards.map((card) => <article key={card.id}><span>{card.card_name}</span><div className="vault-card-actions"><button type="button" className="button button-secondary" onClick={() => void vaultApi.verifyTradeCard(card.id).then(reload).catch(report)}>Még megvan</button><button type="button" className="button button-ghost" onClick={() => void vaultApi.deleteTradeCard(card.id).then(reload).catch(report)}>Már nincs meg</button></div></article>)}</details> : null}{maintenance.overdue_loans.length ? <details><summary><strong>{maintenance.overdue_loans.length}</strong> kölcsönadás visszaadási ideje lejárt</summary>{maintenance.overdue_loans.map((loan) => <article key={loan.id}><span>{loan.card_name} · {loan.borrower_name}</span><div className="vault-card-actions"><button type="button" className="button button-secondary" onClick={() => void vaultApi.returnCardLoan(loan.id).then(reload).catch(report)}>Visszakaptam</button><button type="button" className="button button-ghost" onClick={() => setArea("loans")}>Kölcsönadások megnyitása</button></div></article>)}</details> : null}</section> : null}</section> : null}
 
     {area === "collection" ? <>
       <section className="vault-search-panel"><div><h2>HKK lapfelvitel</h2><p>Kereshetsz lapnévre, kiegészítőre, vagy importálhatsz gyakoriságonként.</p></div><div className="vault-add-mode"><button type="button" className={addMode === "card" ? "is-active" : ""} onClick={() => setAddMode("card")}>Lap keresése</button><button type="button" className={addMode === "edition" ? "is-active" : ""} onClick={() => setAddMode("edition")}>Kiegészítő hozzáadása</button></div>
       {addMode === "card" ? <><form onSubmit={runSearch}><input aria-label="Lap neve" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Lap neve…"/><EditionCombobox editions={editions} value={searchEdition} onChange={setSearchEdition} label="Kiegészítő"/><button className="button button-primary" disabled={busy}>Keresés</button></form>{results.length ? <div className="vault-search-results"><div className="vault-search-results-heading"><strong>{results.length} találat</strong><button type="button" className="button button-ghost" onClick={() => setResults([])}>Találatok törlése</button></div>{results.map((card) => <article className="vault-search-result" key={card.external_card_id}><CardImagePreview card={card}/><div><strong>{card.card_name}</strong><CardMeta card={card}/><div className="vault-inline-fields"><select aria-label={`${card.card_name} változata`} value={resultVariants[card.external_card_id] || "normal"} onChange={(event) => setResultVariants((current) => ({ ...current, [card.external_card_id]: event.target.value as vaultApi.PrintVariant }))}>{availableVariants(card).map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select><select aria-label={`${card.card_name} példányszáma`} value={resultQuantities[card.external_card_id] || 1} onChange={(event) => setResultQuantities((current) => ({ ...current, [card.external_card_id]: Number(event.target.value) }))}>{[1,2,3].map((n) => <option key={n}>{n}</option>)}</select></div></div><div className="vault-card-actions"><button className="button button-secondary" type="button" onClick={() => void addResult(card, "collection")}>Mappába teszem</button><button className="button button-ghost" type="button" onClick={() => void addResult(card, "wanted")}>Keresem</button><button className="button button-ghost" type="button" onClick={() => void addResult(card, "trade")}>Cseremappába teszem</button></div></article>)}</div> : null}</> : <div className="vault-edition-import"><div className="vault-edition-fields"><EditionCombobox editions={editions} value={selectedEdition} onChange={(id) => void chooseEdition(id)} label="Kiegészítő"/><label>Cél-almappa<select value={selectedFolder || ""} onChange={(event) => setSelectedFolder(Number(event.target.value))}>{summary?.folders.map((folder) => <option key={folder.id} value={folder.id}>{folder.name}</option>)}</select></label><label>Darabszám<select value={editionQuantity} onChange={(event) => setEditionQuantity(Number(event.target.value))}>{[1,2,3].map((n) => <option key={n}>{n}</option>)}</select></label></div><fieldset className="vault-rarity-options"><legend>Gyakoriságok</legend>{RARITIES.map((item) => <label key={item.value}><input type="checkbox" checked={selectedRarities.includes(item.value)} onChange={(event) => setSelectedRarities((current) => event.target.checked ? [...current, item.value] : current.filter((value) => value !== item.value))}/>{item.label}</label>)}</fieldset>{editionPreview ? <><p><strong>{editionPreview.cards.filter((card) => selectedRarities.includes((card.rarity || "").toLowerCase() as vaultApi.HkkRarity)).length}</strong> lap kerül feldolgozásra.</p><div className="vault-card-actions"><button type="button" className="button button-primary" onClick={() => void importEdition(false)}>Teljes kijelölés hozzáadása</button><button type="button" className="button button-secondary" onClick={() => void importEdition(true)}>Csak a hiányzók</button></div></> : null}</div>}</section>
-      <div className="vault-layout"><aside className="vault-folder-panel"><h2>Almappák</h2>{summary?.folders.map((folder) => <div className="vault-folder-row" key={folder.id}><button type="button" className={`vault-folder ${folder.id === selectedFolder ? "is-active" : ""}`} style={{ borderLeftColor: folder.color || undefined }} onClick={() => { setSelectedFolder(folder.id); localStorage.setItem(LAST_FOLDER_KEY, String(folder.id)); }}><span>{folder.name}</span><strong>{folder.used_slots}/{folder.capacity}</strong></button><button type="button" className="vault-icon-button" aria-label={`${folder.name} törlése`} onClick={() => { setFolderToDelete(folder); setFolderDeleteName(""); }}>×</button></div>)}<form className="vault-folder-create" onSubmit={createFolder}><h3>Új almappa</h3><input name="name" placeholder="Mappa neve" required/><input name="capacity" type="number" min="0" placeholder="Zsebek" required/><input name="color" type="color" defaultValue="#7c3aed"/><button className="button button-secondary" disabled={busy}>Létrehozás</button></form></aside>
+      <div className="vault-layout"><aside className="vault-folder-panel"><h2>Almappák</h2>{summary?.folders.map((folder) => <div className="vault-folder-row" key={folder.id}><button type="button" className={`vault-folder ${folder.id === selectedFolder ? "is-active" : ""}`} style={{ borderLeftColor: folder.color || undefined }} onClick={() => { setSelectedFolder(folder.id); localStorage.setItem(LAST_FOLDER_KEY, String(folder.id)); }}><span><strong>{folder.name}</strong><small>{folder.entry_count} lap · {folder.copy_count} példány</small></span><span className="vault-folder-capacity" title={`${folder.used_slots} foglalt zseb a(z) ${folder.capacity} zsebből`}>{folder.used_slots}/{folder.capacity} zseb</span></button><button type="button" className="vault-icon-button" aria-label={`${folder.name} törlése`} onClick={() => { setFolderToDelete(folder); setFolderDeleteName(""); }}>×</button></div>)}<form className="vault-folder-create" onSubmit={createFolder}><h3>Új almappa</h3><input name="name" placeholder="Mappa neve" required/><input name="capacity" type="number" min="0" placeholder="Zsebek" required/><input name="color" type="color" defaultValue="#7c3aed"/><button className="button button-secondary" disabled={busy}>Létrehozás</button></form></aside>
       <section className="vault-content">
         <div className="vault-toolbar vault-collection-toolbar">
-          <div><h2>{summary?.folders.find((item) => item.id === selectedFolder)?.name || "Gyűjtemény"}</h2><small>{visibleCards.length} / {folderCards.length} bejegyzés</small></div>
+          <div><h2>{summary?.folders.find((item) => item.id === selectedFolder)?.name || "Gyűjtemény"}</h2><small>{visibleCardGroups.length} / {folderCardGroupCount} lap</small></div>
           <div className="vault-collection-search-row">
             <label>Lap keresése<input aria-label="Gyűjtemény keresése" value={filter} onChange={(event) => setFilter(event.target.value)} placeholder="Lap neve…"/></label>
             <MultiValueFilter label="Kiegészítő keresése" options={collectionEditionOptions.map((value) => ({ value }))} selected={collectionEditions} onChange={setCollectionEditions} placeholder="Kiegészítő…"/>
@@ -278,14 +346,41 @@ export function VirtualVaultPage() {
             <label>Rendezés<select value={sortKey} onChange={(event) => setSortKey(event.target.value as SortKey)}><option value="card_name">Név</option><option value="edition">Kiegészítő</option><option value="card_type">Típus</option><option value="subtype">Altípus</option><option value="color">Szín</option><option value="rarity">Gyakoriság</option><option value="external_card_id">HKK ID</option></select></label>
             <button type="button" className="button button-ghost vault-sort-direction" onClick={() => setSortDirection((value) => value === "asc" ? "desc" : "asc")}>{sortDirection === "asc" ? "Növekvő" : "Csökkenő"}</button>
           </div>
-          <div className="vault-filter-footer"><span>{visibleCards.length} találat</span>{activeFilterCount || filter ? <button type="button" className="button button-ghost" onClick={clearCollectionFilters}>Összes szűrő törlése</button> : null}</div>
+          <div className="vault-filter-footer"><span>{visibleCardGroups.length} találat</span>{activeFilterCount || filter ? <button type="button" className="button button-ghost" onClick={clearCollectionFilters}>Összes szűrő törlése</button> : null}</div>
         </details>
-        {selectionMode ? <section className="vault-bulk-bar" aria-label="Tömeges lapműveletek"><strong>{selectedCardIds.size} lap kijelölve</strong><button type="button" className="button button-ghost" onClick={() => setSelectedCardIds(new Set(visibleCards.map((card) => card.id)))}>Látható találatok kijelölése ({visibleCards.length})</button><button type="button" className="button button-ghost" onClick={() => setSelectedCardIds(new Set())}>Kijelölés megszüntetése</button><label>Célmappa<select value={bulkTargetFolder || ""} onChange={(event) => setBulkTargetFolder(Number(event.target.value))}><option value="">Válassz…</option>{summary?.folders.map((folder) => <option key={folder.id} value={folder.id}>{folder.name}</option>)}</select></label><button type="button" className="button button-secondary" disabled={!selectedCardIds.size || !bulkTargetFolder || busy} onClick={() => void runBulkAction("move")}>Áthelyezés</button><button type="button" className="button button-secondary" disabled={!selectedCardIds.size || busy} onClick={() => void runBulkAction("trade_add")}>Cseremappába</button><button type="button" className="button button-ghost" disabled={!selectedCardIds.size || busy} onClick={() => void runBulkAction("trade_remove")}>Cseremappából ki</button><button type="button" className="button button-ghost" disabled={!selectedCardIds.size || busy} onClick={() => void runBulkAction("wanted_on")}>Keresem</button><button type="button" className="button button-ghost" disabled={!selectedCardIds.size || busy} onClick={() => void runBulkAction("wanted_off")}>Már nem keresem</button><button type="button" className="button button-danger" disabled={!selectedCardIds.size || busy} onClick={() => void runBulkAction("delete")}>Törlés</button></section> : null}
-        <div className="vault-card-grid">{visibleCards.map((card) => <article className={"vault-card" + (selectedCardIds.has(card.id) ? " is-selected" : "")} key={card.id}>{selectionMode ? <label className="vault-card-selector"><input type="checkbox" aria-label={card.card_name + " kijelölése"} checked={selectedCardIds.has(card.id)} onChange={() => toggleSelectedCard(card.id)}/></label> : null}<CardImage card={card}/><div className="vault-card-body"><div className="vault-card-heading"><strong>{card.card_name}</strong><select className="vault-card-variant-select" aria-label={`${card.card_name} változata`} value={card.print_variant} onChange={(event) => void vaultApi.updateVaultCard(card.id, { print_variant: event.target.value as vaultApi.PrintVariant }).then(reload).catch(report)}>{availableVariants(card).map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></div><CardMeta card={card}/><div className="vault-card-fields"><label className="vault-card-quantity">Db<select aria-label={`${card.card_name} példányszáma`} value={card.quantity} onChange={(event) => void vaultApi.updateVaultCard(card.id, { quantity: Number(event.target.value) }).then(reload).catch(report)}>{availableQuantities(card).map((n) => <option key={n}>{n}</option>)}</select></label><label className="vault-card-folder">Mappa<select value={card.folder_id || ""} onChange={(event) => void vaultApi.updateVaultCard(card.id, { folder_id: Number(event.target.value) }).then(reload).catch(report)}>{summary?.folders.map((folder) => <option key={folder.id} value={folder.id}>{folder.name}</option>)}</select></label></div><div className="vault-card-actions vault-card-direct-actions"><button type="button" className="button button-ghost" onClick={() => void vaultApi.setVaultWanted(card.id, !card.wanted, card.wanted ? undefined : Math.max(3-card.quantity,1)).then(reload).catch(report)}>{card.wanted ? "Keresem kikapcsolása" : "Keresem"}</button><button type="button" className="button button-ghost" disabled={card.quantity === 0} onClick={() => { setLoanCard(card); setLoanForm({ borrower_name: "", quantity: 1, lent_at: localIsoDate(), due_at: "", note: "" }); }}>Kölcsönadom</button><button type="button" className="button button-danger vault-delete-icon-button" aria-label={`${card.card_name} törlése`} title="Törlés" onClick={() => void vaultApi.deleteVaultCard(card.id).then(reload).catch(report)}><TrashIcon/></button></div></div></article>)}</div>
+        {selectionMode ? <section className="vault-bulk-bar" aria-label="Tömeges lapműveletek"><div className="vault-bulk-actions"><button type="button" className="button button-ghost" onClick={() => setSelectedCardIds(new Set(visibleCards.map((card) => card.id)))}>Láthatók kijelölése ({visibleCards.length})</button><button type="button" className="button button-ghost" onClick={() => setSelectedCardIds(new Set())}>Kijelölés törlése</button><label>Célmappa<select value={bulkTargetFolder || ""} onChange={(event) => setBulkTargetFolder(Number(event.target.value))}><option value="">Válassz…</option>{summary?.folders.map((folder) => <option key={folder.id} value={folder.id}>{folder.name}</option>)}</select></label><button type="button" className="button button-secondary" disabled={!selectedCardIds.size || !bulkTargetFolder || busy} onClick={() => void runBulkAction("move")}>Áthelyezés</button><button type="button" className="button button-secondary" disabled={!selectedCardIds.size || busy} onClick={() => void runBulkAction("trade_add")}>Cseremappába</button><button type="button" className="button button-ghost" disabled={!selectedCardIds.size || busy} onClick={() => void runBulkAction("trade_remove")}>Cseremappából ki</button><button type="button" className="button button-ghost" disabled={!selectedCardIds.size || busy} onClick={() => void runBulkAction("wanted_on")}>Keresem</button><button type="button" className="button button-ghost" disabled={!selectedCardIds.size || busy} onClick={() => void runBulkAction("wanted_off")}>Már nem keresem</button><button type="button" className="button button-danger" disabled={!selectedCardIds.size || busy} onClick={() => void runBulkAction("delete")}>Törlés</button></div><strong className="vault-bulk-status">{selectedCardIds.size} lap kijelölve</strong></section> : null}
+        <div className="vault-card-grid vault-collection-grid">{visibleCardGroups.map((group) => {
+          const card = group.card;
+          const wantedCard = group.variants.find((item) => item.wanted) || group.variants.find((item) => item.print_variant === "normal") || group.variants[0];
+          const loanableCard = group.variants.find((item) => item.print_variant === "normal" && item.quantity > 0) || group.variants.find((item) => item.quantity > 0);
+          const isWanted = group.variants.some((item) => item.wanted);
+          const isInTrade = group.variants.some((item) => item.in_trade);
+          const isSelected = group.variants.every((item) => selectedCardIds.has(item.id));
+          return <article className={"vault-card" + (isSelected ? " is-selected" : "")} key={group.key} data-variant-count={group.variants.length}>
+            {selectionMode ? <label className="vault-card-selector"><input type="checkbox" aria-label={card.card_name + " kijelölése"} checked={isSelected} onChange={() => toggleSelectedGroup(group)}/></label> : null}
+            <CardImage card={card}/>
+            <div className="vault-card-body">
+              <header className="vault-card-title"><strong>{card.card_name}</strong>{card.edition ? <small>{card.edition}</small> : null}</header>
+              <section className="vault-card-properties" aria-label="Tulajdonságok">
+                <CardMeta card={{ ...card, edition: null }}/>
+                <div className="vault-card-variant-quantities" aria-label={`${card.card_name} változatok`}>{group.variants.map((variant) => {
+                  const definition = VARIANTS.find((item) => item.value === variant.print_variant);
+                  return <label className="vault-variant-quantity" title={definition?.title} key={variant.id}><span>{definition?.label || variant.print_variant}</span><select aria-label={`${card.card_name} ${definition?.label || variant.print_variant} példányszáma`} value={variant.quantity} onChange={(event) => void vaultApi.updateVaultCard(variant.id, { quantity: Number(event.target.value) }).then(reload).catch(report)}>{availableQuantities(variant).map((n) => <option key={n}>{n}</option>)}</select></label>;
+                })}</div>
+              </section>
+              <footer className="vault-card-actions vault-card-direct-actions" aria-label="Lapműveletek">
+                <button type="button" aria-pressed={isWanted} className={`button button-ghost vault-state-button ${isWanted ? "is-active" : ""}`} onClick={() => void toggleWanted(wantedCard)}>Keresem</button>
+                <button type="button" aria-pressed={isInTrade} className={`button button-ghost vault-state-button ${isInTrade ? "is-active" : ""}`} disabled={!loanableCard} onClick={() => void toggleTradeGroup(group)}>Csere</button>
+                <button type="button" className="button button-ghost" disabled={!loanableCard} onClick={() => { if (!loanableCard) return; setLoanCard(loanableCard); setLoanForm({ borrower_name: "", quantity: 1, lent_at: localIsoDate(), due_at: "", note: "" }); }}>Kölcsönadom</button>
+                <button type="button" className="button button-danger vault-delete-icon-button" aria-label={`${card.card_name} törlése`} title="Törlés" onClick={() => { setSelectedCardIds(new Set(group.variants.map((item) => item.id))); setBulkDeleteOpen(true); }}><TrashIcon/></button>
+              </footer>
+            </div>
+          </article>;
+        })}</div>
       </section></div>
     </> : null}
 
-    {area === "trade" ? <section className="vault-content"><div><h2>Csere</h2><p className="muted">Saját cserelapok, keresett lapok és automatikus találatok.</p></div><nav className="vault-subtabs">{([ ["trade","Cseremappám"], ["wanted","Keresem"], ["matches","Találatok"] ] as [TradeView,string][]).map(([id,label]) => <button type="button" className={tradeView === id ? "is-active" : ""} onClick={() => setTradeView(id)} key={id}>{label}</button>)}</nav>
+    {area === "trade" ? <section className="vault-content"><div><h2>Csere</h2><p className="muted">Saját cserelapok, keresett lapok és automatikus találatok.</p></div><nav className="vault-subtabs">{([ ["trade","Cseremappám"], ["wanted","Keresem"], ["matches","Találatok"] ] as [TradeView,string][]).map(([id,label]) => <button type="button" className={tradeView === id ? "is-active" : ""} onClick={() => setTradeView(id)} key={id}>{label}{id === "matches" && unseenMatchCount > 0 ? ` (${unseenMatchCount})` : ""}</button>)}</nav>
       {tradeView === "trade" ? <div className="vault-card-grid">{tradeCards.map((card) => <article className="vault-card" key={card.id}><CardImage card={card}/><div className="vault-card-body"><strong>{card.card_name}</strong><CardMeta card={card}/><p>{card.quantity} db · {VARIANTS.find((item) => item.value === card.print_variant)?.label}</p>{card.seeker_count ? <button type="button" className="button button-primary" onClick={() => void showSeekers(card)}>Ki keresi ezt a lapot? ({card.seeker_count})</button> : <small>Még senki nem jelölte keresettnek.</small>}<button type="button" className="button button-ghost" disabled={busy} onClick={() => void removeTradeCard(card)}>Eltávolítás a cseremappából</button></div></article>)}</div> : null}
       {tradeView === "wanted" ? <div className="vault-card-grid">{wantedCards.map((card) => <article className="vault-card" key={card.id}><CardImage card={card}/><div className="vault-card-body"><strong>{card.card_name}</strong><p>{card.wanted_quantity} példány hiányzik</p><button type="button" className="button button-ghost" onClick={() => void vaultApi.setVaultWanted(card.id, false).then(reload).catch(report)}>Eltávolítás a Keresemből</button></div></article>)}</div> : null}
       {tradeView === "matches" ? <><div className="vault-match-grid">{wantedCards.filter((card) => card.offer_count > 0).map((card) => <article className="vault-match-card" key={card.id}><CardImage card={card} className="vault-match-card-image"/><strong>{card.card_name}</strong><span>{card.offer_count} elérhető ajánlat</span><button type="button" className="button button-primary" onClick={() => void vaultApi.listMatchingOffers(card.id).then(setOffers).catch(report)}>Ajánlatok</button></article>)}</div>{offers.length ? <div className="vault-offers">{offers.map((offer) => <article key={offer.id}><CardImage card={offer} className="vault-offer-card-image"/><div><strong>{offer.card_name}</strong><small>@{offer.owner_username} · {offer.quantity} db</small></div><button type="button" className="button button-primary" onClick={() => void vaultApi.expressTradeInterest(offer.id).then(reload).catch(report)}>Érdekel</button></article>)}</div> : null}<div className="vault-negotiations">{negotiations.map((trade) => <article key={trade.id}><div><strong>{trade.card.card_name}</strong><small>{trade.requester_display_name} ↔ {trade.owner_display_name} · {trade.status === "open" ? "egyeztetés" : "lezárt"}</small></div><div className="vault-messages">{trade.messages.map((item) => <p key={item.id}><strong>{item.sender_display_name}</strong> {item.message}</p>)}</div>{trade.status === "open" ? <form onSubmit={(event) => { event.preventDefault(); const form=event.currentTarget; const text=String(new FormData(form).get("message")||""); void vaultApi.postTradeMessage(trade.id,text).then(() => { form.reset(); return reload(); }).catch(report); }}><input name="message" placeholder="Üzenet az egyeztetéshez…" required/><button className="button button-secondary">Küldés</button></form> : null}</article>)}</div></> : null}

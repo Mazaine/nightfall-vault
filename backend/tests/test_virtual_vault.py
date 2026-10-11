@@ -7,8 +7,8 @@ from app.db.session import SessionLocal
 from app.models.user import User, VipActivationCode
 from app.models.security_log import AuditLog
 from app.models.moderation import UserBlock
-from app.models.notification import Notification, NotificationOutbox
-from app.models.vault import VaultAccount, VaultCapacityGrant, VaultCardLoan, VaultCollectionCard, VaultDeck, VaultDeckCard, VaultFolder, VaultPointTransaction, VaultTrade, VaultTradeCard, VaultTradeMessage, VaultTradeReview
+from app.models.notification import Notification, NotificationOutbox, NotificationPreference
+from app.models.vault import VaultAccount, VaultCapacityGrant, VaultCardLoan, VaultCollectionCard, VaultDeck, VaultDeckCard, VaultFolder, VaultMatchState, VaultPointTransaction, VaultTrade, VaultTradeCard, VaultTradeMessage, VaultTradeReview
 from app.services.membership import activate_code, generate_codes
 from app.services.vault import grant_capacity, grant_points, sign_card_snapshot
 from app.services import vault as vault_service
@@ -20,7 +20,7 @@ def cleanup() -> None:
     try:
         test_users = or_(User.email.like("%@vault-test.local"), User.email == "mazaine89@gmail.com")
         user_ids = list(db.scalars(select(User.id).where(test_users)).all())
-        for model in (VaultTradeReview, VaultTradeMessage, VaultTrade, VaultTradeCard, VaultCardLoan, VaultDeckCard, VaultDeck, VaultCollectionCard, VaultFolder, VaultCapacityGrant, VaultPointTransaction, VaultAccount, VipActivationCode):
+        for model in (VaultTradeReview, VaultTradeMessage, VaultTrade, VaultMatchState, VaultTradeCard, VaultCardLoan, VaultDeckCard, VaultDeck, VaultCollectionCard, VaultFolder, VaultCapacityGrant, VaultPointTransaction, VaultAccount, VipActivationCode):
             db.execute(delete(model))
         if user_ids:
             notification_ids = select(Notification.id).where(Notification.user_id.in_(user_ids))
@@ -543,5 +543,83 @@ def test_maintenance_suggestions_are_computed_and_actions_are_owner_scoped() -> 
         assert client.get("/api/vault/maintenance", headers=auth_headers(owner)).json()["stale_trade_cards"] == []
         kept = client.put(f"/api/vault/cards/{wanted['id']}/wanted", json={"wanted": True, "quantity": 1}, headers=auth_headers(owner))
         assert kept.status_code == 200 and kept.json()["wanted_quantity"] == 1
+    finally:
+        cleanup()
+
+
+def test_match_badge_is_persistent_deduplicated_owner_scoped_and_in_app_only() -> None:
+    cleanup(); seeker = create_test_user("match-seeker@vault-test.local"); owner = create_test_user("match-owner@vault-test.local"); stranger = create_test_user("match-stranger@vault-test.local")
+    try:
+        seeker_headers, owner_headers = auth_headers(seeker), auth_headers(owner)
+        folder = client.post("/api/vault/folders", json={"name": "Keresem", "capacity": 5}, headers=seeker_headers).json()
+        wanted = client.post("/api/vault/cards/wanted", json={**card_payload("match-card", "Találatos lap"), "folder_id": folder["id"]}, headers=seeker_headers)
+        assert wanted.status_code == 201
+        db = SessionLocal()
+        try:
+            db.add(NotificationPreference(user_id=seeker.id, category="system", in_app=False, browser=True, email=True, push=True))
+            db.commit()
+        finally:
+            db.close()
+
+        offered = client.post("/api/vault/trade", json=card_payload("match-card", "Találatos lap", 1), headers=owner_headers)
+        assert offered.status_code == 201
+        first = client.get("/api/vault/matches/status", headers=seeker_headers)
+        assert first.status_code == 200 and first.json()["unseen_count"] == 1
+        match_key = first.json()["match_keys"][0]
+        assert len(match_key) == 64
+        assert client.get("/api/vault/matches/status", headers=seeker_headers).json() == first.json()
+        assert client.post("/api/vault/matches/seen", json={"match_keys": [match_key]}, headers=auth_headers(stranger)).json() == {"updated": 0}
+
+        db = SessionLocal()
+        try:
+            notifications = list(db.scalars(select(Notification).where(Notification.user_id == seeker.id, Notification.type == "vault_match")).all())
+            assert len(notifications) == 1
+            assert notifications[0].target_url == "/vault?area=trade&view=matches"
+            assert notifications[0].in_app_enabled is True
+            assert notifications[0].browser_enabled is False
+            assert notifications[0].email_enabled is False
+            assert notifications[0].push_enabled is False
+            assert {row.task_type for row in db.scalars(select(NotificationOutbox).where(NotificationOutbox.notification_id == notifications[0].id)).all()} == {"realtime"}
+        finally:
+            db.close()
+
+        assert client.post("/api/vault/matches/seen", json={"match_keys": [match_key]}, headers=seeker_headers).json() == {"updated": 1}
+        assert client.get("/api/vault/matches/status", headers=seeker_headers).json()["unseen_count"] == 0
+        assert client.delete(f"/api/vault/trade/{offered.json()['id']}", headers=owner_headers).status_code == 204
+        assert client.get("/api/vault/matches/status", headers=seeker_headers).json()["unseen_count"] == 0
+
+        recreated = client.post("/api/vault/trade", json=card_payload("match-card", "Találatos lap", 1), headers=owner_headers)
+        assert recreated.status_code == 201
+        assert client.get("/api/vault/matches/status", headers=seeker_headers).json()["unseen_count"] == 0
+        db = SessionLocal()
+        try:
+            assert len(list(db.scalars(select(VaultMatchState).where(VaultMatchState.user_id == seeker.id)).all())) == 1
+            assert len(list(db.scalars(select(Notification).where(Notification.user_id == seeker.id, Notification.type == "vault_match")).all())) == 1
+        finally:
+            db.close()
+    finally:
+        cleanup()
+
+
+def test_folder_aggregates_and_direct_trade_state_refresh_without_deleting_collection() -> None:
+    cleanup(); owner = create_test_user("folder-stats@vault-test.local")
+    try:
+        headers = auth_headers(owner)
+        folder = client.post("/api/vault/folders", json={"name": "Statisztika", "capacity": 10}, headers=headers).json()
+        first = client.post("/api/vault/cards", json={**card_payload("stats-1", "Első", 3), "folder_id": folder["id"]}, headers=headers).json()
+        client.post("/api/vault/cards", json={**card_payload("stats-2", "Második", 2), "folder_id": folder["id"]}, headers=headers)
+        summary = client.get("/api/vault/summary", headers=headers).json()
+        stored_folder = next(item for item in summary["folders"] if item["id"] == folder["id"])
+        assert (stored_folder["entry_count"], stored_folder["copy_count"], stored_folder["used_slots"], stored_folder["capacity"]) == (2, 5, 2, 10)
+
+        added = client.post("/api/vault/cards/bulk", json={"card_ids": [first["id"]], "action": "trade_add"}, headers=headers)
+        assert added.status_code == 200
+        collection = client.get("/api/vault/cards", headers=headers).json()
+        assert next(item for item in collection if item["id"] == first["id"])["in_trade"] is True
+        removed = client.post("/api/vault/cards/bulk", json={"card_ids": [first["id"]], "action": "trade_remove"}, headers=headers)
+        assert removed.status_code == 200
+        collection = client.get("/api/vault/cards", headers=headers).json()
+        assert len(collection) == 2
+        assert next(item for item in collection if item["id"] == first["id"])["in_trade"] is False
     finally:
         cleanup()

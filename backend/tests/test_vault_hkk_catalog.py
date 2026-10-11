@@ -71,7 +71,7 @@ def test_search_returns_empty_list_for_valid_empty_response(monkeypatch) -> None
 
 @pytest.mark.parametrize(("source", "expected"), [("common", "common"), ("uncommon", "uncommun"), ("rare", "rare"), ("ultraRare", "ultrarare")])
 def test_real_hkk_rarity_values_are_normalized(source: str, expected: str) -> None:
-    parsed = vault.parse_hkk_item({"ID": 1, "name": "Tesztlap", "commonness": source}, (frozenset(), {}))
+    parsed = vault.parse_hkk_item({"ID": 1, "name": "Tesztlap", "commonness": source}, (frozenset(), {}, {}))
     assert parsed is not None and parsed["rarity"] == expected
 
 
@@ -81,7 +81,10 @@ def test_search_can_be_limited_to_an_edition(monkeypatch) -> None:
     def fake_get(url: str, *, timeout: float):
         calls.append(url)
         if "cardConstants" in url:
-            return FakeResponse({"subTypes": [], "editions": [{"id": 220, "nev": "Résföld"}, {"id": 221, "nev": "Másik"}]})
+            return FakeResponse({"subTypes": [], "editions": [
+                {"id": 220, "nev": "Résföld", "tipus": "", "megjelenesDatum": "2025-01-01"},
+                {"id": 221, "nev": "Másik", "tipus": "Zén", "megjelenesDatum": "2026-02-01"},
+            ]})
         return FakeResponse({"cards": [
             {"ID": 1, "name": "Résföldi lap", "editions": [220]},
             {"ID": 2, "name": "Másik lap", "editions": [221]},
@@ -100,7 +103,10 @@ def test_editions_and_full_edition_cards_use_real_lapkereso_parameter(monkeypatc
     def fake_get(url: str, *, timeout: float):
         calls.append(url)
         if "cardConstants" in url:
-            return FakeResponse({"subTypes": [], "editions": [{"id": 220, "nev": "Résföld"}, {"id": 221, "nev": "Másik"}]})
+            return FakeResponse({"subTypes": [], "editions": [
+                {"id": 220, "nev": "Résföld", "tipus": "", "megjelenesDatum": "2025-01-01"},
+                {"id": 221, "nev": "Másik", "tipus": "Zén", "megjelenesDatum": "2026-02-01"},
+            ]})
         return FakeResponse({"cards": [
             {"ID": 9965, "name": "Xenó lárva", "type": ["Szörny"], "color": ["Chara-din"], "commonness": "rare", "editions": [220]},
             {"ID": 9965, "name": "Duplikált", "editions": [220]},
@@ -108,9 +114,12 @@ def test_editions_and_full_edition_cards_use_real_lapkereso_parameter(monkeypatc
         ]})
 
     monkeypatch.setattr(vault.httpx, "get", fake_get)
-    assert vault.list_hkk_editions() == [{"id": "220", "name": "Résföld"}, {"id": "221", "name": "Másik"}]
+    assert vault.list_hkk_editions() == [
+        {"id": "221", "name": "Másik", "group": "zen", "release_date": "2026-02-01"},
+        {"id": "220", "name": "Résföld", "group": None, "release_date": "2025-01-01"},
+    ]
     edition, cards = vault.hkk_edition_cards("220")
-    assert edition == {"id": "220", "name": "Résföld"}
+    assert edition == {"id": "220", "name": "Résföld", "group": None, "release_date": "2025-01-01"}
     assert [card["external_card_id"] for card in cards] == ["9965"]
     assert cards[0]["source_token"] == vault.sign_card_snapshot(cards[0])
     assert calls[-1].endswith("?lapkereso/kereses&kiegeszito=220")
@@ -140,7 +149,18 @@ def test_signed_snapshot_rejects_changed_or_invalid_card_id(monkeypatch) -> None
     with pytest.raises(HTTPException) as exc_info:
         vault.require_valid_card_snapshot(payload)
     assert exc_info.value.status_code == 422
-    assert vault.parse_hkk_item({"ID": "-1", "name": "Hibás"}, (frozenset(), {})) is None
+    assert vault.parse_hkk_item({"ID": "-1", "name": "Hibás"}, (frozenset(), {}, {})) is None
+
+
+def test_edition_groups_use_only_reliable_constants_metadata() -> None:
+    _, _, editions = vault._parse_hkk_constants({"subTypes": [], "editions": [
+        {"id": 1, "nev": "Teszt Zén", "tipus": "Zén"},
+        {"id": 2, "nev": "Alfa Pakli 12", "tipus": ""},
+        {"id": 3, "nev": "Promóciós lapok (2026)", "tipus": ""},
+        {"id": 4, "nev": "Kódos lapok", "tipus": ""},
+        {"id": 5, "nev": "Nem találgatott promó", "tipus": ""},
+    ]})
+    assert [editions[str(index)]["group"] for index in range(1, 6)] == ["zen", "alpha", "promo", "coded", None]
 
 
 def test_hkk_card_image_proxy_accepts_only_valid_bounded_images(monkeypatch) -> None:

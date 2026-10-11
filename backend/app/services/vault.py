@@ -26,7 +26,7 @@ HKK_CONSTANTS_CACHE_TTL_SECONDS = 60 * 60
 HKK_CARD_IMAGE_MAX_BYTES = 8 * 1024 * 1024
 HKK_CARD_IMAGE_MEDIA_TYPES = frozenset({"image/jpeg", "image/png", "image/webp", "image/gif"})
 HKK_RARITIES = frozenset({"common", "uncommun", "rare", "ultrarare"})
-_hkk_constants_cache: tuple[float, tuple[frozenset[str], dict[str, str]]] | None = None
+_hkk_constants_cache: tuple[float, tuple[frozenset[str], dict[str, str], dict[str, dict[str, str | None]]]] | None = None
 
 
 def utc_now() -> datetime:
@@ -224,11 +224,25 @@ def _hkk_external_id(value: object) -> str | None:
     return str(int(normalized))
 
 
-def _parse_hkk_constants(payload: object) -> tuple[frozenset[str], dict[str, str]]:
+def _edition_group(name: str, edition_type: str | None) -> str | None:
+    normalized = name.casefold().strip()
+    if edition_type == "Zén":
+        return "zen"
+    if normalized.startswith("alfa pakli"):
+        return "alpha"
+    if normalized == "kódos lapok":
+        return "coded"
+    if normalized == "promóciós lapok" or normalized.startswith("promóciós lapok ("):
+        return "promo"
+    return None
+
+
+def _parse_hkk_constants(payload: object) -> tuple[frozenset[str], dict[str, str], dict[str, dict[str, str | None]]]:
     if not isinstance(payload, dict):
         raise ValueError("The Lapkereső constants response is malformed.")
     subtypes = frozenset(value for value in _hkk_values(payload.get("subTypes"), max_items=500, max_length=120) if value not in {"--nincs--", "-", "?"})
     editions: dict[str, str] = {}
+    edition_metadata: dict[str, dict[str, str | None]] = {}
     if isinstance(payload.get("editions"), list):
         for edition in payload["editions"]:
             if not isinstance(edition, dict):
@@ -237,10 +251,18 @@ def _parse_hkk_constants(payload: object) -> tuple[frozenset[str], dict[str, str
             name = _hkk_text(edition.get("nev"), max_length=160)
             if edition_id and name:
                 editions[edition_id] = name
-    return subtypes, editions
+                edition_type = _hkk_text(edition.get("tipus"), max_length=80)
+                release_date = _hkk_text(edition.get("megjelenesDatum"), max_length=20)
+                edition_metadata[edition_id] = {
+                    "id": edition_id,
+                    "name": name,
+                    "group": _edition_group(name, edition_type),
+                    "release_date": release_date,
+                }
+    return subtypes, editions, edition_metadata
 
 
-def _load_hkk_constants() -> tuple[frozenset[str], dict[str, str]]:
+def _load_hkk_constants() -> tuple[frozenset[str], dict[str, str], dict[str, dict[str, str | None]]]:
     global _hkk_constants_cache
     now = time.monotonic()
     if _hkk_constants_cache is not None and now - _hkk_constants_cache[0] < HKK_CONSTANTS_CACHE_TTL_SECONDS:
@@ -273,14 +295,14 @@ def fetch_hkk_card_image(card_id: int) -> tuple[bytes, str]:
     return response.content, media_type
 
 
-def parse_hkk_item(item: object, constants: tuple[frozenset[str], dict[str, str]]) -> dict | None:
+def parse_hkk_item(item: object, constants: tuple[frozenset[str], dict[str, str], dict[str, dict[str, str | None]]]) -> dict | None:
     if not isinstance(item, dict):
         return None
     external_id = _hkk_external_id(item.get("ID"))
     name = _hkk_text(item.get("name"), max_length=180)
     if external_id is None or name is None:
         return None
-    subtypes, edition_names = constants
+    subtypes, edition_names, _ = constants
     raw_types = _hkk_values(item.get("type"), max_items=50, max_length=120)
     card_subtypes = [value for value in raw_types if value in subtypes]
     card_types = [value for value in raw_types if value not in subtypes and value not in {"--Nincs--", "-"}]
@@ -329,19 +351,23 @@ def search_hkk_cards(query: str, limit: int, edition_id: str | None = None) -> l
     return [{**item, "source_token": sign_card_snapshot(item)} for item in results]
 
 
-def list_hkk_editions() -> list[dict[str, str]]:
+def list_hkk_editions() -> list[dict[str, str | None]]:
     try:
-        _, editions = _load_hkk_constants()
+        _, _, editions = _load_hkk_constants()
     except (httpx.HTTPError, ValueError) as exc:
         raise HTTPException(status_code=503, detail="A HKK lapkereső jelenleg nem érhető el.") from exc
-    return [{"id": edition_id, "name": name} for edition_id, name in editions.items()]
+    return sorted(
+        editions.values(),
+        key=lambda edition: (edition.get("release_date") or "0000-00-00", int(str(edition["id"]))),
+        reverse=True,
+    )
 
 
-def hkk_edition_cards(edition_id: str) -> tuple[dict[str, str], list[dict]]:
+def hkk_edition_cards(edition_id: str) -> tuple[dict[str, str | None], list[dict]]:
     try:
         constants = _load_hkk_constants()
-        edition_name = constants[1].get(edition_id)
-        if edition_name is None:
+        edition = constants[2].get(edition_id)
+        if edition is None:
             raise HTTPException(status_code=404, detail="A HKK kiegészítő nem található.")
         response = httpx.get(
             _hkk_catalog_url("lapkereso/kereses", {"kiegeszito": edition_id}),
@@ -367,7 +393,7 @@ def hkk_edition_cards(edition_id: str) -> tuple[dict[str, str], list[dict]]:
         cards.append({**parsed, "source_token": sign_card_snapshot(parsed)})
         if len(cards) >= 5000:
             raise HTTPException(status_code=503, detail="A HKK kiegészítő túl sok rekordot adott vissza.")
-    return {"id": edition_id, "name": edition_name}, cards
+    return edition, cards
 
 
 def import_hkk_edition(

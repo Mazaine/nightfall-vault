@@ -12,6 +12,7 @@ ACCOUNT_TARGETS = {
     "/account/transactions",
     "/account/vip",
 }
+VAULT_TARGETS = {"/vault?area=trade&view=matches"}
 AUCTION_TARGET = re.compile(r"^/auctions/[1-9][0-9]*$")
 USER_TARGET = re.compile(r"^/users/[^/?#\\]+$")
 
@@ -27,12 +28,12 @@ def validate_notification_target_url(target_url: str) -> str:
     lowered = target_url.lower()
     if "\\" in target_url or target_url.startswith("//") or lowered.startswith(("http:", "https:")):
         raise ValueError("Notification target must not reference an external URL.")
-    if "?" in target_url or "#" in target_url:
+    if "#" in target_url or ("?" in target_url and target_url not in VAULT_TARGETS):
         raise ValueError("Notification target query strings and fragments are not allowed.")
     if "%" in target_url:
         raise ValueError("Notification target must not contain encoded path characters.")
     if any(segment in {".", ".."} for segment in target_url.split("/")):
         raise ValueError("Notification target contains path traversal.")
-    if target_url in ACCOUNT_TARGETS or AUCTION_TARGET.fullmatch(target_url) or USER_TARGET.fullmatch(target_url):
+    if target_url in ACCOUNT_TARGETS or target_url in VAULT_TARGETS or AUCTION_TARGET.fullmatch(target_url) or USER_TARGET.fullmatch(target_url):
         return target_url
     raise ValueError("Notification target is not an allowed Nightfall Vault route.")

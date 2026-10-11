@@ -1,11 +1,12 @@
 import { apiRequest } from "./client";
 
-export type VaultFolder = { id: number; name: string; capacity: number; position: number; color: string | null; used_slots: number };
+export type VaultFolder = { id: number; name: string; capacity: number; position: number; color: string | null; used_slots: number; entry_count: number; copy_count: number };
 export type PrintVariant = "normal" | "foil" | "fa" | "gfa";
 export type VaultCard = {
   id: number; external_card_id: string; card_name: string; image_url: string | null; edition: string | null;
   card_type: string | null; subtype: string | null; color: string | null; rarity: string | null; quantity: number;
   folder_id: number | null; wanted: boolean; wanted_quantity: number; offer_count: number; print_variant: PrintVariant;
+  in_trade: boolean; trade_card_id: number | null;
 };
 export type BulkCardAction = "move" | "trade_add" | "trade_remove" | "wanted_on" | "wanted_off" | "delete";
 export type VaultMaintenance = { stale_after_days: number; acquired_wanted: VaultCard[]; stale_trade_cards: PublicTradeCard[]; overdue_loans: VaultCardLoan[] };
@@ -14,12 +15,14 @@ export type TradeCardSeeker = { user_id: number; username: string; display_name:
 export type VaultSummary = {
   total_collection_capacity: number; assigned_collection_capacity: number; free_collection_capacity: number;
   used_collection_slots: number; trade_capacity: number; used_trade_slots: number; vp_balance: number; vault_unlimited?: boolean;
-  owned_card_quantity: number; new_trade_opportunities: number; cards_wanted_by_others: number; deck_missing_quantity: number; active_loan_count: number;
+  owned_card_quantity: number; new_trade_opportunities: number; unseen_match_count: number; cards_wanted_by_others: number; deck_missing_quantity: number; active_loan_count: number;
   folders: VaultFolder[];
 };
 export type HkkCard = Pick<VaultCard, "external_card_id" | "card_name" | "image_url" | "edition" | "card_type" | "subtype" | "color" | "rarity"> & { source_token: string };
 export type HkkRarity = "common" | "uncommun" | "rare" | "ultrarare";
-export type HkkEdition = { id: string; name: string };
+export type HkkEditionGroup = "zen" | "alpha" | "promo" | "coded";
+export type HkkEdition = { id: string; name: string; group: HkkEditionGroup | null; release_date: string | null };
+export type VaultMatchStatus = { unseen_count: number; match_keys: string[] };
 export type HkkEditionPreview = { edition: HkkEdition; count: number; cards: HkkCard[] };
 export type HkkEditionImportResult = { edition: HkkEdition; total_cards: number; added_cards: number; updated_cards: number; skipped_cards: number };
 export type PointTransaction = { id: number; amount: number; reason: string; reference_type: string | null; reference_id: string | null; created_at: string };
@@ -79,6 +82,8 @@ export const deleteTradeCard = (id: number) => apiRequest<void>(`/api/vault/trad
 export const verifyTradeCard = (id: number) => apiRequest<PublicTradeCard>(`/api/vault/trade/${id}/verify`, { method: "POST", authenticated: true });
 export const listTradeCardSeekers = (id: number) => apiRequest<TradeCardSeeker[]>(`/api/vault/trade/${id}/seekers`, { authenticated: true });
 export const listMatches = () => apiRequest<VaultCard[]>("/api/vault/matches", { authenticated: true });
+export const getMatchStatus = () => apiRequest<VaultMatchStatus>("/api/vault/matches/status", { authenticated: true });
+export const markMatchesSeen = (match_keys: string[]) => apiRequest<{ updated: number }>("/api/vault/matches/seen", { method: "POST", authenticated: true, body: JSON.stringify({ match_keys }) });
 export const listMatchingOffers = (cardId: number) => apiRequest<PublicTradeCard[]>(`/api/vault/cards/${cardId}/offers`, { authenticated: true });
 export const getPublicTradeFolder = (username: string, query = "") => apiRequest<PublicTradeCard[]>(`/api/vault/public/${encodeURIComponent(username)}${query ? `?query=${encodeURIComponent(query)}` : ""}`);
 export const getPointHistory = () => apiRequest<PointHistory>("/api/vault/points", { authenticated: true });

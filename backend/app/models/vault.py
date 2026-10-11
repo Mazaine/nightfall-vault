@@ -104,6 +104,33 @@ class VaultTradeCard(Base):
     user = relationship("User")
 
 
+class VaultMatchState(Base):
+    __tablename__ = "vault_match_states"
+    __table_args__ = (
+        UniqueConstraint("user_id", "match_key", name="uq_vault_match_states_user_key"),
+        Index("ix_vault_match_states_user_active_seen", "user_id", "is_active", "seen_at"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    collection_card_id: Mapped[int | None] = mapped_column(ForeignKey("vault_collection_cards.id", ondelete="SET NULL"), nullable=True, index=True)
+    offered_card_id: Mapped[int | None] = mapped_column(ForeignKey("vault_trade_cards.id", ondelete="SET NULL"), nullable=True, index=True)
+    owner_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    match_key: Mapped[str] = mapped_column(String(64), nullable=False)
+    external_card_id: Mapped[str] = mapped_column(String(120), nullable=False)
+    wanted_quantity: Mapped[int] = mapped_column(Integer, nullable=False)
+    offered_quantity: Mapped[int] = mapped_column(Integer, nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default="true")
+    seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    first_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+    user = relationship("User", foreign_keys=[user_id])
+    owner = relationship("User", foreign_keys=[owner_id])
+    collection_card = relationship("VaultCollectionCard")
+    offered_card = relationship("VaultTradeCard")
+
+
 class VaultCardLoan(Base):
     __tablename__ = "vault_card_loans"
     __table_args__ = (

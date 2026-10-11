@@ -21,7 +21,7 @@ TYPE_CATEGORY = {
     "review_received": "reviews",
     "report_resolved": "moderation", "report_dismissed": "moderation", "auction_moderation_action": "moderation",
     "moderation_action": "moderation", "moderation_strike": "moderation", "moderation_revoked": "moderation",
-    "saved_search_match": "system", "watchlist_reminder": "system", "seller_auction_reminder": "system",
+    "saved_search_match": "system", "vault_match": "system", "watchlist_reminder": "system", "seller_auction_reminder": "system",
 }
 
 TYPE_PREFERENCE_KEY = {
@@ -50,6 +50,7 @@ TYPE_PREFERENCE_KEY = {
     "moderation_strike": "moderation",
     "moderation_revoked": "moderation",
     "saved_search_match": "system",
+    "vault_match": "system",
 }
 
 PREFERENCE_KEYS = NotificationPreference.PREFERENCE_KEYS
@@ -91,6 +92,8 @@ def dispatch_notification(
 ) -> Notification | None:
     category = TYPE_CATEGORY.get(notification_type, "system")
     preference = preference_for(db, user_id, TYPE_PREFERENCE_KEY.get(notification_type, "system"))
+    if notification_type == "vault_match":
+        preference = DeliveryPreference(in_app=True)
     user = db.get(User, user_id)
     auction = db.get(Auction, auction_id) if auction_id is not None else None
     if auction is not None and auction.demo_batch_id is not None and not can_access_demo_auctions(user):
