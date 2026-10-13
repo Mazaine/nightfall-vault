@@ -61,11 +61,13 @@ export const listVaultCards = (params: { folderId?: number; query?: string; want
   return apiRequest<VaultCard[]>(`/api/vault/cards?${search}`, { authenticated: true });
 };
 export const addVaultCard = (card: HkkCard, folder_id: number, quantity: number, print_variant: PrintVariant = "normal") => apiRequest<VaultCard>("/api/vault/cards", { method: "POST", authenticated: true, body: JSON.stringify({ ...card, folder_id, quantity, print_variant }) });
+export const addVaultCardVariant = (cardId: number, quantity: number, print_variant: PrintVariant) => apiRequest<VaultCard>(`/api/vault/cards/${cardId}/variants`, { method: "POST", authenticated: true, body: JSON.stringify({ quantity, print_variant }) });
 export const addWantedCard = (card: HkkCard, folder_id: number, print_variant: PrintVariant = "normal") => apiRequest<VaultCard>("/api/vault/cards/wanted", { method: "POST", authenticated: true, body: JSON.stringify({ ...card, folder_id, print_variant }) });
 export const updateVaultCard = (id: number, payload: { quantity?: number; folder_id?: number; print_variant?: PrintVariant }) => apiRequest<VaultCard>(`/api/vault/cards/${id}`, { method: "PATCH", authenticated: true, body: JSON.stringify(payload) });
 export const setVaultWanted = (id: number, wanted: boolean, quantity?: number) => apiRequest<VaultCard>(`/api/vault/cards/${id}/wanted`, { method: "PUT", authenticated: true, body: JSON.stringify({ wanted, quantity }) });
 export const deleteVaultCard = (id: number) => apiRequest<void>(`/api/vault/cards/${id}`, { method: "DELETE", authenticated: true });
 export const bulkUpdateVaultCards = (card_ids: number[], action: BulkCardAction, folder_id?: number) => apiRequest<{ action: string; processed_count: number }>("/api/vault/cards/bulk", { method: "POST", authenticated: true, body: JSON.stringify({ card_ids, action, folder_id }) });
+export const setCollectionTradeQuantities = (items: { card_id: number; quantity: number }[]) => apiRequest<{ action: string; processed_count: number }>("/api/vault/cards/trade", { method: "PUT", authenticated: true, body: JSON.stringify({ items }) });
 export const searchHkk = (query: string, editionId?: string) => {
   const search = new URLSearchParams();
   if (query.trim()) search.set("q", query.trim());
@@ -96,6 +98,7 @@ export const confirmVaultTrade = (tradeId: number) => apiRequest<VaultTrade>(`/a
 export const reviewVaultTrade = (tradeId: number, rating: number, comment?: string) => apiRequest<{ id: number }>(`/api/vault/negotiations/${tradeId}/reviews`, { method: "POST", authenticated: true, body: JSON.stringify({ rating, comment: comment || null }) });
 export const listCardLoans = () => apiRequest<VaultCardLoan[]>("/api/vault/loans", { authenticated: true });
 export const createCardLoan = (cardId: number, payload: { quantity: number; borrower_name: string; lent_at: string; due_at?: string | null; note?: string | null }) => apiRequest<VaultCardLoan>(`/api/vault/cards/${cardId}/loans`, { method: "POST", authenticated: true, body: JSON.stringify(payload) });
+export const createStandaloneCardLoans = (cards: (HkkCard & { quantity: number; print_variant: PrintVariant })[], payload: { borrower_name: string; lent_at: string; due_at?: string | null; note?: string | null }) => apiRequest<VaultCardLoan[]>("/api/vault/loans", { method: "POST", authenticated: true, body: JSON.stringify({ ...payload, cards }) });
 export const returnCardLoan = (loanId: number) => apiRequest<VaultCardLoan>(`/api/vault/loans/${loanId}/return`, { method: "POST", authenticated: true });
 export const listDecks = () => apiRequest<VaultDeck[]>("/api/vault/decks", { authenticated: true });
 export const createDeck = (name: string) => apiRequest<VaultDeck>("/api/vault/decks", { method: "POST", authenticated: true, body: JSON.stringify({ name }) });

@@ -42,7 +42,7 @@ class FolderReorder(BaseModel):
 
 class CollectionCardCreate(CardSnapshot):
     folder_id: int
-    quantity: int = Field(ge=1, le=3)
+    quantity: int = Field(ge=1, le=9)
     print_variant: PrintVariant | None = None
 
 
@@ -52,14 +52,19 @@ class WantedCardCreate(CardSnapshot):
 
 
 class CollectionCardUpdate(BaseModel):
-    quantity: int | None = Field(default=None, ge=0, le=3)
+    quantity: int | None = Field(default=None, ge=0, le=9)
     folder_id: int | None = None
     print_variant: PrintVariant | None = None
 
 
 class WantedUpdate(BaseModel):
     wanted: bool
-    quantity: int | None = Field(default=None, ge=1, le=3)
+    quantity: int | None = Field(default=None, ge=1, le=9)
+
+
+class CollectionVariantCreate(BaseModel):
+    quantity: int = Field(ge=1, le=9)
+    print_variant: PrintVariant
 
 
 class BulkCardOperation(BaseModel):
@@ -81,13 +86,29 @@ class BulkCardOperationResult(BaseModel):
 
 
 class TradeCardCreate(CardSnapshot):
-    quantity: int = Field(ge=1, le=3)
+    quantity: int = Field(ge=1, le=9)
     print_variant: PrintVariant | None = None
 
 
 class QuantityUpdate(BaseModel):
-    quantity: int = Field(ge=1, le=3)
+    quantity: int = Field(ge=1, le=9)
     print_variant: PrintVariant | None = None
+
+
+class CollectionTradeQuantity(BaseModel):
+    card_id: int = Field(gt=0)
+    quantity: int = Field(ge=0, le=9)
+
+
+class CollectionTradeUpdate(BaseModel):
+    items: list[CollectionTradeQuantity] = Field(min_length=1, max_length=4)
+
+    @field_validator("items")
+    @classmethod
+    def unique_cards(cls, value: list[CollectionTradeQuantity]) -> list[CollectionTradeQuantity]:
+        if len({item.card_id for item in value}) != len(value):
+            raise ValueError("Egy lapváltozat csak egyszer szerepelhet.")
+        return value
 
 
 class FolderRead(BaseModel):
@@ -243,7 +264,7 @@ class HkkEditionCards(BaseModel):
 class HkkEditionImport(BaseModel):
     edition_id: str = Field(min_length=1, max_length=20, pattern=r"^[1-9][0-9]*$")
     folder_id: int
-    quantity: int = Field(ge=1, le=3)
+    quantity: int = Field(ge=1, le=9)
     missing_only: bool = False
     rarities: list[Literal["common", "uncommun", "rare", "ultrarare"]] | None = Field(default=None, min_length=1, max_length=4)
 
@@ -276,7 +297,7 @@ class TradeReviewRead(BaseModel):
 
 
 class CardLoanCreate(BaseModel):
-    quantity: int = Field(ge=1, le=3)
+    quantity: int = Field(ge=1, le=9)
     borrower_name: str = Field(min_length=1, max_length=180)
     lent_at: date
     due_at: date | None = None
@@ -288,6 +309,35 @@ class CardLoanCreate(BaseModel):
         value = value.strip()
         if not value:
             raise ValueError("A kölcsönvevő neve kötelező.")
+        return value
+
+
+class CardLoanBatchItem(CardSnapshot):
+    quantity: int = Field(ge=1, le=9)
+    print_variant: PrintVariant = "normal"
+
+
+class CardLoanBatchCreate(BaseModel):
+    cards: list[CardLoanBatchItem] = Field(min_length=1, max_length=50)
+    borrower_name: str = Field(min_length=1, max_length=180)
+    lent_at: date
+    due_at: date | None = None
+    note: str | None = Field(default=None, max_length=1000)
+
+    @field_validator("borrower_name")
+    @classmethod
+    def strip_batch_borrower_name(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("A kölcsönvevő neve kötelező.")
+        return value
+
+    @field_validator("cards")
+    @classmethod
+    def unique_batch_cards(cls, value: list[CardLoanBatchItem]) -> list[CardLoanBatchItem]:
+        keys = [(item.external_card_id, item.print_variant) for item in value]
+        if len(keys) != len(set(keys)):
+            raise ValueError("Egy lapváltozat csak egyszer szerepelhet.")
         return value
 
 

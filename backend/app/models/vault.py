@@ -49,8 +49,8 @@ class VaultCollectionCard(Base):
     __tablename__ = "vault_collection_cards"
     __table_args__ = (
         UniqueConstraint("user_id", "external_card_id", "print_variant", name="uq_vault_collection_cards_user_card_variant"),
-        CheckConstraint("quantity BETWEEN 0 AND 3", name="ck_vault_collection_cards_quantity"),
-        CheckConstraint("wanted_quantity BETWEEN 0 AND 3", name="ck_vault_collection_cards_wanted_quantity"),
+        CheckConstraint("quantity BETWEEN 0 AND 9", name="ck_vault_collection_cards_quantity"),
+        CheckConstraint("wanted_quantity BETWEEN 0 AND 9", name="ck_vault_collection_cards_wanted_quantity"),
         CheckConstraint("print_variant IN ('normal', 'foil', 'fa', 'gfa')", name="ck_vault_collection_cards_print_variant"),
         Index("ix_vault_collection_cards_folder_name", "folder_id", "card_name"),
     )
@@ -81,7 +81,7 @@ class VaultTradeCard(Base):
     __tablename__ = "vault_trade_cards"
     __table_args__ = (
         UniqueConstraint("user_id", "external_card_id", "print_variant", name="uq_vault_trade_cards_user_card_variant"),
-        CheckConstraint("quantity BETWEEN 1 AND 3", name="ck_vault_trade_cards_quantity"),
+        CheckConstraint("quantity BETWEEN 1 AND 9", name="ck_vault_trade_cards_quantity"),
         CheckConstraint("print_variant IN ('normal', 'foil', 'fa', 'gfa')", name="ck_vault_trade_cards_print_variant"),
         Index("ix_vault_trade_cards_external_name", "external_card_id", "card_name"),
     )
@@ -134,7 +134,7 @@ class VaultMatchState(Base):
 class VaultCardLoan(Base):
     __tablename__ = "vault_card_loans"
     __table_args__ = (
-        CheckConstraint("quantity BETWEEN 1 AND 3", name="ck_vault_card_loans_quantity"),
+        CheckConstraint("quantity BETWEEN 1 AND 9", name="ck_vault_card_loans_quantity"),
         CheckConstraint("status IN ('active', 'returned', 'cancelled')", name="ck_vault_card_loans_status"),
         CheckConstraint("length(trim(borrower_name)) > 0", name="ck_vault_card_loans_borrower_name"),
         Index("ix_vault_card_loans_user_status", "user_id", "status"),

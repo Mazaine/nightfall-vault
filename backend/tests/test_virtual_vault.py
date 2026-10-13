@@ -206,7 +206,9 @@ def test_base_capacities_folder_limits_playset_move_and_idor() -> None:
         assert created.status_code == 201 and created.json()["quantity"] == 2 and created.json()["print_variant"] == "normal"
         duplicate = client.post("/api/vault/cards", json={**card_payload(quantity=3), "folder_id": xen["id"]}, headers=auth_headers(owner))
         assert duplicate.status_code == 201 and duplicate.json()["id"] == created.json()["id"] and duplicate.json()["quantity"] == 3
-        assert client.post("/api/vault/cards", json={**card_payload("bad", "Hibás", 4), "folder_id": xen["id"]}, headers=auth_headers(owner)).status_code == 422
+        nine = client.post("/api/vault/cards", json={**card_payload(quantity=9), "folder_id": xen["id"]}, headers=auth_headers(owner))
+        assert nine.status_code == 201 and nine.json()["quantity"] == 9
+        assert client.post("/api/vault/cards", json={**card_payload("bad", "Hibás", 10), "folder_id": xen["id"]}, headers=auth_headers(owner)).status_code == 422
         moved = client.patch(f"/api/vault/cards/{created.json()['id']}", json={"folder_id": other["id"], "quantity": 2}, headers=auth_headers(owner))
         assert moved.status_code == 200 and moved.json()["folder_id"] == other["id"]
         foil = client.patch(f"/api/vault/cards/{created.json()['id']}", json={"print_variant": "foil"}, headers=auth_headers(owner))
@@ -621,5 +623,48 @@ def test_folder_aggregates_and_direct_trade_state_refresh_without_deleting_colle
         collection = client.get("/api/vault/cards", headers=headers).json()
         assert len(collection) == 2
         assert next(item for item in collection if item["id"] == first["id"])["in_trade"] is False
+    finally:
+        cleanup()
+
+
+def test_collection_variant_trade_quantity_and_standalone_multi_loan() -> None:
+    cleanup(); owner = create_test_user("variant-flow@vault-test.local")
+    try:
+        headers = auth_headers(owner)
+        folder = client.post("/api/vault/folders", json={"name": "Változatok", "capacity": 10}, headers=headers).json()
+        normal = client.post("/api/vault/cards", json={**card_payload("variant-card", "Változatos lap", 9), "folder_id": folder["id"]}, headers=headers).json()
+
+        foil = client.post(f"/api/vault/cards/{normal['id']}/variants", json={"quantity": 2, "print_variant": "foil"}, headers=headers)
+        assert foil.status_code == 201 and foil.json()["quantity"] == 2 and foil.json()["print_variant"] == "foil"
+        duplicate = client.post(f"/api/vault/cards/{normal['id']}/variants", json={"quantity": 1, "print_variant": "foil"}, headers=headers)
+        assert duplicate.status_code == 409
+
+        offered = client.put("/api/vault/cards/trade", json={"items": [{"card_id": normal["id"], "quantity": 4}, {"card_id": foil.json()["id"], "quantity": 1}]}, headers=headers)
+        assert offered.status_code == 200
+        trades = client.get("/api/vault/trade", headers=headers).json()
+        assert {(item["print_variant"], item["quantity"]) for item in trades} == {("normal", 4), ("foil", 1)}
+        removed = client.put("/api/vault/cards/trade", json={"items": [{"card_id": normal["id"], "quantity": 0}, {"card_id": foil.json()["id"], "quantity": 2}]}, headers=headers)
+        assert removed.status_code == 200
+        assert {(item["print_variant"], item["quantity"]) for item in client.get("/api/vault/trade", headers=headers).json()} == {("foil", 2)}
+        assert len(client.get("/api/vault/cards", headers=headers).json()) == 2
+
+        first = card_payload("loan-free-1", "Nem katalogizált lap", 3); first.pop("quantity")
+        second = card_payload("loan-free-2", "Másik kölcsönlap", 2); second.pop("quantity")
+        loans = client.post("/api/vault/loans", json={"borrower_name": "Tesztelő", "lent_at": "2026-10-13", "cards": [{**first, "quantity": 3, "print_variant": "normal"}, {**second, "quantity": 2, "print_variant": "fa"}]}, headers=headers)
+        assert loans.status_code == 201
+        assert {(item["external_card_id"], item["quantity"], item["collection_card_id"]) for item in loans.json()} == {("loan-free-1", 3, None), ("loan-free-2", 2, None)}
+    finally:
+        cleanup()
+
+
+def test_foil_variant_remains_backend_validated() -> None:
+    cleanup(); owner = create_test_user("variant-rarity@vault-test.local")
+    try:
+        headers = auth_headers(owner)
+        folder = client.post("/api/vault/folders", json={"name": "Gyakori", "capacity": 3}, headers=headers).json()
+        common = client.post("/api/vault/cards", json={**card_payload("common-card", "Gyakori lap", 1, "common"), "folder_id": folder["id"]}, headers=headers).json()
+        denied = client.post(f"/api/vault/cards/{common['id']}/variants", json={"quantity": 1, "print_variant": "foil"}, headers=headers)
+        assert denied.status_code == 422
+        assert client.post(f"/api/vault/cards/{common['id']}/variants", json={"quantity": 1, "print_variant": "fa"}, headers=headers).status_code == 201
     finally:
         cleanup()
