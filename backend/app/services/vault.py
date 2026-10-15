@@ -109,7 +109,34 @@ def folder_for_user(db: Session, folder_id: int, user_id: int, *, lock: bool = F
 
 
 def folder_used(db: Session, folder_id: int) -> int:
-    return int(db.scalar(select(func.count()).select_from(VaultCollectionCard).where(VaultCollectionCard.folder_id == folder_id)) or 0)
+    return int(db.scalar(select(func.count(func.distinct(VaultCollectionCard.external_card_id))).where(VaultCollectionCard.folder_id == folder_id)) or 0)
+
+
+def collection_card_total(db: Session, user_id: int, external_card_id: str, *, exclude_card_id: int | None = None) -> int:
+    statement = select(func.coalesce(func.sum(VaultCollectionCard.quantity), 0)).where(
+        VaultCollectionCard.user_id == user_id,
+        VaultCollectionCard.external_card_id == external_card_id,
+    )
+    if exclude_card_id is not None:
+        statement = statement.where(VaultCollectionCard.id != exclude_card_id)
+    return int(db.scalar(statement) or 0)
+
+
+def require_collection_pocket_limit(db: Session, user_id: int, external_card_id: str, quantity: int, *, card: VaultCollectionCard | None = None) -> None:
+    total = collection_card_total(db, user_id, external_card_id, exclude_card_id=card.id if card else None) + quantity
+    previous_total = collection_card_total(db, user_id, external_card_id)
+    if total > 9 and total > previous_total:
+        raise HTTPException(status_code=409, detail=f"Egy gyűjtőzsebben a lapváltozatokból együtt legfeljebb 9 példány lehet (kért összesen: {total}).")
+
+
+def reserved_listing_quantity(db: Session, card_id: int) -> int:
+    from app.models.auction import Auction
+    return int(db.scalar(select(func.coalesce(func.sum(Auction.vault_quantity), 0)).where(
+        Auction.vault_collection_card_id == card_id,
+        Auction.status.in_(["draft", "scheduled", "active", "sold"]),
+        Auction.deleted_at.is_(None),
+        Auction.vault_inventory_deducted.is_(False),
+    )) or 0)
 
 
 def assigned_capacity(db: Session, user_id: int, *, exclude_folder_id: int | None = None) -> int:

@@ -66,16 +66,19 @@ describe("VirtualVaultPage", () => {
     expect(prompt).not.toHaveBeenCalled();
   });
 
-  it("kölcsönadást natív prompt nélkül, validált űrlapon rögzít", async () => {
-    mocks.createCardLoan.mockResolvedValue({}); const prompt = vi.spyOn(window, "prompt");
+  it("kompakt ikonos műveletsort mutat, a kölcsönadást nem teszi a kártyára", async () => {
+    const prompt = vi.spyOn(window, "prompt");
     render(<VirtualVaultPage />); await screen.findByText("Mi történt a mappádban?"); fireEvent.click(screen.getByRole("button", { name: "Gyűjtemény" }));
     const article = (await screen.findByText("Xenó lárva")).closest("article")!;
     expect(within(article).queryByText("További műveletek")).not.toBeInTheDocument();
-    expect(within(article).getByRole("button", { name: "Xenó lárva törlése" })).toHaveClass("button-danger", "vault-delete-icon-button");
+    expect(within(article).getByRole("button", { name: "Xenó lárva törlése" })).toHaveClass("vault-card-action-icon", "is-danger");
     expect(within(article).queryByText("Törlés")).not.toBeInTheDocument();
-    fireEvent.click(within(article).getByRole("button", { name: "Kölcsönadom" }));
-    const dialog = screen.getByRole("dialog"); fireEvent.change(within(dialog).getByLabelText("Kölcsönvevő neve"), { target: { value: "Béla" } }); fireEvent.click(within(dialog).getByRole("button", { name: "Kölcsönadás mentése" }));
-    await waitFor(() => expect(mocks.createCardLoan).toHaveBeenCalledWith(5, expect.objectContaining({ borrower_name: "Béla", quantity: 1 })));
+    expect(within(article).queryByRole("button", { name: "Kölcsönadom" })).not.toBeInTheDocument();
+    fireEvent.click(within(article).getByRole("button", { name: "Eladás vagy aukció" }));
+    const listing = screen.getByRole("dialog", { name: "Meghirdetés · Xenó lárva" });
+    expect(within(listing).getByRole("tab", { name: "Fix áras eladás" })).toHaveAttribute("aria-selected", "true");
+    expect(within(listing).getByRole("tab", { name: "Aukció" })).toBeInTheDocument();
+    expect(within(listing).getByLabelText("Változat")).toHaveValue("5");
     expect(prompt).not.toHaveBeenCalled();
   });
 
@@ -87,11 +90,11 @@ describe("VirtualVaultPage", () => {
     expect(article.querySelector(".vault-card-title")).toBeInTheDocument();
     expect(within(article).getByRole("region", { name: "Tulajdonságok" })).toBeInTheDocument();
     expect(within(article).getByRole("contentinfo", { name: "Lapműveletek" })).toBeInTheDocument();
-    const wanted = within(article).getByRole("button", { name: "Keresem" });
+    const wanted = within(article).getByRole("button", { name: "Már nem keresem" });
     expect(wanted).toHaveAttribute("aria-pressed", "true");
     fireEvent.click(wanted);
     await waitFor(() => expect(mocks.setVaultWanted).toHaveBeenCalledWith(5, false, undefined));
-    fireEvent.click(within(article).getByRole("button", { name: "Csere" }));
+    fireEvent.click(within(article).getByRole("button", { name: "Cserére kínálom" }));
     const dialog = screen.getByRole("dialog");
     fireEvent.change(within(dialog).getByRole("combobox", { name: "Xenó lárva normal csere mennyisége" }), { target: { value: "1" } });
     fireEvent.click(within(dialog).getByRole("button", { name: "Cseremappa frissítése" }));
@@ -156,14 +159,14 @@ describe("VirtualVaultPage", () => {
     expect(screen.getAllByText("Xenó lárva")).toHaveLength(1);
     expect(article).toHaveAttribute("data-variant-count", "2");
     const quantities = within(article).getAllByRole("combobox");
-    expect(quantities.map((item) => (item as HTMLSelectElement).value)).toEqual(["2", "1", "0", "0"]);
+    expect(quantities.map((item) => (item as HTMLSelectElement).value)).toEqual(["2", "1"]);
     expect(within(article).getByLabelText("Xenó lárva Normál példányszáma")).toBe(quantities[0]);
     expect(within(article).getByLabelText("Xenó lárva Foil példányszáma")).toBe(quantities[1]);
     expect(quantities[0].closest("label")).toHaveClass("vault-variant-quantity");
-    fireEvent.change(quantities[1], { target: { value: "3" } });
-    await waitFor(() => expect(mocks.updateVaultCard).toHaveBeenCalledWith(6, { quantity: 3 }));
-    expect(within(article).getByText("FA")).toBeInTheDocument();
-    expect(within(article).getByText("GFA")).toBeInTheDocument();
+    fireEvent.change(quantities[1], { target: { value: "7" } });
+    await waitFor(() => expect(mocks.updateVaultCard).toHaveBeenCalledWith(6, { quantity: 7 }));
+    expect(within(article).queryByText("FA")).not.toBeInTheDocument();
+    expect(within(article).queryByText("GFA")).not.toBeInTheDocument();
   });
 
   it("négy meglévő változatot egyetlen kártyán, egy sorhoz tartozó vezérlőkkel mutat", async () => {
@@ -176,25 +179,24 @@ describe("VirtualVaultPage", () => {
     render(<VirtualVaultPage />); await screen.findByText("Mi történt a mappádban?"); fireEvent.click(screen.getByRole("button", { name: "Gyűjtemény" }));
     const article = (await screen.findByText("Xenó lárva")).closest("article")!;
     expect(article).toHaveAttribute("data-variant-count", "4");
-    expect(within(article).getAllByRole("combobox")).toHaveLength(4);
+    expect(within(article).getAllByRole("combobox")).toHaveLength(3);
     expect(within(article).getByLabelText("Xenó lárva Normál példányszáma")).toHaveValue("2");
     expect(within(article).getByLabelText("Xenó lárva Foil példányszáma")).toHaveValue("1");
-    expect(within(article).getByLabelText("Xenó lárva FA példányszáma")).toHaveValue("0");
     expect(within(article).getByLabelText("Xenó lárva GFA példányszáma")).toHaveValue("3");
     expect(within(article).queryByText("Mappa", { selector: "label" })).not.toBeInTheDocument();
-    expect(within(article).getByRole("button", { name: "Keresem" })).toBeInTheDocument();
-    expect(within(article).getByRole("button", { name: "Csere" })).toBeInTheDocument();
-    expect(within(article).getByRole("button", { name: "Kölcsönadom" })).toBeInTheDocument();
+    expect(within(article).getByRole("button", { name: "Már nem keresem" })).toBeInTheDocument();
+    expect(within(article).getByRole("button", { name: "Cserére kínálom" })).toBeInTheDocument();
+    expect(within(article).getByRole("button", { name: "Eladás vagy aukció" })).toBeInTheDocument();
     expect(within(article).getByRole("button", { name: "Xenó lárva törlése" })).toBeInTheDocument();
   });
 
-  it("gyakori lapnál nem kínál foilt, de az FA és GFA megmarad", async () => {
+  it("gyakori lapnál nem kínál foilt, és az FA/GFA közös helyén a tényleges speciális változat marad", async () => {
     mocks.listVaultCards.mockResolvedValue([{ ...card, rarity: "common" }, { ...card, id: 7, rarity: "common", print_variant: "fa", quantity: 1 }, { ...card, id: 8, rarity: "common", print_variant: "gfa", quantity: 1 }]);
     mocks.searchHkk.mockResolvedValue([{ ...hkk, rarity: "uncommon" }]);
     render(<VirtualVaultPage />); await screen.findByText("Mi történt a mappádban?"); fireEvent.click(screen.getByRole("button", { name: "Gyűjtemény" }));
     const variants = screen.getByLabelText("Xenó lárva változatok");
     expect(within(variants).queryByText("Foil")).not.toBeInTheDocument();
-    expect(within(variants).getByText("FA")).toBeInTheDocument();
+    expect(within(variants).queryByText("FA")).not.toBeInTheDocument();
     expect(within(variants).getByText("GFA")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Lapfelvitel" }));
     fireEvent.change(screen.getByLabelText("Lap neve"), { target: { value: "Orkling" } });

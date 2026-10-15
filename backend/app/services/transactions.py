@@ -192,6 +192,19 @@ def confirm_completion(db: Session, transaction_id: int, user: User) -> AuctionT
         event_key=f"transaction-confirmation:{transaction.id}:{user.id}:{partner_id}",
     )
     if transaction.seller_completed_at and transaction.buyer_completed_at:
+        auction = db.scalar(select(Auction).where(Auction.id == transaction.auction_id).with_for_update())
+        if auction is not None and auction.vault_collection_card_id is not None and not auction.vault_inventory_deducted:
+            from app.models.vault import VaultCollectionCard
+            vault_card = db.scalar(select(VaultCollectionCard).where(
+                VaultCollectionCard.id == auction.vault_collection_card_id,
+                VaultCollectionCard.user_id == transaction.seller_id,
+            ).with_for_update())
+            required = int(auction.vault_quantity or 0)
+            if vault_card is None or vault_card.quantity < required:
+                raise HTTPException(status_code=409, detail="A Vault-készlet időközben nem elegendő a tranzakció lezárásához.")
+            vault_card.quantity -= required
+            auction.vault_inventory_deducted = True
+            db.add_all([vault_card, auction])
         transaction.status = "completed"
         transaction.completed_at = timestamp
         transaction.review_deadline = timestamp + timedelta(days=settings.transaction_review_window_days)

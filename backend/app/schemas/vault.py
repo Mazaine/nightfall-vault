@@ -148,6 +148,8 @@ class PublicTradeCardRead(CardRead):
     owner_id: int
     owner_username: str
     seeker_count: int = 0
+    fixed_price_auction_id: int | None = None
+    fixed_price: str | None = None
 
 
 class TradeCardSeekerRead(BaseModel):

@@ -3066,7 +3066,7 @@ h3 {
 .vault-search-results { display: grid; gap: var(--space-3); }
 .vault-search-results-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
 .vault-search-card-results { gap: var(--space-4); }
-.vault-search-card-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-3); }
+.vault-search-card-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: var(--space-3); }
 .vault-search-card .vault-card-body { grid-template-rows: auto auto 1fr auto; }
 .vault-search-card-actions { align-self: end; flex-wrap: nowrap; }
 .vault-search-card-actions .button { min-width: 0; padding-inline: .45rem; white-space: nowrap; }
@@ -3108,8 +3108,8 @@ h3 {
 .vault-sort-control { display: grid; gap: .3rem; color: var(--color-text-muted); font-size: .8rem; }
 .vault-sort-control select { min-width: 9rem; }
 .vault-sort-direction { min-width: 4.5rem; }
-.vault-card-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-4); }
-.vault-collection-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-3); }
+.vault-card-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: var(--space-4); }
+.vault-collection-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: .65rem; }
 .vault-card { position: relative; display: grid; grid-template-rows: auto 1fr; min-width: 0; overflow: hidden; border: 1px solid var(--color-divider); border-radius: var(--radius-md); background: rgb(9 7 14 / .65); }
 .vault-card.is-selected { border-color: var(--color-primary); box-shadow: 0 0 0 2px rgb(124 58 237 / .22); }
 .vault-card > .card-image-preview, .vault-card > .vault-card-placeholder { width: 100%; aspect-ratio: 5 / 7; }
@@ -3142,11 +3142,17 @@ h3 {
 .playset-badge.q3, .complete-playset { color: #86efac !important; }
 .vault-card-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 .vault-card-actions .button { min-height: 2.5rem; padding: .5rem .7rem; font-size: .82rem; }
-.vault-card-direct-actions { display: flex; align-self: end; align-items: center; flex-wrap: wrap; gap: .35rem; margin-top: auto; padding-top: .35rem; }
+.vault-card-direct-actions { display: grid; grid-template-columns: repeat(4, minmax(2.5rem, 1fr)); align-self: end; align-items: center; gap: .35rem; margin-top: auto; padding-top: .35rem; }
 .vault-card-direct-actions > .button:not(.vault-delete-icon-button) { flex: 0 0 auto; min-width: 0; min-height: 2.15rem; padding: .35rem .45rem; font-size: .72rem; white-space: nowrap; }
 .vault-state-button.is-active { border-color: rgb(134 239 172 / .6); background: rgb(34 197 94 / .12); color: #bbf7d0; }
 .vault-delete-icon-button { display: inline-grid; width: 2.15rem; min-width: 2.15rem; min-height: 2.15rem !important; padding: 0; place-items: center; }
 .vault-delete-icon-button svg { width: 1.15rem; height: 1.15rem; fill: none; stroke: currentcolor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+.vault-card-action-icon { display: inline-grid; min-width: 0; min-height: 2.65rem; place-items: center; border: 1px solid var(--color-divider); border-radius: var(--radius-sm); background: rgb(255 255 255 / .035); color: var(--color-text-muted); cursor: pointer; }
+.vault-card-action-icon:hover, .vault-card-action-icon:focus-visible { border-color: var(--color-primary); color: var(--color-text); }
+.vault-card-action-icon.is-active { border-color: rgb(134 239 172 / .65); background: rgb(34 197 94 / .12); color: #bbf7d0; }
+.vault-card-action-icon.is-danger { border-color: rgb(248 113 113 / .45); color: #fca5a5; }
+.vault-card-action-icon:disabled { opacity: .38; cursor: not-allowed; }
+.vault-card-action-icon svg { width: 1.15rem; height: 1.15rem; fill: none; stroke: currentcolor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
 .vault-card-selector { position: absolute; z-index: 3; top: .55rem; left: .55rem; display: grid; width: 2.25rem; height: 2.25rem; place-items: center; border: 1px solid rgb(255 255 255 / .35); border-radius: 999px; background: rgb(5 4 11 / .88); box-shadow: 0 .3rem 1rem rgb(0 0 0 / .45); }
 .vault-card-selector input { width: 1rem; min-height: 1rem; }
 .vault-bulk-bar { position: sticky; z-index: 12; top: 5.5rem; display: grid; gap: var(--space-2); margin-bottom: var(--space-3); border: 1px solid rgb(168 85 247 / .42); border-radius: var(--radius-md); background: rgb(15 11 24 / .96); box-shadow: 0 .8rem 2rem rgb(0 0 0 / .32); padding: var(--space-2); }
@@ -3170,7 +3176,7 @@ h3 {
 .vault-ledger p, .vault-match-row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); margin: 0; border-bottom: 1px solid var(--color-divider); padding: var(--space-3) 0; }
 .vault-match-row > div { display: grid; gap: .2rem; }
 .vault-match-row span, .vault-offers small { color: var(--color-text-muted); }
-.vault-match-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-3); margin-top: var(--space-4); }
+.vault-match-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: var(--space-3); margin-top: var(--space-4); }
 .vault-match-card { display: grid; align-content: start; gap: var(--space-3); border: 1px solid var(--color-divider); border-radius: var(--radius-md); background: rgb(255 255 255 / .025); padding: var(--space-4); }
 .vault-match-card span, .vault-unmatched-summary { color: var(--color-text-muted); }
 .vault-unmatched-summary { margin: var(--space-3) 0 0; }
@@ -3178,6 +3184,9 @@ h3 {
 .vault-offers article { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
 .vault-offers article > div { display: grid; gap: .2rem; }
 .vault-public-search { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-2); margin-bottom: var(--space-5); }
+.vault-fixed-listing { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); border: 1px solid rgb(234 179 8 / .4); border-radius: var(--radius-sm); background: rgb(234 179 8 / .08); padding: .5rem .65rem; color: inherit; text-decoration: none; }
+.vault-fixed-listing strong { color: var(--color-accent-gold); }
+.vault-fixed-listing span { color: var(--color-text-muted); font-size: .75rem; }
 .vault-ledger .is-positive { color: #86efac; }
 .vault-negotiations { display: grid; gap: var(--space-4); margin-top: var(--space-4); }
 .vault-negotiations article { display: grid; gap: var(--space-3); padding: var(--space-4); }
@@ -3186,7 +3195,8 @@ h3 {
 .vault-messages { display: grid; max-height: 16rem; gap: var(--space-2); overflow-y: auto; }
 .vault-messages p { margin: 0; border-radius: var(--radius-sm); background: rgb(255 255 255 / .04); padding: .6rem; }
 .vault-loan-list { display: grid; gap: var(--space-3); margin-top: var(--space-4); }
-.vault-loan-list article { display: grid; grid-template-columns: minmax(12rem, 1fr) minmax(15rem, 2fr) auto; align-items: center; gap: var(--space-4); border: 1px solid var(--color-divider); border-radius: var(--radius-md); padding: var(--space-4); opacity: .72; }
+.vault-loan-list article { display: grid; grid-template-columns: 4rem minmax(10rem, 1fr) minmax(12rem, 2fr) auto; align-items: center; gap: var(--space-3); border: 1px solid var(--color-divider); border-radius: var(--radius-md); padding: var(--space-3); opacity: .72; }
+.vault-loan-card-image { width: 4rem; aspect-ratio: 5 / 7; border-radius: var(--radius-sm); }
 .vault-loan-list article.is-active { border-color: rgb(168 85 247 / .4); opacity: 1; }
 .vault-loan-list article > div { display: grid; gap: .3rem; }
 .vault-loan-list small { color: var(--color-text-muted); }
@@ -3201,6 +3211,12 @@ h3 {
 .vault-loan-fields label { display: grid; gap: .3rem; color: var(--color-text-muted); font-size: .8rem; }
 .vault-trade-sort { display: flex; justify-content: flex-end; margin-bottom: var(--space-3); }
 .vault-trade-sort label { display: grid; gap: .25rem; color: var(--color-text-muted); font-size: .8rem; }
+.vault-trade-card-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-self: end; gap: .4rem; margin-top: auto; }
+.vault-trade-card-actions .button { display: inline-flex; min-width: 0; min-height: 2.25rem; align-items: center; justify-content: center; gap: .3rem; padding: .35rem .45rem; font-size: .75rem; }
+.vault-trade-card-actions .button:last-child { grid-column: 1 / -1; }
+.vault-trade-card-actions .is-active { border-color: rgb(134 239 172 / .6); background: rgb(34 197 94 / .12); color: #bbf7d0; }
+.vault-trade-card-actions .is-danger { border-color: rgb(248 113 113 / .45); color: #fca5a5; }
+.vault-trade-card-actions svg { width: 1rem; height: 1rem; flex: 0 0 auto; fill: none; stroke: currentcolor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
 .vault-trade-quantity-dialog { border-color: rgb(168 85 247 / .45); }
 .vault-trade-quantity-dialog > label { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
 .vault-trade-quantity-dialog > label span { display: flex; gap: .5rem; }
@@ -3209,6 +3225,28 @@ h3 {
 .vault-confirm-dialog { display: grid; width: min(100%, 38rem); gap: var(--space-3); border: 1px solid rgb(248 113 113 / .45); border-radius: var(--radius-lg); background: var(--color-surface); box-shadow: 0 1.5rem 5rem rgb(0 0 0 / .5); padding: var(--space-5); }
 .vault-confirm-dialog h2, .vault-confirm-dialog p { margin: 0; }
 .vault-confirm-dialog label { display: grid; gap: .35rem; color: var(--color-text-muted); }
+.vault-listing-dialog { width: min(100%, 60rem); max-height: calc(100dvh - 2rem); overflow-y: auto; border-color: rgb(168 85 247 / .55); }
+.listing-composer { display: grid; gap: var(--space-3); min-width: 0; }
+.listing-mode { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border: 1px solid var(--color-divider); border-radius: var(--radius-sm); padding: .2rem; }
+.listing-mode button { min-height: 2.6rem; border: 0; border-radius: .35rem; background: transparent; color: var(--color-text-muted); cursor: pointer; }
+.listing-mode button.is-active { background: rgb(124 58 237 / .28); color: var(--color-text); font-weight: 700; }
+.listing-source { display: grid; grid-template-columns: 4rem minmax(0, 1fr); align-items: center; gap: var(--space-3); border-radius: var(--radius-sm); background: rgb(255 255 255 / .025); padding: var(--space-2); }
+.listing-source > .card-image-preview, .listing-source > .vault-card-placeholder { width: 4rem; aspect-ratio: 5 / 7; border-radius: var(--radius-sm); }
+.listing-source > div { display: grid; gap: .25rem; min-width: 0; }
+.listing-source small { color: var(--color-text-muted); }
+.listing-fields { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); align-items: start; gap: var(--space-2); }
+.listing-composer > label, .listing-fields label, .listing-upload { display: grid; min-width: 0; gap: .35rem; color: var(--color-text-muted); font-size: .82rem; }
+.listing-fields label { grid-template-rows: 1.15rem 2.8rem; }
+.listing-fields input, .listing-fields select { width: 100%; min-width: 0; height: 2.8rem; }
+.listing-money-input { display: grid; grid-template-columns: minmax(0, 1fr) auto; min-width: 0; align-items: center; gap: .45rem; }
+.listing-money-input > span { color: var(--color-text-muted); }
+.listing-upload-actions, .listing-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.listing-actions { justify-content: flex-end; }
+.listing-image-list { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: var(--space-2); }
+.listing-image-list article { display: grid; min-width: 0; gap: .35rem; border: 1px solid var(--color-divider); border-radius: var(--radius-sm); padding: .4rem; }
+.listing-image-list .file-image-preview { width: 100%; aspect-ratio: 1; object-fit: cover; }
+.listing-image-list article > div { display: flex; justify-content: space-between; gap: .2rem; }
+.listing-image-list button { min-width: 2rem; min-height: 2rem; border: 1px solid var(--color-divider); border-radius: .3rem; background: transparent; color: inherit; }
 .vault-home-button { display: grid; gap: .25rem; border: 0; background: transparent; color: inherit; padding: 0; text-align: left; cursor: pointer; }
 .vault-home-button h1 { max-width: none; margin: 0; font-size: clamp(2rem, 4vw, 3rem); line-height: 1; text-transform: none; }
 .vault-home-button small, .muted { color: var(--color-text-muted); }
@@ -3288,12 +3326,18 @@ h3 {
 .vault-post-tournament-grid h4 { margin: 0; }
 .vault-post-tournament-grid article { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
 
+@media (max-width: 1680px) {
+  .vault-collection-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .vault-card-grid, .vault-search-card-grid, .vault-match-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+
 @media (max-width: 1320px) {
   .vault-collection-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .vault-search-card-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .vault-card-grid, .vault-search-card-grid, .vault-match-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 
 @media (max-width: 1100px) {
+  .vault-collection-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .vault-card-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .vault-search-card-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .vault-collection-toolbar { grid-template-columns: 1fr; }
@@ -3330,6 +3374,7 @@ h3 {
   .vault-maintenance-heading, .vault-maintenance article, .vault-post-tournament-grid article { align-items: stretch; flex-direction: column; }
   .vault-sort-direction { width: 100%; }
   .vault-card-grid { grid-template-columns: 1fr; gap: var(--space-3); }
+  .vault-collection-grid { grid-template-columns: 1fr; }
   .vault-search-card-grid { grid-template-columns: 1fr; }
   .vault-subtabs ~ .vault-card-grid, .vault-match-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2); }
   .vault-subtabs ~ .vault-card-grid .vault-card-body, .vault-match-card { gap: .45rem; padding: .55rem; }
@@ -3341,6 +3386,7 @@ h3 {
   .vault-card-actions .button { width: 100%; }
   .vault-card-direct-actions { display: flex; }
   .vault-card-direct-actions .button { width: auto; }
+  .vault-card-direct-actions .vault-card-action-icon { flex: 1 1 2.75rem; }
   .vault-stat-grid { grid-template-columns: 1fr 1fr; gap: var(--space-2); }
   .vault-stat-grid article { padding: var(--space-3); }
   .vault-points-guide ul { grid-template-columns: 1fr; }
@@ -3353,7 +3399,12 @@ h3 {
   .vault-deck-search, .vault-deck-cards article, .vault-seeker-row { grid-template-columns: 1fr; }
   .vault-inline-form { align-items: stretch; flex-direction: column; }
   .vault-confirm-dialog { max-height: calc(100dvh - 2rem); overflow-y: auto; padding: var(--space-4); }
+  .listing-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .listing-image-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .listing-actions { position: sticky; bottom: 0; background: var(--color-surface); padding-top: var(--space-2); }
 }
+
+@media (max-width: 390px) { .listing-fields { grid-template-columns: 1fr; } }
 
 @media (max-width: 340px) { .vault-card-direct-actions { gap: .3rem; } }
 

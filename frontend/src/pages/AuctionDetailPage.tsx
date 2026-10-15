@@ -438,21 +438,20 @@ export function AuctionDetailPage() {
         <dl className="detail-list">
           <div><dt>Állapot</dt><dd>{formatCardCondition(auction.condition)}</dd></div>
           {auction.has_printing_error ? <div className="printing-error-detail"><dt>Nyomdahiba</dt><dd><strong>Nyomdahibás / gyártási hibás</strong>{auction.printing_error_description ? <small>{auction.printing_error_description}</small> : null}</dd></div> : null}
-          <div><dt>Aktuális licit</dt><dd>{formatMoney(auction.current_price ?? auction.starting_price)}</dd></div>
-          <div><dt>Kezdőár</dt><dd>{formatMoney(auction.starting_price)}</dd></div>
-          <div><dt>Licitlépcső</dt><dd>{formatMoney(auction.bid_increment)}</dd></div>
+          <div><dt>{auction.listing_type === "fixed" ? "Fix ár" : "Aktuális licit"}</dt><dd>{formatMoney(auction.listing_type === "fixed" ? auction.buy_now_price ?? auction.current_price : auction.current_price ?? auction.starting_price)}</dd></div>
+          {auction.listing_type !== "fixed" ? <><div><dt>Kezdőár</dt><dd>{formatMoney(auction.starting_price)}</dd></div><div><dt>Licitlépcső</dt><dd>{formatMoney(auction.bid_increment)}</dd></div></> : null}
           {auction.watch_count ? <div><dt>Figyelők</dt><dd>{auction.watch_count} ember figyeli</dd></div> : null}
           <div className={auction.five_minute_rule_enabled ? "detail-countdown-row" : undefined}><dt>Hátralévő idő</dt><dd><AuctionCountdown endsAt={auction.ends_at} status={auction.status} fiveMinuteRuleEnabled={auction.five_minute_rule_enabled} /></dd></div>
           <div><dt>Kezdés</dt><dd>{formatLocalDateTime(auction.starts_at)}</dd></div>
           <div><dt>Lejár</dt><dd>{formatAuctionEndDate(auction.ends_at)}</dd></div>
           <div><dt>Eladó</dt><dd>{auction.seller?.username ? <Link className="seller-link" to={`/users/${auction.seller.username}`}>{auction.seller.full_name ?? auction.seller.username}</Link> : "Eladó"}</dd></div>
-          {auction.buy_now_enabled && auction.buy_now_price ? (
+          {auction.listing_type !== "fixed" && auction.buy_now_enabled && auction.buy_now_price ? (
             <div><dt>Villámár</dt><dd>{formatMoney(auction.buy_now_price)}</dd></div>
           ) : null}
         </dl>
         {auction.status === "active" && !auction.is_owner && isAuthenticated && !auction.viewer_is_leading ? (
           <form className="bid-panel" id="bid-section" onSubmit={submitBid} noValidate>
-            <label>
+            {auction.listing_type !== "fixed" ? <><label>
               Licit összege
               <input
                 min={minimumBidAmount}
@@ -466,10 +465,10 @@ export function AuctionDetailPage() {
             </label>
             <button className="button button-primary" type="submit" disabled={isBidSubmitting}>
               {isBidSubmitting ? "Licit rögzítése..." : "Licitálok"}
-            </button>
+            </button></> : null}
             {auction.buy_now_enabled && auction.buy_now_price ? (
               <button className="button button-lightning" id="buy-now-section" type="button" disabled={isBidSubmitting} onClick={() => void requestBidConfirmation(auction.buy_now_price ?? "", true)}>
-                Villámár: {formatMoney(auction.buy_now_price)}
+                {auction.listing_type === "fixed" ? `Megveszem · ${formatMoney(auction.buy_now_price)}` : `Villámár: ${formatMoney(auction.buy_now_price)}`}
               </button>
             ) : null}
             {bidMessage ? <p className="form-message" role="status" aria-live="polite">{bidMessage}</p> : null}

@@ -12,7 +12,7 @@ from app.models.vault import VaultAccount, VaultCapacityGrant, VaultCardLoan, Va
 from app.services.membership import activate_code, generate_codes
 from app.services.vault import grant_capacity, grant_points, sign_card_snapshot
 from app.services import vault as vault_service
-from test_auction_domain import auth_headers, client, create_test_user
+from test_auction_domain import auction_payload, auth_headers, cleanup_test_data, client, create_test_user, upload_png
 
 
 def cleanup() -> None:
@@ -234,6 +234,69 @@ def test_base_capacities_folder_limits_playset_move_and_idor() -> None:
         assert destination_after["capacity"] == 15 and destination_after["used_slots"] == 1
     finally:
         cleanup()
+
+
+def test_variants_share_one_nine_copy_pocket_and_one_folder_slot() -> None:
+    cleanup(); user = create_test_user("variant-pocket@vault-test.local")
+    try:
+        folder = client.post("/api/vault/folders", json={"name": "Egy zseb", "capacity": 1}, headers=auth_headers(user)).json()
+        normal = client.post("/api/vault/cards", json={**card_payload("shared-pocket", "Közös zseb", 6), "folder_id": folder["id"]}, headers=auth_headers(user))
+        assert normal.status_code == 201
+        foil = client.post(
+            f"/api/vault/cards/{normal.json()['id']}/variants",
+            json={"print_variant": "foil", "quantity": 3},
+            headers=auth_headers(user),
+        )
+        assert foil.status_code == 201
+        summary = client.get("/api/vault/summary", headers=auth_headers(user)).json()
+        assert summary["folders"][0]["used_slots"] == 1
+        rejected = client.post(
+            f"/api/vault/cards/{normal.json()['id']}/variants",
+            json={"print_variant": "fa", "quantity": 1},
+            headers=auth_headers(user),
+        )
+        assert rejected.status_code == 409
+        assert "együtt legfeljebb 9" in rejected.json()["detail"]
+        assert len(client.get("/api/vault/cards", headers=auth_headers(user)).json()) == 2
+    finally:
+        cleanup()
+
+
+def test_fixed_price_vault_listing_reserves_and_deducts_only_after_completion() -> None:
+    cleanup_test_data(); cleanup()
+    seller = create_test_user("listing-seller@vault-test.local")
+    buyer = create_test_user("listing-buyer@vault-test.local")
+    try:
+        folder = client.post("/api/vault/folders", json={"name": "Eladó", "capacity": 2}, headers=auth_headers(seller)).json()
+        card = client.post("/api/vault/cards", json={**card_payload("sale-card", "Eladó lap", 2), "folder_id": folder["id"]}, headers=auth_headers(seller)).json()
+        payload = auction_payload(
+            title="Eladó lap",
+            description="Vaultból indított fix áras teszthirdetés.",
+            category="Hatalom Kártyái Kártyajáték",
+            listing_type="fixed",
+            vault_collection_card_id=card["id"],
+            vault_quantity=1,
+            starting_price="0",
+            bid_increment="1000",
+            buy_now_enabled=True,
+            buy_now_price="1000",
+            five_minute_rule_enabled=False,
+        )
+        created = client.post("/api/auctions", json=payload, headers=auth_headers(seller))
+        assert created.status_code == 201 and created.json()["listing_type"] == "fixed"
+        blocked = client.patch(f"/api/vault/cards/{card['id']}", json={"quantity": 0}, headers=auth_headers(seller))
+        assert blocked.status_code == 409
+        assert upload_png(created.json()["id"], seller).status_code == 201
+        assert client.post(f"/api/auctions/{created.json()['id']}/activate", headers=auth_headers(seller)).status_code == 200
+        bought = client.post(f"/api/auctions/{created.json()['id']}/bids", json={"amount": "1000"}, headers=auth_headers(buyer))
+        assert bought.status_code == 201 and bought.json()["reaches_buy_now"] is True
+        transaction = client.get("/api/transactions", headers=auth_headers(seller)).json()["items"][0]
+        assert client.post(f"/api/transactions/{transaction['id']}/confirm-completion", headers=auth_headers(seller)).status_code == 200
+        assert client.get("/api/vault/cards", headers=auth_headers(seller)).json()[0]["quantity"] == 2
+        assert client.post(f"/api/transactions/{transaction['id']}/confirm-completion", headers=auth_headers(buyer)).status_code == 200
+        assert client.get("/api/vault/cards", headers=auth_headers(seller)).json()[0]["quantity"] == 1
+    finally:
+        cleanup_test_data(); cleanup()
 
 
 def test_public_trade_matching_interest_completion_and_idempotent_rewards() -> None:

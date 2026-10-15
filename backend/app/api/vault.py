@@ -9,10 +9,11 @@ from app.core.config import settings
 from app.db.session import get_db
 from app.dependencies.auth import require_active_user
 from app.models.user import User
+from app.models.auction import Auction
 from app.models.vault import VaultCardLoan, VaultCollectionCard, VaultDeck, VaultDeckCard, VaultFolder, VaultPointTransaction, VaultTrade, VaultTradeCard, VaultTradeMessage, VaultTradeReview
 from app.schemas.vault import BulkCardOperation, BulkCardOperationResult, CardLoanBatchCreate, CardLoanCreate, CardLoanRead, CardRead, CollectionCardCreate, CollectionCardUpdate, CollectionTradeUpdate, CollectionVariantCreate, DeckCardCreate, DeckCardRead, DeckCardUpdate, DeckCreate, DeckRead, DeckUpdate, FolderCreate, FolderRead, FolderReorder, FolderUpdate, HkkEditionCards, HkkEditionImport, HkkEditionImportResult, HkkEditionRead, HkkSearchResult, PointHistory, PointTransactionRead, PublicTradeCardRead, QuantityUpdate, TradeCardCreate, TradeCardSeekerRead, TradeMessageCreate, TradeRead, TradeReviewCreate, TradeReviewRead, VaultMaintenanceRead, VaultMatchesSeen, VaultMatchStatus, VaultSummary, WantedCardCreate, WantedUpdate
 from app.services.notifications import create_notification
-from app.services.vault import account_for, buy_capacity_pack, card_snapshot_values, collection_card_for_user, complete_trade, fetch_hkk_card_image, folder_for_user, folder_used, grant_points, hkk_edition_cards, import_hkk_edition, list_hkk_editions, point_balance, require_allocatable, require_print_variant_allowed, require_valid_card_snapshot, search_hkk_cards, total_collection_capacity, trade_for_participant, utc_now
+from app.services.vault import account_for, buy_capacity_pack, card_snapshot_values, collection_card_for_user, complete_trade, fetch_hkk_card_image, folder_for_user, folder_used, grant_points, hkk_edition_cards, import_hkk_edition, list_hkk_editions, point_balance, require_allocatable, require_collection_pocket_limit, require_print_variant_allowed, require_valid_card_snapshot, reserved_listing_quantity, search_hkk_cards, total_collection_capacity, trade_for_participant, utc_now
 from app.services.vault_matches import mark_vault_matches_seen, sync_vault_matches, sync_vault_matches_for_card, unseen_vault_matches
 from app.services.user_blocks import ensure_not_blocked
 
@@ -38,7 +39,7 @@ def folder_statistics(db: Session, user_id: int) -> dict[int, tuple[int, int]]:
     rows = db.execute(
         select(
             VaultCollectionCard.folder_id,
-            func.count(VaultCollectionCard.id),
+            func.count(func.distinct(VaultCollectionCard.external_card_id)),
             func.coalesce(func.sum(VaultCollectionCard.quantity), 0),
         )
         .where(VaultCollectionCard.user_id == user_id)
@@ -69,6 +70,25 @@ def refresh_wanted_quantity(db: Session, user_id: int, external_card_id: str) ->
 
 def trade_card_read(card: VaultTradeCard, seeker_count: int = 0) -> PublicTradeCardRead:
     return PublicTradeCardRead.model_validate({**card.__dict__, "owner_id": card.user_id, "owner_username": card.user.username, "seeker_count": seeker_count})
+
+
+def public_trade_card_read(db: Session, card: VaultTradeCard, seeker_count: int = 0) -> PublicTradeCardRead:
+    listing = db.scalar(select(Auction).where(
+        Auction.seller_id == card.user_id,
+        Auction.vault_external_card_id == card.external_card_id,
+        Auction.vault_print_variant == card.print_variant,
+        Auction.listing_type == "fixed",
+        Auction.status.in_(["scheduled", "active"]),
+        Auction.deleted_at.is_(None),
+    ).order_by(Auction.created_at.desc()).limit(1))
+    return PublicTradeCardRead.model_validate({
+        **card.__dict__,
+        "owner_id": card.user_id,
+        "owner_username": card.user.username,
+        "seeker_count": seeker_count,
+        "fixed_price_auction_id": listing.id if listing else None,
+        "fixed_price": str(listing.buy_now_price) if listing and listing.buy_now_price is not None else None,
+    })
 
 
 def owned_quantities(db: Session, user_id: int) -> dict[str, int]:
@@ -344,7 +364,8 @@ def bulk_cards(payload: BulkCardOperation, current_user: User = Depends(require_
         if payload.folder_id is None:
             raise HTTPException(status_code=422, detail="Az áthelyezéshez célmappa szükséges.")
         target = folder_for_user(db, payload.folder_id, current_user.id, lock=True)
-        moving_count = sum(card.folder_id != target.id for card in cards)
+        target_external_ids = set(db.scalars(select(VaultCollectionCard.external_card_id).where(VaultCollectionCard.folder_id == target.id)).all())
+        moving_count = len({card.external_card_id for card in cards if card.folder_id != target.id and card.external_card_id not in target_external_ids})
         free_slots = max(target.capacity - folder_used(db, target.id), 0)
         if not account.vault_unlimited and moving_count > free_slots:
             raise HTTPException(status_code=409, detail=f"{moving_count} szabad zseb szükséges, {free_slots} érhető el.")
@@ -381,6 +402,8 @@ def bulk_cards(payload: BulkCardOperation, current_user: User = Depends(require_
         ) or 0)
         if active_loans:
             raise HTTPException(status_code=409, detail="Aktívan kölcsönadott lap nem törölhető.")
+        if any(reserved_listing_quantity(db, card.id) for card in cards):
+            raise HTTPException(status_code=409, detail="Aktív hirdetéshez foglalt lap nem törölhető.")
 
     if payload.action == "move":
         for card in cards:
@@ -445,6 +468,7 @@ def add_card(payload: CollectionCardCreate, current_user: User = Depends(require
     folder = folder_for_user(db, payload.folder_id, current_user.id, lock=True)
     variant = payload.print_variant or "normal"
     existing = db.scalar(select(VaultCollectionCard).where(VaultCollectionCard.user_id == current_user.id, VaultCollectionCard.external_card_id == payload.external_card_id, VaultCollectionCard.print_variant == variant).with_for_update())
+    sibling = db.scalar(select(VaultCollectionCard).where(VaultCollectionCard.user_id == current_user.id, VaultCollectionCard.external_card_id == payload.external_card_id).order_by(VaultCollectionCard.id).with_for_update())
     require_print_variant_allowed(
         variant,
         payload.rarity,
@@ -452,8 +476,11 @@ def add_card(payload: CollectionCardCreate, current_user: User = Depends(require
         previous_quantity=existing.quantity if existing else None,
         quantity=payload.quantity,
     )
+    require_collection_pocket_limit(db, current_user.id, payload.external_card_id, payload.quantity, card=existing)
     if existing is None:
-        if not account.vault_unlimited and folder_used(db, folder.id) >= folder.capacity:
+        if sibling is not None and sibling.folder_id != folder.id:
+            raise HTTPException(status_code=409, detail="Egy lap összes változatának ugyanabban az almappában kell lennie.")
+        if sibling is None and not account.vault_unlimited and folder_used(db, folder.id) >= folder.capacity:
             raise HTTPException(status_code=409, detail="A célmappa megtelt.")
         existing = VaultCollectionCard(user_id=current_user.id, folder_id=folder.id, quantity=payload.quantity, print_variant=variant, **card_snapshot_values(payload))
         db.add(existing)
@@ -477,6 +504,7 @@ def add_card_variant(card_id: int, payload: CollectionVariantCreate, current_use
     account = account_for(db, current_user.id, lock=True)
     source = collection_card_for_user(db, card_id, current_user.id, lock=True)
     require_print_variant_allowed(payload.print_variant, source.rarity, quantity=payload.quantity)
+    require_collection_pocket_limit(db, current_user.id, source.external_card_id, payload.quantity)
     duplicate = db.scalar(
         select(VaultCollectionCard)
         .where(
@@ -488,8 +516,6 @@ def add_card_variant(card_id: int, payload: CollectionVariantCreate, current_use
     )
     if duplicate is not None:
         raise HTTPException(status_code=409, detail="Ebből a lapváltozatból már van külön bejegyzésed.")
-    if not account.vault_unlimited and folder_used(db, source.folder_id) >= source.folder.capacity:
-        raise HTTPException(status_code=409, detail="A célmappa megtelt.")
     values = {name: getattr(source, name) for name in ("external_card_id", "card_name", "image_url", "edition", "card_type", "subtype", "color", "rarity")}
     created = VaultCollectionCard(
         user_id=current_user.id,
@@ -623,8 +649,10 @@ def update_card(card_id: int, payload: CollectionCardUpdate, current_user: User 
             raise HTTPException(status_code=409, detail="A célmappa megtelt.")
         card.folder_id = target.id
     if payload.quantity is not None:
-        if payload.quantity < active_loan_quantity(db, card.id):
-            raise HTTPException(status_code=409, detail="A példányszám nem lehet kevesebb az aktívan kölcsönadott mennyiségnél.")
+        committed = active_loan_quantity(db, card.id) + reserved_listing_quantity(db, card.id)
+        if payload.quantity < committed:
+            raise HTTPException(status_code=409, detail="A példányszám nem lehet kevesebb az aktívan kölcsönadott és meghirdetett mennyiségnél.")
+        require_collection_pocket_limit(db, current_user.id, card.external_card_id, payload.quantity, card=card)
         card.quantity = payload.quantity
     if payload.print_variant is not None:
         if payload.print_variant != card.print_variant and active_loan_quantity(db, card.id):
@@ -673,6 +701,8 @@ def delete_card(card_id: int, current_user: User = Depends(require_active_user),
     card = collection_card_for_user(db, card_id, current_user.id, lock=True)
     if active_loan_quantity(db, card.id):
         raise HTTPException(status_code=409, detail="Aktívan kölcsönadott lap nem törölhető. Előbb jelöld visszakapottként.")
+    if reserved_listing_quantity(db, card.id):
+        raise HTTPException(status_code=409, detail="Aktív hirdetéshez foglalt lap nem törölhető. Előbb zárd le vagy vond vissza a hirdetést.")
     external_card_id = card.external_card_id
     db.delete(card)
     db.flush()
@@ -991,7 +1021,7 @@ def public_trade_folder(username: str, query: str | None = Query(default=None, m
     statement = select(VaultTradeCard).where(VaultTradeCard.user_id == owner.id)
     if query:
         statement = statement.where(VaultTradeCard.card_name.ilike(f"%{query.strip()}%"))
-    return [trade_card_read(card) for card in db.scalars(statement.order_by(VaultTradeCard.card_name)).all()]
+    return [public_trade_card_read(db, card) for card in db.scalars(statement.order_by(VaultTradeCard.card_name)).all()]
 
 
 @router.get("/matches", response_model=list[CardRead])

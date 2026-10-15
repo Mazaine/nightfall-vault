@@ -116,11 +116,21 @@ class AuctionCreate(AuctionBase):
     creation_key: str | None = Field(default=None, min_length=36, max_length=36, pattern=r"^[0-9a-fA-F-]{36}$")
     seller_declaration_accepted: bool
     seller_declaration_version: str = Field(default="2026-07-11", min_length=4, max_length=20)
+    listing_type: Literal["auction", "fixed"] = "auction"
+    vault_collection_card_id: int | None = Field(default=None, gt=0)
+    vault_quantity: int | None = Field(default=None, ge=1, le=9)
 
     @model_validator(mode="after")
     def validate_declaration(self) -> "AuctionCreate":
         if not self.seller_declaration_accepted:
             raise ValueError("Az eladói nyilatkozat elfogadása kötelező.")
+        if bool(self.vault_collection_card_id) != bool(self.vault_quantity):
+            raise ValueError("A Vault-lapot és a meghirdetett mennyiséget együtt kell megadni.")
+        if self.listing_type == "fixed":
+            if not self.buy_now_enabled or self.buy_now_price is None:
+                raise ValueError("Fix áras hirdetésnél kötelező pozitív fix árat megadni.")
+            if self.starting_price != 0 or self.bid_increment != self.buy_now_price:
+                raise ValueError("A fix áras hirdetés ármezői érvénytelenek.")
         return self
 
 
@@ -337,6 +347,12 @@ class NotificationUnreadCount(BaseModel):
 class AuctionListItem(BaseModel):
     id: int
     seller_id: int
+    listing_type: Literal["auction", "fixed"] = "auction"
+    vault_collection_card_id: int | None = None
+    vault_external_card_id: str | None = None
+    vault_print_variant: str | None = None
+    vault_quantity: int | None = None
+    vault_inventory_deducted: bool = False
     title: str
     external_link_label: str | None = None
     external_link_url: str | None = None

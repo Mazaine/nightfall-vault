@@ -352,7 +352,10 @@ def place_bid(db: Session, auction_id: int, bidder: User, amount: Decimal) -> tu
 
     current_price = normalize_money(auction.current_price)
     minimum_bid = normalize_money(current_price + auction.bid_increment)
-    if normalized_amount < minimum_bid:
+    fixed_purchase = auction.listing_type == "fixed"
+    if fixed_purchase and (not auction.buy_now_enabled or auction.buy_now_price is None or normalized_amount != normalize_money(auction.buy_now_price)):
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="A fix áras hirdetés csak a meghirdetett áron vásárolható meg.")
+    if not fixed_purchase and normalized_amount < minimum_bid:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=f"A licit összege legalább {format_bid_amount(minimum_bid)} legyen.",
@@ -363,7 +366,7 @@ def place_bid(db: Session, auction_id: int, bidder: User, amount: Decimal) -> tu
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=f"Villámáras vásárlásnál pontosan {format_bid_amount(buy_now_price)} összeget adj meg.",
         )
-    if normalized_amount != buy_now_price and (normalized_amount - minimum_bid) % auction.bid_increment != 0:
+    if not fixed_purchase and normalized_amount != buy_now_price and (normalized_amount - minimum_bid) % auction.bid_increment != 0:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=f"A licit {format_bid_amount(minimum_bid)} összegtől {format_bid_amount(auction.bid_increment)} licitlépcsőkkel emelhető.",

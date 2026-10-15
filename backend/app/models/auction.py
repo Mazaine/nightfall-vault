@@ -28,6 +28,8 @@ class Auction(Base):
         CheckConstraint("winner_id IS NULL OR winner_id <> seller_id", name="ck_auctions_winner_not_seller"),
         CheckConstraint("(status = 'sold' AND winner_id IS NOT NULL) OR status <> 'sold'", name="ck_auctions_sold_has_winner"),
         CheckConstraint("(status = 'unsold' AND winner_id IS NULL) OR status <> 'unsold'", name="ck_auctions_unsold_has_no_winner"),
+        CheckConstraint("listing_type IN ('auction', 'fixed')", name="ck_auctions_listing_type"),
+        CheckConstraint("vault_quantity IS NULL OR vault_quantity BETWEEN 1 AND 9", name="ck_auctions_vault_quantity"),
         UniqueConstraint("seller_id", "creation_key", name="uq_auctions_seller_creation_key"),
         Index("ix_auctions_status_ends_at", "status", "ends_at"),
         Index("ix_auctions_category_hatalom_era", "category", "hatalom_era"),
@@ -37,6 +39,12 @@ class Auction(Base):
     seller_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
     demo_batch_id: Mapped[int | None] = mapped_column(ForeignKey("demo_auction_batches.id", ondelete="SET NULL"), nullable=True, index=True)
     creation_key: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    listing_type: Mapped[str] = mapped_column(String(16), nullable=False, default="auction", server_default="auction", index=True)
+    vault_collection_card_id: Mapped[int | None] = mapped_column(ForeignKey("vault_collection_cards.id", ondelete="SET NULL"), nullable=True, index=True)
+    vault_external_card_id: Mapped[str | None] = mapped_column(String(120), nullable=True, index=True)
+    vault_print_variant: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    vault_quantity: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    vault_inventory_deducted: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
     title: Mapped[str] = mapped_column(String(180), nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=False)
     external_link_label: Mapped[str | None] = mapped_column(String(80), nullable=True)

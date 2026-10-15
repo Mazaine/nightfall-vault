@@ -2,7 +2,7 @@ from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
 from fastapi import HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
@@ -187,12 +187,39 @@ def create_auction(db: Session, auction_create: AuctionCreate, seller: User) -> 
         ))
         if existing is not None:
             if existing.status == "draft":
-                retry_update = AuctionUpdate(**auction_create.model_dump(exclude={"creation_key", "seller_declaration_accepted", "seller_declaration_version"}))
+                retry_update = AuctionUpdate(**auction_create.model_dump(exclude={"creation_key", "seller_declaration_accepted", "seller_declaration_version", "listing_type", "vault_collection_card_id", "vault_quantity"}))
                 return update_auction(db, existing, retry_update, seller)
             return existing
+    vault_card = None
+    if auction_create.vault_collection_card_id is not None:
+        from app.models.vault import VaultCollectionCard
+        vault_card = db.scalar(
+            select(VaultCollectionCard)
+            .where(VaultCollectionCard.id == auction_create.vault_collection_card_id, VaultCollectionCard.user_id == seller.id)
+            .with_for_update()
+        )
+        if vault_card is None:
+            raise HTTPException(status_code=404, detail="A meghirdetendő Vault-lap nem található.")
+        reserved = int(db.scalar(
+            select(func.coalesce(func.sum(Auction.vault_quantity), 0)).where(
+                Auction.seller_id == seller.id,
+                Auction.vault_collection_card_id == vault_card.id,
+                Auction.status.in_(["draft", "scheduled", "active", "sold"]),
+                Auction.deleted_at.is_(None),
+                Auction.vault_inventory_deducted.is_(False),
+            )
+        ) or 0)
+        requested = int(auction_create.vault_quantity or 0)
+        if requested > max(vault_card.quantity - reserved, 0):
+            raise HTTPException(status_code=409, detail=f"Ebből a lapváltozatból legfeljebb {max(vault_card.quantity - reserved, 0)} példány hirdethető meg.")
     auction = Auction(
         seller_id=seller.id,
         creation_key=auction_create.creation_key,
+        listing_type=auction_create.listing_type,
+        vault_collection_card_id=vault_card.id if vault_card else None,
+        vault_external_card_id=vault_card.external_card_id if vault_card else None,
+        vault_print_variant=vault_card.print_variant if vault_card else None,
+        vault_quantity=auction_create.vault_quantity if vault_card else None,
         title=auction_create.title,
         description=auction_create.description,
         external_link_label=auction_create.external_link_label,
@@ -205,7 +232,7 @@ def create_auction(db: Session, auction_create: AuctionCreate, seller: User) -> 
         status="draft",
         starting_price=normalize_money(auction_create.starting_price),
         bid_increment=normalize_money(auction_create.bid_increment),
-        current_price=normalize_money(auction_create.starting_price),
+        current_price=normalize_money(auction_create.buy_now_price) if auction_create.listing_type == "fixed" and auction_create.buy_now_price is not None else normalize_money(auction_create.starting_price),
         buy_now_enabled=auction_create.buy_now_enabled,
         buy_now_price=normalize_money(auction_create.buy_now_price) if auction_create.buy_now_price is not None else None,
         starts_at=normalize_datetime(auction_create.starts_at),

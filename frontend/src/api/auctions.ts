@@ -33,6 +33,12 @@ export type AuctionUser = {
 export type Auction = {
   id: number;
   seller_id: number;
+  listing_type?: "auction" | "fixed";
+  vault_collection_card_id?: number | null;
+  vault_external_card_id?: string | null;
+  vault_print_variant?: string | null;
+  vault_quantity?: number | null;
+  vault_inventory_deducted?: boolean;
   title: string;
   description?: string;
   external_link_label?: string | null;
@@ -80,6 +86,9 @@ export type Auction = {
 
 export type AuctionCreatePayload = {
   creation_key?: string;
+  listing_type?: "auction" | "fixed";
+  vault_collection_card_id?: number | null;
+  vault_quantity?: number | null;
   title: string;
   description: string;
   external_link_label?: string | null;
