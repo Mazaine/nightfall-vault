@@ -26,6 +26,7 @@ function formatCardMoney(value: string | number) {
 type AuctionCardProps = {
   item: {
     id: string | number;
+    listingType?: "auction" | "fixed";
     sellerId?: number;
     title: string;
     type: string;
@@ -99,6 +100,7 @@ export function AuctionCard({
     : null;
   const filledStars = sellerRating === null ? 0 : Math.round(sellerRating);
   const isOwnAuction = Boolean(user?.id && item.sellerId === user.id);
+  const isFixedPrice = item.listingType === "fixed";
   const canUseQuickBid = !isLocallyClosed && item.canBid !== false && personalStatus !== "leading" && personalStatus !== "exited";
   const showOpenAction = showBidActions && personalStatus !== "leading" && !canUseQuickBid;
   const outcomeLabel = item.outcomeStatus === "won" ? "Megnyerted"
@@ -187,8 +189,8 @@ export function AuctionCard({
       setCanWithdraw(!closed);
       setPersonalStatus(closed ? undefined : "leading");
       showToast({
-        title: closed || isBuyNow ? "Sikeres villámvásárlás" : "Sikeres licit",
-        message: closed || isBuyNow ? "Megnyerted az aukciót villámáron." : `Az új aktuális licit ${formatMoney(bid.amount)}.`,
+        title: isFixedPrice ? "Sikeres vásárlás" : closed || isBuyNow ? "Sikeres villámvásárlás" : "Sikeres licit",
+        message: isFixedPrice ? "A fix áras terméket megvásároltad." : closed || isBuyNow ? "Megnyerted az aukciót villámáron." : `Az új aktuális licit ${formatMoney(bid.amount)}.`,
         targetUrl: detailPath,
       });
     } catch (error) {
@@ -275,6 +277,10 @@ export function AuctionCard({
           </span>
         </div>
         <div className="auction-commerce-block">
+          {isFixedPrice ? <div className="auction-price-action-row auction-fixed-price-row">
+            <div className="auction-price-copy"><span>Fix ár</span><strong>{item.buyNowPrice ? formatCardMoney(item.buyNowPrice) : displayPrice}</strong></div>
+            {item.buyNowAmount && showBidActions && canUseQuickBid ? <button className="button button-primary" type="button" disabled={isOwnAuction || isActionPending} title={isOwnAuction ? "A saját hirdetésedet nem vásárolhatod meg." : undefined} onClick={() => void requestQuickAction(item.buyNowAmount ?? "", true)}>{isActionPending ? "Feldolgozás..." : "Megveszem"}</button> : null}
+          </div> : <>
           <div className="auction-price-action-row">
             <div className="auction-price-copy">
               <span>{priceLabel}</span>
@@ -299,6 +305,7 @@ export function AuctionCard({
             <small>Licitlépcső: {item.step}</small>
             {typeof item.bidCount === "number" ? <strong className="auction-bid-count" aria-label={`${item.bidCount} licit érkezett`}>{item.bidCount} licit</strong> : null}
           </div>
+          </>}
         </div>
         <div className="auction-actions-slot">{showOpenAction ? <div className="auction-actions"><Link className="button button-secondary" to={detailPath}>Aukció megnyitása</Link></div> : null}</div>
         {actionMessage ? <p className="form-message auction-action-message" role="status" aria-live="polite">{actionMessage}</p> : null}

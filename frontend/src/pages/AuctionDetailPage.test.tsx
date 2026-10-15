@@ -36,6 +36,17 @@ describe("AuctionDetailPage", () => {
     expect(screen.queryByRole("button", { name: "Licitálok" })).not.toBeInTheDocument();
   });
 
+  it("fix áras hirdetésnél csak vásárlási műveletet és Megveszem gombot mutat", async () => {
+    state.isAuthenticated = true;
+    mocks.getAuction.mockResolvedValue({ ...auction, listing_type: "fixed", starting_price: "0", current_price: "2000", bid_increment: "2000", bid_count: 0 });
+    render(<MemoryRouter initialEntries={["/auctions/21"]}><Routes><Route path="/auctions/:auctionId" element={<AuctionDetailPage />} /></Routes></MemoryRouter>);
+    expect(await screen.findByText("Fix ár")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Megveszem" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Licitálok" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Licittörténet")).not.toBeInTheDocument();
+    expect(screen.queryByText("Licitlépcső")).not.toBeInTheDocument();
+  });
+
   it("a licittörténetben a publikus felhasználónevet profilhivatkozásként mutatja", async () => {
     mocks.listAuctionBids.mockResolvedValue([{ id: 30, amount: "1200.00", created_at: new Date().toISOString(), bidder_label: "@gyujto-anna", bidder_username: "gyujto-anna", is_highest: true }]);
     render(<MemoryRouter initialEntries={["/auctions/21"]}><Routes><Route path="/auctions/:auctionId" element={<AuctionDetailPage />} /></Routes></MemoryRouter>);

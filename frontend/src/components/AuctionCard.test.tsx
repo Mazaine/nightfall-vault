@@ -91,6 +91,18 @@ describe("AuctionCard", () => {
     expect(screen.queryByRole("button", { name: "Licitálok" })).not.toBeInTheDocument();
   });
 
+  it("fix áras hirdetésnél csak Megveszem műveletet mutat", async () => {
+    mocks.placeAuctionBid.mockResolvedValue({ id: 3, amount: "2000.00", reaches_buy_now: true });
+    render(<MemoryRouter><AuctionCard item={{ ...item, listingType: "fixed" }} index={0} detailPath="/auctions/7" /></MemoryRouter>);
+    expect(screen.getByText("Fix ár")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Licitálok" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "⚡ Lecsapom" })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/licit érkezett/)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Megveszem" }));
+    fireEvent.click(screen.getByRole("button", { name: "Villámvásárlás véglegesítése" }));
+    await waitFor(() => expect(mocks.placeAuctionBid).toHaveBeenCalledWith(7, "2000.00"));
+  });
+
   it("az eladó értékelését csillagokkal, a licitszámot külön jeleníti meg", () => {
     render(<MemoryRouter><AuctionCard item={item} index={0} detailPath="/auctions/7" /></MemoryRouter>);
     expect(screen.getByText((_, element) => element?.classList.contains("seller-identity") === true && element.textContent === "Eladó: Anna Kártyabarlang")).toBeInTheDocument();

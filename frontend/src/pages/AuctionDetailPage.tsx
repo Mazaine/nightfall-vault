@@ -468,13 +468,13 @@ export function AuctionDetailPage() {
             </button></> : null}
             {auction.buy_now_enabled && auction.buy_now_price ? (
               <button className="button button-lightning" id="buy-now-section" type="button" disabled={isBidSubmitting} onClick={() => void requestBidConfirmation(auction.buy_now_price ?? "", true)}>
-                {auction.listing_type === "fixed" ? `Megveszem · ${formatMoney(auction.buy_now_price)}` : `Villámár: ${formatMoney(auction.buy_now_price)}`}
+                {auction.listing_type === "fixed" ? "Megveszem" : `Villámár: ${formatMoney(auction.buy_now_price)}`}
               </button>
             ) : null}
             {bidMessage ? <p className="form-message" role="status" aria-live="polite">{bidMessage}</p> : null}
           </form>
         ) : null}
-        {auction.status === "active" && !auction.is_owner && isAuthenticated && auction.viewer_is_leading ? (
+        {auction.listing_type !== "fixed" && auction.status === "active" && !auction.is_owner && isAuthenticated && auction.viewer_is_leading ? (
           <div className="side-panel bid-panel" id="bid-section">
             <h2>Te vezetsz</h2>
             <p>Amíg a te licited a legmagasabb, nem emelhetsz rá újra. Ha egy másik felhasználó túllicitál, ismét licitálhatsz.</p>
@@ -496,10 +496,10 @@ export function AuctionDetailPage() {
         ) : null}
         {auction.status === "active" && !auction.is_owner && !isAuthenticated ? (
           <div className="side-panel bid-panel" id="bid-section">
-            <h2>Jelentkezz be a licitáláshoz</h2>
-            <p>A licitálás, a villámár és a figyelőlista bejelentkezés után érhető el.</p>
+            <h2>{auction.listing_type === "fixed" ? "Jelentkezz be a vásárláshoz" : "Jelentkezz be a licitáláshoz"}</h2>
+            <p>{auction.listing_type === "fixed" ? "A vásárlás és a figyelőlista bejelentkezés után érhető el." : "A licitálás, a villámár és a figyelőlista bejelentkezés után érhető el."}</p>
             <Link className="button button-primary" id="buy-now-section" to={`/login?next=${encodeURIComponent(`/auctions/${auction.id}`)}`}>
-              Bejelentkezés a licitáláshoz
+              {auction.listing_type === "fixed" ? "Bejelentkezés a vásárláshoz" : "Bejelentkezés a licitáláshoz"}
             </Link>
           </div>
         ) : null}
@@ -547,7 +547,7 @@ export function AuctionDetailPage() {
         {watchlistMessage ? <p className="form-message">{watchlistMessage}</p> : null}
         {reportMessage ? <p className="form-message">{reportMessage}</p> : null}
 
-        <section className="post-auction-panel">
+        {auction.listing_type !== "fixed" ? <section className="post-auction-panel">
           <h2>Licittörténet</h2>
           {bidHistory.length === 0 ? (
             <p>Még nincs licit ezen az aukción.</p>
@@ -563,7 +563,7 @@ export function AuctionDetailPage() {
               ))}
             </div>
           )}
-        </section>
+        </section> : null}
 
 
         <section className="post-auction-panel">

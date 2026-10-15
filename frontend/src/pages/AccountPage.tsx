@@ -81,9 +81,10 @@ function toCardAuction(auction: Auction) {
   const coverImage = auction.images.find((image) => image.is_cover) ?? auction.images[0];
   return {
     id: auction.id,
+    listingType: auction.listing_type ?? "auction",
     title: auction.title,
     type: auction.category,
-    price: formatMoney(auction.current_price ?? auction.starting_price),
+    price: formatMoney(auction.listing_type === "fixed" ? auction.buy_now_price ?? auction.current_price : auction.current_price ?? auction.starting_price),
     step: formatMoney(auction.bid_increment),
     time: formatRemainingTime(auction.ends_at, auction.status),
     endsAt: auction.ends_at,
