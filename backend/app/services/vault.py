@@ -2,7 +2,10 @@ from datetime import datetime, timezone
 import hashlib
 import hmac
 import json
+import re
+import statistics
 import time
+import unicodedata
 from urllib.parse import urlencode
 from uuid import uuid4
 
@@ -26,7 +29,74 @@ HKK_CONSTANTS_CACHE_TTL_SECONDS = 60 * 60
 HKK_CARD_IMAGE_MAX_BYTES = 8 * 1024 * 1024
 HKK_CARD_IMAGE_MEDIA_TYPES = frozenset({"image/jpeg", "image/png", "image/webp", "image/gif"})
 HKK_RARITIES = frozenset({"common", "uncommun", "rare", "ultrarare"})
+HKK_MARKET_SEARCH_URL = "https://hkkarfigyelo.hu/api/search"
+HKK_MARKET_CACHE_TTL_SECONDS = 10 * 60
 _hkk_constants_cache: tuple[float, tuple[frozenset[str], dict[str, str], dict[str, dict[str, str | None]]]] | None = None
+_hkk_market_cache: dict[tuple[str, str, str], tuple[float, dict[str, int | None]]] = {}
+
+
+def _market_text(value: object) -> str:
+    return " ".join(unicodedata.normalize("NFKC", str(value or "")).casefold().split())
+
+
+def _market_card_name(value: object) -> str:
+    normalized = _market_text(value)
+    markers = r"(?:foil|fa|gfa|full\s*art|golden\s*(?:foil|full\s*art))"
+    normalized = re.sub(rf"^{markers}\s+", "", normalized)
+    normalized = re.sub(rf"\s+{markers}$", "", normalized)
+    return normalized.strip()
+
+
+def hkk_market_price_suggestion(card_name: str, edition: str | None, print_variant: str) -> dict[str, int | None]:
+    key = (_market_text(card_name), _market_text(edition), print_variant)
+    cached = _hkk_market_cache.get(key)
+    now = time.monotonic()
+    if cached is not None and now - cached[0] < HKK_MARKET_CACHE_TTL_SECONDS:
+        return cached[1]
+
+    try:
+        response = httpx.get(
+            HKK_MARKET_SEARCH_URL,
+            params={"query": card_name, "allShops": "true"},
+            timeout=min(settings.hkk_catalog_request_timeout_seconds, 8),
+        )
+        response.raise_for_status()
+        payload = response.json()
+    except (httpx.HTTPError, ValueError, json.JSONDecodeError):
+        return {"recommended_price": None, "minimum_price": None, "maximum_price": None, "offer_count": 0}
+
+    expected_graphics = {
+        "normal": {"normal"},
+        "foil": {"foil"},
+        "fa": {"fa", "fullart", "full_art", "full art"},
+        "gfa": {"gfa", "goldenfullart", "golden_full_art", "golden full art"},
+    }.get(print_variant, set())
+    expected_name = _market_card_name(card_name)
+    expected_edition = _market_text(edition)
+    prices: list[int] = []
+    for item in payload.get("data", []) if isinstance(payload, dict) else []:
+        if not isinstance(item, dict) or item.get("deleted") or not item.get("inStock"):
+            continue
+        if _market_card_name(item.get("name")) != expected_name:
+            continue
+        if expected_edition and _market_text(item.get("edition")) != expected_edition:
+            continue
+        if _market_text(item.get("graphicType")) not in expected_graphics:
+            continue
+        price = item.get("price")
+        if isinstance(price, (int, float)) and not isinstance(price, bool) and price > 0:
+            prices.append(int(price))
+
+    result: dict[str, int | None] = {
+        "recommended_price": int(statistics.median(prices)) if prices else None,
+        "minimum_price": min(prices) if prices else None,
+        "maximum_price": max(prices) if prices else None,
+        "offer_count": len(prices),
+    }
+    if len(_hkk_market_cache) >= 512:
+        _hkk_market_cache.clear()
+    _hkk_market_cache[key] = (now, result)
+    return result
 
 
 def utc_now() -> datetime:

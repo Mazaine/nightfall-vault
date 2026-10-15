@@ -1,6 +1,6 @@
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { activateAuction, createAuction, uploadAuctionImage, type AuctionCondition } from "../api/auctions";
-import type { PrintVariant, VaultCard } from "../api/vault";
+import { getHkkMarketPriceSuggestion, type HkkMarketPriceSuggestion, type PrintVariant, type VaultCard } from "../api/vault";
 import { ApiError } from "../api/client";
 import { categories } from "../data/content";
 import { CARD_CONDITIONS } from "../data/cardConditions";
@@ -19,6 +19,13 @@ const variantLabel: Record<PrintVariant, string> = { normal: "Normál", foil: "F
 const MAX_IMAGES = 5;
 const MAX_BYTES = 20 * 1024 * 1024;
 
+export function buildHkkMarketPriceUrl(cardName: string) {
+  const params = new URLSearchParams();
+  params.set("search", cardName);
+  params.set("onlyInStock", "false");
+  return `https://hkkarfigyelo.hu/?${params.toString()}`;
+}
+
 function localIso(date: Date) {
   const shifted = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
   return shifted.toISOString().slice(0, 16);
@@ -33,8 +40,19 @@ export function ListingComposer({ source, compact = false, onClose, onDone }: { 
   const [cover, setCover] = useState(0);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const [marketPrice, setMarketPrice] = useState<HkkMarketPriceSuggestion | null>();
   const startDefault = useMemo(() => localIso(new Date()), []);
   const endDefault = useMemo(() => localIso(new Date(Date.now() + 7 * 86_400_000)), []);
+
+  useEffect(() => {
+    if (!source || !selectedVariant) { setMarketPrice(null); return; }
+    let active = true;
+    setMarketPrice(undefined);
+    void getHkkMarketPriceSuggestion(source.cardName, source.edition, selectedVariant.print_variant)
+      .then((suggestion) => { if (active) setMarketPrice(suggestion); })
+      .catch(() => { if (active) setMarketPrice(null); });
+    return () => { active = false; };
+  }, [selectedVariant?.print_variant, source?.cardName, source?.edition]);
 
   function addFiles(incoming: FileList | null) {
     if (!incoming) return;
@@ -103,6 +121,7 @@ export function ListingComposer({ source, compact = false, onClose, onDone }: { 
       <label>{mode === "fixed" ? "Fix ár" : "Kikiáltási ár"}<span className="listing-money-input"><input name="price" type="number" min="1" step="1" required/><span>Ft</span></span></label>
       <label>Állapot<select name="condition" defaultValue="NM">{CARD_CONDITIONS.map((item) => <option value={item.value} key={item.value}>{item.nameHu}</option>)}</select></label>
     </div>
+    {source ? <aside className="listing-market-price-note"><span className="listing-market-price-line"><a href={buildHkkMarketPriceUrl(source.cardName)} target="_blank" rel="noopener noreferrer">Piaci árak megtekintése</a>{marketPrice === undefined ? <span>Árjavaslat betöltése…</span> : marketPrice?.recommended_price ? <strong>Ajánlott ár: {marketPrice.recommended_price.toLocaleString("hu-HU")} Ft</strong> : <span>Nincs elég pontos piaci adat.</span>}</span>{marketPrice?.recommended_price ? <small>{marketPrice.offer_count} készleten lévő, egyező bolti ár mediánja{marketPrice.minimum_price !== marketPrice.maximum_price ? ` · ${marketPrice.minimum_price?.toLocaleString("hu-HU")}–${marketPrice.maximum_price?.toLocaleString("hu-HU")} Ft` : ""}. Az ármezőt nem módosítjuk automatikusan.</small> : null}<small>A bolti árak tájékoztató jellegűek. Ellenőrizd a kiegészítőt és a lapváltozatot!</small></aside> : null}
     {mode === "auction" ? <div className="listing-fields"><label>Indulás<input name="starts_at" type="datetime-local" defaultValue={startDefault} required/></label><label>Időtartam<select name="duration" defaultValue="7"><option value="1">1 nap</option><option value="3">3 nap</option><option value="7">7 nap</option><option value="14">14 nap</option></select></label><label>Licitlépcső<input name="bid_increment" type="number" min="1" step="1" defaultValue="100"/></label><label>Azonnali vételár<input name="buy_now_price" type="number" min="1" step="1" placeholder="Opcionális"/></label></div> : null}
     <label>Rövid leírás / állapotmegjegyzés<textarea name="description" rows={3} minLength={10} maxLength={5000} defaultValue={source ? `${source.cardName}, ${variantLabel[selectedVariant?.print_variant || "normal"]} változat. A képeken látható állapotban.` : ""} required/></label>
     <div className="listing-upload"><span>Saját lapfotók</span><div className="listing-upload-actions"><label className="button button-secondary">Galéria / fájlok<input hidden type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={(event) => addFiles(event.target.files)}/></label><label className="button button-secondary">Fényképezés<input hidden type="file" accept="image/*" capture="environment" onChange={(event) => addFiles(event.target.files)}/></label></div>

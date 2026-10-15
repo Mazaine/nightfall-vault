@@ -234,6 +234,13 @@ class HkkSearchResult(CardSnapshot):
     pass
 
 
+class HkkMarketPriceSuggestion(BaseModel):
+    recommended_price: int | None = None
+    minimum_price: int | None = None
+    maximum_price: int | None = None
+    offer_count: int = 0
+
+
 class HkkEditionRead(BaseModel):
     id: str
     name: str

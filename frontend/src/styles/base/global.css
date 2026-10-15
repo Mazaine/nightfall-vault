@@ -3240,6 +3240,12 @@ h3 {
 .listing-fields input, .listing-fields select { width: 100%; min-width: 0; height: 2.8rem; }
 .listing-money-input { display: grid; grid-template-columns: minmax(0, 1fr) auto; min-width: 0; align-items: center; gap: .45rem; }
 .listing-money-input > span { color: var(--color-text-muted); }
+.listing-market-price-note { display: grid; gap: .3rem; margin-top: -.25rem; }
+.listing-market-price-line { display: flex; align-items: baseline; flex-wrap: wrap; gap: .35rem .75rem; }
+.listing-market-price-note a { color: var(--color-accent-gold); font-weight: 700; text-underline-offset: .2rem; }
+.listing-market-price-note strong { color: #86efac; }
+.listing-market-price-line > span { color: var(--color-text-muted); font-size: .82rem; }
+.listing-market-price-note small { color: var(--color-text-muted); }
 .listing-upload-actions, .listing-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 .listing-actions { justify-content: flex-end; }
 .listing-image-list { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: var(--space-2); }

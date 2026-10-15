@@ -25,6 +25,7 @@ export type HkkEdition = { id: string; name: string; group: HkkEditionGroup | nu
 export type VaultMatchStatus = { unseen_count: number; match_keys: string[] };
 export type HkkEditionPreview = { edition: HkkEdition; count: number; cards: HkkCard[] };
 export type HkkEditionImportResult = { edition: HkkEdition; total_cards: number; added_cards: number; updated_cards: number; skipped_cards: number };
+export type HkkMarketPriceSuggestion = { recommended_price: number | null; minimum_price: number | null; maximum_price: number | null; offer_count: number };
 export type PointTransaction = { id: number; amount: number; reason: string; reference_type: string | null; reference_id: string | null; created_at: string };
 export type PointHistory = { balance: number; items: PointTransaction[] };
 export type VaultTrade = {
@@ -73,6 +74,11 @@ export const searchHkk = (query: string, editionId?: string) => {
   if (query.trim()) search.set("q", query.trim());
   if (editionId) search.set("edition_id", editionId);
   return apiRequest<HkkCard[]>(`/api/vault/hkk/search?${search}`, { authenticated: true });
+};
+export const getHkkMarketPriceSuggestion = (name: string, edition: string | null, variant: PrintVariant) => {
+  const search = new URLSearchParams({ name, variant });
+  if (edition) search.set("edition", edition);
+  return apiRequest<HkkMarketPriceSuggestion>(`/api/vault/hkk/market-price?${search}`, { authenticated: true });
 };
 export const listHkkEditions = () => apiRequest<HkkEdition[]>("/api/vault/hkk/editions", { authenticated: true });
 export const previewHkkEdition = (editionId: string) => apiRequest<HkkEditionPreview>(`/api/vault/hkk/editions/${encodeURIComponent(editionId)}/cards`, { authenticated: true });

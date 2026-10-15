@@ -11,9 +11,9 @@ from app.dependencies.auth import require_active_user
 from app.models.user import User
 from app.models.auction import Auction
 from app.models.vault import VaultCardLoan, VaultCollectionCard, VaultDeck, VaultDeckCard, VaultFolder, VaultPointTransaction, VaultTrade, VaultTradeCard, VaultTradeMessage, VaultTradeReview
-from app.schemas.vault import BulkCardOperation, BulkCardOperationResult, CardLoanBatchCreate, CardLoanCreate, CardLoanRead, CardRead, CollectionCardCreate, CollectionCardUpdate, CollectionTradeUpdate, CollectionVariantCreate, DeckCardCreate, DeckCardRead, DeckCardUpdate, DeckCreate, DeckRead, DeckUpdate, FolderCreate, FolderRead, FolderReorder, FolderUpdate, HkkEditionCards, HkkEditionImport, HkkEditionImportResult, HkkEditionRead, HkkSearchResult, PointHistory, PointTransactionRead, PublicTradeCardRead, QuantityUpdate, TradeCardCreate, TradeCardSeekerRead, TradeMessageCreate, TradeRead, TradeReviewCreate, TradeReviewRead, VaultMaintenanceRead, VaultMatchesSeen, VaultMatchStatus, VaultSummary, WantedCardCreate, WantedUpdate
+from app.schemas.vault import BulkCardOperation, BulkCardOperationResult, CardLoanBatchCreate, CardLoanCreate, CardLoanRead, CardRead, CollectionCardCreate, CollectionCardUpdate, CollectionTradeUpdate, CollectionVariantCreate, DeckCardCreate, DeckCardRead, DeckCardUpdate, DeckCreate, DeckRead, DeckUpdate, FolderCreate, FolderRead, FolderReorder, FolderUpdate, HkkEditionCards, HkkEditionImport, HkkEditionImportResult, HkkEditionRead, HkkMarketPriceSuggestion, HkkSearchResult, PointHistory, PointTransactionRead, PublicTradeCardRead, QuantityUpdate, TradeCardCreate, TradeCardSeekerRead, TradeMessageCreate, TradeRead, TradeReviewCreate, TradeReviewRead, VaultMaintenanceRead, VaultMatchesSeen, VaultMatchStatus, VaultSummary, WantedCardCreate, WantedUpdate
 from app.services.notifications import create_notification
-from app.services.vault import account_for, buy_capacity_pack, card_snapshot_values, collection_card_for_user, complete_trade, fetch_hkk_card_image, folder_for_user, folder_used, grant_points, hkk_edition_cards, import_hkk_edition, list_hkk_editions, point_balance, require_allocatable, require_collection_pocket_limit, require_print_variant_allowed, require_valid_card_snapshot, reserved_listing_quantity, search_hkk_cards, total_collection_capacity, trade_for_participant, utc_now
+from app.services.vault import account_for, buy_capacity_pack, card_snapshot_values, collection_card_for_user, complete_trade, fetch_hkk_card_image, folder_for_user, folder_used, grant_points, hkk_edition_cards, hkk_market_price_suggestion, import_hkk_edition, list_hkk_editions, point_balance, require_allocatable, require_collection_pocket_limit, require_print_variant_allowed, require_valid_card_snapshot, reserved_listing_quantity, search_hkk_cards, total_collection_capacity, trade_for_participant, utc_now
 from app.services.vault_matches import mark_vault_matches_seen, sync_vault_matches, sync_vault_matches_for_card, unseen_vault_matches
 from app.services.user_blocks import ensure_not_blocked
 
@@ -1171,6 +1171,17 @@ def hkk_card_image(card_id: int = Path(gt=0)) -> Response:
         media_type=media_type,
         headers={"Cache-Control": "public, max-age=86400, stale-while-revalidate=604800"},
     )
+
+
+@router.get("/hkk/market-price", response_model=HkkMarketPriceSuggestion)
+def hkk_market_price(
+    name: str = Query(min_length=2, max_length=180),
+    edition: str | None = Query(default=None, max_length=180),
+    variant: str = Query(default="normal", pattern=r"^(normal|foil|fa|gfa)$"),
+    current_user: User = Depends(require_active_user),
+) -> HkkMarketPriceSuggestion:
+    del current_user
+    return HkkMarketPriceSuggestion.model_validate(hkk_market_price_suggestion(name.strip(), edition.strip() if edition else None, variant))
 
 
 @router.get("/hkk/editions", response_model=list[HkkEditionRead])
