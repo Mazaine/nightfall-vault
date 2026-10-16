@@ -1,5 +1,5 @@
 from app.models.category import Category
-from app.models.auction import Auction, AuctionBidExclusion, AuctionImage, AuctionMessage, AuctionReview, Bid, WatchlistItem
+from app.models.auction import Auction, AuctionBidExclusion, AuctionBundleItem, AuctionImage, AuctionMessage, AuctionPhotoRequest, AuctionReview, Bid, WatchlistItem
 from app.models.email_verification_token import EmailVerificationToken
 from app.models.newsletter import NewsletterCampaign, NewsletterSubscriber
 from app.models.moderation import ModerationAction, Report, UserBlock, UserStrike
@@ -24,6 +24,7 @@ __all__ = [
     "AuctionBidExclusion",
     "AuctionImage",
     "AuctionMessage",
+    "AuctionPhotoRequest",
     "AuctionReview",
     "Bid",
     "WatchlistItem",

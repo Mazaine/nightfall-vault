@@ -24,6 +24,14 @@ export type AuctionImage = {
   created_at: string;
 };
 
+export type AuctionPhotoRequest = {
+  id: number;
+  auction_id: number;
+  requester_id: number;
+  created_at: string;
+  fulfilled_at: string | null;
+};
+
 export type AuctionUser = {
   id: number;
   username: string;
@@ -34,6 +42,7 @@ export type Auction = {
   id: number;
   seller_id: number;
   listing_type?: "auction" | "fixed";
+  listing_format?: "single" | "bundle";
   vault_collection_card_id?: number | null;
   vault_external_card_id?: string | null;
   vault_print_variant?: string | null;
@@ -54,6 +63,8 @@ export type Auction = {
   current_price: string;
   buy_now_enabled: boolean;
   buy_now_price: string | null;
+  reserve_price?: string | null;
+  reserve_price_met?: boolean | null;
   starts_at: string;
   ends_at: string;
   five_minute_rule_enabled: boolean;
@@ -65,6 +76,7 @@ export type Auction = {
   seller?: AuctionUser | null;
   winner?: AuctionUser | null;
   images: AuctionImage[];
+  bundle_items?: AuctionBundleItem[];
   can_chat?: boolean;
   chat_read_only?: boolean;
   can_review?: boolean;
@@ -82,6 +94,22 @@ export type Auction = {
   viewer_personal_status?: "leading" | "outbid" | "watched" | "exited" | null;
   viewer_is_watched?: boolean;
   owner_sale_status?: "not_sold" | "sale_pending" | "sale_sent" | null;
+};
+
+export type AuctionBundleItem = {
+  id: number; vault_collection_card_id: number | null; external_card_id: string; card_name: string;
+  edition: string | null; image_url: string | null; print_variant: "normal" | "foil" | "fa" | "gfa";
+  quantity: number; unit_price: string;
+};
+
+export type BatchFixedListingPayload = {
+  creation_key: string;
+  mode: "individual" | "bundle";
+  discount_percent: number;
+  bundle_name?: string | null;
+  bundle_description?: string | null;
+  bundle_price?: number | null;
+  items: Array<{ vault_collection_card_id: number; quantity: number; base_price: number; final_price: number; condition: AuctionCondition; description: string }>;
 };
 
 export type AuctionCreatePayload = {
@@ -102,6 +130,7 @@ export type AuctionCreatePayload = {
   bid_increment: string;
   buy_now_enabled: boolean;
   buy_now_price: string | null;
+  reserve_price?: string | null;
   starts_at: string;
   ends_at: string;
   five_minute_rule_enabled: boolean;
@@ -234,6 +263,8 @@ export type AuctionListParams = {
   hatalom_era?: HatalomEra;
   condition?: string;
   status?: string;
+  listing_type?: "auction" | "fixed";
+  listing_format?: "single" | "bundle";
   min_price?: string;
   max_price?: string;
   min_bids?: string;
@@ -291,6 +322,10 @@ export function getHomeAuctionOverview() {
 
 export function getAuction(auctionId: string | number) {
   return apiRequest<Auction>(`/api/auctions/${auctionId}`);
+}
+
+export function requestAuctionPhoto(auctionId: string | number) {
+  return apiRequest<AuctionPhotoRequest>(`/api/auctions/${auctionId}/photo-requests`, { method: "POST" });
 }
 
 export function listRelatedAuctions(auctionId: string | number) {
@@ -379,6 +414,12 @@ export function createAuction(payload: AuctionCreatePayload) {
   return apiRequest<Auction>("/api/auctions", {
     method: "POST",
     body: JSON.stringify(payload),
+  });
+}
+
+export function createFixedListingBatch(payload: BatchFixedListingPayload) {
+  return apiRequest<{ mode: "individual" | "bundle"; auctions: Auction[] }>("/api/auctions/batch-fixed", {
+    method: "POST", authenticated: true, body: JSON.stringify(payload),
   });
 }
 

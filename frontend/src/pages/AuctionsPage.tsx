@@ -1,5 +1,5 @@
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link, useSearchParams } from "react-router";
+import { Link, useLocation, useSearchParams } from "react-router";
 import { listAuctions, type Auction, type AuctionListParams, type HatalomEra } from "../api/auctions";
 import { createSavedSearch, deleteSavedSearch, listSavedSearches, type SavedSearch } from "../api/searches";
 import { useAuth } from "../AuthContext";
@@ -29,6 +29,8 @@ type FilterState = {
   hatalom_era: HatalomEra | "";
   condition: string;
   status: string;
+  listing_type: "" | "auction" | "fixed";
+  listing_format: "" | "single" | "bundle";
   min_price: string;
   max_price: string;
   min_bids: string;
@@ -46,6 +48,8 @@ const INITIAL_FILTERS: FilterState = {
   hatalom_era: "",
   condition: "",
   status: "",
+  listing_type: "",
+  listing_format: "",
   min_price: "",
   max_price: "",
   min_bids: "",
@@ -71,6 +75,8 @@ function activeFilterEntries(filters: FilterState) {
   const eraLabels: Record<string, string> = { retro: "RETRO", ujkor: "Újkor", uj_nemzedek: "Új nemzedék" };
   return [
     filters.status === "active" ? { key: "status", label: "Aktív aukciók" } : null,
+    filters.listing_type ? { key: "listing_type", label: filters.listing_type === "fixed" ? "Fix áras lapok" : "Aukciók" } : null,
+    filters.listing_format ? { key: "listing_format", label: filters.listing_format === "bundle" ? "Csomagok" : "Egyedi hirdetések" } : null,
     filters.q ? { key: "q", label: `Keresés: ${filters.q}` } : null,
     filters.title ? { key: "title", label: `Cím: ${filters.title}` } : null,
     filters.description ? { key: "description", label: `Leírás: ${filters.description}` } : null,
@@ -100,6 +106,8 @@ function toParams(filters: FilterState, offset: number): AuctionListParams {
     hatalom_era: filters.hatalom_era || undefined,
     condition: filters.condition || undefined,
     status: filters.status || undefined,
+    listing_type: filters.listing_type || undefined,
+    listing_format: filters.listing_format || undefined,
     min_price: filters.min_price || undefined,
     max_price: filters.max_price || undefined,
     min_bids: filters.min_bids || undefined,
@@ -113,6 +121,7 @@ function toParams(filters: FilterState, offset: number): AuctionListParams {
 }
 
 export function AuctionsPage() {
+  const location = useLocation();
   const { subscribe } = useAuctionRealtime();
   const [searchParams] = useSearchParams();
   const { isAuthenticated } = useAuth();
@@ -299,11 +308,11 @@ export function AuctionsPage() {
 
   return (
     <section className="container page-shell">
-      <p className="eyebrow">Aukciók</p>
+      <p className="eyebrow">Piactér</p>
       <div className="section-heading page-heading">
         <div>
-          <h1>Aukciók</h1>
-          <p className="section-note">Keress kategória, állapot, licitszám, ár és lejárat szerint.</p>
+          <h1>{location.pathname === "/auctions" ? "Aukciók" : "Piactér"}</h1>
+          <p className="section-note">Fix áras lapok és aukciók egy helyen, részletes kereséssel.</p>
         </div>
         <Link className="button button-primary" to="/auctions/create">Aukció létrehozása</Link>
       </div>
@@ -343,6 +352,17 @@ export function AuctionsPage() {
         </label>
         <label>Cím<input type="search" maxLength={180} value={filters.title} onChange={(event) => setFilters({ ...filters, title: event.target.value })} /></label>
         <label>Leírás<input type="search" maxLength={180} value={filters.description} onChange={(event) => setFilters({ ...filters, description: event.target.value })} /></label>
+        <label>
+          Hirdetés típusa
+          <select value={filters.listing_type} onChange={(event) => setFilters({ ...filters, listing_type: event.target.value as FilterState["listing_type"] })}>
+            <option value="">Minden hirdetés</option>
+            <option value="fixed">Fix áras lapok</option>
+            <option value="auction">Aukciók</option>
+          </select>
+          <select aria-label="Hirdetés formátuma" value={filters.listing_format} onChange={(event) => setFilters({ ...filters, listing_format: event.target.value as FilterState["listing_format"] })}>
+            <option value="">Egyedi és csomag</option><option value="single">Egyedi hirdetések</option><option value="bundle">Csomaghirdetések</option>
+          </select>
+        </label>
         <label>
           Kategória
           <select value={filters.category} onChange={(event) => setFilters({ ...filters, category: event.target.value, hatalom_era: event.target.value === "Hatalom Kártyái Kártyajáték" ? filters.hatalom_era : "" })}>

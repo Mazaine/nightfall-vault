@@ -8,16 +8,15 @@ export function HomeHero() {
         <div className="hero-copy">
           <p className="eyebrow">Nightfall Vault</p>
           <h1 id="hero-title">
-            <span>Lépj be a</span>
-            <span>sötétség piacára</span>
+            <span>A HKK-lapok</span>
+            <span>új otthona</span>
           </h1>
           <p className="hero-lead">
-            Prémium aukciós platform ritka tárgyakhoz, ellenőrzött eladókhoz
-            és tiszta, modern licitálási élményhez.
+            Gyűjts, cserélj, vásárolj és licitálj egy helyen! Rendszerezd lapjaidat a Virtuális HKK Mappában, fedezd fel más gyűjtők ajánlatait, vagy hirdesd meg saját kártyáidat.
           </p>
           <div className="hero-actions" aria-label="Elsődleges műveletek">
-            <Link className="button button-primary" to="/auctions">
-              Aukciók felfedezése
+            <Link className="button button-primary" to="/marketplace">
+              Piactér felfedezése
             </Link>
             <Link className="button button-secondary" to="/vault">
               Virtuális mappám

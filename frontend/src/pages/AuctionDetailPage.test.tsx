@@ -5,7 +5,7 @@ import type { Auction, AuctionMessage } from "../api/auctions";
 import { AuctionDetailPage } from "./AuctionDetailPage";
 
 const state = vi.hoisted(() => ({ isAuthenticated: false, notificationListener: null as ((event: { id: string; type: string; payload: Record<string, unknown> }) => void) | null }));
-const mocks = vi.hoisted(() => ({ getAuction: vi.fn(), listAuctionBids: vi.fn(), listAuctionReviews: vi.fn(), listRelatedAuctions: vi.fn(), listSellerOtherAuctions: vi.fn(), placeAuctionBid: vi.fn(), listAuctionMessages: vi.fn(), createAuctionMessage: vi.fn(), markAuctionMessagesRead: vi.fn(), getAuctionPresence: vi.fn(), sendTyping: vi.fn() }));
+const mocks = vi.hoisted(() => ({ getAuction: vi.fn(), listAuctionBids: vi.fn(), listAuctionReviews: vi.fn(), listRelatedAuctions: vi.fn(), listSellerOtherAuctions: vi.fn(), placeAuctionBid: vi.fn(), requestAuctionPhoto: vi.fn(), listAuctionMessages: vi.fn(), createAuctionMessage: vi.fn(), markAuctionMessagesRead: vi.fn(), getAuctionPresence: vi.fn(), sendTyping: vi.fn() }));
 vi.mock("../api/auctions", async (importOriginal) => ({ ...(await importOriginal<typeof import("../api/auctions")>()), ...mocks }));
 vi.mock("../AuthContext", () => ({ useAuth: () => ({ isAuthenticated: state.isAuthenticated, user: state.isAuthenticated ? { id: 2, full_name: "Teszt licitáló" } : null }) }));
 vi.mock("../NotificationContext", () => ({ useNotifications: () => ({ subscribe: (listener: typeof state.notificationListener) => { state.notificationListener = listener; return () => { state.notificationListener = null; }; } }) }));
@@ -23,6 +23,7 @@ describe("AuctionDetailPage", () => {
     mocks.listRelatedAuctions.mockResolvedValue([]);
     mocks.listSellerOtherAuctions.mockResolvedValue([]);
     mocks.placeAuctionBid.mockResolvedValue({ id: 1, amount: "1300.00", reaches_buy_now: false });
+    mocks.requestAuctionPhoto.mockResolvedValue({ id: 1, auction_id: 21, requester_id: 2, created_at: new Date().toISOString(), fulfilled_at: null });
     mocks.listAuctionMessages.mockResolvedValue([]);
     mocks.markAuctionMessagesRead.mockResolvedValue(undefined);
     mocks.getAuctionPresence.mockResolvedValue({ online: false, last_active_at: null });
@@ -45,6 +46,15 @@ describe("AuctionDetailPage", () => {
     expect(screen.queryByRole("button", { name: "Licitálok" })).not.toBeInTheDocument();
     expect(screen.queryByText("Licittörténet")).not.toBeInTheDocument();
     expect(screen.queryByText("Licitlépcső")).not.toBeInTheDocument();
+  });
+
+  it("referenciaképnél fotót kér az eladótól", async () => {
+    state.isAuthenticated = true;
+    mocks.getAuction.mockResolvedValue({ ...auction, vault_external_card_id: "9888", images: [] });
+    render(<MemoryRouter initialEntries={["/auctions/21"]}><Routes><Route path="/auctions/:auctionId" element={<AuctionDetailPage />} /></Routes></MemoryRouter>);
+    fireEvent.click(await screen.findByRole("button", { name: "Fotót kérek" }));
+    await waitFor(() => expect(mocks.requestAuctionPhoto).toHaveBeenCalledWith(21));
+    expect(await screen.findByText("A fotókérést elküldtük az eladónak.")).toBeInTheDocument();
   });
 
   it("a licittörténetben a publikus felhasználónevet profilhivatkozásként mutatja", async () => {

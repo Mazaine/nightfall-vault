@@ -2,6 +2,7 @@ import { FormEvent, KeyboardEvent as ReactKeyboardEvent, useEffect, useLayoutEff
 import { createPortal } from "react-dom";
 import { Link, useLocation, useParams } from "react-router";
 import { apiAssetUrl } from "../api/client";
+import { hkkCardImageUrl } from "../utils/hkk";
 import { ApiError } from "../api/client";
 import { auctionReportReasons, createAuctionReport } from "../api/reports";
 import { useAuth } from "../AuthContext";
@@ -12,7 +13,7 @@ import { ReportDialog } from "../components/ReportDialog";
 import { SafeImage } from "../components/SafeImage";
 import { ChatTransactionPanel } from "../components/ChatTransactionPanel";
 import { BidConfirmationDialog, BidWithdrawalDialog } from "../components/BidDialogs";
-import { addWatchlistItem, auctionStreamUrl, createAuctionMessage, createAuctionReview, getAuction, getAuctionPresence, listAuctionBids, listAuctionMessages, listRelatedAuctions, listSellerOtherAuctions, markAuctionMessagesRead, placeAuctionBid, listAuctionReviews, sendTyping, withdrawAuctionBid, type Auction, type AuctionBid, type AuctionMessage, type AuctionRealtimeSnapshot, type AuctionReview, type BidWithdrawalReason, type NotificationItem } from "../api/auctions";
+import { addWatchlistItem, auctionStreamUrl, createAuctionMessage, createAuctionReview, getAuction, getAuctionPresence, listAuctionBids, listAuctionMessages, listRelatedAuctions, listSellerOtherAuctions, markAuctionMessagesRead, placeAuctionBid, listAuctionReviews, requestAuctionPhoto, sendTyping, withdrawAuctionBid, type Auction, type AuctionBid, type AuctionMessage, type AuctionRealtimeSnapshot, type AuctionReview, type BidWithdrawalReason, type NotificationItem } from "../api/auctions";
 import { formatAuctionEndDate, formatAuctionStatus, formatLocalDateTime, formatMoney, formatRemainingTime } from "../utils/format";
 import { disableBidConfirmation, isBidConfirmationDisabled } from "../utils/bidConfirmation";
 import { formatCardCondition } from "../data/cardConditions";
@@ -61,6 +62,8 @@ export function AuctionDetailPage() {
   const [reportMessage, setReportMessage] = useState("");
   const [shareMessage, setShareMessage] = useState("");
   const [selectedImageId, setSelectedImageId] = useState<number | null>(null);
+  const [photoRequestMessage, setPhotoRequestMessage] = useState("");
+  const [isPhotoRequesting, setIsPhotoRequesting] = useState(false);
   const [typingUser, setTypingUser] = useState("");
   const [presence, setPresence] = useState<{ online: boolean; last_active_at: string | null } | null>(null);
   const messageListRef = useRef<HTMLDivElement>(null);
@@ -383,6 +386,9 @@ export function AuctionDetailPage() {
   }
 
   const galleryImages = [...auction.images].sort((left, right) => left.position - right.position);
+  const referenceImageUrl = !galleryImages.length && auction.vault_external_card_id ? hkkCardImageUrl(auction.vault_external_card_id, null) : "";
+  const bundleItems = auction.bundle_items ?? [];
+  const bundleMontage = !galleryImages.length && bundleItems.length ? bundleItems.slice(0, 4).map((item) => hkkCardImageUrl(item.external_card_id, item.image_url)) : [];
   const selectedImageIndex = Math.max(0, galleryImages.findIndex((image) => image.id === selectedImageId));
   const selectedImage = galleryImages[selectedImageIndex];
   const minimumBidAmount = Number(auction.current_price ?? auction.starting_price) + Number(auction.bid_increment);
@@ -391,17 +397,31 @@ export function AuctionDetailPage() {
     const nextIndex = (selectedImageIndex + direction + galleryImages.length) % galleryImages.length;
     setSelectedImageId(galleryImages[nextIndex].id);
   };
+  const requestPhoto = async () => {
+    if (isPhotoRequesting) return;
+    try {
+      setIsPhotoRequesting(true);
+      setPhotoRequestMessage("");
+      await requestAuctionPhoto(auction.id);
+      setPhotoRequestMessage("A fotókérést elküldtük az eladónak.");
+    } catch (requestError) {
+      setPhotoRequestMessage(requestError instanceof ApiError ? requestError.message : "A fotókérés nem sikerült.");
+    } finally {
+      setIsPhotoRequesting(false);
+    }
+  };
 
   return (
     <section className="container page-shell detail-layout">
       <div className="auction-gallery">
         <div className="detail-media auction-image">
-          <SafeImage
-            src={apiAssetUrl(selectedImage?.detail_url ?? selectedImage?.url)}
+          {bundleMontage.length ? <div className="auction-bundle-montage is-detail" aria-label="A csomag automatikus borítója">{bundleMontage.map((src) => <SafeImage src={src} alt="" width={600} height={840} key={src}/>) }{bundleItems.length > 4 ? <strong>+{bundleItems.length - 4} további lap</strong> : null}</div> : <SafeImage
+            src={selectedImage ? apiAssetUrl(selectedImage.detail_url ?? selectedImage.url) : referenceImageUrl}
             alt={selectedImage ? `${auction.title} – ${selectedImageIndex + 1}. kép` : auction.title}
             width={1200}
             height={1200}
-          />
+          />}
+          {referenceImageUrl ? <span className="auction-reference-image-badge">HKK referenciakép</span> : null}
           {galleryImages.length > 1 ? (
             <>
               <button className="gallery-arrow gallery-arrow-previous" type="button" aria-label="Előző kép" onClick={() => selectRelativeImage(-1)}><span aria-hidden="true">‹</span></button>
@@ -426,11 +446,13 @@ export function AuctionDetailPage() {
             ))}
           </div>
         ) : null}
+        {(referenceImageUrl || bundleMontage.length) && isAuthenticated && !auction.is_owner ? <div className="auction-photo-request"><button className="button button-secondary" type="button" disabled={isPhotoRequesting} onClick={() => void requestPhoto()}>{isPhotoRequesting ? "Kérés küldése…" : "Fotót kérek"}</button>{photoRequestMessage ? <p className="form-message" role="status">{photoRequestMessage}</p> : null}</div> : null}
       </div>
       <div className="side-panel detail-panel">
         <p className="eyebrow">{auction.category} · {formatAuctionStatus(auction.status)}</p>
         {auction.is_demo ? <span className="demo-auction-badge">TESZT AUKCIÓ</span> : null}
         <h1>{auction.title}</h1>
+        {auction.listing_format === "bundle" ? <section className="auction-bundle-contents"><span className="status-badge">Csomag</span><h2>A csomag tartalma</h2><ul>{bundleItems.map((item) => <li key={item.id}><strong>{item.card_name}</strong><span>#{item.external_card_id} · {item.print_variant.toUpperCase()} · {item.quantity} db</span></li>)}</ul></section> : null}
         <p className="hero-lead">{auction.description}</p>
         {auction.external_link_label && auction.external_link_url && /^https?:\/\//i.test(auction.external_link_url) ? (
           <p className="auction-external-link"><a className="text-link" href={auction.external_link_url} target="_blank" rel="noopener noreferrer nofollow">{auction.external_link_label}</a></p>
@@ -440,6 +462,7 @@ export function AuctionDetailPage() {
           {auction.has_printing_error ? <div className="printing-error-detail"><dt>Nyomdahiba</dt><dd><strong>Nyomdahibás / gyártási hibás</strong>{auction.printing_error_description ? <small>{auction.printing_error_description}</small> : null}</dd></div> : null}
           <div><dt>{auction.listing_type === "fixed" ? "Fix ár" : "Aktuális licit"}</dt><dd>{formatMoney(auction.listing_type === "fixed" ? auction.buy_now_price ?? auction.current_price : auction.current_price ?? auction.starting_price)}</dd></div>
           {auction.listing_type !== "fixed" ? <><div><dt>Kezdőár</dt><dd>{formatMoney(auction.starting_price)}</dd></div><div><dt>Licitlépcső</dt><dd>{formatMoney(auction.bid_increment)}</dd></div></> : null}
+          {auction.listing_type !== "fixed" && auction.reserve_price_met !== null && auction.reserve_price_met !== undefined ? <div><dt>Minimálár</dt><dd>{auction.reserve_price_met ? "Teljesült" : "Még nem teljesült"}{auction.is_owner && auction.reserve_price ? ` · ${formatMoney(auction.reserve_price)}` : ""}</dd></div> : null}
           {auction.watch_count ? <div><dt>Figyelők</dt><dd>{auction.watch_count} ember figyeli</dd></div> : null}
           <div className={auction.five_minute_rule_enabled ? "detail-countdown-row" : undefined}><dt>Hátralévő idő</dt><dd><AuctionCountdown endsAt={auction.ends_at} status={auction.status} fiveMinuteRuleEnabled={auction.five_minute_rule_enabled} /></dd></div>
           <div><dt>Kezdés</dt><dd>{formatLocalDateTime(auction.starts_at)}</dd></div>

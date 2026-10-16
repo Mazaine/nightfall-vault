@@ -46,6 +46,7 @@ class Settings(BaseSettings):
     bid_withdrawal_min_remaining_seconds: int = 300
     bid_withdrawal_warning_threshold: int = 5
     chat_message_rate_limit_per_minute: int = 20
+    photo_request_rate_limit_per_minute: int = 10
     vip_activation_rate_limit_per_minute: int = 10
     sse_connection_rate_limit_per_minute: int = 30
     realtime_heartbeat_rate_limit_per_minute: int = 10

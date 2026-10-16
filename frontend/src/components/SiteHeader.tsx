@@ -7,16 +7,18 @@ import { UNREAD_NOTIFICATION_COUNT_CHANGED } from "../utils/notificationEvents";
 
 const navItems: { label: string; to: string; authenticated?: boolean; primary?: boolean; emphasis?: boolean }[] = [
   { label: "Kezdőlap", to: "/" },
-  { label: "Aukciók", to: "/auctions" },
-  { label: "Licitjeim", to: "/my-bids", authenticated: true },
-  { label: "Aukció indítása", to: "/auctions/create", authenticated: true, primary: true },
-  { label: "Saját aukcióim", to: "/account/auctions", authenticated: true },
+  { label: "Piactér", to: "/marketplace" },
   { label: "Virtuális mappám", to: "/vault", authenticated: true, emphasis: true },
+  { label: "Hirdetés feladása", to: "/auctions/create", authenticated: true, primary: true },
+  { label: "Saját ügyleteim", to: "/account/transactions", authenticated: true },
   { label: "Szabályok", to: "/how-it-works" },
 ];
 
 const accountItems = [
   ["Virtuális mappám", "/vault"],
+  ["Licitjeim", "/my-bids"],
+  ["Saját hirdetéseim", "/account/auctions"],
+  ["Vásárlásaim és eladásaim", "/account/transactions"],
   ["Profilbeállítások", "/account/profile"],
   ["Értesítések", "/account/notifications"],
   ["Jelentéseim", "/account/reports"],
@@ -127,7 +129,7 @@ export function SiteHeader() {
         </nav>
 
         <div className="header-actions" aria-label="Fiókműveletek">
-          <Link className="icon-button icon-button-search" to="/auctions" aria-label="Keresés az aukciók között" />
+          <Link className="icon-button icon-button-search" to="/marketplace" aria-label="Keresés a piactéren" />
           {isAuthenticated ? <Link className="notification-link icon-button" to="/account/notifications" aria-label={`Értesítések${displayUnreadCount ? `, ${displayUnreadCount} olvasatlan` : ""}`}><span className="visually-hidden">Értesítések</span>{displayUnreadCount > 0 ? <strong>{displayUnreadCount > 99 ? "99+" : displayUnreadCount}</strong> : null}</Link> : null}
           {isAuthenticated ? (
             <div className="account-menu-wrap">

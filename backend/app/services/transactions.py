@@ -193,7 +193,21 @@ def confirm_completion(db: Session, transaction_id: int, user: User) -> AuctionT
     )
     if transaction.seller_completed_at and transaction.buyer_completed_at:
         auction = db.scalar(select(Auction).where(Auction.id == transaction.auction_id).with_for_update())
-        if auction is not None and auction.vault_collection_card_id is not None and not auction.vault_inventory_deducted:
+        if auction is not None and not auction.vault_inventory_deducted and auction.listing_format == "bundle":
+            from app.models.auction import AuctionBundleItem
+            from app.models.vault import VaultCollectionCard
+            bundle_items = list(db.scalars(select(AuctionBundleItem).where(AuctionBundleItem.auction_id == auction.id).order_by(AuctionBundleItem.vault_collection_card_id).with_for_update()).all())
+            card_ids = [item.vault_collection_card_id for item in bundle_items if item.vault_collection_card_id is not None]
+            vault_cards = {card.id: card for card in db.scalars(select(VaultCollectionCard).where(VaultCollectionCard.id.in_(card_ids), VaultCollectionCard.user_id == transaction.seller_id).order_by(VaultCollectionCard.id).with_for_update()).all()}
+            for item in bundle_items:
+                vault_card = vault_cards.get(item.vault_collection_card_id)
+                if vault_card is None or vault_card.quantity < item.quantity:
+                    raise HTTPException(status_code=409, detail=f"A Vault-készlet időközben nem elegendő ehhez a csomagtételhez: {item.card_name}.")
+            for item in bundle_items:
+                vault_cards[item.vault_collection_card_id].quantity -= item.quantity
+            auction.vault_inventory_deducted = True
+            db.add_all([*vault_cards.values(), auction])
+        elif auction is not None and auction.vault_collection_card_id is not None and not auction.vault_inventory_deducted:
             from app.models.vault import VaultCollectionCard
             vault_card = db.scalar(select(VaultCollectionCard).where(
                 VaultCollectionCard.id == auction.vault_collection_card_id,

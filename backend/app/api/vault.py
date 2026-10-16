@@ -476,7 +476,8 @@ def add_card(payload: CollectionCardCreate, current_user: User = Depends(require
         previous_quantity=existing.quantity if existing else None,
         quantity=payload.quantity,
     )
-    require_collection_pocket_limit(db, current_user.id, payload.external_card_id, payload.quantity, card=existing)
+    next_quantity = payload.quantity if existing is None else existing.quantity + payload.quantity
+    require_collection_pocket_limit(db, current_user.id, payload.external_card_id, next_quantity, card=existing)
     if existing is None:
         if sibling is not None and sibling.folder_id != folder.id:
             raise HTTPException(status_code=409, detail="Egy lap összes változatának ugyanabban az almappában kell lennie.")
@@ -488,7 +489,7 @@ def add_card(payload: CollectionCardCreate, current_user: User = Depends(require
         if not account.vault_unlimited and existing.folder_id != folder.id and folder_used(db, folder.id) >= folder.capacity:
             raise HTTPException(status_code=409, detail="A célmappa megtelt.")
         existing.folder_id = folder.id
-        existing.quantity = payload.quantity
+        existing.quantity = next_quantity
         for key, value in card_snapshot_values(payload).items():
             setattr(existing, key, value)
     db.flush()

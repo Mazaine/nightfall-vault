@@ -22,6 +22,7 @@ TYPE_CATEGORY = {
     "report_resolved": "moderation", "report_dismissed": "moderation", "auction_moderation_action": "moderation",
     "moderation_action": "moderation", "moderation_strike": "moderation", "moderation_revoked": "moderation",
     "saved_search_match": "system", "vault_match": "system", "watchlist_reminder": "system", "seller_auction_reminder": "system",
+    "auction_photo_requested": "system", "auction_photos_added": "system",
 }
 
 TYPE_PREFERENCE_KEY = {
@@ -51,6 +52,8 @@ TYPE_PREFERENCE_KEY = {
     "moderation_revoked": "moderation",
     "saved_search_match": "system",
     "vault_match": "system",
+    "auction_photo_requested": "system",
+    "auction_photos_added": "system",
 }
 
 PREFERENCE_KEYS = NotificationPreference.PREFERENCE_KEYS

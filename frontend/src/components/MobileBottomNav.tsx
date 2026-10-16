@@ -3,9 +3,9 @@ import { useAuth } from "../AuthContext";
 
 const items = [
   { label: "Főoldal", to: "/", icon: "⌂" },
-  { label: "Aukciók", to: "/auctions", icon: "◇" },
-  { label: "Indítás", to: "/auctions/create", icon: "+", primary: true },
-  { label: "Licitjeim", to: "/my-bids", icon: "↗" },
+  { label: "Piactér", to: "/marketplace", icon: "◇" },
+  { label: "Hirdetés", to: "/auctions/create", icon: "+", primary: true },
+  { label: "Mappám", to: "/vault", icon: "▱" },
   { label: "Fiók", to: "/account/profile", icon: "○" },
 ];
 

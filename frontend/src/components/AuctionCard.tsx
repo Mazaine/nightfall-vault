@@ -27,6 +27,10 @@ type AuctionCardProps = {
   item: {
     id: string | number;
     listingType?: "auction" | "fixed";
+    listingFormat?: "single" | "bundle";
+    bundleItemCount?: number;
+    bundleCopyCount?: number;
+    montageImages?: string[];
     sellerId?: number;
     title: string;
     type: string;
@@ -230,7 +234,7 @@ export function AuctionCard({
       onKeyDown={(event) => { if ((event.key === "Enter" || event.key === " ") && event.target === event.currentTarget) { event.preventDefault(); navigate(detailPath); } }}
     >
       <div className="auction-image">
-        <SafeImage src={item.imageUrl} alt={item.title} loading="lazy" decoding="async" width={700} height={700} />
+        {item.montageImages?.length ? <div className="auction-bundle-montage" aria-label={`${item.title} csomag borítója`}>{item.montageImages.map((src) => <SafeImage src={src} alt="" loading="lazy" decoding="async" width={350} height={490} key={src}/>) }{(item.bundleItemCount ?? 0) > 4 ? <strong>+{(item.bundleItemCount ?? 0) - 4} további lap</strong> : null}</div> : <SafeImage src={item.imageUrl} alt={item.title} loading="lazy" decoding="async" width={700} height={700} />}
       </div>
       <span className={`auction-condition-badge condition-${cardCondition.value.toLowerCase()}`} title={`${cardCondition.value} – ${cardCondition.nameHu} (${cardCondition.nameEn})`}>{cardCondition.value}</span>
       {showTimer && item.endsAt && item.status
@@ -241,6 +245,7 @@ export function AuctionCard({
 
       <div className="auction-content">
         <div className="auction-card-badges" aria-hidden={!item.isFeatured && !item.isDemo}>
+          {item.listingFormat === "bundle" ? <span className="status-badge">CSOMAG · {item.bundleItemCount} lap / {item.bundleCopyCount} példány</span> : null}
           {item.isFeatured ? <span className="vip-featured-badge">VIP KIEMELT</span> : null}
           {item.isDemo ? <span className="demo-auction-badge">TESZT AUKCIÓ</span> : null}
         </div>

@@ -66,6 +66,7 @@ class AuctionBase(BaseModel):
     bid_increment: Decimal = Field(gt=0, max_digits=12, decimal_places=2)
     buy_now_enabled: bool = False
     buy_now_price: Decimal | None = Field(default=None, gt=0, max_digits=12, decimal_places=2)
+    reserve_price: Decimal | None = Field(default=None, gt=0, max_digits=12, decimal_places=2)
     starts_at: datetime
     ends_at: datetime
     five_minute_rule_enabled: bool = True
@@ -109,6 +110,11 @@ class AuctionBase(BaseModel):
                 raise ValueError("A villámárnak magasabbnak kell lennie a kezdőárnál.")
         elif self.buy_now_price is not None:
             raise ValueError("Kikapcsolt villámárnál nem adható meg villámárösszeg.")
+        if self.reserve_price is not None:
+            if self.reserve_price < self.starting_price:
+                raise ValueError("A minimálár nem lehet kisebb a kikiáltási árnál.")
+            if self.buy_now_price is not None and self.reserve_price > self.buy_now_price:
+                raise ValueError("A minimálár nem lehet nagyobb az azonnali vételárnál.")
         return self
 
 
@@ -131,6 +137,8 @@ class AuctionCreate(AuctionBase):
                 raise ValueError("Fix áras hirdetésnél kötelező pozitív fix árat megadni.")
             if self.starting_price != 0 or self.bid_increment != self.buy_now_price:
                 raise ValueError("A fix áras hirdetés ármezői érvénytelenek.")
+            if self.reserve_price is not None:
+                raise ValueError("Fix áras hirdetésnél nem adható meg minimálár.")
         return self
 
 
@@ -148,6 +156,7 @@ class AuctionUpdate(BaseModel):
     bid_increment: Decimal | None = Field(default=None, gt=0, max_digits=12, decimal_places=2)
     buy_now_enabled: bool | None = None
     buy_now_price: Decimal | None = Field(default=None, gt=0, max_digits=12, decimal_places=2)
+    reserve_price: Decimal | None = Field(default=None, gt=0, max_digits=12, decimal_places=2)
     starts_at: datetime | None = None
     ends_at: datetime | None = None
     five_minute_rule_enabled: bool | None = None
@@ -269,6 +278,16 @@ class AuctionImageRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class AuctionPhotoRequestRead(BaseModel):
+    id: int
+    auction_id: int
+    requester_id: int
+    created_at: datetime
+    fulfilled_at: datetime | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class BidRead(BaseModel):
     id: int
     auction_id: int
@@ -344,10 +363,55 @@ class NotificationUnreadCount(BaseModel):
     unread_count: int
 
 
+class AuctionBundleItemRead(BaseModel):
+    id: int
+    vault_collection_card_id: int | None
+    external_card_id: str
+    card_name: str
+    edition: str | None
+    image_url: str | None
+    print_variant: Literal["normal", "foil", "fa", "gfa"]
+    quantity: int
+    unit_price: Decimal
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class BatchFixedListingItemCreate(BaseModel):
+    vault_collection_card_id: int = Field(gt=0)
+    quantity: int = Field(ge=1, le=9)
+    base_price: int = Field(gt=0, le=999_999_999)
+    final_price: int = Field(gt=0, le=999_999_999)
+    condition: AuctionCondition = "NM"
+    description: str = Field(default="Újszerű HKK-lap a Virtuális HKK Mappából.", min_length=10, max_length=5000)
+
+
+class BatchFixedListingCreate(BaseModel):
+    creation_key: str = Field(min_length=36, max_length=36, pattern=r"^[0-9a-fA-F-]{36}$")
+    mode: Literal["individual", "bundle"]
+    discount_percent: int = Field(default=0, ge=0, le=99)
+    items: list[BatchFixedListingItemCreate] = Field(min_length=1, max_length=100)
+    bundle_name: str | None = Field(default=None, min_length=2, max_length=180)
+    bundle_description: str | None = Field(default=None, min_length=10, max_length=5000)
+    bundle_price: int | None = Field(default=None, gt=0, le=999_999_999)
+
+    @model_validator(mode="after")
+    def validate_batch(self) -> "BatchFixedListingCreate":
+        ids = [item.vault_collection_card_id for item in self.items]
+        if len(ids) != len(set(ids)):
+            raise ValueError("Egy lapváltozat csak egyszer szerepelhet a kötegben.")
+        if self.mode == "bundle" and (not self.bundle_name or not self.bundle_description or self.bundle_price is None):
+            raise ValueError("Csomaghirdetésnél a név, leírás és pozitív csomagár kötelező.")
+        if self.mode == "bundle" and len(self.items) < 2:
+            raise ValueError("Csomaghirdetéshez legalább két különböző lap szükséges.")
+        return self
+
+
 class AuctionListItem(BaseModel):
     id: int
     seller_id: int
     listing_type: Literal["auction", "fixed"] = "auction"
+    listing_format: Literal["single", "bundle"] = "single"
     vault_collection_card_id: int | None = None
     vault_external_card_id: str | None = None
     vault_print_variant: str | None = None
@@ -367,6 +431,7 @@ class AuctionListItem(BaseModel):
     current_price: Decimal
     buy_now_enabled: bool
     buy_now_price: Decimal | None
+    reserve_price_met: bool | None = None
     starts_at: datetime
     ends_at: datetime
     five_minute_rule_enabled: bool
@@ -390,8 +455,14 @@ class AuctionListItem(BaseModel):
     owner_sale_status: Literal["not_sold", "sale_pending", "sale_sent"] | None = None
     seller: UserSummary | None = None
     images: list[AuctionImageRead] = []
+    bundle_items: list[AuctionBundleItemRead] = []
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class BatchFixedListingRead(BaseModel):
+    mode: Literal["individual", "bundle"]
+    auctions: list[AuctionListItem]
 
 
 class MyBidAuctionItem(BaseModel):
@@ -439,6 +510,7 @@ class AuctionResponse(AuctionListItem):
     chat_read_only: bool = False
     can_review: bool = False
     is_owner: bool = False
+    reserve_price: Decimal | None = None
 
 
 class HomeAuctionOverview(BaseModel):

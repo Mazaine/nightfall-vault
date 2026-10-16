@@ -115,4 +115,11 @@ describe("AuctionCard", () => {
     fireEvent.error(screen.getByRole("img", { name: "Teszt kártya" }));
     expect(screen.getByRole("img", { name: "Teszt kártya – kép nem érhető el" })).toHaveTextContent("Kép nem érhető el");
   });
+
+  it("csomaghirdetésnél automatikus montázst és pontos tételszámot mutat", () => {
+    render(<MemoryRouter><AuctionCard item={{ ...item, listingType: "fixed", listingFormat: "bundle", bundleItemCount: 6, bundleCopyCount: 9, montageImages: ["/one.jpg", "/two.jpg", "/three.jpg", "/four.jpg"] }} index={0} detailPath="/auctions/7" /></MemoryRouter>);
+    expect(screen.getByLabelText("Teszt kártya csomag borítója").querySelectorAll("img")).toHaveLength(4);
+    expect(screen.getByText("+2 további lap")).toBeInTheDocument();
+    expect(screen.getByText("CSOMAG · 6 lap / 9 példány")).toBeInTheDocument();
+  });
 });

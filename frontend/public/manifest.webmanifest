@@ -2,6 +2,7 @@
   "id": "/",
   "name": "Nightfall Vault",
   "short_name": "Nightfall Vault",
+  "description": "A HKK-lapok új otthona: gyűjtés, csere, fix áras piactér és aukciók egy helyen.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

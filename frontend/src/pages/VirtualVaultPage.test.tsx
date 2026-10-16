@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => Object.fromEntries([
   "updateVaultCard", "deleteVaultCard", "deleteTradeCard", "buyVaultCapacity", "postTradeMessage", "listMatchingOffers", "expressTradeInterest", "createCardLoan", "returnCardLoan",
   "listTradeCardSeekers", "verifyTradeCard", "bulkUpdateVaultCards", "createDeck", "deleteDeck", "addDeckCard", "updateDeckCard", "deleteDeckCard", "listDeckCardOffers",
   "getMatchStatus", "markMatchesSeen", "createStandaloneCardLoans",
+  "getHkkMarketPriceSuggestion",
 ].map((name) => [name, vi.fn()])) as Record<string, ReturnType<typeof vi.fn>>);
 vi.mock("../api/vault", () => mocks);
 
@@ -31,6 +32,7 @@ describe("VirtualVaultPage", () => {
     mocks.listHkkEditions.mockResolvedValue([{ id: "220", name: "Álomháború", group: null, release_date: "2026-01-01" }]);
     mocks.getMatchStatus.mockResolvedValue({ unseen_count: 0, match_keys: [] });
     mocks.markMatchesSeen.mockResolvedValue({ updated: 0 });
+    mocks.getHkkMarketPriceSuggestion.mockResolvedValue({ recommended_price: null, minimum_price: null, maximum_price: null, offer_count: 0 });
   });
 
   it("valós számlálókkal induló, kattintható áttekintőt és külön lapfelviteli területet mutat", async () => {
@@ -229,6 +231,9 @@ describe("VirtualVaultPage", () => {
     expect(await screen.findByRole("button", { name: "Eltávolítás a cseremappából" })).toBeInTheDocument();
     mocks.listTradeCards.mockResolvedValueOnce([]);
     fireEvent.click(screen.getByRole("button", { name: "Eltávolítás a cseremappából" }));
+    const dialog = screen.getByRole("dialog", { name: "Eltávolítás a cseremappából" });
+    expect(within(dialog).getByText(/saját gyűjteményedben lévő példányok megmaradnak/i)).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Eltávolítás" }));
     await waitFor(() => expect(mocks.deleteTradeCard).toHaveBeenCalledWith(5));
     await waitFor(() => expect(screen.queryByRole("button", { name: "Eltávolítás a cseremappából" })).not.toBeInTheDocument());
     expect(mocks.deleteVaultCard).not.toHaveBeenCalled();

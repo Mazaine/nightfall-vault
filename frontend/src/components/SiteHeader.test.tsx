@@ -41,13 +41,14 @@ describe("SiteHeader", () => {
     expect(screen.queryByRole("button", { name: "Felhasználói menü" })).not.toBeInTheDocument();
   });
 
-  it("a Licitjeim elsődleges cél, a profilbeállítás pedig a profilikon menüjében marad", async () => {
+  it("a piactér elsődleges cél, a saját ügyleti linkek pedig a profilikon menüjében maradnak", async () => {
     authenticate();
     render(<MemoryRouter><SiteHeader /></MemoryRouter>);
     fireEvent.click(screen.getByRole("button", { name: "Felhasználói menü" }));
     expect(screen.getByRole("menuitem", { name: "Virtuális mappám" })).toHaveAttribute("href", "/vault");
     expect(screen.getByRole("menuitem", { name: "Profilbeállítások" })).toHaveAttribute("href", "/account/profile");
-    expect(screen.getByRole("link", { name: "Licitjeim" })).toHaveAttribute("href", "/my-bids");
+    expect(screen.getByRole("menuitem", { name: "Licitjeim" })).toHaveAttribute("href", "/my-bids");
+    expect(screen.getByRole("link", { name: "Piactér" })).toHaveAttribute("href", "/marketplace");
     expect(screen.queryByRole("link", { name: "HKK Mappa" })).not.toBeInTheDocument();
     await waitFor(() => expect(screen.getByRole("menuitem", { name: "Virtuális mappám" })).toHaveFocus());
   });
@@ -57,7 +58,7 @@ describe("SiteHeader", () => {
     render(<MemoryRouter initialEntries={["/vault"]}><SiteHeader /></MemoryRouter>);
     const navigation = screen.getByRole("navigation", { name: "Elsődleges navigáció" });
     expect(Array.from(navigation.querySelectorAll("a")).map((link) => link.textContent)).toEqual([
-      "Kezdőlap", "Aukciók", "Licitjeim", "Aukció indítása", "Saját aukcióim", "Virtuális mappám", "Szabályok",
+      "Kezdőlap", "Piactér", "Virtuális mappám", "Hirdetés feladása", "Saját ügyleteim", "Szabályok",
     ]);
     const vaultLink = screen.getByRole("link", { name: "Virtuális mappám" });
     expect(vaultLink).toHaveClass("nav-vault-link", "active");
@@ -82,7 +83,7 @@ describe("SiteHeader", () => {
     render(<MemoryRouter><SiteHeader /></MemoryRouter>);
     fireEvent.click(screen.getByRole("button", { name: "Felhasználói menü" }));
     const firstItem = screen.getByRole("menuitem", { name: "Virtuális mappám" });
-    const secondItem = screen.getByRole("menuitem", { name: "Profilbeállítások" });
+    const secondItem = screen.getByRole("menuitem", { name: "Licitjeim" });
     await waitFor(() => expect(firstItem).toHaveFocus());
     fireEvent.keyDown(firstItem, { key: "ArrowDown" });
     expect(secondItem).toHaveFocus();

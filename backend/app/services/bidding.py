@@ -295,7 +295,7 @@ def _sync_locked_auction_for_bidding(db: Session, auction: Auction) -> Auction:
         auction.status = "active"
     if auction.status == "active" and effective_auction_end(auction) <= current_time:
         highest_bid = db.scalar(_top_active_bid_statement(auction.id).limit(1))
-        if highest_bid is not None:
+        if highest_bid is not None and (auction.reserve_price is None or highest_bid.amount >= auction.reserve_price):
             auction.winner_id = highest_bid.bidder_id
             auction.status = "sold"
         else:

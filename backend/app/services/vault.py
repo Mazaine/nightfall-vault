@@ -200,13 +200,8 @@ def require_collection_pocket_limit(db: Session, user_id: int, external_card_id:
 
 
 def reserved_listing_quantity(db: Session, card_id: int) -> int:
-    from app.models.auction import Auction
-    return int(db.scalar(select(func.coalesce(func.sum(Auction.vault_quantity), 0)).where(
-        Auction.vault_collection_card_id == card_id,
-        Auction.status.in_(["draft", "scheduled", "active", "sold"]),
-        Auction.deleted_at.is_(None),
-        Auction.vault_inventory_deducted.is_(False),
-    )) or 0)
+    from app.services.batch_listings import _reserved_quantity
+    return _reserved_quantity(db, card_id)
 
 
 def assigned_capacity(db: Session, user_id: int, *, exclude_folder_id: int | None = None) -> int:

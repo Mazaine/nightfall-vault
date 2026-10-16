@@ -9,7 +9,8 @@ type RouteMeta = {
 };
 
 const routeMeta: RouteMeta[] = [
-  { matches: (path) => path === "/", title: "Prémium gyűjtői aukciók", description: "Fedezz fel ritka gyűjtői darabokat, licitálj átláthatóan, vagy indíts saját aukciót a Nightfall Vault közösségében." },
+  { matches: (path) => path === "/", title: "A HKK-lapok új otthona", description: "Gyűjts, cserélj, vásárolj és licitálj egy helyen a Nightfall Vault HKK közösségi piacterén." },
+  { matches: (path) => path === "/marketplace", title: "HKK Piactér", description: "Böngéssz fix áras HKK-lapok és aktív aukciók között a Nightfall Vault közösségi piacterén." },
   { matches: (path) => path === "/auctions", title: "Aukciók", description: "Böngéssz a Nightfall Vault aktív gyűjtői aukciói között kategória, állapot és ár szerint." },
   { matches: (path) => path === "/auctions/create", title: "Aukció létrehozása", description: "Új Nightfall Vault aukció létrehozása és képeinek feltöltése.", indexable: false },
   { matches: (path) => /^\/auctions\/\d+$/.test(path), title: "Aukció részletei", description: "Tekintsd meg az aukció részleteit, képeit, licittörténetét és aktuális állapotát a Nightfall Vaultban." },

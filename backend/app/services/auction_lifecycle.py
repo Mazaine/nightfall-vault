@@ -16,7 +16,7 @@ from app.services.user_blocks import ensure_not_blocked
 SELLER_DECLARATION_VERSION = "2026-07-11"
 PUBLIC_AUCTION_STATUSES = {"scheduled", "active", "ended", "sold", "unsold"}
 EDITABLE_OWNER_STATUSES = {"draft", "scheduled", "active"}
-CRITICAL_AUCTION_FIELDS = {"starting_price", "bid_increment", "buy_now_price", "starts_at"}
+CRITICAL_AUCTION_FIELDS = {"starting_price", "bid_increment", "buy_now_price", "reserve_price", "starts_at"}
 FIVE_MINUTE_EXTENSION = timedelta(minutes=5)
 AUCTION_START_PAST_TOLERANCE = timedelta(minutes=10)
 
@@ -87,7 +87,7 @@ def sync_auction_status(db: Session, auction: Auction) -> Auction:
             select(Bid).where(Bid.auction_id == auction.id, Bid.status == "active")
             .order_by(Bid.amount.desc(), Bid.created_at.asc(), Bid.id.asc()).limit(1)
         )
-        if highest_bid is not None:
+        if highest_bid is not None and (auction.reserve_price is None or highest_bid.amount >= auction.reserve_price):
             auction.winner_id = highest_bid.bidder_id
             auction.status = "sold"
         else:
@@ -114,7 +114,7 @@ def close_ended_active_auction(db: Session, auction: Auction) -> Auction:
     )
     auction.highest_bid_id = highest_bid.id if highest_bid is not None else None
     auction.current_price = normalize_money(highest_bid.amount if highest_bid is not None else auction.starting_price)
-    if highest_bid is not None:
+    if highest_bid is not None and (auction.reserve_price is None or highest_bid.amount >= auction.reserve_price):
         auction.winner_id = highest_bid.bidder_id
         auction.status = "sold"
     else:
@@ -134,6 +134,7 @@ def get_auction_statement():
         selectinload(Auction.highest_bid),
         selectinload(Auction.bids),
         selectinload(Auction.images),
+        selectinload(Auction.bundle_items),
         selectinload(Auction.messages).selectinload(AuctionMessage.sender),
         selectinload(Auction.reviews).selectinload(AuctionReview.reviewer),
         selectinload(Auction.reviews).selectinload(AuctionReview.reviewed_user),
@@ -200,15 +201,8 @@ def create_auction(db: Session, auction_create: AuctionCreate, seller: User) -> 
         )
         if vault_card is None:
             raise HTTPException(status_code=404, detail="A meghirdetendő Vault-lap nem található.")
-        reserved = int(db.scalar(
-            select(func.coalesce(func.sum(Auction.vault_quantity), 0)).where(
-                Auction.seller_id == seller.id,
-                Auction.vault_collection_card_id == vault_card.id,
-                Auction.status.in_(["draft", "scheduled", "active", "sold"]),
-                Auction.deleted_at.is_(None),
-                Auction.vault_inventory_deducted.is_(False),
-            )
-        ) or 0)
+        from app.services.batch_listings import _reserved_quantity
+        reserved = _reserved_quantity(db, vault_card.id)
         requested = int(auction_create.vault_quantity or 0)
         if requested > max(vault_card.quantity - reserved, 0):
             raise HTTPException(status_code=409, detail=f"Ebből a lapváltozatból legfeljebb {max(vault_card.quantity - reserved, 0)} példány hirdethető meg.")
@@ -235,6 +229,7 @@ def create_auction(db: Session, auction_create: AuctionCreate, seller: User) -> 
         current_price=normalize_money(auction_create.buy_now_price) if auction_create.listing_type == "fixed" and auction_create.buy_now_price is not None else normalize_money(auction_create.starting_price),
         buy_now_enabled=auction_create.buy_now_enabled,
         buy_now_price=normalize_money(auction_create.buy_now_price) if auction_create.buy_now_price is not None else None,
+        reserve_price=normalize_money(auction_create.reserve_price) if auction_create.reserve_price is not None else None,
         starts_at=normalize_datetime(auction_create.starts_at),
         ends_at=normalize_datetime(auction_create.ends_at),
         five_minute_rule_enabled=auction_create.five_minute_rule_enabled,
@@ -279,6 +274,12 @@ def _validate_update_buy_now(auction: Auction, update: AuctionUpdate) -> None:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Bekapcsolt villámárnál kötelező megadni a villámár összegét.")
         if buy_now_price <= starting_price:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="A villámárnak magasabbnak kell lennie a kezdőárnál.")
+    reserve_price = auction.reserve_price if update.reserve_price is None else normalize_money(update.reserve_price)
+    if reserve_price is not None:
+        if reserve_price < starting_price:
+            raise HTTPException(status_code=422, detail="A minimálár nem lehet kisebb a kikiáltási árnál.")
+        if buy_now_price is not None and reserve_price > buy_now_price:
+            raise HTTPException(status_code=422, detail="A minimálár nem lehet nagyobb az azonnali vételárnál.")
 
 
 def update_auction(db: Session, auction: Auction, auction_update: AuctionUpdate, user: User) -> Auction:
@@ -330,7 +331,7 @@ def update_auction(db: Session, auction: Auction, auction_update: AuctionUpdate,
     for field_name, value in update_data.items():
         if field_name in {"starts_at", "ends_at"} and value is not None:
             value = normalize_datetime(value)
-        if field_name in {"starting_price", "bid_increment", "buy_now_price"} and value is not None:
+        if field_name in {"starting_price", "bid_increment", "buy_now_price", "reserve_price"} and value is not None:
             value = normalize_money(value)
         setattr(auction, field_name, value)
     if auction.buy_now_enabled is False:
@@ -359,10 +360,10 @@ def validate_activation_requirements(auction: Auction) -> None:
         raise HTTPException(status_code=422, detail="Kikapcsolt villámárnál nem adható meg villámárösszeg.")
     if auction.seller_declaration_accepted_at is None:
         raise HTTPException(status_code=422, detail="Az eladói nyilatkozat elfogadása kötelező.")
-    if not 1 <= len(auction.images) <= 5:
-        raise HTTPException(status_code=422, detail="Az aukció aktiválásához 1–5 kép szükséges.")
+    if len(auction.images) > 5 or (not auction.images and auction.vault_external_card_id is None):
+        raise HTTPException(status_code=422, detail="Az aukció aktiválásához saját fotó vagy Vault-referenciakép szükséges.")
     cover_count = sum(1 for image in auction.images if image.is_cover)
-    if cover_count != 1:
+    if auction.images and cover_count != 1:
         raise HTTPException(status_code=422, detail="Az aukció aktiválásához pontosan egy borítókép szükséges.")
 
 

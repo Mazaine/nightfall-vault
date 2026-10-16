@@ -1,11 +1,17 @@
 import { MemoryRouter } from "react-router";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { buildHkkMarketPriceUrl, ListingComposer, type ListingSource } from "./ListingComposer";
 
 vi.mock("../api/vault", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../api/vault")>()),
   getHkkMarketPriceSuggestion: vi.fn().mockResolvedValue({ recommended_price: 350, minimum_price: 300, maximum_price: 400, offer_count: 2 }),
+}));
+
+const auctionMocks = vi.hoisted(() => ({ createAuction: vi.fn(), activateAuction: vi.fn(), uploadAuctionImage: vi.fn() }));
+vi.mock("../api/auctions", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../api/auctions")>()),
+  ...auctionMocks,
 }));
 
 const source: ListingSource = {
@@ -17,6 +23,11 @@ const source: ListingSource = {
 };
 
 describe("ListingComposer piaci ár hivatkozás", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    auctionMocks.createAuction.mockResolvedValue({ id: 42 });
+    auctionMocks.activateAuction.mockResolvedValue({ id: 42, status: "active" });
+  });
   it("URLSearchParams segítségével kezeli az ékezetes lapnevet", () => {
     const url = new URL(buildHkkMarketPriceUrl("Ősi áldozat"));
     expect(url.origin).toBe("https://hkkarfigyelo.hu");
@@ -37,5 +48,21 @@ describe("ListingComposer piaci ár hivatkozás", () => {
 
     fireEvent.click(screen.getByRole("tab", { name: "Aukció" }));
     await waitFor(() => expect(screen.getByRole("link", { name: "Piaci árak megtekintése" })).toHaveAttribute("href", buildHkkMarketPriceUrl(source.cardName)));
+  });
+
+  it("Vault-referenciaképpel saját fotó nélkül is aktivál, aukciónál pedig továbbítja a minimálárat", async () => {
+    render(<MemoryRouter><ListingComposer source={source}/></MemoryRouter>);
+    await screen.findByText("Ajánlott ár: 350 Ft");
+    fireEvent.change(document.querySelector<HTMLInputElement>('input[name="price"]')!, { target: { value: "1200" } });
+    fireEvent.click(screen.getByRole("button", { name: "Meghirdetem fix áron" }));
+    await waitFor(() => expect(auctionMocks.createAuction).toHaveBeenCalledWith(expect.objectContaining({ listing_type: "fixed", reserve_price: null, vault_collection_card_id: 14 })));
+    expect(auctionMocks.uploadAuctionImage).not.toHaveBeenCalled();
+    expect(auctionMocks.activateAuction).toHaveBeenCalledWith(42);
+
+    fireEvent.click(screen.getByRole("tab", { name: "Aukció" }));
+    fireEvent.change(document.querySelector<HTMLInputElement>('input[name="price"]')!, { target: { value: "1000" } });
+    fireEvent.change(document.querySelector<HTMLInputElement>('input[name="reserve_price"]')!, { target: { value: "1500" } });
+    fireEvent.click(screen.getByRole("button", { name: "Aukció indítása" }));
+    await waitFor(() => expect(auctionMocks.createAuction).toHaveBeenLastCalledWith(expect.objectContaining({ listing_type: "auction", reserve_price: "1500" })));
   });
 });

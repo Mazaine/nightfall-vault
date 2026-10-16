@@ -1,10 +1,12 @@
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime, timedelta, timezone
+from uuid import uuid4
 
 from sqlalchemy import delete, or_, select
 
 from app.db.session import SessionLocal
 from app.models.user import User, VipActivationCode
+from app.models.auction import Auction, AuctionBundleItem
 from app.models.security_log import AuditLog
 from app.models.moderation import UserBlock
 from app.models.notification import Notification, NotificationOutbox, NotificationPreference
@@ -205,9 +207,11 @@ def test_base_capacities_folder_limits_playset_move_and_idor() -> None:
         created = client.post("/api/vault/cards", json={**card_payload(), "folder_id": xen["id"]}, headers=auth_headers(owner))
         assert created.status_code == 201 and created.json()["quantity"] == 2 and created.json()["print_variant"] == "normal"
         duplicate = client.post("/api/vault/cards", json={**card_payload(quantity=3), "folder_id": xen["id"]}, headers=auth_headers(owner))
-        assert duplicate.status_code == 201 and duplicate.json()["id"] == created.json()["id"] and duplicate.json()["quantity"] == 3
-        nine = client.post("/api/vault/cards", json={**card_payload(quantity=9), "folder_id": xen["id"]}, headers=auth_headers(owner))
+        assert duplicate.status_code == 201 and duplicate.json()["id"] == created.json()["id"] and duplicate.json()["quantity"] == 5
+        nine = client.post("/api/vault/cards", json={**card_payload(quantity=4), "folder_id": xen["id"]}, headers=auth_headers(owner))
         assert nine.status_code == 201 and nine.json()["quantity"] == 9
+        overflow = client.post("/api/vault/cards", json={**card_payload(quantity=1), "folder_id": xen["id"]}, headers=auth_headers(owner))
+        assert overflow.status_code == 409
         assert client.post("/api/vault/cards", json={**card_payload("bad", "Hibás", 10), "folder_id": xen["id"]}, headers=auth_headers(owner)).status_code == 422
         moved = client.patch(f"/api/vault/cards/{created.json()['id']}", json={"folder_id": other["id"], "quantity": 2}, headers=auth_headers(owner))
         assert moved.status_code == 200 and moved.json()["folder_id"] == other["id"]
@@ -262,6 +266,26 @@ def test_variants_share_one_nine_copy_pocket_and_one_folder_slot() -> None:
         cleanup()
 
 
+def test_individual_add_increments_existing_variant_while_edit_sets_absolute_quantity() -> None:
+    cleanup(); user = create_test_user("increment-variant@vault-test.local")
+    try:
+        headers = auth_headers(user)
+        folder = client.post("/api/vault/folders", json={"name": "Hagarr", "capacity": 2}, headers=headers).json()
+        first = client.post("/api/vault/cards", json={**card_payload("hagarr", "Hagarr", 1), "folder_id": folder["id"], "print_variant": "normal"}, headers=headers)
+        assert first.status_code == 201 and first.json()["quantity"] == 1
+        second_normal = client.post("/api/vault/cards", json={**card_payload("hagarr", "Hagarr", 1), "folder_id": folder["id"], "print_variant": "normal"}, headers=headers)
+        foil = client.post("/api/vault/cards", json={**card_payload("hagarr", "Hagarr", 1), "folder_id": folder["id"], "print_variant": "foil"}, headers=headers)
+        assert second_normal.status_code == 201 and second_normal.json()["quantity"] == 2
+        assert foil.status_code == 201 and foil.json()["quantity"] == 1
+
+        edited = client.patch(f"/api/vault/cards/{first.json()['id']}", json={"quantity": 1}, headers=headers)
+        assert edited.status_code == 200 and edited.json()["quantity"] == 1
+        quantities = {(item["print_variant"], item["quantity"]) for item in client.get("/api/vault/cards", headers=headers).json()}
+        assert quantities == {("normal", 1), ("foil", 1)}
+    finally:
+        cleanup()
+
+
 def test_fixed_price_vault_listing_reserves_and_deducts_only_after_completion() -> None:
     cleanup_test_data(); cleanup()
     seller = create_test_user("listing-seller@vault-test.local")
@@ -281,13 +305,18 @@ def test_fixed_price_vault_listing_reserves_and_deducts_only_after_completion() 
             buy_now_enabled=True,
             buy_now_price="1000",
             five_minute_rule_enabled=False,
+            starts_at=(datetime.now(timezone.utc) - timedelta(minutes=1)).isoformat(),
         )
         created = client.post("/api/auctions", json=payload, headers=auth_headers(seller))
         assert created.status_code == 201 and created.json()["listing_type"] == "fixed"
         blocked = client.patch(f"/api/vault/cards/{card['id']}", json={"quantity": 0}, headers=auth_headers(seller))
         assert blocked.status_code == 409
-        assert upload_png(created.json()["id"], seller).status_code == 201
-        assert client.post(f"/api/auctions/{created.json()['id']}/activate", headers=auth_headers(seller)).status_code == 200
+        activated = client.post(f"/api/auctions/{created.json()['id']}/activate", headers=auth_headers(seller))
+        assert activated.status_code == 200, activated.text
+        fixed_market = client.get("/api/auctions?listing_type=fixed&q=sale-card").json()
+        auction_market = client.get("/api/auctions?listing_type=auction&q=sale-card").json()
+        assert fixed_market["total"] == 1 and fixed_market["items"][0]["id"] == created.json()["id"]
+        assert auction_market["total"] == 0
         bought = client.post(f"/api/auctions/{created.json()['id']}/bids", json={"amount": "1000"}, headers=auth_headers(buyer))
         assert bought.status_code == 201 and bought.json()["reaches_buy_now"] is True
         transaction = client.get("/api/transactions", headers=auth_headers(seller)).json()["items"][0]
@@ -295,6 +324,55 @@ def test_fixed_price_vault_listing_reserves_and_deducts_only_after_completion() 
         assert client.get("/api/vault/cards", headers=auth_headers(seller)).json()[0]["quantity"] == 2
         assert client.post(f"/api/transactions/{transaction['id']}/confirm-completion", headers=auth_headers(buyer)).status_code == 200
         assert client.get("/api/vault/cards", headers=auth_headers(seller)).json()[0]["quantity"] == 1
+    finally:
+        cleanup_test_data(); cleanup()
+
+
+def test_atomic_batch_and_bundle_listings_are_idempotent_searchable_and_deduct_on_completion() -> None:
+    cleanup_test_data(); cleanup()
+    seller = create_test_user("batch-seller@vault-test.local")
+    buyer = create_test_user("batch-buyer@vault-test.local")
+    headers = auth_headers(seller)
+    try:
+        folder = client.post("/api/vault/folders", json={"name": "Köteg", "capacity": 6}, headers=headers).json()
+        cards = [client.post("/api/vault/cards", json={**card_payload(f"batch-{index}", f"Köteglap {index}", 3), "folder_id": folder["id"]}, headers=headers).json() for index in range(1, 4)]
+        buyer_folder = client.post("/api/vault/folders", json={"name": "Másé", "capacity": 1}, headers=auth_headers(buyer)).json()
+        buyer_card = client.post("/api/vault/cards", json={**card_payload("foreign-batch", "Más tulajdona", 1), "folder_id": buyer_folder["id"]}, headers=auth_headers(buyer)).json()
+        key = str(uuid4())
+        items = [{"vault_collection_card_id": card["id"], "quantity": 1, "base_price": 500 * index, "final_price": 400 * index, "condition": "NM", "description": f"Köteglap {index} részletes állapotleírása."} for index, card in enumerate(cards, start=1)]
+        individual = {"creation_key": key, "mode": "individual", "discount_percent": 20, "items": items}
+        one_item_bundle = client.post("/api/auctions/batch-fixed", json={"creation_key": str(uuid4()), "mode": "bundle", "discount_percent": 0, "bundle_name": "Túl kicsi csomag", "bundle_description": "Legalább két lap kellene ebbe a csomagba.", "bundle_price": 500, "items": items[:1]}, headers=headers)
+        assert one_item_bundle.status_code == 422
+        forbidden = client.post("/api/auctions/batch-fixed", json={**individual, "creation_key": str(uuid4()), "items": [{**items[0], "vault_collection_card_id": buyer_card["id"]}]}, headers=headers)
+        assert forbidden.status_code == 409
+        created = client.post("/api/auctions/batch-fixed", json=individual, headers=headers)
+        repeated = client.post("/api/auctions/batch-fixed", json=individual, headers=headers)
+        assert created.status_code == 201 and len(created.json()["auctions"]) == 3
+        assert [item["id"] for item in repeated.json()["auctions"]] == [item["id"] for item in created.json()["auctions"]]
+
+        bad = client.post("/api/auctions/batch-fixed", json={**individual, "creation_key": str(uuid4()), "items": [items[0], {**items[1], "quantity": 9}]}, headers=headers)
+        assert bad.status_code == 409
+        with SessionLocal() as db:
+            assert db.query(Auction).filter(Auction.seller_id == seller.id).count() == 3
+
+        assert all(client.post(f"/api/auctions/{item['id']}/cancel", headers=headers).status_code == 200 for item in created.json()["auctions"])
+        bundle_payload = {"creation_key": str(uuid4()), "mode": "bundle", "discount_percent": 10, "bundle_name": "Háromlapos tesztcsomag", "bundle_description": "Három különböző HKK-lap egyetlen csomaghirdetésben.", "bundle_price": 2400, "items": items}
+        bundle = client.post("/api/auctions/batch-fixed", json=bundle_payload, headers=headers)
+        assert bundle.status_code == 201, bundle.text
+        auction = bundle.json()["auctions"][0]
+        assert auction["listing_format"] == "bundle" and len(auction["bundle_items"]) == 3
+        found = client.get("/api/auctions?listing_type=fixed&listing_format=bundle&q=batch-2").json()
+        assert found["total"] == 1 and found["items"][0]["id"] == auction["id"]
+
+        bought = client.post(f"/api/auctions/{auction['id']}/bids", json={"amount": "2400"}, headers=auth_headers(buyer))
+        assert bought.status_code == 201
+        transaction = client.get("/api/transactions", headers=headers).json()["items"][0]
+        assert client.post(f"/api/transactions/{transaction['id']}/confirm-completion", headers=headers).status_code == 200
+        assert client.post(f"/api/transactions/{transaction['id']}/confirm-completion", headers=auth_headers(buyer)).status_code == 200
+        quantities = {item["external_card_id"]: item["quantity"] for item in client.get("/api/vault/cards", headers=headers).json()}
+        assert quantities == {"batch-1": 2, "batch-2": 2, "batch-3": 2}
+        with SessionLocal() as db:
+            assert db.query(AuctionBundleItem).filter(AuctionBundleItem.auction_id == auction["id"]).count() == 3
     finally:
         cleanup_test_data(); cleanup()
 
@@ -695,7 +773,7 @@ def test_collection_variant_trade_quantity_and_standalone_multi_loan() -> None:
     try:
         headers = auth_headers(owner)
         folder = client.post("/api/vault/folders", json={"name": "Változatok", "capacity": 10}, headers=headers).json()
-        normal = client.post("/api/vault/cards", json={**card_payload("variant-card", "Változatos lap", 9), "folder_id": folder["id"]}, headers=headers).json()
+        normal = client.post("/api/vault/cards", json={**card_payload("variant-card", "Változatos lap", 6), "folder_id": folder["id"]}, headers=headers).json()
 
         foil = client.post(f"/api/vault/cards/{normal['id']}/variants", json={"quantity": 2, "print_variant": "foil"}, headers=headers)
         assert foil.status_code == 201 and foil.json()["quantity"] == 2 and foil.json()["print_variant"] == "foil"

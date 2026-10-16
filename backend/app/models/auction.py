@@ -29,7 +29,10 @@ class Auction(Base):
         CheckConstraint("(status = 'sold' AND winner_id IS NOT NULL) OR status <> 'sold'", name="ck_auctions_sold_has_winner"),
         CheckConstraint("(status = 'unsold' AND winner_id IS NULL) OR status <> 'unsold'", name="ck_auctions_unsold_has_no_winner"),
         CheckConstraint("listing_type IN ('auction', 'fixed')", name="ck_auctions_listing_type"),
+        CheckConstraint("listing_format IN ('single', 'bundle')", name="ck_auctions_listing_format"),
         CheckConstraint("vault_quantity IS NULL OR vault_quantity BETWEEN 1 AND 9", name="ck_auctions_vault_quantity"),
+        CheckConstraint("reserve_price IS NULL OR reserve_price >= starting_price", name="ck_auctions_reserve_price_minimum"),
+        CheckConstraint("reserve_price IS NULL OR buy_now_price IS NULL OR reserve_price <= buy_now_price", name="ck_auctions_reserve_price_buy_now"),
         UniqueConstraint("seller_id", "creation_key", name="uq_auctions_seller_creation_key"),
         Index("ix_auctions_status_ends_at", "status", "ends_at"),
         Index("ix_auctions_category_hatalom_era", "category", "hatalom_era"),
@@ -39,7 +42,9 @@ class Auction(Base):
     seller_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
     demo_batch_id: Mapped[int | None] = mapped_column(ForeignKey("demo_auction_batches.id", ondelete="SET NULL"), nullable=True, index=True)
     creation_key: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    batch_key: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
     listing_type: Mapped[str] = mapped_column(String(16), nullable=False, default="auction", server_default="auction", index=True)
+    listing_format: Mapped[str] = mapped_column(String(16), nullable=False, default="single", server_default="single", index=True)
     vault_collection_card_id: Mapped[int | None] = mapped_column(ForeignKey("vault_collection_cards.id", ondelete="SET NULL"), nullable=True, index=True)
     vault_external_card_id: Mapped[str | None] = mapped_column(String(120), nullable=True, index=True)
     vault_print_variant: Mapped[str | None] = mapped_column(String(10), nullable=True)
@@ -60,6 +65,7 @@ class Auction(Base):
     current_price: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     buy_now_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     buy_now_price: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
+    reserve_price: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
     starts_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
     ends_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
     five_minute_rule_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
@@ -86,10 +92,17 @@ class Auction(Base):
     reviews = relationship("AuctionReview", back_populates="auction", cascade="all, delete-orphan")
     watchlist_entries = relationship("WatchlistItem", back_populates="auction", cascade="all, delete-orphan")
     bid_exclusions = relationship("AuctionBidExclusion", back_populates="auction", cascade="all, delete-orphan")
+    bundle_items = relationship("AuctionBundleItem", back_populates="auction", cascade="all, delete-orphan", order_by="AuctionBundleItem.id")
 
     @property
     def is_demo(self) -> bool:
         return self.demo_batch_id is not None
+
+    @property
+    def reserve_price_met(self) -> bool | None:
+        if self.reserve_price is None:
+            return None
+        return self.current_price >= self.reserve_price
 
 
 class AuctionImage(Base):
@@ -118,6 +131,48 @@ class AuctionImage(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
     auction = relationship("Auction", back_populates="images")
+
+
+class AuctionBundleItem(Base):
+    __tablename__ = "auction_bundle_items"
+    __table_args__ = (
+        CheckConstraint("quantity BETWEEN 1 AND 9", name="ck_auction_bundle_items_quantity"),
+        CheckConstraint("unit_price > 0", name="ck_auction_bundle_items_unit_price"),
+        CheckConstraint("print_variant IN ('normal', 'foil', 'fa', 'gfa')", name="ck_auction_bundle_items_variant"),
+        UniqueConstraint("auction_id", "vault_collection_card_id", name="uq_auction_bundle_items_auction_card"),
+        Index("ix_auction_bundle_items_external", "external_card_id", "card_name"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    auction_id: Mapped[int] = mapped_column(ForeignKey("auctions.id", ondelete="CASCADE"), nullable=False, index=True)
+    vault_collection_card_id: Mapped[int | None] = mapped_column(ForeignKey("vault_collection_cards.id", ondelete="SET NULL"), nullable=True, index=True)
+    external_card_id: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
+    card_name: Mapped[str] = mapped_column(String(180), nullable=False)
+    edition: Mapped[str | None] = mapped_column(String(180), nullable=True)
+    image_url: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    print_variant: Mapped[str] = mapped_column(String(10), nullable=False)
+    quantity: Mapped[int] = mapped_column(Integer, nullable=False)
+    unit_price: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+    auction = relationship("Auction", back_populates="bundle_items")
+
+
+class AuctionPhotoRequest(Base):
+    __tablename__ = "auction_photo_requests"
+    __table_args__ = (
+        UniqueConstraint("auction_id", "requester_id", name="uq_auction_photo_requests_auction_requester"),
+        Index("ix_auction_photo_requests_pending", "auction_id", "fulfilled_at"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    auction_id: Mapped[int] = mapped_column(ForeignKey("auctions.id", ondelete="CASCADE"), nullable=False, index=True)
+    requester_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    fulfilled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    auction = relationship("Auction")
+    requester = relationship("User")
 
 
 class Bid(Base):

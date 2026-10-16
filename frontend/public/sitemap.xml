@@ -2,6 +2,7 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url><loc>http://localhost:5173/</loc></url>
   <url><loc>http://localhost:5173/auctions</loc></url>
+  <url><loc>http://localhost:5173/marketplace</loc></url>
   <url><loc>http://localhost:5173/how-it-works</loc></url>
   <url><loc>http://localhost:5173/about</loc></url>
   <url><loc>http://localhost:5173/contact</loc></url>

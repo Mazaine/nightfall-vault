@@ -8,7 +8,7 @@ from sqlalchemy import delete
 from app.core.security import create_access_token, hash_password
 from app.db.session import SessionLocal
 from app.main import app
-from app.models.auction import Auction, AuctionImage, AuctionMessage, AuctionReview, Bid, WatchlistItem
+from app.models.auction import Auction, AuctionImage, AuctionMessage, AuctionPhotoRequest, AuctionReview, Bid, WatchlistItem
 from app.models.moderation import ModerationAction, Report, UserBlock, UserStrike
 from app.models.notification import Notification
 from app.models.security_log import AuditLog
@@ -578,3 +578,89 @@ def test_home_personal_bid_query_compiles_with_joined_bid() -> None:
     assert "EXISTS (SELECT bids.id" in sql
     assert "FROM bids" in sql
     assert "FROM auction_bid_exclusions" in sql
+
+
+def test_optional_reserve_price_is_private_and_prevents_sale_below_threshold() -> None:
+    from app.services.auction_lifecycle import close_ended_active_auction
+
+    cleanup_test_data()
+    seller = create_test_user("reserve-seller@auction-test.local")
+    bidder = create_test_user("reserve-bidder@auction-test.local")
+    now = datetime.now(timezone.utc)
+    payload = auction_payload(
+        starts_at=(now - timedelta(minutes=1)).isoformat(),
+        ends_at=(now + timedelta(hours=1)).isoformat(),
+        starting_price="1000",
+        bid_increment="100",
+        buy_now_enabled=True,
+        buy_now_price="2500",
+        reserve_price="1500",
+    )
+    created = client.post("/api/auctions", json=payload, headers=auth_headers(seller))
+    assert created.status_code == 201, created.text
+    auction_id = created.json()["id"]
+    assert upload_png(auction_id, seller).status_code == 201
+    assert client.post(f"/api/auctions/{auction_id}/activate", headers=auth_headers(seller)).status_code == 200
+
+    public_detail = client.get(f"/api/auctions/{auction_id}").json()
+    owner_detail = client.get(f"/api/auctions/{auction_id}", headers=auth_headers(seller)).json()
+    assert public_detail["reserve_price"] is None and public_detail["reserve_price_met"] is False
+    assert owner_detail["reserve_price"] == "1500.00"
+    assert client.post(f"/api/auctions/{auction_id}/bids", json={"amount": "1100"}, headers=auth_headers(bidder)).status_code == 201
+
+    db = SessionLocal()
+    try:
+        auction = db.get(Auction, auction_id)
+        auction.starts_at = datetime.now(timezone.utc) - timedelta(days=2)
+        auction.ends_at = datetime.now(timezone.utc) - timedelta(seconds=1)
+        db.flush()
+        close_ended_active_auction(db, auction)
+        db.commit()
+    finally:
+        db.close()
+    closed = client.get(f"/api/auctions/{auction_id}", headers=auth_headers(seller)).json()
+    assert closed["status"] == "unsold" and closed["winner_id"] is None
+    assert closed["reserve_price_met"] is False
+
+    below_start = client.post("/api/auctions", json={**payload, "reserve_price": "999"}, headers=auth_headers(seller))
+    above_buy_now = client.post("/api/auctions", json={**payload, "reserve_price": "2501"}, headers=auth_headers(seller))
+    assert below_start.status_code == 422 and above_buy_now.status_code == 422
+    cleanup_test_data()
+
+
+def test_photo_request_is_idempotent_rejects_owner_and_notifies_after_upload() -> None:
+    cleanup_test_data()
+    seller = create_test_user("photo-seller@auction-test.local")
+    buyer = create_test_user("photo-buyer@auction-test.local")
+    created = client.post("/api/auctions", json=auction_payload(), headers=auth_headers(seller))
+    assert created.status_code == 201
+    auction_id = created.json()["id"]
+    with SessionLocal() as db:
+        auction = db.get(Auction, auction_id)
+        assert auction is not None
+        auction.vault_external_card_id = "9888"
+        db.add(auction)
+        db.commit()
+    assert client.post(f"/api/auctions/{auction_id}/activate", headers=auth_headers(seller)).status_code == 200
+
+    assert client.post(f"/api/auctions/{auction_id}/photo-requests", headers=auth_headers(seller)).status_code == 409
+    first = client.post(f"/api/auctions/{auction_id}/photo-requests", headers=auth_headers(buyer))
+    repeated = client.post(f"/api/auctions/{auction_id}/photo-requests", headers=auth_headers(buyer))
+    assert first.status_code == 201
+    assert repeated.status_code == 201
+    assert repeated.json()["id"] == first.json()["id"]
+
+    with SessionLocal() as db:
+        assert db.query(AuctionPhotoRequest).filter_by(auction_id=auction_id, requester_id=buyer.id).count() == 1
+        assert db.query(Notification).filter_by(auction_id=auction_id, user_id=seller.id, type="auction_photo_requested").count() == 1
+
+    uploaded = upload_png(auction_id, seller)
+    assert uploaded.status_code == 201
+    with SessionLocal() as db:
+        photo_request = db.query(AuctionPhotoRequest).filter_by(auction_id=auction_id, requester_id=buyer.id).one()
+        assert photo_request.fulfilled_at is not None
+        assert db.query(Notification).filter_by(auction_id=auction_id, user_id=buyer.id, type="auction_photos_added").count() == 1
+    deleted = client.delete(f"/api/auctions/{auction_id}/images/{uploaded.json()['id']}", headers=auth_headers(seller))
+    assert deleted.status_code == 200
+    assert client.get(f"/api/auctions/{auction_id}").json()["images"] == []
+    cleanup_test_data()

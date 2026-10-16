@@ -95,7 +95,7 @@ def delete_auction_image(db: Session, auction: Auction, image_id: int, user: Use
     image = next((item for item in auction.images if item.id == image_id), None)
     if image is None:
         raise HTTPException(status_code=404, detail="Az aukciókép nem található.")
-    if len(auction.images) == 1 and auction.status != "draft":
+    if len(auction.images) == 1 and auction.status != "draft" and not auction.vault_external_card_id:
         raise HTTPException(status_code=409, detail="Nem törölhető egy nem piszkozat aukció utolsó képe.")
 
     keys = [image.storage_key, image.thumbnail_storage_key, image.list_storage_key, image.detail_storage_key]

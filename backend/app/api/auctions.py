@@ -5,27 +5,28 @@ from typing import Literal
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy import and_, case, exists, func, or_, select
-from sqlalchemy.orm import Session, selectinload
+from sqlalchemy.orm import Session, joinedload, selectinload
 
 from app.core.config import settings
 from app.core.rate_limit import check_rate_limit
 from app.db.session import get_db
 from app.dependencies.auth import get_optional_current_user, require_active_user, require_admin
-from app.models.auction import Auction, AuctionBidExclusion, AuctionMessage, AuctionReview, Bid, WatchlistItem
+from app.models.auction import Auction, AuctionBidExclusion, AuctionBundleItem, AuctionMessage, AuctionPhotoRequest, AuctionReview, Bid, WatchlistItem
 from app.models.notification import Notification
 from app.models.transaction import AuctionTransaction
 from app.models.user import User
-from app.schemas.auction import AuctionConversationRead, AuctionCreate, AuctionFinalizeRequest, AuctionImageRead, AuctionListItem, AuctionListPage, HomeAuctionOverview, AuctionMessageCreate, AuctionMessageRead, AuctionRealtimeSnapshot, AuctionResponse, AuctionReviewCreate, AuctionReviewPage, AuctionReviewRead, AuctionStatusResponse, AuctionUpdate, BidCreate, BidHistoryItem, BidRead, MyBidAuctionItem, MyBidAuctionPage, NotificationRead, UserSummary
+from app.schemas.auction import AuctionConversationRead, AuctionCreate, AuctionFinalizeRequest, AuctionImageRead, AuctionListItem, AuctionListPage, AuctionPhotoRequestRead, BatchFixedListingCreate, BatchFixedListingRead, HomeAuctionOverview, AuctionMessageCreate, AuctionMessageRead, AuctionRealtimeSnapshot, AuctionResponse, AuctionReviewCreate, AuctionReviewPage, AuctionReviewRead, AuctionStatusResponse, AuctionUpdate, BidCreate, BidHistoryItem, BidRead, MyBidAuctionItem, MyBidAuctionPage, NotificationRead, UserSummary
 from app.services.auction_images import add_auction_image, delete_auction_image, set_cover_image
 from app.services.auction_lifecycle import PUBLIC_AUCTION_STATUSES, activate_auction, can_access_post_auction_features, cancel_auction, create_auction, create_message, create_review, finalize_auction, get_auction_or_404, get_auction_statement, is_chat_read_only, require_can_view_auction, require_post_auction_participant, sync_auction_status, update_auction
 from app.services.bidding import auction_realtime_snapshot, bid_history_item_for_user, bid_to_read, bid_withdrawal_state, list_bid_history, place_bid
-from app.services.notifications import notify_followers_new_auction
+from app.services.notifications import create_notification, notify_followers_new_auction
 from app.services.membership import featured_auction_order, is_vip
 from app.services.recommendations import related_auctions, seller_other_auctions
 from app.services.saved_searches import notify_saved_search_matches
 from app.services.transactions import can_user_review_transaction, visible_transaction_filters
 from app.services.realtime import iter_stream
 from app.services.demo_visibility import auction_visibility_clause, can_access_demo_auctions
+from app.services.batch_listings import create_fixed_listing_batch
 from app.storage.paths import media_url
 
 router = APIRouter(prefix="/api/auctions", tags=["auctions"])
@@ -75,7 +76,7 @@ def _escaped_contains(value: str) -> str:
     return f"%{value.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')}%"
 
 
-def _apply_auction_filters(query, *, query_text, title, description, seller, category, hatalom_era, condition, status_filter, min_price, max_price, min_bids, max_bids, buy_now, soon_ending, new_only):
+def _apply_auction_filters(query, *, query_text, title, description, seller, category, hatalom_era, condition, status_filter, listing_type, listing_format, min_price, max_price, min_bids, max_bids, buy_now, soon_ending, new_only):
     now = datetime.now(timezone.utc)
     query = query.filter(
         Auction.status.in_(("scheduled", "active")),
@@ -83,7 +84,8 @@ def _apply_auction_filters(query, *, query_text, title, description, seller, cat
     )
     if query_text:
         pattern = _escaped_contains(query_text)
-        query = query.filter(or_(Auction.title.ilike(pattern, escape="\\"), Auction.description.ilike(pattern, escape="\\")))
+        bundle_match = exists(select(AuctionBundleItem.id).where(AuctionBundleItem.auction_id == Auction.id, or_(AuctionBundleItem.card_name.ilike(pattern, escape="\\"), AuctionBundleItem.external_card_id.ilike(pattern, escape="\\"))))
+        query = query.filter(or_(Auction.title.ilike(pattern, escape="\\"), Auction.description.ilike(pattern, escape="\\"), Auction.vault_external_card_id.ilike(pattern, escape="\\"), bundle_match))
     if title:
         query = query.filter(Auction.title.ilike(_escaped_contains(title), escape="\\"))
     if description:
@@ -103,6 +105,10 @@ def _apply_auction_filters(query, *, query_text, title, description, seller, cat
         query = query.filter(Auction.status == status_filter)
         if status_filter == "active":
             query = query.filter(Auction.starts_at <= now, Auction.ends_at > now)
+    if listing_type:
+        query = query.filter(Auction.listing_type == listing_type)
+    if listing_format:
+        query = query.filter(Auction.listing_format == listing_format)
     if min_price is not None:
         query = query.filter(Auction.current_price >= min_price)
     if max_price is not None:
@@ -167,6 +173,7 @@ def auction_response(auction: Auction, user: User | None = None, db: Session | N
     can_see_internal_fields = user is not None and (user.role == "admin" or auction.seller_id == user.id)
     if not can_see_internal_fields:
         response = response.model_copy(update={
+            "reserve_price": None,
             "moderated_at": None,
             "moderated_by_admin_id": None,
             "moderation_reason": None,
@@ -196,6 +203,8 @@ def list_public_auctions(
     hatalom_era: Literal["retro", "ujkor", "uj_nemzedek"] | None = None,
     condition: str | None = None,
     status_filter: str | None = Query(default=None, alias="status"),
+    listing_type: Literal["auction", "fixed"] | None = None,
+    listing_format: Literal["single", "bundle"] | None = None,
     min_price: float | None = Query(default=None, ge=0),
     max_price: float | None = Query(default=None, ge=0),
     min_bids: int | None = Query(default=None, ge=0),
@@ -222,6 +231,8 @@ def list_public_auctions(
         hatalom_era=hatalom_era,
         condition=condition,
         status_filter=status_filter,
+        listing_type=listing_type,
+        listing_format=listing_format,
         min_price=min_price,
         max_price=max_price,
         min_bids=min_bids,
@@ -237,7 +248,7 @@ def list_public_auctions(
     bid_counts = {row.id: int(row.bid_count or 0) for row in rows}
     if not auction_ids:
         return AuctionListPage(items=[], total=total, limit=limit, offset=offset)
-    list_statement = select(Auction).options(selectinload(Auction.seller), selectinload(Auction.images), selectinload(Auction.highest_bid)).where(Auction.id.in_(auction_ids))
+    list_statement = select(Auction).options(selectinload(Auction.seller), selectinload(Auction.images), selectinload(Auction.bundle_items), selectinload(Auction.highest_bid)).where(Auction.id.in_(auction_ids))
     auctions_by_id = {auction.id: auction for auction in db.scalars(list_statement).all()}
     seller_ids = {auction.seller_id for auction in auctions_by_id.values()}
     rating_rows = db.query(
@@ -341,7 +352,8 @@ def home_auction_overview(
     all_ids = set(featured_ids + soon_ids + new_ids)
     if not all_ids:
         return HomeAuctionOverview(active_count=active_count, active_bid_count=active_bid_count, outbid_count=outbid_count, draft_count=draft_count, open_transaction_count=open_transaction_count, featured=[], soon_ending=[], new_auctions=[])
-    auctions = {auction.id: auction for auction in db.scalars(select(Auction).options(selectinload(Auction.seller), selectinload(Auction.images), selectinload(Auction.highest_bid)).where(Auction.id.in_(all_ids))).all()}
+    home_statement = select(Auction).options(selectinload(Auction.seller), selectinload(Auction.images), joinedload(Auction.bundle_items), selectinload(Auction.highest_bid)).where(Auction.id.in_(all_ids))
+    auctions = {auction.id: auction for auction in db.execute(home_statement).unique().scalars().all()}
     bid_counts = dict(db.execute(select(Bid.auction_id, func.count(Bid.id)).where(Bid.auction_id.in_(all_ids), Bid.status == "active").group_by(Bid.auction_id)).all())
     seller_ids = {auction.seller_id for auction in auctions.values()}
     ratings = {seller_id: (round(float(average), 2), int(count)) for seller_id, average, count in db.execute(select(AuctionReview.reviewed_user_id, func.avg(AuctionReview.rating), func.count(AuctionReview.id)).where(AuctionReview.reviewed_user_id.in_(seller_ids)).group_by(AuctionReview.reviewed_user_id)).all()}
@@ -377,6 +389,19 @@ def create_my_auction(
 ) -> AuctionResponse:
     auction = create_auction(db=db, auction_create=auction_create, seller=current_user)
     return auction_response(get_auction_or_404(db, auction.id), current_user, db)
+
+
+@router.post("/batch-fixed", response_model=BatchFixedListingRead, status_code=status.HTTP_201_CREATED)
+def create_my_fixed_listing_batch(
+    payload: BatchFixedListingCreate,
+    current_user: User = Depends(require_active_user),
+    db: Session = Depends(get_db),
+) -> BatchFixedListingRead:
+    auctions = create_fixed_listing_batch(db, payload, current_user)
+    return BatchFixedListingRead(
+        mode=payload.mode,
+        auctions=[auction_list_item(auction, db=db, viewer=current_user) for auction in auctions],
+    )
 
 
 @router.get("/me", response_model=list[AuctionListItem])
@@ -744,7 +769,69 @@ async def upload_auction_image(
 ) -> AuctionImageRead:
     auction = get_auction_or_404(db, auction_id)
     created_image = await add_auction_image(db=db, auction=auction, upload=image, user=current_user, is_cover=is_cover)
+    requested = list(db.scalars(select(AuctionPhotoRequest).where(
+        AuctionPhotoRequest.auction_id == auction.id,
+        AuctionPhotoRequest.fulfilled_at.is_(None),
+    )).all())
+    if requested:
+        fulfilled_at = datetime.now(timezone.utc)
+        for photo_request in requested:
+            photo_request.fulfilled_at = fulfilled_at
+            db.add(photo_request)
+            create_notification(
+                db,
+                user_id=photo_request.requester_id,
+                auction_id=auction.id,
+                notification_type="auction_photos_added",
+                title="Új saját fotó érkezett",
+                message=f"Az eladó saját fotót töltött fel ehhez: {auction.title}.",
+                target_url=f"/auctions/{auction.id}",
+                event_key=f"auction-photo-ready:{photo_request.id}",
+                send_email=False,
+            )
+        db.commit()
     return AuctionImageRead.model_validate(created_image)
+
+
+@router.post("/{auction_id}/photo-requests", response_model=AuctionPhotoRequestRead, status_code=status.HTTP_201_CREATED)
+def request_auction_photo(
+    auction_id: int,
+    request: Request,
+    current_user: User = Depends(require_active_user),
+    db: Session = Depends(get_db),
+) -> AuctionPhotoRequestRead:
+    check_rate_limit(request, "auction:photo-request", settings.photo_request_rate_limit_per_minute, str(current_user.id))
+    auction = get_auction_or_404(db, auction_id)
+    require_can_view_auction(auction, current_user)
+    if auction.seller_id == current_user.id:
+        raise HTTPException(status_code=409, detail="A saját hirdetésedhez nem kérhetsz fotót.")
+    if auction.status not in {"scheduled", "active"}:
+        raise HTTPException(status_code=409, detail="Ehhez a hirdetéshez már nem kérhető fotó.")
+    if auction.images:
+        raise HTTPException(status_code=409, detail="Ehhez a hirdetéshez már tartozik saját fotó.")
+    existing = db.scalar(select(AuctionPhotoRequest).where(
+        AuctionPhotoRequest.auction_id == auction.id,
+        AuctionPhotoRequest.requester_id == current_user.id,
+    ))
+    if existing is not None:
+        return AuctionPhotoRequestRead.model_validate(existing)
+    photo_request = AuctionPhotoRequest(auction_id=auction.id, requester_id=current_user.id)
+    db.add(photo_request)
+    db.flush()
+    create_notification(
+        db,
+        user_id=auction.seller_id,
+        auction_id=auction.id,
+        notification_type="auction_photo_requested",
+        title="Saját fotót kértek",
+        message=f"{current_user.username} saját fotót kér ehhez: {auction.title}.",
+        target_url=f"/auctions/{auction.id}",
+        event_key=f"auction-photo-request:{auction.id}:{current_user.id}",
+        send_email=False,
+    )
+    db.commit()
+    db.refresh(photo_request)
+    return AuctionPhotoRequestRead.model_validate(photo_request)
 
 
 @router.post("/{auction_id}/images/{image_id}/cover", response_model=AuctionImageRead)
