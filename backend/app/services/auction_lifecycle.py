@@ -201,6 +201,8 @@ def create_auction(db: Session, auction_create: AuctionCreate, seller: User) -> 
         )
         if vault_card is None:
             raise HTTPException(status_code=404, detail="A meghirdetendő Vault-lap nem található.")
+        from app.services.hkk_variants import require_attested_variant
+        require_attested_variant(db, vault_card.external_card_id, vault_card.print_variant)
         from app.services.batch_listings import _reserved_quantity
         reserved = _reserved_quantity(db, vault_card.id)
         requested = int(auction_create.vault_quantity or 0)

@@ -146,6 +146,10 @@ class CardRead(BaseModel):
     loaned_quantity: int = 0
     listed_quantity: int = 0
     available_listing_quantity: int = 0
+    variant_statuses: dict[PrintVariant, Literal["exists", "absent", "unknown"]] = Field(default_factory=dict)
+    variant_image_urls: dict[PrintVariant, str] = Field(default_factory=dict)
+    variants_verified: bool = False
+    variant_needs_review: bool = False
 
 
 class PublicTradeCardRead(CardRead):
@@ -155,6 +159,20 @@ class PublicTradeCardRead(CardRead):
     available_listing_quantity: int | None = None
     fixed_price_auction_id: int | None = None
     fixed_price: str | None = None
+
+
+class CommunityTradeCardRead(PublicTradeCardRead):
+    is_wanted: bool | None = None
+    is_match: bool | None = None
+    can_express_interest: bool = False
+
+
+class CommunityTradePage(BaseModel):
+    items: list[CommunityTradeCardRead]
+    total: int
+    page: int
+    page_size: int
+    total_pages: int
 
 
 class TradeCardSeekerRead(BaseModel):
@@ -236,7 +254,9 @@ class PointHistory(BaseModel):
 
 
 class HkkSearchResult(CardSnapshot):
-    pass
+    variant_statuses: dict[PrintVariant, Literal["exists", "absent", "unknown"]] = Field(default_factory=dict)
+    variant_image_urls: dict[PrintVariant, str] = Field(default_factory=dict)
+    variants_verified: bool = False
 
 
 class HkkMarketPriceSuggestion(BaseModel):

@@ -14,6 +14,7 @@ from app.schemas.auction import BatchFixedListingCreate
 from app.services.auction_lifecycle import SELLER_DECLARATION_VERSION, now_utc
 from app.services.moderation_actions import require_no_restriction
 from app.services.security_audit import create_domain_audit_log
+from app.services.hkk_variants import require_attested_variant
 
 RESERVING_STATUSES = ("draft", "scheduled", "active", "sold")
 
@@ -132,6 +133,7 @@ def create_fixed_listing_batch(db: Session, payload: BatchFixedListingCreate, se
         if card is None:
             errors.append({"index": index, "card_id": item.vault_trade_card_id if is_trade else item.vault_collection_card_id, "message": "A saját Vault-készlet nem található."})
             continue
+        require_attested_variant(db, card.external_card_id, card.print_variant)
         available = max(card.quantity - (_reserved_trade_quantity(db, card.id) if is_trade else _reserved_quantity(db, card.id)), 0)
         if item.quantity > available:
             errors.append({"index": index, "card_id": card.id, "message": f"Csak {available} szabad példány hirdethető meg."})

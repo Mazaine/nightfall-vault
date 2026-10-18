@@ -104,6 +104,33 @@ class VaultTradeCard(Base):
     user = relationship("User")
 
 
+class HkkCardVariantAttestation(Base):
+    __tablename__ = "hkk_card_variant_attestations"
+    __table_args__ = (
+        UniqueConstraint("external_card_id", "variant", name="uq_hkk_card_variant_attestations_card_variant"),
+        CheckConstraint("variant IN ('normal', 'foil', 'fa', 'gfa')", name="ck_hkk_card_variant_attestations_variant"),
+        CheckConstraint("status IN ('exists', 'absent', 'unknown')", name="ck_hkk_card_variant_attestations_status"),
+        CheckConstraint("verification_method IN ('official_api', 'manual_csv')", name="ck_hkk_card_variant_attestations_method"),
+        Index("ix_hkk_card_variant_attestations_edition", "edition_id", "external_card_id"),
+        Index("ix_hkk_card_variant_attestations_status", "status", "variant"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    external_card_id: Mapped[str] = mapped_column(String(120), nullable=False)
+    card_name: Mapped[str] = mapped_column(String(180), nullable=False)
+    edition_id: Mapped[str] = mapped_column(String(20), nullable=False)
+    edition_name: Mapped[str] = mapped_column(String(120), nullable=False)
+    variant: Mapped[str] = mapped_column(String(10), nullable=False)
+    status: Mapped[str] = mapped_column(String(10), nullable=False, default="unknown", server_default="unknown")
+    image_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    source_url: Mapped[str] = mapped_column(Text, nullable=False)
+    source_checked_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    verification_method: Mapped[str] = mapped_column(String(20), nullable=False, default="official_api", server_default="official_api")
+    manually_verified: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
+
+
 class VaultMatchState(Base):
     __tablename__ = "vault_match_states"
     __table_args__ = (

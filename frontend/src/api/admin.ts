@@ -74,6 +74,16 @@ export function updateAdminUser(userId: number, payload: Partial<Pick<AdminUser,
   });
 }
 
+export type HkkVariantSummary = {
+  checked_cards: number; checked_editions: number; unknown_rows: number;
+  exists: Record<"normal" | "foil" | "fa" | "gfa", number>;
+  review_conflicts: { source: string; record_id: number; user_id: number; external_card_id: string; card_name: string; variant: string; quantity: number }[];
+};
+
+export const getHkkVariantSummary = () => apiRequest<HkkVariantSummary>("/api/admin/hkk-variants/summary");
+export const importOfficialHkkVariants = (payload: { edition_id: string; edition_name: string; dry_run: boolean }) => apiRequest<Record<string, unknown>>("/api/admin/hkk-variants/official-import", { method: "POST", body: JSON.stringify(payload) });
+export const importManualHkkVariants = (payload: { rows: Record<string, string | null>[]; dry_run: boolean }) => apiRequest<Record<string, unknown>>("/api/admin/hkk-variants/manual-import", { method: "POST", body: JSON.stringify(payload) });
+
 export function updateTesterRole(userId: number, role: "user" | "tester", confirmation: string) {
   return apiRequest<AdminUser>(`/api/admin/users/${userId}/role`, {
     method: "PATCH", body: JSON.stringify({ role, confirmation }),

@@ -375,10 +375,13 @@ def _joined(values: list[str], max_length: int) -> str | None:
     return " · ".join(values)[:max_length] or None
 
 
-def fetch_hkk_card_image(card_id: int) -> tuple[bytes, str]:
+def fetch_hkk_card_image(card_id: int, *, secondary: bool = False) -> tuple[bytes, str]:
     if card_id <= 0:
         raise HTTPException(status_code=422, detail="Érvénytelen HKK lapazonosító.")
-    url = f"{settings.hkk_catalog_base_url.rstrip('/')}/HKKCardImage.php?{urlencode({'cardID': card_id})}"
+    params: dict[str, int] = {"cardID": card_id}
+    if secondary:
+        params["masodlagos"] = 1
+    url = f"{settings.hkk_catalog_base_url.rstrip('/')}/HKKCardImage.php?{urlencode(params)}"
     try:
         response = httpx.get(url, timeout=settings.hkk_catalog_request_timeout_seconds)
         response.raise_for_status()

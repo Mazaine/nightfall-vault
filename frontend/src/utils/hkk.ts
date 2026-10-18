@@ -28,10 +28,20 @@ export function formatHkkRarity(value: string | null | undefined): string | null
   return label ? `${value} – ${label}` : value;
 }
 
-export function hkkCardImageUrl(externalCardId: string, fallback: string | null | undefined): string {
+export function hkkCardImageUrl(externalCardId: string, fallback: string | null | undefined, variant: "normal" | "fa" | "gfa" = "normal"): string {
   const normalizedId = externalCardId.trim();
   if (/^[1-9][0-9]*$/.test(normalizedId)) {
-    return apiAssetUrl(`/api/vault/hkk/images/${normalizedId}`);
+    const search = variant === "normal" ? "" : `?variant=${variant}`;
+    return apiAssetUrl(`/api/vault/hkk/images/${normalizedId}${search}`);
   }
   return apiAssetUrl(fallback);
+}
+
+export function preferredHkkImageVariant(
+  quantities: Partial<Record<"normal" | "foil" | "fa" | "gfa", number>>,
+  imageUrls: Partial<Record<"normal" | "foil" | "fa" | "gfa", string>> = {},
+): "normal" | "fa" | "gfa" {
+  if ((quantities.gfa || 0) > 0 && imageUrls.gfa) return "gfa";
+  if ((quantities.fa || 0) > 0 && imageUrls.fa) return "fa";
+  return "normal";
 }

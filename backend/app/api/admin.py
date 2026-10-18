@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -12,6 +13,7 @@ from app.models.newsletter import NewsletterCampaign, NewsletterSubscriber
 from app.models.password_reset_token import PasswordResetToken
 from app.models.security_log import AuditLog
 from app.models.user import User
+from app.models.vault import HkkCardVariantAttestation, VaultCollectionCard, VaultTradeCard
 from app.schemas.moderation import AdminReportPage, AdminReportRead, ReportNoteUpdate, ReportPriorityUpdate, ReportStatusUpdate
 from app.schemas.newsletter import NewsletterBulkSendResponse, NewsletterCampaignCreate, NewsletterCampaignRead, NewsletterCampaignUpdate, NewsletterSendBulkRequest, NewsletterSendTestRequest, NewsletterSubscriberCreate, NewsletterSubscriberRead, NewsletterSubscriberUpdate
 from app.schemas.auction import AuctionListItem, AuctionModerationRequest, AuctionStatusResponse
@@ -24,8 +26,31 @@ from app.services.reports import get_report_or_404, related_report_counts, repor
 from app.services.auction_lifecycle import get_auction_statement, sync_auction_status
 from app.services.auction_moderation import restore_auction, soft_delete_auction, suspend_auction
 from app.services.membership import featured_auction_order
+from app.services.hkk_variants import apply_official_edition, official_edition_preview
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
+
+
+class OfficialVariantImportRequest(BaseModel):
+    edition_id: str = Field(pattern=r"^[1-9][0-9]*$", max_length=20)
+    edition_name: str = Field(min_length=1, max_length=120)
+    dry_run: bool = True
+
+
+class ManualVariantRow(BaseModel):
+    external_card_id: str = Field(pattern=r"^[1-9][0-9]*$", max_length=120)
+    card_name: str = Field(min_length=1, max_length=180)
+    edition_id: str = Field(pattern=r"^[1-9][0-9]*$", max_length=20)
+    edition_name: str = Field(min_length=1, max_length=120)
+    variant: str = Field(pattern=r"^(normal|foil|fa|gfa)$")
+    status: str = Field(pattern=r"^(exists|absent|unknown)$")
+    image_url: str | None = Field(default=None, max_length=2000)
+    source_url: str = Field(min_length=1, max_length=2000)
+
+
+class ManualVariantImportRequest(BaseModel):
+    rows: list[ManualVariantRow] = Field(min_length=1, max_length=5000)
+    dry_run: bool = True
 
 
 def admin_user_read(db: Session, user: User) -> UserPublic:
@@ -463,3 +488,63 @@ def delete_admin_user(user_id: int, current_user: User = Depends(require_admin),
     db.commit()
     db.refresh(user)
     return UserPublic.model_validate(user)
+
+
+@router.get("/hkk-variants/summary")
+def hkk_variant_summary(_current_user: User = Depends(require_admin), db: Session = Depends(get_db)) -> dict:
+    counts = {(status_value, variant): int(count) for status_value, variant, count in db.execute(
+        select(HkkCardVariantAttestation.status, HkkCardVariantAttestation.variant, func.count()).group_by(HkkCardVariantAttestation.status, HkkCardVariantAttestation.variant)
+    ).all()}
+    checked_cards = int(db.scalar(select(func.count(func.distinct(HkkCardVariantAttestation.external_card_id))).where(HkkCardVariantAttestation.status != "unknown")) or 0)
+    checked_editions = int(db.scalar(select(func.count(func.distinct(HkkCardVariantAttestation.edition_id))).where(HkkCardVariantAttestation.status != "unknown")) or 0)
+    unknown = int(db.scalar(select(func.count()).select_from(HkkCardVariantAttestation).where(HkkCardVariantAttestation.status == "unknown")) or 0)
+    conflicts = []
+    absent = {(row.external_card_id, row.variant) for row in db.scalars(select(HkkCardVariantAttestation).where(HkkCardVariantAttestation.status == "absent")).all()}
+    for source, rows in (("collection", db.scalars(select(VaultCollectionCard).where(VaultCollectionCard.quantity > 0)).all()), ("trade", db.scalars(select(VaultTradeCard).where(VaultTradeCard.quantity > 0)).all())):
+        for row in rows:
+            if (row.external_card_id, row.print_variant) in absent:
+                conflicts.append({"source": source, "record_id": row.id, "user_id": row.user_id, "external_card_id": row.external_card_id, "card_name": row.card_name, "variant": row.print_variant, "quantity": row.quantity})
+    return {"checked_cards": checked_cards, "checked_editions": checked_editions, "unknown_rows": unknown, "exists": {variant: counts.get(("exists", variant), 0) for variant in ("normal", "foil", "fa", "gfa")}, "review_conflicts": conflicts}
+
+
+@router.post("/hkk-variants/official-import")
+def import_official_hkk_variants(payload: OfficialVariantImportRequest, current_user: User = Depends(require_admin), db: Session = Depends(get_db)) -> dict:
+    preview = official_edition_preview(db, str(int(payload.edition_id)))
+    if payload.dry_run:
+        return {"dry_run": True, **preview}
+    result = apply_official_edition(db, str(int(payload.edition_id)), payload.edition_name.strip())
+    create_domain_audit_log(db, action="hkk_variant_official_import", user_id=current_user.id, metadata={"edition_id": payload.edition_id, **result})
+    db.commit()
+    return {"dry_run": False, **result}
+
+
+@router.post("/hkk-variants/manual-import")
+def import_manual_hkk_variants(payload: ManualVariantImportRequest, current_user: User = Depends(require_admin), db: Session = Depends(get_db)) -> dict:
+    now = datetime.now(timezone.utc)
+    changes = []
+    seen: set[tuple[str, str]] = set()
+    for item in payload.rows:
+        key = (str(int(item.external_card_id)), item.variant)
+        if key in seen:
+            raise HTTPException(status_code=422, detail=f"Duplikált CSV-sor: {key[0]} / {key[1]}.")
+        seen.add(key)
+        row = db.scalar(select(HkkCardVariantAttestation).where(HkkCardVariantAttestation.external_card_id == key[0], HkkCardVariantAttestation.variant == key[1]))
+        changes.append({"external_card_id": key[0], "variant": key[1], "before": row.status if row else None, "after": item.status})
+        if payload.dry_run:
+            continue
+        if row is None:
+            row = HkkCardVariantAttestation(external_card_id=key[0], variant=key[1])
+            db.add(row)
+        row.card_name = item.card_name.strip()
+        row.edition_id = str(int(item.edition_id))
+        row.edition_name = item.edition_name.strip()
+        row.status = item.status
+        row.image_url = item.image_url
+        row.source_url = item.source_url
+        row.source_checked_at = now
+        row.verification_method = "manual_csv"
+        row.manually_verified = True
+    if not payload.dry_run:
+        create_domain_audit_log(db, action="hkk_variant_manual_import", user_id=current_user.id, metadata={"row_count": len(changes), "changes": changes[:100]})
+        db.commit()
+    return {"dry_run": payload.dry_run, "row_count": len(changes), "changes": changes}

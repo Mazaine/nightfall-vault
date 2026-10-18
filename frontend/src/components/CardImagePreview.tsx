@@ -6,12 +6,13 @@ type CardImage = {
   external_card_id: string;
   card_name: string;
   image_url: string | null;
+  display_variant?: "normal" | "fa" | "gfa";
 };
 
 type PreviewPosition = { left: number; top: number; width: number };
 
 export function CardImagePreview({ card, className = "", preview = true }: { card: CardImage; className?: string; preview?: boolean }) {
-  const imageUrl = hkkCardImageUrl(card.external_card_id, card.image_url);
+  const imageUrl = hkkCardImageUrl(card.external_card_id, card.image_url, card.display_variant);
   const anchorRef = useRef<HTMLSpanElement>(null);
   const showTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);

@@ -7,15 +7,16 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.db.session import get_db
-from app.dependencies.auth import require_active_user
+from app.dependencies.auth import get_optional_current_user, require_active_user
 from app.models.user import User
 from app.models.auction import Auction
-from app.models.vault import VaultCardLoan, VaultCollectionCard, VaultDeck, VaultDeckCard, VaultFolder, VaultPointTransaction, VaultTrade, VaultTradeCard, VaultTradeMessage, VaultTradeReview
-from app.schemas.vault import BulkCardOperation, BulkCardOperationResult, CardLoanBatchCreate, CardLoanCreate, CardLoanRead, CardRead, CollectionCardCreate, CollectionCardUpdate, CollectionTradeUpdate, CollectionVariantCreate, DeckCardCreate, DeckCardRead, DeckCardUpdate, DeckCreate, DeckRead, DeckUpdate, FolderCreate, FolderRead, FolderReorder, FolderUpdate, HkkEditionCards, HkkEditionImport, HkkEditionImportResult, HkkEditionRead, HkkMarketPriceSuggestion, HkkSearchResult, PointHistory, PointTransactionRead, PublicTradeCardRead, QuantityUpdate, TradeCardCreate, TradeCardSeekerRead, TradeMessageCreate, TradeRead, TradeReviewCreate, TradeReviewRead, VaultMaintenanceRead, VaultMatchesSeen, VaultMatchStatus, VaultSummary, WantedCardCreate, WantedUpdate
+from app.models.vault import VaultCardLoan, VaultCollectionCard, VaultDeck, VaultDeckCard, VaultFolder, VaultMatchState, VaultPointTransaction, VaultTrade, VaultTradeCard, VaultTradeMessage, VaultTradeReview
+from app.schemas.vault import BulkCardOperation, BulkCardOperationResult, CardLoanBatchCreate, CardLoanCreate, CardLoanRead, CardRead, CollectionCardCreate, CollectionCardUpdate, CollectionTradeUpdate, CollectionVariantCreate, CommunityTradeCardRead, CommunityTradePage, DeckCardCreate, DeckCardRead, DeckCardUpdate, DeckCreate, DeckRead, DeckUpdate, FolderCreate, FolderRead, FolderReorder, FolderUpdate, HkkEditionCards, HkkEditionImport, HkkEditionImportResult, HkkEditionRead, HkkMarketPriceSuggestion, HkkSearchResult, PointHistory, PointTransactionRead, PublicTradeCardRead, QuantityUpdate, TradeCardCreate, TradeCardSeekerRead, TradeMessageCreate, TradeRead, TradeReviewCreate, TradeReviewRead, VaultMaintenanceRead, VaultMatchesSeen, VaultMatchStatus, VaultSummary, WantedCardCreate, WantedUpdate
 from app.services.notifications import create_notification
-from app.services.vault import account_for, buy_capacity_pack, card_snapshot_values, collection_card_for_user, complete_trade, fetch_hkk_card_image, folder_for_user, folder_used, grant_points, hkk_edition_cards, hkk_market_price_suggestion, import_hkk_edition, list_hkk_editions, point_balance, require_allocatable, require_collection_pocket_limit, require_print_variant_allowed, require_valid_card_snapshot, reserved_listing_quantity, reserved_trade_listing_quantity, search_hkk_cards, total_collection_capacity, trade_for_participant, utc_now
+from app.services.vault import account_for, buy_capacity_pack, card_snapshot_values, collection_card_for_user, complete_trade, fetch_hkk_card_image, folder_for_user, folder_used, grant_points, hkk_edition_cards, hkk_market_price_suggestion, import_hkk_edition, list_hkk_editions, point_balance, require_allocatable, require_collection_pocket_limit, require_valid_card_snapshot, reserved_listing_quantity, reserved_trade_listing_quantity, search_hkk_cards, total_collection_capacity, trade_for_participant, utc_now
+from app.services.hkk_variants import require_attested_variant, variant_metadata
 from app.services.vault_matches import mark_vault_matches_seen, sync_vault_matches, sync_vault_matches_for_card, unseen_vault_matches
-from app.services.user_blocks import ensure_not_blocked
+from app.services.user_blocks import ensure_not_blocked, has_block_between
 
 
 router = APIRouter(prefix="/api/vault", tags=["virtual-vault"])
@@ -34,6 +35,7 @@ def card_read(db: Session, card: VaultCollectionCard, *, offer_count: int | None
         trade_card = db.scalar(select(VaultTradeCard).where(VaultTradeCard.user_id == card.user_id, VaultTradeCard.external_card_id == card.external_card_id, VaultTradeCard.print_variant == card.print_variant))
     loaned = active_loan_quantity(db, card.id) if loaned_quantity is None else loaned_quantity
     listed = reserved_listing_quantity(db, card.id) if listed_quantity is None else listed_quantity
+    statuses, images, verified = variant_metadata(db, card.external_card_id)
     return CardRead.model_validate({
         **card.__dict__,
         "offer_count": offers,
@@ -43,6 +45,10 @@ def card_read(db: Session, card: VaultCollectionCard, *, offer_count: int | None
         "loaned_quantity": loaned,
         "listed_quantity": listed,
         "available_listing_quantity": max(card.quantity - loaned - listed, 0),
+        "variant_statuses": statuses,
+        "variant_image_urls": images,
+        "variants_verified": verified,
+        "variant_needs_review": statuses.get(card.print_variant) == "absent",
     })
 
 
@@ -403,9 +409,10 @@ def bulk_cards(payload: BulkCardOperation, current_user: User = Depends(require_
             raise HTTPException(status_code=409, detail="Nulla példányszámú lap nem tehető a cseremappába.")
         for card in cards:
             existing_trade = trade_by_key.get((card.external_card_id, card.print_variant))
-            require_print_variant_allowed(
+            require_attested_variant(
+                db,
+                card.external_card_id,
                 card.print_variant,
-                card.rarity,
                 previous_variant=existing_trade.print_variant if existing_trade else None,
                 previous_quantity=existing_trade.quantity if existing_trade else None,
                 quantity=card.quantity,
@@ -490,9 +497,10 @@ def add_card(payload: CollectionCardCreate, current_user: User = Depends(require
     variant = payload.print_variant or "normal"
     existing = db.scalar(select(VaultCollectionCard).where(VaultCollectionCard.user_id == current_user.id, VaultCollectionCard.external_card_id == payload.external_card_id, VaultCollectionCard.print_variant == variant).with_for_update())
     sibling = db.scalar(select(VaultCollectionCard).where(VaultCollectionCard.user_id == current_user.id, VaultCollectionCard.external_card_id == payload.external_card_id).order_by(VaultCollectionCard.id).with_for_update())
-    require_print_variant_allowed(
+    require_attested_variant(
+        db,
+        payload.external_card_id,
         variant,
-        payload.rarity,
         previous_variant=existing.print_variant if existing else None,
         previous_quantity=existing.quantity if existing else None,
         quantity=payload.quantity,
@@ -525,7 +533,7 @@ def add_card(payload: CollectionCardCreate, current_user: User = Depends(require
 def add_card_variant(card_id: int, payload: CollectionVariantCreate, current_user: User = Depends(require_active_user), db: Session = Depends(get_db)) -> CardRead:
     account = account_for(db, current_user.id, lock=True)
     source = collection_card_for_user(db, card_id, current_user.id, lock=True)
-    require_print_variant_allowed(payload.print_variant, source.rarity, quantity=payload.quantity)
+    require_attested_variant(db, source.external_card_id, payload.print_variant, quantity=payload.quantity)
     require_collection_pocket_limit(db, current_user.id, source.external_card_id, payload.quantity)
     duplicate = db.scalar(
         select(VaultCollectionCard)
@@ -585,7 +593,7 @@ def set_collection_trade_quantities(payload: CollectionTradeUpdate, current_user
         if item.quantity > available:
             raise HTTPException(status_code=409, detail=f"A(z) {card.card_name} {card.print_variant} változatából legfeljebb {available} példány tehető cserére.")
         if item.quantity:
-            require_print_variant_allowed(card.print_variant, card.rarity, quantity=item.quantity)
+            require_attested_variant(db, card.external_card_id, card.print_variant, quantity=item.quantity)
     new_count = sum(
         item.quantity > 0 and (cards_by_id[item.card_id].external_card_id, cards_by_id[item.card_id].print_variant) not in trade_by_key
         for item in payload.items
@@ -621,7 +629,7 @@ def set_collection_trade_quantities(payload: CollectionTradeUpdate, current_user
 @router.post("/cards/wanted", response_model=CardRead, status_code=status.HTTP_201_CREATED)
 def add_wanted_card(payload: WantedCardCreate, current_user: User = Depends(require_active_user), db: Session = Depends(get_db)) -> CardRead:
     require_valid_card_snapshot(payload)
-    require_print_variant_allowed(payload.print_variant, payload.rarity)
+    require_attested_variant(db, payload.external_card_id, payload.print_variant)
     account = account_for(db, current_user.id, lock=True)
     folder = folder_for_user(db, payload.folder_id, current_user.id, lock=True)
     existing_cards = db.scalars(select(VaultCollectionCard).where(VaultCollectionCard.user_id == current_user.id, VaultCollectionCard.external_card_id == payload.external_card_id).order_by(VaultCollectionCard.print_variant == payload.print_variant, VaultCollectionCard.id).with_for_update()).all()
@@ -662,9 +670,10 @@ def add_wanted_card(payload: WantedCardCreate, current_user: User = Depends(requ
 def update_card(card_id: int, payload: CollectionCardUpdate, current_user: User = Depends(require_active_user), db: Session = Depends(get_db)) -> CardRead | Response:
     account = account_for(db, current_user.id, lock=True)
     card = collection_card_for_user(db, card_id, current_user.id, lock=True)
-    require_print_variant_allowed(
+    require_attested_variant(
+        db,
+        card.external_card_id,
         payload.print_variant or card.print_variant,
-        card.rarity,
         previous_variant=card.print_variant,
         previous_quantity=card.quantity,
         quantity=payload.quantity,
@@ -754,7 +763,7 @@ def create_standalone_card_loans(payload: CardLoanBatchCreate, current_user: Use
         raise HTTPException(status_code=422, detail="A tervezett visszaadás nem lehet korábbi a kölcsönadásnál.")
     for item in payload.cards:
         require_valid_card_snapshot(item)
-        require_print_variant_allowed(item.print_variant, item.rarity, quantity=item.quantity)
+        require_attested_variant(db, item.external_card_id, item.print_variant, quantity=item.quantity)
     borrower = db.scalar(
         select(User).where(
             User.id != current_user.id,
@@ -976,9 +985,10 @@ def add_trade_card(payload: TradeCardCreate, current_user: User = Depends(requir
     account = account_for(db, current_user.id, lock=True)
     variant = payload.print_variant or "normal"
     card = db.scalar(select(VaultTradeCard).where(VaultTradeCard.user_id == current_user.id, VaultTradeCard.external_card_id == payload.external_card_id, VaultTradeCard.print_variant == variant).with_for_update())
-    require_print_variant_allowed(
+    require_attested_variant(
+        db,
+        payload.external_card_id,
         variant,
-        payload.rarity,
         previous_variant=card.print_variant if card else None,
         previous_quantity=card.quantity if card else None,
         quantity=payload.quantity,
@@ -1011,9 +1021,10 @@ def update_trade_card(card_id: int, payload: QuantityUpdate, current_user: User 
     reserved = reserved_trade_listing_quantity(db, card.id)
     if payload.quantity < reserved:
         raise HTTPException(status_code=409, detail=f"Aktív hirdetésekhez {reserved} példány van lefoglalva; ennél kevesebbre nem állítható.")
-    require_print_variant_allowed(
+    require_attested_variant(
+        db,
+        card.external_card_id,
         payload.print_variant or card.print_variant,
-        card.rarity,
         previous_variant=card.print_variant,
         previous_quantity=card.quantity,
         quantity=payload.quantity,
@@ -1045,6 +1056,81 @@ def delete_trade_card(card_id: int, current_user: User = Depends(require_active_
     sync_vault_matches_for_card(db, external_card_id)
     db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get("/community/trades", response_model=CommunityTradePage)
+def community_trade_cards(
+    query: str | None = Query(default=None, max_length=180),
+    edition: str | None = Query(default=None, max_length=120),
+    print_variant: str | None = Query(default=None, pattern=r"^(normal|foil|fa|gfa)$"),
+    owner: str | None = Query(default=None, max_length=180),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=48),
+    current_user: User | None = Depends(get_optional_current_user),
+    db: Session = Depends(get_db),
+) -> CommunityTradePage:
+    """Browse public trade offers without changing or filtering Match state."""
+    statement = (
+        select(VaultTradeCard)
+        .join(User, User.id == VaultTradeCard.user_id)
+        .where(User.is_active.is_(True), User.deleted_at.is_(None), VaultTradeCard.quantity > 0)
+    )
+    if query and query.strip():
+        term = query.strip().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        statement = statement.where(or_(VaultTradeCard.card_name.ilike(f"%{term}%", escape="\\"), VaultTradeCard.external_card_id.ilike(f"%{term}%", escape="\\")))
+    if edition and edition.strip():
+        statement = statement.where(VaultTradeCard.edition == edition.strip())
+    if print_variant:
+        statement = statement.where(VaultTradeCard.print_variant == print_variant)
+    if owner and owner.strip():
+        owner_term = owner.strip().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        statement = statement.where(User.username.ilike(f"%{owner_term}%", escape="\\"))
+
+    total = int(db.scalar(select(func.count()).select_from(statement.order_by(None).subquery())) or 0)
+    cards = list(db.scalars(
+        statement.order_by(VaultTradeCard.card_name, VaultTradeCard.external_card_id, VaultTradeCard.id)
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+    ).all())
+
+    wanted_ids: set[str] = set()
+    matched_offer_ids: set[int] = set()
+    if current_user is not None and cards:
+        external_ids = {card.external_card_id for card in cards}
+        offered_ids = {card.id for card in cards}
+        wanted_ids = set(db.scalars(
+            select(VaultCollectionCard.external_card_id).where(
+                VaultCollectionCard.user_id == current_user.id,
+                VaultCollectionCard.external_card_id.in_(external_ids),
+                VaultCollectionCard.wanted.is_(True),
+                VaultCollectionCard.wanted_quantity > 0,
+            )
+        ).all())
+        matched_offer_ids = set(db.scalars(
+            select(VaultMatchState.offered_card_id).where(
+                VaultMatchState.user_id == current_user.id,
+                VaultMatchState.offered_card_id.in_(offered_ids),
+                VaultMatchState.is_active.is_(True),
+            )
+        ).all())
+
+    items: list[CommunityTradeCardRead] = []
+    for card in cards:
+        public = public_trade_card_read(db, card)
+        personalized = current_user is not None
+        can_express = bool(
+            current_user is not None
+            and current_user.id != card.user_id
+            and not has_block_between(db, current_user.id, card.user_id)
+        )
+        items.append(CommunityTradeCardRead.model_validate({
+            **public.model_dump(),
+            "is_wanted": card.external_card_id in wanted_ids if personalized else None,
+            "is_match": card.id in matched_offer_ids if personalized else None,
+            "can_express_interest": can_express,
+        }))
+    total_pages = max((total + page_size - 1) // page_size, 1)
+    return CommunityTradePage(items=items, total=total, page=page, page_size=page_size, total_pages=total_pages)
 
 
 @router.get("/public/{username}", response_model=list[PublicTradeCardRead])
@@ -1181,7 +1267,7 @@ def purchase_capacity(current_user: User = Depends(require_active_user), db: Ses
 
 
 @router.get("/hkk/search", response_model=list[HkkSearchResult])
-def hkk_search(q: str | None = Query(default=None, max_length=120), limit: int = Query(default=500, ge=1, le=1000), edition_id: str | None = Query(default=None, pattern=r"^[1-9][0-9]*$"), current_user: User = Depends(require_active_user)) -> list[HkkSearchResult]:
+def hkk_search(q: str | None = Query(default=None, max_length=120), limit: int = Query(default=500, ge=1, le=1000), edition_id: str | None = Query(default=None, pattern=r"^[1-9][0-9]*$"), current_user: User = Depends(require_active_user), db: Session = Depends(get_db)) -> list[HkkSearchResult]:
     del current_user
     normalized_query = (q or "").strip()
     if normalized_query and len(normalized_query) < 2:
@@ -1191,15 +1277,20 @@ def hkk_search(q: str | None = Query(default=None, max_length=120), limit: int =
         if normalized_query:
             needle = normalized_query.casefold()
             cards = [card for card in cards if needle in card["card_name"].casefold()]
-        return [HkkSearchResult.model_validate(item) for item in cards[:limit]]
+        return [HkkSearchResult.model_validate({**item, **dict(zip(("variant_statuses", "variant_image_urls", "variants_verified"), variant_metadata(db, item["external_card_id"])))}) for item in cards[:limit]]
     if not normalized_query:
         raise HTTPException(status_code=422, detail="Adj meg legalább két karaktert vagy válassz kiegészítőt.")
-    return [HkkSearchResult.model_validate(item) for item in search_hkk_cards(normalized_query, limit)]
+    cards = search_hkk_cards(normalized_query, limit)
+    return [HkkSearchResult.model_validate({**item, **dict(zip(("variant_statuses", "variant_image_urls", "variants_verified"), variant_metadata(db, item["external_card_id"])))}) for item in cards]
 
 
 @router.get("/hkk/images/{card_id}", include_in_schema=False)
-def hkk_card_image(card_id: int = Path(gt=0)) -> Response:
-    content, media_type = fetch_hkk_card_image(card_id)
+def hkk_card_image(card_id: int = Path(gt=0), variant: str = Query(default="normal", pattern=r"^(normal|fa|gfa)$"), db: Session = Depends(get_db)) -> Response:
+    if variant != "normal":
+        statuses, images, _ = variant_metadata(db, str(card_id))
+        if statuses.get(variant) != "exists" or variant not in images:
+            raise HTTPException(status_code=404, detail="Ehhez a lapváltozathoz nincs igazolt hivatalos kép.")
+    content, media_type = fetch_hkk_card_image(card_id, secondary=variant in {"fa", "gfa"})
     return Response(
         content=content,
         media_type=media_type,
@@ -1225,12 +1316,13 @@ def hkk_editions(current_user: User = Depends(require_active_user)) -> list[HkkE
 
 
 @router.get("/hkk/editions/{edition_id}/cards", response_model=HkkEditionCards)
-def hkk_edition_preview(edition_id: str, current_user: User = Depends(require_active_user)) -> HkkEditionCards:
+def hkk_edition_preview(edition_id: str, current_user: User = Depends(require_active_user), db: Session = Depends(get_db)) -> HkkEditionCards:
     del current_user
     if not edition_id.isdigit() or int(edition_id) <= 0:
         raise HTTPException(status_code=422, detail="Hibás HKK kiegészítő-azonosító.")
     edition, cards = hkk_edition_cards(str(int(edition_id)))
-    return HkkEditionCards(edition=HkkEditionRead.model_validate(edition), count=len(cards), cards=[HkkSearchResult.model_validate(card) for card in cards])
+    enriched = [{**card, **dict(zip(("variant_statuses", "variant_image_urls", "variants_verified"), variant_metadata(db, card["external_card_id"]))) } for card in cards]
+    return HkkEditionCards(edition=HkkEditionRead.model_validate(edition), count=len(cards), cards=[HkkSearchResult.model_validate(card) for card in enriched])
 
 
 @router.post("/hkk/editions/import", response_model=HkkEditionImportResult)

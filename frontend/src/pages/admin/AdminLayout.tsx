@@ -8,6 +8,7 @@ const adminLinks = [
   { label: "Felhasználók", to: "/admin/users" },
   { label: "VIP-kódok", to: "/admin/vip-codes" },
   { label: "Demóaukciók", to: "/admin/demo-auctions" },
+  { label: "HKK-változatok", to: "/admin/hkk-variants" },
   { label: "Auditnapló", to: "/admin/audit-logs" },
 ];
 

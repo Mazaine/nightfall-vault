@@ -10,10 +10,11 @@ from app.models.auction import Auction, AuctionBundleItem
 from app.models.security_log import AuditLog
 from app.models.moderation import UserBlock
 from app.models.notification import Notification, NotificationOutbox, NotificationPreference
-from app.models.vault import VaultAccount, VaultCapacityGrant, VaultCardLoan, VaultCollectionCard, VaultDeck, VaultDeckCard, VaultFolder, VaultMatchState, VaultPointTransaction, VaultTrade, VaultTradeCard, VaultTradeMessage, VaultTradeReview
+from app.models.vault import HkkCardVariantAttestation, VaultAccount, VaultCapacityGrant, VaultCardLoan, VaultCollectionCard, VaultDeck, VaultDeckCard, VaultFolder, VaultMatchState, VaultPointTransaction, VaultTrade, VaultTradeCard, VaultTradeMessage, VaultTradeReview
 from app.services.membership import activate_code, generate_codes
 from app.services.vault import grant_capacity, grant_points, sign_card_snapshot
 from app.services import vault as vault_service
+from app.services import hkk_variants as hkk_variant_service
 from test_auction_domain import auction_payload, auth_headers, cleanup_test_data, client, create_test_user, upload_png
 
 
@@ -22,7 +23,7 @@ def cleanup() -> None:
     try:
         test_users = or_(User.email.like("%@vault-test.local"), User.email == "mazaine89@gmail.com")
         user_ids = list(db.scalars(select(User.id).where(test_users)).all())
-        for model in (VaultTradeReview, VaultTradeMessage, VaultTrade, VaultMatchState, VaultTradeCard, VaultCardLoan, VaultDeckCard, VaultDeck, VaultCollectionCard, VaultFolder, VaultCapacityGrant, VaultPointTransaction, VaultAccount, VipActivationCode):
+        for model in (VaultTradeReview, VaultTradeMessage, VaultTrade, VaultMatchState, VaultTradeCard, VaultCardLoan, VaultDeckCard, VaultDeck, VaultCollectionCard, VaultFolder, VaultCapacityGrant, VaultPointTransaction, VaultAccount, VipActivationCode, HkkCardVariantAttestation):
             db.execute(delete(model))
         if user_ids:
             notification_ids = select(Notification.id).where(Notification.user_id.in_(user_ids))
@@ -486,6 +487,49 @@ def test_public_trade_matching_interest_completion_and_idempotent_rewards() -> N
         cleanup()
 
 
+def test_community_browser_is_independent_from_matches_and_reuses_negotiation() -> None:
+    cleanup(); seeker = create_test_user("community-seeker@vault-test.local"); owner = create_test_user("community-owner@vault-test.local")
+    try:
+        private_folder = client.post("/api/vault/folders", json={"name": "Privát", "capacity": 10}, headers=auth_headers(owner)).json()
+        private_card = client.post("/api/vault/cards", json={**card_payload("private-only", "Privát gyűjteménylap", 1), "folder_id": private_folder["id"]}, headers=auth_headers(owner))
+        assert private_card.status_code == 201
+        offered = client.post("/api/vault/trade", json=card_payload("community-card", "Közösségi lap", 2), headers=auth_headers(owner)).json()
+
+        anonymous = client.get("/api/vault/community/trades")
+        assert anonymous.status_code == 200
+        assert anonymous.json()["total"] == 1
+        assert anonymous.json()["items"][0]["id"] == offered["id"]
+        assert anonymous.json()["items"][0]["is_wanted"] is None
+        assert anonymous.json()["items"][0]["is_match"] is None
+        assert anonymous.json()["items"][0]["can_express_interest"] is False
+        assert client.post(f"/api/vault/trade/{offered['id']}/interest").status_code == 401
+
+        without_match = client.get("/api/vault/community/trades?page=1&page_size=1", headers=auth_headers(seeker)).json()
+        assert without_match["total"] == 1 and without_match["total_pages"] == 1
+        assert without_match["items"][0]["is_wanted"] is False
+        assert without_match["items"][0]["is_match"] is False
+        assert without_match["items"][0]["can_express_interest"] is True
+        negotiation = client.post(f"/api/vault/trade/{offered['id']}/interest", headers=auth_headers(seeker))
+        assert negotiation.status_code == 201
+        negotiation_id = negotiation.json()["id"]
+        assert client.get("/api/vault/negotiations", headers=auth_headers(seeker)).json()[0]["id"] == negotiation_id
+
+        seeker_folder = client.post("/api/vault/folders", json={"name": "Keresem", "capacity": 10}, headers=auth_headers(seeker)).json()
+        wanted = client.post("/api/vault/cards/wanted", json={**card_payload("community-card", "Közösségi lap", 1), "folder_id": seeker_folder["id"]}, headers=auth_headers(seeker))
+        assert wanted.status_code == 201
+        status_before = client.get("/api/vault/matches/status", headers=auth_headers(seeker)).json()
+        assert status_before["unseen_count"] == 1
+
+        personalized = client.get("/api/vault/community/trades?query=K%C3%B6z%C3%B6ss%C3%A9gi&print_variant=normal", headers=auth_headers(seeker)).json()["items"][0]
+        assert personalized["is_wanted"] is True and personalized["is_match"] is True
+        assert client.get("/api/vault/community/trades?query=nincs-ilyen-lap", headers=auth_headers(seeker)).json()["items"] == []
+        assert client.get("/api/vault/matches/status", headers=auth_headers(seeker)).json() == status_before
+        assert client.post(f"/api/vault/trade/{offered['id']}/interest", headers=auth_headers(seeker)).json()["id"] == negotiation_id
+        assert len(client.get("/api/vault/negotiations", headers=auth_headers(seeker)).json()) == 1
+    finally:
+        cleanup()
+
+
 def test_vp_capacity_purchase_and_each_vip_activation_grants_permanent_slots() -> None:
     cleanup(); user = create_test_user("member@vault-test.local"); admin = create_test_user("admin@vault-test.local", role="admin")
     db = SessionLocal()
@@ -546,11 +590,45 @@ def test_same_hkk_card_can_store_separate_variants_and_quantities() -> None:
         cleanup()
 
 
-def test_foil_is_limited_to_rare_cards_without_deleting_legacy_records() -> None:
+def test_official_variant_import_is_idempotent_and_preserves_manual_rows(monkeypatch) -> None:
+    cleanup()
+    base = {"12064": {"ID": 12064, "name": "Angyalgólem", "editions": [264]}}
+    def filtered(params):
+        flags = params.get("flags")
+        return base if flags in {None, "foilosujranyomas", "vanFullart"} else {}
+    monkeypatch.setattr(hkk_variant_service, "_cards", filtered)
+    try:
+        with SessionLocal() as db:
+            first = hkk_variant_service.apply_official_edition(db, "264", "Promóciós lapok (2026)")
+            db.commit()
+            assert first["applied"] == 4
+            rows = db.scalars(select(HkkCardVariantAttestation).where(HkkCardVariantAttestation.external_card_id == "12064")).all()
+            assert {row.variant: row.status for row in rows} == {"normal": "exists", "foil": "exists", "fa": "exists", "gfa": "absent"}
+            gfa = next(row for row in rows if row.variant == "gfa")
+            gfa.status = "exists"; gfa.manually_verified = True; gfa.verification_method = "manual_csv"
+            db.commit()
+            repeated = hkk_variant_service.apply_official_edition(db, "264", "Promóciós lapok (2026)")
+            db.commit()
+            assert repeated["skipped_manual"] == 1
+            assert db.scalar(select(HkkCardVariantAttestation).where(HkkCardVariantAttestation.id == gfa.id)).status == "exists"
+            assert len(db.scalars(select(HkkCardVariantAttestation).where(HkkCardVariantAttestation.external_card_id == "12064")).all()) == 4
+    finally:
+        cleanup()
+
+
+def test_verified_variants_override_rarity_and_keep_legacy_conflicts_reviewable() -> None:
     cleanup(); user = create_test_user("foil-rules@vault-test.local")
     try:
         folder = client.post("/api/vault/folders", json={"name": "Foil szabály", "capacity": 10}, headers=auth_headers(user)).json()
         common_payload = card_payload("common-card", "Gyakori lap", 2, "common")
+        db = SessionLocal()
+        try:
+            now = datetime.now(timezone.utc)
+            db.add_all([HkkCardVariantAttestation(external_card_id="common-card", card_name="Gyakori lap", edition_id="1", edition_name="Teszt", variant=variant, status=status_value, image_url=None, source_url="https://verseny.hkk.hu/lapkereso", source_checked_at=now, verification_method="manual_csv", manually_verified=True) for variant, status_value in (("normal", "exists"), ("foil", "absent"), ("fa", "exists"), ("gfa", "absent"))])
+            db.add(HkkCardVariantAttestation(external_card_id="legacy-common", card_name="Régi foil", edition_id="1", edition_name="Teszt", variant="foil", status="absent", image_url=None, source_url="https://verseny.hkk.hu/lapkereso", source_checked_at=now, verification_method="manual_csv", manually_verified=True))
+            db.commit()
+        finally:
+            db.close()
         normal = client.post("/api/vault/cards", json={**common_payload, "folder_id": folder["id"], "print_variant": "normal"}, headers=auth_headers(user))
         assert normal.status_code == 201
         assert client.post("/api/vault/cards", json={**common_payload, "folder_id": folder["id"], "print_variant": "foil"}, headers=auth_headers(user)).status_code == 422
@@ -558,7 +636,9 @@ def test_foil_is_limited_to_rare_cards_without_deleting_legacy_records() -> None
 
         fa = client.post("/api/vault/cards", json={**common_payload, "folder_id": folder["id"], "print_variant": "fa", "quantity": 1}, headers=auth_headers(user))
         gfa = client.post("/api/vault/cards", json={**common_payload, "folder_id": folder["id"], "print_variant": "gfa", "quantity": 1}, headers=auth_headers(user))
-        assert fa.status_code == 201 and gfa.status_code == 201
+        assert fa.status_code == 201 and gfa.status_code == 422
+        read = client.get("/api/vault/cards", headers=auth_headers(user)).json()
+        assert read[0]["variants_verified"] is True and read[0]["variant_statuses"] == {"normal": "exists", "foil": "absent", "fa": "exists", "gfa": "absent"}
 
         db = SessionLocal()
         try:
@@ -570,6 +650,7 @@ def test_foil_is_limited_to_rare_cards_without_deleting_legacy_records() -> None
         assert client.patch(f"/api/vault/cards/{legacy_id}", json={"quantity": 3}, headers=auth_headers(user)).status_code == 422
         legacy_cards = client.get("/api/vault/cards", headers=auth_headers(user)).json()
         assert any(card["id"] == legacy_id and card["print_variant"] == "foil" and card["quantity"] == 1 for card in legacy_cards)
+        assert next(card for card in legacy_cards if card["id"] == legacy_id)["variant_needs_review"] is True
     finally:
         cleanup()
 
@@ -845,14 +926,14 @@ def test_collection_variant_trade_quantity_and_standalone_multi_loan() -> None:
         cleanup()
 
 
-def test_foil_variant_remains_backend_validated() -> None:
+def test_unverified_variant_is_not_blocked_by_rarity() -> None:
     cleanup(); owner = create_test_user("variant-rarity@vault-test.local")
     try:
         headers = auth_headers(owner)
         folder = client.post("/api/vault/folders", json={"name": "Gyakori", "capacity": 3}, headers=headers).json()
         common = client.post("/api/vault/cards", json={**card_payload("common-card", "Gyakori lap", 1, "common"), "folder_id": folder["id"]}, headers=headers).json()
-        denied = client.post(f"/api/vault/cards/{common['id']}/variants", json={"quantity": 1, "print_variant": "foil"}, headers=headers)
-        assert denied.status_code == 422
+        unverified = client.post(f"/api/vault/cards/{common['id']}/variants", json={"quantity": 1, "print_variant": "foil"}, headers=headers)
+        assert unverified.status_code == 201
         assert client.post(f"/api/vault/cards/{common['id']}/variants", json={"quantity": 1, "print_variant": "fa"}, headers=headers).status_code == 201
     finally:
         cleanup()

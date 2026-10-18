@@ -2,16 +2,21 @@ import { apiRequest } from "./client";
 
 export type VaultFolder = { id: number; name: string; capacity: number; position: number; color: string | null; used_slots: number; entry_count: number; copy_count: number };
 export type PrintVariant = "normal" | "foil" | "fa" | "gfa";
+export type VariantStatus = "exists" | "absent" | "unknown";
 export type VaultCard = {
   id: number; external_card_id: string; card_name: string; image_url: string | null; edition: string | null;
   card_type: string | null; subtype: string | null; color: string | null; rarity: string | null; quantity: number;
   folder_id: number | null; wanted: boolean; wanted_quantity: number; offer_count: number; print_variant: PrintVariant;
   in_trade: boolean; trade_card_id: number | null; trade_quantity?: number; loaned_quantity?: number;
   listed_quantity?: number; available_listing_quantity?: number;
+  variant_statuses?: Partial<Record<PrintVariant, VariantStatus>>; variant_image_urls?: Partial<Record<PrintVariant, string>>;
+  variants_verified?: boolean; variant_needs_review?: boolean;
 };
 export type BulkCardAction = "move" | "trade_add" | "trade_remove" | "wanted_on" | "wanted_off" | "delete";
 export type VaultMaintenance = { stale_after_days: number; acquired_wanted: VaultCard[]; stale_trade_cards: PublicTradeCard[]; overdue_loans: VaultCardLoan[] };
 export type PublicTradeCard = VaultCard & { owner_id: number; owner_username: string; seeker_count: number; available_listing_quantity?: number | null; fixed_price_auction_id?: number | null; fixed_price?: string | null };
+export type CommunityTradeCard = PublicTradeCard & { is_wanted: boolean | null; is_match: boolean | null; can_express_interest: boolean };
+export type CommunityTradePage = { items: CommunityTradeCard[]; total: number; page: number; page_size: number; total_pages: number };
 export type TradeCardSeeker = { user_id: number; username: string; display_name: string; wanted_quantity: number };
 export type VaultSummary = {
   total_collection_capacity: number; assigned_collection_capacity: number; free_collection_capacity: number;
@@ -19,7 +24,7 @@ export type VaultSummary = {
   owned_card_quantity: number; new_trade_opportunities: number; unseen_match_count: number; cards_wanted_by_others: number; deck_missing_quantity: number; active_loan_count: number;
   folders: VaultFolder[];
 };
-export type HkkCard = Pick<VaultCard, "external_card_id" | "card_name" | "image_url" | "edition" | "card_type" | "subtype" | "color" | "rarity"> & { source_token: string };
+export type HkkCard = Pick<VaultCard, "external_card_id" | "card_name" | "image_url" | "edition" | "card_type" | "subtype" | "color" | "rarity" | "variant_statuses" | "variant_image_urls" | "variants_verified"> & { source_token: string };
 export type HkkRarity = "common" | "uncommun" | "rare" | "ultrarare";
 export type HkkEditionGroup = "zen" | "alpha" | "promo" | "coded";
 export type HkkEdition = { id: string; name: string; group: HkkEditionGroup | null; release_date: string | null };
@@ -95,6 +100,16 @@ export const getMatchStatus = () => apiRequest<VaultMatchStatus>("/api/vault/mat
 export const markMatchesSeen = (match_keys: string[]) => apiRequest<{ updated: number }>("/api/vault/matches/seen", { method: "POST", authenticated: true, body: JSON.stringify({ match_keys }) });
 export const listMatchingOffers = (cardId: number) => apiRequest<PublicTradeCard[]>(`/api/vault/cards/${cardId}/offers`, { authenticated: true });
 export const getPublicTradeFolder = (username: string, query = "") => apiRequest<PublicTradeCard[]>(`/api/vault/public/${encodeURIComponent(username)}${query ? `?query=${encodeURIComponent(query)}` : ""}`);
+export const listCommunityTradeCards = (params: { query?: string; edition?: string; printVariant?: PrintVariant | ""; owner?: string; page?: number; pageSize?: number } = {}) => {
+  const search = new URLSearchParams();
+  if (params.query) search.set("query", params.query);
+  if (params.edition) search.set("edition", params.edition);
+  if (params.printVariant) search.set("print_variant", params.printVariant);
+  if (params.owner) search.set("owner", params.owner);
+  search.set("page", String(params.page ?? 1));
+  search.set("page_size", String(params.pageSize ?? 20));
+  return apiRequest<CommunityTradePage>(`/api/vault/community/trades?${search.toString()}`);
+};
 export const getPointHistory = () => apiRequest<PointHistory>("/api/vault/points", { authenticated: true });
 export const getVaultMaintenance = () => apiRequest<VaultMaintenance>("/api/vault/maintenance", { authenticated: true });
 export const buyVaultCapacity = () => apiRequest<VaultSummary>("/api/vault/points/buy-capacity", { method: "POST", authenticated: true });

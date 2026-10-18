@@ -188,7 +188,7 @@ def test_hkk_card_image_proxy_accepts_only_valid_bounded_images(monkeypatch) -> 
 
 
 def test_hkk_card_image_endpoint_is_same_origin_and_publicly_cacheable(monkeypatch) -> None:
-    monkeypatch.setattr("app.api.vault.fetch_hkk_card_image", lambda card_id: (b"jpeg-data", "image/jpeg"))
+    monkeypatch.setattr("app.api.vault.fetch_hkk_card_image", lambda card_id, secondary=False: (b"jpeg-data", "image/jpeg"))
     response = client.get("/api/vault/hkk/images/9888")
     assert response.status_code == 200
     assert response.content == b"jpeg-data"

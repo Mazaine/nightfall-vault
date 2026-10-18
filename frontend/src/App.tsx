@@ -40,6 +40,7 @@ const NotificationsPage = lazy(() => import("./pages/NotificationsPage").then((m
 const VipMembershipPage = lazy(() => import("./pages/VipMembershipPage").then((module) => ({ default: module.VipMembershipPage })));
 const VirtualVaultPage = lazy(() => import("./pages/VirtualVaultPage").then((module) => ({ default: module.VirtualVaultPage })));
 const PublicTradeFolderPage = lazy(() => import("./pages/PublicTradeFolderPage").then((module) => ({ default: module.PublicTradeFolderPage })));
+const CommunityTradeBrowserPage = lazy(() => import("./pages/CommunityTradeBrowserPage").then((module) => ({ default: module.CommunityTradeBrowserPage })));
 const CartPage = lazy(() => import("./pages/CartPage").then((module) => ({ default: module.CartPage })));
 const AdminLayout = lazy(() => import("./pages/admin/AdminLayout").then((module) => ({ default: module.AdminLayout })));
 const AdminDashboardPage = lazy(() => import("./pages/admin/AdminDashboardPage").then((module) => ({ default: module.AdminDashboardPage })));
@@ -50,6 +51,7 @@ const AdminReportsPage = lazy(() => import("./pages/admin/AdminReportsPage").the
 const AdminModerationPage = lazy(() => import("./pages/admin/AdminModerationPage").then((module) => ({ default: module.AdminModerationPage })));
 const AdminVipCodesPage = lazy(() => import("./pages/admin/AdminVipCodesPage").then((module) => ({ default: module.AdminVipCodesPage })));
 const AdminDemoAuctionsPage = lazy(() => import("./pages/admin/AdminDemoAuctionsPage").then((module) => ({ default: module.AdminDemoAuctionsPage })));
+const AdminHkkVariantsPage = lazy(() => import("./pages/admin/AdminHkkVariantsPage").then((module) => ({ default: module.AdminHkkVariantsPage })));
 
 function AdminRoute() {
   const { isAdmin, isAuthenticated, isLoading } = useAuth();
@@ -84,6 +86,7 @@ function App() {
             <Route path="/auctions/:auctionId" element={<AuctionDetailPage />} />
             <Route path="/users/:username" element={<UserProfilePage />} />
             <Route path="/vault/users/:username" element={<PublicTradeFolderPage />} />
+            <Route path="/vault/community" element={<CommunityTradeBrowserPage />} />
             <Route path="/categories" element={<Navigate to="/auctions" replace />} />
             <Route element={<ProtectedRoute />}>
               <Route path="/auctions/create" element={<AuctionCreatePage />} />
@@ -126,6 +129,7 @@ function App() {
               <Route path="moderation" element={<AdminModerationPage />} />
               <Route path="vip-codes" element={<AdminVipCodesPage />} />
               <Route path="demo-auctions" element={<AdminDemoAuctionsPage />} />
+              <Route path="hkk-variants" element={<AdminHkkVariantsPage />} />
             </Route>
             <Route path="/terms" element={<TermsPage />} />
             <Route path="/privacy" element={<PrivacyPage />} />

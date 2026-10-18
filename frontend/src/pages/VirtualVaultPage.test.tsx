@@ -155,8 +155,9 @@ describe("VirtualVaultPage", () => {
   });
 
   it("a normál és foil példányszámot külön, kompakt vezérlőkkel szerkeszti", async () => {
-    const foil = { ...card, id: 6, quantity: 1, print_variant: "foil" };
-    mocks.listVaultCards.mockResolvedValue([card, foil]);
+    const verified = { variant_statuses: { normal: "exists", foil: "exists", fa: "absent", gfa: "absent" }, variants_verified: true } as const;
+    const foil = { ...card, ...verified, id: 6, quantity: 1, print_variant: "foil" };
+    mocks.listVaultCards.mockResolvedValue([{ ...card, ...verified }, foil]);
     mocks.updateVaultCard.mockResolvedValue(foil);
     render(<VirtualVaultPage />); await screen.findByText("Mi történt a mappádban?"); fireEvent.click(screen.getByRole("button", { name: "Gyűjtemény" }));
     const article = (await screen.findByText("Xenó lárva")).closest("article")!;
@@ -174,19 +175,21 @@ describe("VirtualVaultPage", () => {
   });
 
   it("négy meglévő változatot egyetlen kártyán, egy sorhoz tartozó vezérlőkkel mutat", async () => {
+    const verified = { variant_statuses: { normal: "exists", foil: "exists", fa: "exists", gfa: "exists" }, variant_image_urls: { fa: "https://example.test/fa.jpg", gfa: "https://example.test/gfa.jpg" }, variants_verified: true } as const;
     mocks.listVaultCards.mockResolvedValue([
-      card,
-      { ...card, id: 6, print_variant: "foil", quantity: 1 },
-      { ...card, id: 7, print_variant: "fa", quantity: 0 },
-      { ...card, id: 8, print_variant: "gfa", quantity: 3 },
+      { ...card, ...verified },
+      { ...card, ...verified, id: 6, print_variant: "foil", quantity: 1 },
+      { ...card, ...verified, id: 7, print_variant: "fa", quantity: 0 },
+      { ...card, ...verified, id: 8, print_variant: "gfa", quantity: 3 },
     ]);
     render(<VirtualVaultPage />); await screen.findByText("Mi történt a mappádban?"); fireEvent.click(screen.getByRole("button", { name: "Gyűjtemény" }));
     const article = (await screen.findByText("Xenó lárva")).closest("article")!;
     expect(article).toHaveAttribute("data-variant-count", "4");
-    expect(within(article).getAllByRole("combobox")).toHaveLength(3);
+    expect(within(article).getAllByRole("combobox")).toHaveLength(4);
     expect(within(article).getByLabelText("Xenó lárva Normál példányszáma")).toHaveValue("2");
     expect(within(article).getByLabelText("Xenó lárva Foil példányszáma")).toHaveValue("1");
     expect(within(article).getByLabelText("Xenó lárva GFA példányszáma")).toHaveValue("3");
+    expect(within(article).getByRole("img", { name: "Xenó lárva" })).toHaveAttribute("src", expect.stringContaining("?variant=gfa"));
     expect(within(article).queryByText("Mappa", { selector: "label" })).not.toBeInTheDocument();
     expect(within(article).getByRole("button", { name: "Már nem keresem" })).toBeInTheDocument();
     expect(within(article).getByRole("button", { name: "Cserére kínálom" })).toBeInTheDocument();
@@ -194,9 +197,10 @@ describe("VirtualVaultPage", () => {
     expect(within(article).getByRole("button", { name: "Xenó lárva törlése" })).toBeInTheDocument();
   });
 
-  it("gyakori lapnál nem kínál foilt, és az FA/GFA közös helyén a tényleges speciális változat marad", async () => {
-    mocks.listVaultCards.mockResolvedValue([{ ...card, rarity: "common" }, { ...card, id: 7, rarity: "common", print_variant: "fa", quantity: 1 }, { ...card, id: 8, rarity: "common", print_variant: "gfa", quantity: 1 }]);
-    mocks.searchHkk.mockResolvedValue([{ ...hkk, rarity: "uncommon" }]);
+  it("a hitelesített státusz alapján kínál változatokat, az ellenőrizetlennél pedig nem tilt indokolatlanul", async () => {
+    const verified = { variant_statuses: { normal: "exists", foil: "absent", fa: "absent", gfa: "exists" }, variants_verified: true } as const;
+    mocks.listVaultCards.mockResolvedValue([{ ...card, ...verified, rarity: "common" }, { ...card, ...verified, id: 8, rarity: "common", print_variant: "gfa", quantity: 1 }]);
+    mocks.searchHkk.mockResolvedValue([{ ...hkk, rarity: "uncommon", variant_statuses: { normal: "unknown", foil: "unknown", fa: "unknown", gfa: "unknown" }, variants_verified: false }]);
     render(<VirtualVaultPage />); await screen.findByText("Mi történt a mappádban?"); fireEvent.click(screen.getByRole("button", { name: "Gyűjtemény" }));
     const variants = screen.getByLabelText("Xenó lárva változatok");
     expect(within(variants).queryByText("Foil")).not.toBeInTheDocument();
@@ -206,7 +210,8 @@ describe("VirtualVaultPage", () => {
     fireEvent.change(screen.getByLabelText("Lap neve"), { target: { value: "Orkling" } });
     fireEvent.click(screen.getByRole("button", { name: "Keresés" }));
     expect(await screen.findByRole("combobox", { name: "Orkling Normál példányszáma" })).toBeInTheDocument();
-    expect(screen.queryByRole("combobox", { name: "Orkling Foil példányszáma" })).not.toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Orkling Foil példányszáma" })).toBeInTheDocument();
+    expect(screen.getByTitle("Foil · Még nem ellenőrzött")).toBeInTheDocument();
   });
 
   it("sikertelen mennyiségmentésnél megtartja a rekordot és hibát jelez", async () => {

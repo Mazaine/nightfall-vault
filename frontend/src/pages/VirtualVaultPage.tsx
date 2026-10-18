@@ -4,7 +4,7 @@ import * as vaultApi from "../api/vault";
 import type { HkkCard, PublicTradeCard, TradeCardSeeker, VaultCard, VaultCardLoan, VaultDeck, VaultSummary, VaultTrade } from "../api/vault";
 import { CardImagePreview } from "../components/CardImagePreview";
 import { MultiValueFilter, normalizeFilterText } from "../components/MultiValueFilter";
-import { canUseFoil, formatHkkRarity } from "../utils/hkk";
+import { formatHkkRarity, preferredHkkImageVariant } from "../utils/hkk";
 import { ListingComposer } from "../components/ListingComposer";
 import { VaultBulkListingComposer } from "../components/VaultBulkListingComposer";
 import { useNotifications } from "../NotificationContext";
@@ -35,18 +35,24 @@ const EDITION_GROUPS: { value: vaultApi.HkkEditionGroup; label: string }[] = [
   { value: "promo", label: "Promo lapok" }, { value: "coded", label: "Kódos lapok" },
 ];
 
-function availableVariants(card: { rarity?: string | null; print_variant?: vaultApi.PrintVariant }) {
-  return VARIANTS.filter((item) => item.value === "normal" || (item.value === "foil" && (canUseFoil(card.rarity) || card.print_variant === "foil")) || item.value === card.print_variant);
+function availableVariants(card: { print_variant?: vaultApi.PrintVariant; variant_statuses?: Partial<Record<vaultApi.PrintVariant, vaultApi.VariantStatus>>; variants_verified?: boolean }) {
+  return VARIANTS.filter((item) => !card.variants_verified || card.variant_statuses?.[item.value] === "exists" || item.value === card.print_variant);
 }
 
-function availableQuantities(card: Pick<VaultCard, "quantity" | "rarity" | "print_variant">) {
-  const maximum = card.print_variant === "foil" && !canUseFoil(card.rarity) ? card.quantity : MAX_COPIES;
-  return Array.from({ length: maximum + 1 }, (_, quantity) => quantity);
+function availableQuantities(_card: Pick<VaultCard, "quantity" | "rarity" | "print_variant">) {
+  return Array.from({ length: MAX_COPIES + 1 }, (_, quantity) => quantity);
 }
 
 function groupVariantDefinitions(group: VaultCardGroup) {
-  const special = group.variants.find((card) => card.print_variant === "gfa") ? "gfa" : group.variants.find((card) => card.print_variant === "fa") ? "fa" : null;
-  return VARIANTS.filter((definition) => definition.value === "normal" || (definition.value === "foil" && (canUseFoil(group.card.rarity) || group.variants.some((card) => card.print_variant === "foil"))) || definition.value === special);
+  const existing = new Set(group.variants.map((card) => card.print_variant));
+  return VARIANTS.filter((definition) => !group.card.variants_verified || group.card.variant_statuses?.[definition.value] === "exists" || existing.has(definition.value));
+}
+
+function displayedGroupCard(group: VaultCardGroup) {
+  const quantities = Object.fromEntries(group.variants.map((item) => [item.print_variant, item.quantity]));
+  const display_variant = preferredHkkImageVariant(quantities, group.card.variant_image_urls);
+  const selected = group.variants.find((item) => item.print_variant === display_variant) || group.variants.find((item) => item.print_variant === "normal") || group.card;
+  return { ...selected, display_variant };
 }
 
 function groupAvailableQuantities(group: VaultCardGroup, variant?: VaultCard) {
@@ -462,7 +468,7 @@ export function VirtualVaultPage() {
           <div className="vault-search-card-grid">{results.map((card) => <article className="vault-card vault-search-card" key={card.external_card_id}>
             <CardImagePreview card={card}/>
             <div className="vault-card-body"><header className="vault-card-title"><strong>{card.card_name}</strong><small>{card.edition}</small></header><CardMeta card={{ ...card, edition: null }}/>
-              <div className="vault-card-variant-quantities">{availableVariants(card).map((variant) => { const key = `${card.external_card_id}-${variant.value}`; return <label className="vault-variant-quantity" key={variant.value}><span>{variant.label}</span><select aria-label={`${card.card_name} ${variant.label} példányszáma`} value={resultQuantities[key] ?? (variant.value === "normal" ? 1 : 0)} onChange={(event) => setResultQuantities((current) => ({ ...current, [key]: Number(event.target.value) }))}>{Array.from({ length: MAX_COPIES + 1 }, (_, quantity) => <option key={quantity}>{quantity}</option>)}</select></label>; })}</div>
+              <div className="vault-card-variant-quantities">{availableVariants(card).map((variant) => { const key = `${card.external_card_id}-${variant.value}`; const status = card.variant_statuses?.[variant.value] || "unknown"; return <label className="vault-variant-quantity" title={`${variant.title}${status === "unknown" ? " · Még nem ellenőrzött" : ""}`} key={variant.value}><span>{variant.label}{status === "unknown" ? " ?" : ""}</span><select aria-label={`${card.card_name} ${variant.label} példányszáma`} value={resultQuantities[key] ?? (variant.value === "normal" ? 1 : 0)} onChange={(event) => setResultQuantities((current) => ({ ...current, [key]: Number(event.target.value) }))}>{Array.from({ length: MAX_COPIES + 1 }, (_, quantity) => <option key={quantity}>{quantity}</option>)}</select></label>; })}</div>
               <footer className="vault-card-actions vault-search-card-actions"><button className="button button-secondary" type="button" onClick={() => void addResult(card, "collection")}>Mappába</button><button className="button button-ghost" type="button" onClick={() => void addResult(card, "wanted")}>Keresem</button><button className="button button-ghost" type="button" onClick={() => void addResult(card, "trade")}>Cseremappába</button></footer>
             </div>
           </article>)}</div>
@@ -505,7 +511,7 @@ export function VirtualVaultPage() {
           const isSelected = group.variants.every((item) => selectedCardIds.has(item.id));
           return <article className={"vault-card" + (isSelected ? " is-selected" : "")} key={group.key} data-variant-count={group.variants.length}>
             {selectionMode ? <label className="vault-card-selector"><input type="checkbox" aria-label={card.card_name + " kijelölése"} checked={isSelected} onChange={() => toggleSelectedGroup(group)}/></label> : null}
-            <CardImage card={card}/>
+            <CardImage card={displayedGroupCard(group)}/>
             <div className="vault-card-body">
               <header className="vault-card-title"><strong title={card.card_name}>{card.card_name}</strong>{card.edition ? <small title={card.edition}>{card.edition}</small> : null}</header>
               <section className="vault-card-properties" aria-label="Tulajdonságok">
@@ -513,7 +519,8 @@ export function VirtualVaultPage() {
                 <div className="vault-card-variant-quantities" aria-label={`${card.card_name} változatok`}>{groupVariantDefinitions(group).map((definition) => {
                   const variant = group.variants.find((item) => item.print_variant === definition.value);
                   const quantities = groupAvailableQuantities(group, variant);
-                  return <label className="vault-variant-quantity" title={definition.title} key={definition.value}><span>{definition.label}</span><select aria-label={`${card.card_name} ${definition.label} példányszáma`} value={variant?.quantity || 0} disabled={busy} onChange={(event) => void changeGroupVariant(group, definition.value, Number(event.target.value))}>{quantities.map((n) => <option key={n}>{n}</option>)}</select></label>;
+                  const status = card.variant_statuses?.[definition.value] || "unknown";
+                  return <label className="vault-variant-quantity" title={`${definition.title}${status === "unknown" ? " · Még nem ellenőrzött" : ""}`} key={definition.value}><span>{definition.label}{status === "unknown" ? " ?" : ""}</span><select aria-label={`${card.card_name} ${definition.label} példányszáma`} value={variant?.quantity || 0} disabled={busy} onChange={(event) => void changeGroupVariant(group, definition.value, Number(event.target.value))}>{quantities.map((n) => <option key={n}>{n}</option>)}</select></label>;
                 })}</div>
               </section>
               <footer className="vault-card-actions vault-card-direct-actions" aria-label="Lapműveletek">
@@ -527,7 +534,7 @@ export function VirtualVaultPage() {
         })}</div>
       </section></div> : null}
 
-    {area === "trade" ? <section className="vault-content"><div><h2>Csere</h2><p className="muted">Saját cserelapok, keresett lapok és automatikus találatok.</p></div><nav className="vault-subtabs">{([ ["trade","Cseremappám"], ["wanted","Keresem"], ["matches","Találatok"] ] as [TradeView,string][]).map(([id,label]) => <button type="button" className={tradeView === id ? "is-active" : ""} onClick={() => setTradeView(id)} key={id}>{label}{id === "matches" && unseenMatchCount > 0 ? ` (${unseenMatchCount})` : ""}</button>)}</nav>
+    {area === "trade" ? <section className="vault-content"><div className="vault-toolbar"><div><h2>Csere</h2><p className="muted">Saját cserelapok, keresett lapok és automatikus találatok.</p></div><a className="button button-secondary" href="/vault/community">Közösségi cseremappa</a></div><nav className="vault-subtabs">{([ ["trade","Cseremappám"], ["wanted","Keresem"], ["matches","Találatok"] ] as [TradeView,string][]).map(([id,label]) => <button type="button" className={tradeView === id ? "is-active" : ""} onClick={() => setTradeView(id)} key={id}>{label}{id === "matches" && unseenMatchCount > 0 ? ` (${unseenMatchCount})` : ""}</button>)}</nav>
       {tradeView === "trade" ? <><VaultBulkListingComposer tradeCards={sortedTradeCards} onDone={async (text) => { setMessage(text); await reload(); }}/><div className="vault-trade-sort"><label>Rendezés<select value={tradeSortKey} onChange={(event) => setTradeSortKey(event.target.value as typeof tradeSortKey)}><option value="external_card_id">HKK ID</option><option value="card_name">Név</option></select></label><div className="vault-view-switch" role="group" aria-label="Cseremappa megjelenítése"><button type="button" aria-pressed={tradeDisplayMode === "grid"} className={tradeDisplayMode === "grid" ? "is-active" : ""} onClick={() => setTradeDisplayMode("grid")}>Rács</button><button type="button" aria-pressed={tradeDisplayMode === "list"} className={tradeDisplayMode === "list" ? "is-active" : ""} onClick={() => setTradeDisplayMode("list")}>Lista</button></div></div><div className={`vault-trade-cards ${tradeDisplayMode === "grid" ? "vault-card-grid" : "vault-trade-list"}`}>{sortedTradeCards.map((card) => tradeDisplayMode === "grid" ? <article className="vault-card" key={card.id}><CardImage card={card}/><div className="vault-card-body"><strong>{card.card_name}</strong><CardMeta card={card}/><p>#{card.external_card_id} · {card.quantity} db · {VARIANTS.find((item) => item.value === card.print_variant)?.label}</p>{card.seeker_count ? <button type="button" className="button button-primary" onClick={() => void showSeekers(card)}>Ki keresi ezt a lapot? ({card.seeker_count})</button> : <small>Még senki nem jelölte keresettnek.</small>}<footer className="vault-trade-card-actions"><button type="button" className="button button-secondary is-active" aria-label={`${card.card_name} cserére kínálva`} title="Cserére kínálva" onClick={() => card.seeker_count ? void showSeekers(card) : setMessage("A lap cserére van kínálva. Új érdeklődő esetén értesítést kapsz.")}><HandshakeIcon/> Csere</button><button type="button" className="button button-secondary" aria-label={`${card.card_name} eladása`} title="Eladás vagy aukció" onClick={() => openTradeCardListing(card)}><SaleIcon/> Eladás</button><button type="button" className="button button-ghost is-danger" aria-label="Eltávolítás a cseremappából" disabled={busy} onClick={() => setTradeCardToRemove(card)}><TrashIcon/> Eltávolítás</button></footer></div></article> : <article className="vault-trade-list-row" key={card.id}><CardImagePreview card={card} className="vault-trade-list-image"/><div className="vault-trade-list-info"><strong>{card.card_name}</strong><CardMeta card={card}/><span>#{card.external_card_id} · {card.quantity} db · {VARIANTS.find((item) => item.value === card.print_variant)?.label}</span>{card.seeker_count ? <button type="button" className="button button-primary" onClick={() => void showSeekers(card)}>Ki keresi ezt a lapot? ({card.seeker_count})</button> : <small>Még senki nem jelölte keresettnek.</small>}</div><footer className="vault-trade-list-actions"><button type="button" className="button button-secondary is-active" aria-label={`${card.card_name} cserére kínálva`} title="Cserére kínálva" onClick={() => card.seeker_count ? void showSeekers(card) : setMessage("A lap cserére van kínálva. Új érdeklődő esetén értesítést kapsz.")}><HandshakeIcon/> Csere</button><button type="button" className="button button-secondary" aria-label={`${card.card_name} eladása`} title="Eladás vagy aukció" onClick={() => openTradeCardListing(card)}><SaleIcon/> Eladás</button><button type="button" className="button button-ghost is-danger" aria-label="Eltávolítás a cseremappából" disabled={busy} onClick={() => setTradeCardToRemove(card)}><TrashIcon/> Eltávolítás</button></footer></article>)}</div></> : null}
       {tradeView === "wanted" ? <div className="vault-card-grid">{wantedCards.map((card) => <article className="vault-card" key={card.id}><CardImage card={card}/><div className="vault-card-body"><strong>{card.card_name}</strong><p>{card.wanted_quantity} példány hiányzik</p><button type="button" className="button button-ghost" onClick={() => void vaultApi.setVaultWanted(card.id, false).then(reload).catch(report)}>Eltávolítás a Keresemből</button></div></article>)}</div> : null}
       {tradeView === "matches" ? <><div className="vault-match-grid">{wantedCards.filter((card) => card.offer_count > 0).map((card) => <article className="vault-match-card" key={card.id}><CardImage card={card} className="vault-match-card-image"/><strong>{card.card_name}</strong><span>{card.offer_count} elérhető ajánlat</span><button type="button" className="button button-primary" onClick={() => void vaultApi.listMatchingOffers(card.id).then(setOffers).catch(report)}>Ajánlatok</button></article>)}</div>{offers.length ? <div className="vault-offers">{offers.map((offer) => <article key={offer.id}><CardImage card={offer} className="vault-offer-card-image"/><div><strong>{offer.card_name}</strong><small>@{offer.owner_username} · {offer.quantity} db</small></div><button type="button" className="button button-primary" onClick={() => void vaultApi.expressTradeInterest(offer.id).then(reload).catch(report)}>Érdekel</button></article>)}</div> : null}<div className="vault-negotiations">{negotiations.map((trade) => <article key={trade.id}><div><strong>{trade.card.card_name}</strong><small>{trade.requester_display_name} ↔ {trade.owner_display_name} · {trade.status === "open" ? "egyeztetés" : "lezárt"}</small></div><div className="vault-messages">{trade.messages.map((item) => <p key={item.id}><strong>{item.sender_display_name}</strong> {item.message}</p>)}</div>{trade.status === "open" ? <form onSubmit={(event) => { event.preventDefault(); const form=event.currentTarget; const text=String(new FormData(form).get("message")||""); void vaultApi.postTradeMessage(trade.id,text).then(() => { form.reset(); return reload(); }).catch(report); }}><input name="message" placeholder="Üzenet az egyeztetéshez…" required/><button className="button button-secondary">Küldés</button></form> : null}</article>)}</div></> : null}
