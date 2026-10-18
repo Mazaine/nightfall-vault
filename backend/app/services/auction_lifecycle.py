@@ -188,10 +188,11 @@ def create_auction(db: Session, auction_create: AuctionCreate, seller: User) -> 
         ))
         if existing is not None:
             if existing.status == "draft":
-                retry_update = AuctionUpdate(**auction_create.model_dump(exclude={"creation_key", "seller_declaration_accepted", "seller_declaration_version", "listing_type", "vault_collection_card_id", "vault_quantity"}))
+                retry_update = AuctionUpdate(**auction_create.model_dump(exclude={"creation_key", "seller_declaration_accepted", "seller_declaration_version", "listing_type", "vault_collection_card_id", "vault_trade_card_id", "vault_quantity"}))
                 return update_auction(db, existing, retry_update, seller)
             return existing
     vault_card = None
+    vault_trade_card = None
     if auction_create.vault_collection_card_id is not None:
         from app.models.vault import VaultCollectionCard
         vault_card = db.scalar(
@@ -208,14 +209,31 @@ def create_auction(db: Session, auction_create: AuctionCreate, seller: User) -> 
         requested = int(auction_create.vault_quantity or 0)
         if requested > max(vault_card.quantity - reserved, 0):
             raise HTTPException(status_code=409, detail=f"Ebből a lapváltozatból legfeljebb {max(vault_card.quantity - reserved, 0)} példány hirdethető meg.")
+    if auction_create.vault_trade_card_id is not None:
+        from app.models.vault import VaultTradeCard
+        vault_trade_card = db.scalar(
+            select(VaultTradeCard)
+            .where(VaultTradeCard.id == auction_create.vault_trade_card_id, VaultTradeCard.user_id == seller.id)
+            .with_for_update()
+        )
+        if vault_trade_card is None:
+            raise HTTPException(status_code=404, detail="A meghirdetendő cseremappa-lap nem található.")
+        from app.services.hkk_variants import require_attested_variant
+        require_attested_variant(db, vault_trade_card.external_card_id, vault_trade_card.print_variant)
+        from app.services.batch_listings import _reserved_trade_quantity
+        reserved = _reserved_trade_quantity(db, vault_trade_card.id)
+        requested = int(auction_create.vault_quantity or 0)
+        if requested > max(vault_trade_card.quantity - reserved, 0):
+            raise HTTPException(status_code=409, detail=f"Ebből a cserelap-változatból legfeljebb {max(vault_trade_card.quantity - reserved, 0)} példány hirdethető meg.")
     auction = Auction(
         seller_id=seller.id,
         creation_key=auction_create.creation_key,
         listing_type=auction_create.listing_type,
         vault_collection_card_id=vault_card.id if vault_card else None,
-        vault_external_card_id=vault_card.external_card_id if vault_card else None,
-        vault_print_variant=vault_card.print_variant if vault_card else None,
-        vault_quantity=auction_create.vault_quantity if vault_card else None,
+        vault_trade_card_id=vault_trade_card.id if vault_trade_card else None,
+        vault_external_card_id=(vault_card or vault_trade_card).external_card_id if (vault_card or vault_trade_card) else None,
+        vault_print_variant=(vault_card or vault_trade_card).print_variant if (vault_card or vault_trade_card) else None,
+        vault_quantity=auction_create.vault_quantity if (vault_card or vault_trade_card) else None,
         title=auction_create.title,
         description=auction_create.description,
         external_link_label=auction_create.external_link_label,

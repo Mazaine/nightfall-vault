@@ -86,4 +86,15 @@ describe("ListingComposer piaci ár hivatkozás", () => {
     expect(screen.getByRole("button", { name: "Meghirdetem fix áron" })).toBeDisabled();
     expect(screen.getByLabelText("Változat").querySelectorAll("option")).toHaveLength(0);
   });
+
+  it("cseremappa-forrásnál közvetlenül a cserelap azonosítóját küldi", async () => {
+    render(<MemoryRouter><ListingComposer source={{ ...source, inventoryKind: "trade" }}/></MemoryRouter>);
+    fireEvent.change(document.querySelector<HTMLInputElement>('input[name="price"]')!, { target: { value: "700" } });
+    fireEvent.click(screen.getByRole("button", { name: "Meghirdetem fix áron" }));
+    await waitFor(() => expect(auctionMocks.createAuction).toHaveBeenCalledWith(expect.objectContaining({
+      vault_trade_card_id: 14,
+      vault_collection_card_id: null,
+      vault_quantity: 1,
+    })));
+  });
 });

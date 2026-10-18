@@ -124,13 +124,17 @@ class AuctionCreate(AuctionBase):
     seller_declaration_version: str = Field(default="2026-07-11", min_length=4, max_length=20)
     listing_type: Literal["auction", "fixed"] = "auction"
     vault_collection_card_id: int | None = Field(default=None, gt=0)
+    vault_trade_card_id: int | None = Field(default=None, gt=0)
     vault_quantity: int | None = Field(default=None, ge=1, le=9)
 
     @model_validator(mode="after")
     def validate_declaration(self) -> "AuctionCreate":
         if not self.seller_declaration_accepted:
             raise ValueError("Az eladói nyilatkozat elfogadása kötelező.")
-        if bool(self.vault_collection_card_id) != bool(self.vault_quantity):
+        inventory_count = int(self.vault_collection_card_id is not None) + int(self.vault_trade_card_id is not None)
+        if inventory_count > 1:
+            raise ValueError("Egy hirdetéshez csak egy Vault-készletforrás választható.")
+        if bool(inventory_count) != bool(self.vault_quantity):
             raise ValueError("A Vault-lapot és a meghirdetett mennyiséget együtt kell megadni.")
         if self.listing_type == "fixed":
             if not self.buy_now_enabled or self.buy_now_price is None:

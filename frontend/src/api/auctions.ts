@@ -117,6 +117,7 @@ export type AuctionCreatePayload = {
   creation_key?: string;
   listing_type?: "auction" | "fixed";
   vault_collection_card_id?: number | null;
+  vault_trade_card_id?: number | null;
   vault_quantity?: number | null;
   title: string;
   description: string;

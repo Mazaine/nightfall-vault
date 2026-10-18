@@ -8,6 +8,7 @@ import { CardImagePreview } from "./CardImagePreview";
 import { FileImagePreview } from "./FileImagePreview";
 
 export type ListingSource = {
+  inventoryKind?: "collection" | "trade";
   externalCardId: string;
   cardName: string;
   edition: string | null;
@@ -89,7 +90,8 @@ export function ListingComposer({ source, compact = false, onClose, onDone }: { 
       setBusy(true); setMessage("");
       const auction = await createAuction({
         listing_type: mode,
-        vault_collection_card_id: selectedVariant?.id ?? null,
+        vault_collection_card_id: source?.inventoryKind === "trade" ? null : selectedVariant?.id ?? null,
+        vault_trade_card_id: source?.inventoryKind === "trade" ? selectedVariant?.id ?? null : null,
         vault_quantity: selectedVariant ? quantity : null,
         title: String(data.get("title") || source?.cardName || ""),
         description: String(data.get("description") || "Megkímélt gyűjtői lap, a képeken látható állapotban."),

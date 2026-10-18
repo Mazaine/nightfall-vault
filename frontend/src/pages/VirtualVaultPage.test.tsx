@@ -279,6 +279,18 @@ describe("VirtualVaultPage", () => {
     expect(mocks.listTradeCardSeekers).toHaveBeenCalledWith(5);
   });
 
+  it("a cseremappa Eladás gombja közvetlenül megnyitja a hirdetési modalt", async () => {
+    mocks.listTradeCards.mockResolvedValue([{ ...card, quantity: 1, available_listing_quantity: 1, owner_id: 1, owner_username: "admin", seeker_count: 0 }]);
+    mocks.listVaultCards.mockResolvedValue([]);
+    render(<VirtualVaultPage />);
+    await screen.findByText("Mi történt a mappádban?");
+    fireEvent.click(screen.getByRole("button", { name: "Csere" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Xenó lárva eladása" }));
+    const dialog = screen.getByRole("dialog", { name: "Meghirdetés · Xenó lárva" });
+    expect(within(dialog).getByLabelText("Változat")).toHaveValue("5");
+    expect(within(dialog).getByRole("button", { name: "Meghirdetem fix áron" })).toBeEnabled();
+  });
+
   it("a cseremappából eltávolít, miközben a gyűjteménypéldány megmarad és a nézet frissül", async () => {
     mocks.deleteTradeCard.mockResolvedValue(undefined);
     render(<VirtualVaultPage />);

@@ -425,6 +425,42 @@ def test_trade_backed_batch_listing_uses_full_trade_quantity_and_closes_inventor
         cleanup_test_data(); cleanup()
 
 
+def test_trade_card_can_create_single_fixed_listing_directly() -> None:
+    cleanup_test_data(); cleanup()
+    seller = create_test_user("trade-single-listing@vault-test.local")
+    headers = auth_headers(seller)
+    try:
+        trade = client.post("/api/vault/trade", json=card_payload("trade-single", "Egyedi cserelap", 2), headers=headers)
+        assert trade.status_code == 201, trade.text
+        trade_card = trade.json()
+        payload = auction_payload(
+            title="Egyedi cserelap",
+            description="Cseremappából közvetlenül indított fix áras teszthirdetés.",
+            category="Hatalom Kártyái Kártyajáték",
+            listing_type="fixed",
+            vault_trade_card_id=trade_card["id"],
+            vault_quantity=1,
+            starting_price="0",
+            bid_increment="700",
+            buy_now_enabled=True,
+            buy_now_price="700",
+            five_minute_rule_enabled=False,
+            starts_at=(datetime.now(timezone.utc) - timedelta(minutes=1)).isoformat(),
+        )
+        created = client.post("/api/auctions", json=payload, headers=headers)
+        assert created.status_code == 201, created.text
+        assert created.json()["vault_trade_card_id"] == trade_card["id"]
+        assert created.json()["vault_collection_card_id"] is None
+        assert client.post(f"/api/auctions/{created.json()['id']}/activate", headers=headers).status_code == 200
+        own_trade = client.get("/api/vault/trade", headers=headers).json()[0]
+        assert own_trade["quantity"] == 2 and own_trade["available_listing_quantity"] == 1
+
+        duplicate = client.post("/api/auctions", json={**payload, "creation_key": str(uuid4()), "vault_quantity": 2}, headers=headers)
+        assert duplicate.status_code == 409
+    finally:
+        cleanup_test_data(); cleanup()
+
+
 def test_public_trade_matching_interest_completion_and_idempotent_rewards() -> None:
     cleanup(); seeker = create_test_user("seeker@vault-test.local"); owner = create_test_user("trader@vault-test.local")
     db = SessionLocal()
