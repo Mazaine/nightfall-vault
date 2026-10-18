@@ -366,6 +366,7 @@ class NotificationUnreadCount(BaseModel):
 class AuctionBundleItemRead(BaseModel):
     id: int
     vault_collection_card_id: int | None
+    vault_trade_card_id: int | None
     external_card_id: str
     card_name: str
     edition: str | None
@@ -378,12 +379,19 @@ class AuctionBundleItemRead(BaseModel):
 
 
 class BatchFixedListingItemCreate(BaseModel):
-    vault_collection_card_id: int = Field(gt=0)
+    vault_collection_card_id: int | None = Field(default=None, gt=0)
+    vault_trade_card_id: int | None = Field(default=None, gt=0)
     quantity: int = Field(ge=1, le=9)
     base_price: int = Field(gt=0, le=999_999_999)
     final_price: int = Field(gt=0, le=999_999_999)
     condition: AuctionCondition = "NM"
     description: str = Field(default="Újszerű HKK-lap a Virtuális HKK Mappából.", min_length=10, max_length=5000)
+
+    @model_validator(mode="after")
+    def validate_inventory_source(self) -> "BatchFixedListingItemCreate":
+        if bool(self.vault_collection_card_id) == bool(self.vault_trade_card_id):
+            raise ValueError("Pontosan egy Vault-készletforrást kell megadni.")
+        return self
 
 
 class BatchFixedListingCreate(BaseModel):
@@ -397,7 +405,7 @@ class BatchFixedListingCreate(BaseModel):
 
     @model_validator(mode="after")
     def validate_batch(self) -> "BatchFixedListingCreate":
-        ids = [item.vault_collection_card_id for item in self.items]
+        ids = [("collection", item.vault_collection_card_id) if item.vault_collection_card_id else ("trade", item.vault_trade_card_id) for item in self.items]
         if len(ids) != len(set(ids)):
             raise ValueError("Egy lapváltozat csak egyszer szerepelhet a kötegben.")
         if self.mode == "bundle" and (not self.bundle_name or not self.bundle_description or self.bundle_price is None):
@@ -413,6 +421,7 @@ class AuctionListItem(BaseModel):
     listing_type: Literal["auction", "fixed"] = "auction"
     listing_format: Literal["single", "bundle"] = "single"
     vault_collection_card_id: int | None = None
+    vault_trade_card_id: int | None = None
     vault_external_card_id: str | None = None
     vault_print_variant: str | None = None
     vault_quantity: int | None = None

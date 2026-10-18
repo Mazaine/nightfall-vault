@@ -9,6 +9,7 @@ import { AuctionCountdown } from "./AuctionCountdown";
 import { BidConfirmationDialog } from "./BidDialogs";
 import { SafeImage } from "./SafeImage";
 import { formatCardCondition, getCardCondition, type ReadableCardCondition } from "../data/cardConditions";
+import { addCartItem, announceCartChanged } from "../api/cart";
 
 function moneyToCents(value: string | null | undefined) {
   const amount = Number(value);
@@ -216,6 +217,18 @@ export function AuctionCard({
     setPendingBid({ amount, isBuyNow });
   };
 
+  const addToCart = async () => {
+    if (!isAuthenticated) { navigate(`/login?next=${encodeURIComponent(detailPath)}`); return; }
+    if (isActionPending) return;
+    setIsActionPending(true); setActionMessage("");
+    try {
+      const cart = await addCartItem(Number(item.id), 1);
+      announceCartChanged(cart.item_count);
+      showToast({ title: "Kosárba téve", message: `${item.title} 60 percre lefoglalva.`, targetUrl: "/cart" });
+    } catch (error) { setActionMessage(error instanceof Error ? error.message : "A kosárba helyezés nem sikerült."); }
+    finally { setIsActionPending(false); }
+  };
+
   const confirmPendingBid = async (disableFuture: boolean) => {
     if (!pendingBid || isActionPending) return;
     const selected = pendingBid;
@@ -284,7 +297,7 @@ export function AuctionCard({
         <div className="auction-commerce-block">
           {isFixedPrice ? <div className="auction-price-action-row auction-fixed-price-row">
             <div className="auction-price-copy"><span>Fix ár</span><strong>{item.buyNowPrice ? formatCardMoney(item.buyNowPrice) : displayPrice}</strong></div>
-            {item.buyNowAmount && showBidActions && canUseQuickBid ? <button className="button button-primary" type="button" disabled={isOwnAuction || isActionPending} title={isOwnAuction ? "A saját hirdetésedet nem vásárolhatod meg." : undefined} onClick={() => void requestQuickAction(item.buyNowAmount ?? "", true)}>{isActionPending ? "Feldolgozás..." : "Megveszem"}</button> : null}
+            {item.buyNowAmount && showBidActions && canUseQuickBid ? <div className="auction-fixed-actions"><button className="button button-secondary" type="button" disabled={isOwnAuction || isActionPending} onClick={() => void addToCart()}>Kosárba</button><button className="button button-primary" type="button" disabled={isOwnAuction || isActionPending} title={isOwnAuction ? "A saját hirdetésedet nem vásárolhatod meg." : undefined} onClick={() => void requestQuickAction(item.buyNowAmount ?? "", true)}>{isActionPending ? "Feldolgozás..." : "Megveszem"}</button></div> : null}
           </div> : <>
           <div className="auction-price-action-row">
             <div className="auction-price-copy">

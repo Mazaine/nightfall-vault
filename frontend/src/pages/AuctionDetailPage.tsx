@@ -18,6 +18,7 @@ import { formatAuctionEndDate, formatAuctionStatus, formatLocalDateTime, formatM
 import { disableBidConfirmation, isBidConfirmationDisabled } from "../utils/bidConfirmation";
 import { formatCardCondition } from "../data/cardConditions";
 import { copyAuctionLink, openFacebookAuctionShare, shareAuction } from "../utils/auctionShare";
+import { addCartItem, announceCartChanged } from "../api/cart";
 
 function moneyToCents(value: string | null | undefined) {
   const amount = Number(value);
@@ -36,7 +37,7 @@ export function AuctionDetailPage() {
   const { auctionId } = useParams();
   const location = useLocation();
   const { isAuthenticated, user } = useAuth();
-  const { subscribe: subscribeNotifications } = useNotifications();
+  const { subscribe: subscribeNotifications, showToast } = useNotifications();
   const { subscribe: subscribeAuctionUpdates } = useAuctionRealtime();
   const [auction, setAuction] = useState<Auction | null>(null);
   const [messages, setMessages] = useState<AuctionMessage[]>([]);
@@ -292,6 +293,17 @@ export function AuctionDetailPage() {
     setPendingBid(null);
   };
 
+  const addCurrentAuctionToCart = async () => {
+    if (!auction || isBidSubmitting) return;
+    setIsBidSubmitting(true); setBidMessage("");
+    try {
+      const cart = await addCartItem(auction.id, 1);
+      announceCartChanged(cart.item_count);
+      showToast({ title: "Kosárba téve", message: `${auction.title} 60 percre lefoglalva.`, targetUrl: "/cart" });
+    } catch (error) { setBidMessage(error instanceof Error ? error.message : "A kosárba helyezés nem sikerült."); }
+    finally { setIsBidSubmitting(false); }
+  };
+
   const confirmWithdrawal = async (reasonCode: BidWithdrawalReason, reasonText: string | null) => {
     if (!auction || !withdrawBidTarget || isWithdrawingBid) return;
     setIsWithdrawingBid(true);
@@ -490,9 +502,9 @@ export function AuctionDetailPage() {
               {isBidSubmitting ? "Licit rögzítése..." : "Licitálok"}
             </button></> : null}
             {auction.buy_now_enabled && auction.buy_now_price ? (
-              <button className="button button-lightning" id="buy-now-section" type="button" disabled={isBidSubmitting} onClick={() => void requestBidConfirmation(auction.buy_now_price ?? "", true)}>
+              <>{auction.listing_type === "fixed" ? <button className="button button-secondary" type="button" disabled={isBidSubmitting} onClick={() => void addCurrentAuctionToCart()}>Kosárba</button> : null}<button className="button button-lightning" id="buy-now-section" type="button" disabled={isBidSubmitting} onClick={() => void requestBidConfirmation(auction.buy_now_price ?? "", true)}>
                 {auction.listing_type === "fixed" ? "Megveszem" : `Villámár: ${formatMoney(auction.buy_now_price)}`}
-              </button>
+              </button></>
             ) : null}
             {bidMessage ? <p className="form-message" role="status" aria-live="polite">{bidMessage}</p> : null}
           </form>

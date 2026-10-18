@@ -40,6 +40,7 @@ const NotificationsPage = lazy(() => import("./pages/NotificationsPage").then((m
 const VipMembershipPage = lazy(() => import("./pages/VipMembershipPage").then((module) => ({ default: module.VipMembershipPage })));
 const VirtualVaultPage = lazy(() => import("./pages/VirtualVaultPage").then((module) => ({ default: module.VirtualVaultPage })));
 const PublicTradeFolderPage = lazy(() => import("./pages/PublicTradeFolderPage").then((module) => ({ default: module.PublicTradeFolderPage })));
+const CartPage = lazy(() => import("./pages/CartPage").then((module) => ({ default: module.CartPage })));
 const AdminLayout = lazy(() => import("./pages/admin/AdminLayout").then((module) => ({ default: module.AdminLayout })));
 const AdminDashboardPage = lazy(() => import("./pages/admin/AdminDashboardPage").then((module) => ({ default: module.AdminDashboardPage })));
 const AdminUsersPage = lazy(() => import("./pages/admin/AdminUsersPage").then((module) => ({ default: module.AdminUsersPage })));
@@ -103,6 +104,7 @@ function App() {
               <Route path="/notifications" element={<Navigate to="/account/notifications" replace />} />
               <Route path="/my-bids" element={<MyBidsPage />} />
               <Route path="/vault" element={<VirtualVaultPage />} />
+              <Route path="/cart" element={<CartPage />} />
               <Route path="/watchlist" element={<Navigate to="/my-bids?state=watched" replace />} />
               <Route path="/saved-searches" element={<Navigate to="/auctions" replace />} />
             </Route>

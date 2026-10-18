@@ -204,6 +204,11 @@ def reserved_listing_quantity(db: Session, card_id: int) -> int:
     return _reserved_quantity(db, card_id)
 
 
+def reserved_trade_listing_quantity(db: Session, card_id: int) -> int:
+    from app.services.batch_listings import _reserved_trade_quantity
+    return _reserved_trade_quantity(db, card_id)
+
+
 def assigned_capacity(db: Session, user_id: int, *, exclude_folder_id: int | None = None) -> int:
     statement = select(func.coalesce(func.sum(VaultFolder.capacity), 0)).where(VaultFolder.user_id == user_id)
     if exclude_folder_id is not None:

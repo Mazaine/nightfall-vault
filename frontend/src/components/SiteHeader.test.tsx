@@ -18,6 +18,7 @@ vi.mock("../api/auctions", async (importOriginal) => {
   const original = await importOriginal<typeof import("../api/auctions")>();
   return { ...original, getUnreadNotificationCount: vi.fn().mockResolvedValue({ unread_count: 2 }) };
 });
+vi.mock("../api/cart", async (importOriginal) => ({ ...(await importOriginal<typeof import("../api/cart")>()), getCart: vi.fn().mockResolvedValue({ items: [], item_count: 3, total: "0", server_time: "2026-10-17T10:00:00Z" }) }));
 
 function authenticate(role: "user" | "admin" = "user") {
   state.auth.user = { id: 1, email: "test@example.invalid", username: "hosszu-felhasznalonev-a-teszteleshez", full_name: "Nagyon Hosszú Megjelenítési Név A Navbar Teszteléséhez", role };
@@ -49,6 +50,7 @@ describe("SiteHeader", () => {
     expect(screen.getByRole("menuitem", { name: "Profilbeállítások" })).toHaveAttribute("href", "/account/profile");
     expect(screen.getByRole("menuitem", { name: "Licitjeim" })).toHaveAttribute("href", "/my-bids");
     expect(screen.getByRole("link", { name: "Piactér" })).toHaveAttribute("href", "/marketplace");
+    expect(await screen.findByRole("link", { name: "Kosár, 3 tétel" })).toHaveAttribute("href", "/cart");
     expect(screen.queryByRole("link", { name: "HKK Mappa" })).not.toBeInTheDocument();
     await waitFor(() => expect(screen.getByRole("menuitem", { name: "Virtuális mappám" })).toHaveFocus());
   });

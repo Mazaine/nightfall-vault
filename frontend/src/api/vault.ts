@@ -10,7 +10,7 @@ export type VaultCard = {
 };
 export type BulkCardAction = "move" | "trade_add" | "trade_remove" | "wanted_on" | "wanted_off" | "delete";
 export type VaultMaintenance = { stale_after_days: number; acquired_wanted: VaultCard[]; stale_trade_cards: PublicTradeCard[]; overdue_loans: VaultCardLoan[] };
-export type PublicTradeCard = VaultCard & { owner_id: number; owner_username: string; seeker_count: number; fixed_price_auction_id?: number | null; fixed_price?: string | null };
+export type PublicTradeCard = VaultCard & { owner_id: number; owner_username: string; seeker_count: number; available_listing_quantity?: number | null; fixed_price_auction_id?: number | null; fixed_price?: string | null };
 export type TradeCardSeeker = { user_id: number; username: string; display_name: string; wanted_quantity: number };
 export type VaultSummary = {
   total_collection_capacity: number; assigned_collection_capacity: number; free_collection_capacity: number;

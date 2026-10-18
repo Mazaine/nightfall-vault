@@ -355,6 +355,10 @@ def place_bid(db: Session, auction_id: int, bidder: User, amount: Decimal) -> tu
     fixed_purchase = auction.listing_type == "fixed"
     if fixed_purchase and (not auction.buy_now_enabled or auction.buy_now_price is None or normalized_amount != normalize_money(auction.buy_now_price)):
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="A fix áras hirdetés csak a meghirdetett áron vásárolható meg.")
+    if fixed_purchase:
+        from app.services.cart import validate_direct_purchase_reservations
+
+        validate_direct_purchase_reservations(db, auction.id, bidder.id)
     if not fixed_purchase and normalized_amount < minimum_bid:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -392,6 +396,10 @@ def place_bid(db: Session, auction_id: int, bidder: User, amount: Decimal) -> tu
         auction.status = "sold"
         auction.winner_id = bidder.id
         auction.finalized_at = now_utc()
+        if fixed_purchase:
+            from app.services.cart import consume_direct_purchase_reservations
+
+            consume_direct_purchase_reservations(db, auction.id, bidder.id)
         notify_auction_closed(db, auction)
         create_domain_audit_log(db, action="auction_buy_now", user_id=bidder.id, auction_id=auction.id, metadata={"amount": str(normalized_amount)})
     if previous_highest_bidder_id is not None and previous_highest_bidder_id != bidder.id:

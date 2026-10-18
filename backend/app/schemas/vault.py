@@ -148,6 +148,7 @@ class PublicTradeCardRead(CardRead):
     owner_id: int
     owner_username: str
     seeker_count: int = 0
+    available_listing_quantity: int | None = None
     fixed_price_auction_id: int | None = None
     fixed_price: str | None = None
 

@@ -46,6 +46,7 @@ class Auction(Base):
     listing_type: Mapped[str] = mapped_column(String(16), nullable=False, default="auction", server_default="auction", index=True)
     listing_format: Mapped[str] = mapped_column(String(16), nullable=False, default="single", server_default="single", index=True)
     vault_collection_card_id: Mapped[int | None] = mapped_column(ForeignKey("vault_collection_cards.id", ondelete="SET NULL"), nullable=True, index=True)
+    vault_trade_card_id: Mapped[int | None] = mapped_column(ForeignKey("vault_trade_cards.id", ondelete="SET NULL"), nullable=True, index=True)
     vault_external_card_id: Mapped[str | None] = mapped_column(String(120), nullable=True, index=True)
     vault_print_variant: Mapped[str | None] = mapped_column(String(10), nullable=True)
     vault_quantity: Mapped[int | None] = mapped_column(Integer, nullable=True)
@@ -140,12 +141,14 @@ class AuctionBundleItem(Base):
         CheckConstraint("unit_price > 0", name="ck_auction_bundle_items_unit_price"),
         CheckConstraint("print_variant IN ('normal', 'foil', 'fa', 'gfa')", name="ck_auction_bundle_items_variant"),
         UniqueConstraint("auction_id", "vault_collection_card_id", name="uq_auction_bundle_items_auction_card"),
+        UniqueConstraint("auction_id", "vault_trade_card_id", name="uq_auction_bundle_items_auction_trade_card"),
         Index("ix_auction_bundle_items_external", "external_card_id", "card_name"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     auction_id: Mapped[int] = mapped_column(ForeignKey("auctions.id", ondelete="CASCADE"), nullable=False, index=True)
     vault_collection_card_id: Mapped[int | None] = mapped_column(ForeignKey("vault_collection_cards.id", ondelete="SET NULL"), nullable=True, index=True)
+    vault_trade_card_id: Mapped[int | None] = mapped_column(ForeignKey("vault_trade_cards.id", ondelete="SET NULL"), nullable=True, index=True)
     external_card_id: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
     card_name: Mapped[str] = mapped_column(String(180), nullable=False)
     edition: Mapped[str | None] = mapped_column(String(180), nullable=True)

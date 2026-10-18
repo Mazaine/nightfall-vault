@@ -18,6 +18,7 @@
 @import "./utilities/spacing.css";
 @import "../components/SiteHeader.css";
 @import "../components/SiteFooter.css";
+@import "./cart.css";
 .demo-auction-badge {
   display: inline-flex;
   align-items: center;

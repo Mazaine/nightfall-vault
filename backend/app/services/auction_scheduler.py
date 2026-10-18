@@ -149,6 +149,7 @@ def send_due_two_hour_reminders(db: Session, limit: int = 500) -> int:
 
 def close_expired_auctions(db: Session, limit: int = 50) -> int:
     from app.services.transactions import archive_due_transactions
+    from app.services.cart import expire_reservations
 
     statement = (
         select(Auction)
@@ -166,6 +167,7 @@ def close_expired_auctions(db: Session, limit: int = 50) -> int:
             closed_count += 1
             closed_auctions.append(auction)
     archive_due_transactions(db)
+    expire_reservations(db)
     send_due_watchlist_reminders(db)
     send_due_two_hour_reminders(db)
     db.commit()

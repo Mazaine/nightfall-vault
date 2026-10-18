@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router";
-import { confirmTransactionCompletion, deleteClosedTransaction, listTransactions, saveTransactionNote, type AuctionTransaction, type TransactionStatus } from "../api/transactions";
+import { cancelTransaction, confirmTransactionCompletion, deleteClosedTransaction, listTransactions, saveTransactionNote, type AuctionTransaction, type TransactionStatus } from "../api/transactions";
 import { formatLocalDateTime } from "../utils/format";
 import { EmptyState, ErrorState, LoadingState } from "../components/AsyncStates";
 
@@ -9,6 +9,7 @@ const statusLabels: Record<TransactionStatus, string> = {
   completed: "Értékelésre vár",
   reviewed: "Értékelve",
   archived: "Lezárva",
+  cancelled: "Meghiúsult",
 };
 
 export function AccountTransactionsPage() {
@@ -67,6 +68,14 @@ export function AccountTransactionsPage() {
     finally { setBusyId(null); }
   };
 
+  const cancel = async (item: AuctionTransaction) => {
+    if (!window.confirm("Biztosan meghiúsultként zárod le ezt az ügyletet? A lefoglalt készlet ismét elérhető lesz.")) return;
+    setBusyId(item.id); setMessage("");
+    try { const updated = await cancelTransaction(item.id); setItems((current) => current.map((entry) => entry.id === updated.id ? updated : entry)); setMessage("Az ügyletet meghiúsultként lezártuk."); }
+    catch (reason) { setMessage(reason instanceof Error ? reason.message : "Az ügylet lezárása nem sikerült."); }
+    finally { setBusyId(null); }
+  };
+
   return (
     <section className="account-section">
       <div className="section-heading"><div><p className="eyebrow">Aukció után</p><h1>Tranzakcióim</h1><p className="section-note">A fizetést és az átadást a partnereddel, a privát chatben egyezteted.</p></div></div>
@@ -80,8 +89,9 @@ export function AccountTransactionsPage() {
           <article className="side-panel transaction-card" key={item.id}>
             <div><span className={`transaction-status transaction-status-${item.status}`}>{statusLabels[item.status]}</span><h2><Link to={`/auctions/${item.auction_id}`}>{item.auction.title}</Link></h2><p>{item.role === "seller" ? "Eladó" : "Nyertes"} · partner: <Link to={`/users/${item.partner.username}`}>{item.partner.username}</Link></p></div>
             <dl className="detail-list"><div><dt>Saját megerősítés</dt><dd>{item.own_completed_at ? formatLocalDateTime(item.own_completed_at) : "Még nincs"}</dd></div><div><dt>Partner megerősítése</dt><dd>{item.partner_completed_at ? formatLocalDateTime(item.partner_completed_at) : "Még nincs"}</dd></div>{item.review_deadline ? <div><dt>Értékelési határidő</dt><dd>{formatLocalDateTime(item.review_deadline)}</dd></div> : null}</dl>
+            {item.items?.length ? <ul className="transaction-item-list">{item.items.map((line) => <li key={line.id}>{line.title} · {line.quantity} db · {line.subtotal.toLocaleString("hu-HU")} Ft</li>)}</ul> : null}
             <label className="transaction-note">Saját megjegyzés<textarea rows={3} maxLength={2000} value={noteDrafts[item.id] ?? ""} onChange={(event) => setNoteDrafts((current) => ({ ...current, [item.id]: event.target.value }))} placeholder="Például: átvétel egyeztetve péntekre" /></label>
-            <div className="transaction-actions"><button className="button button-secondary" type="button" disabled={busyId === item.id || (noteDrafts[item.id] ?? "").trim() === (item.own_note ?? "")} onClick={() => void saveNote(item)}>{busyId === item.id ? "Mentés…" : "Megjegyzés mentése"}</button><Link className="button button-secondary" to={`/auctions/${item.auction_id}#auction-conversation`}>Chat megnyitása</Link>{item.can_confirm ? <button className="button button-primary" type="button" disabled={busyId === item.id} onClick={() => void confirm(item)}>Teljesítés megerősítése</button> : null}{item.can_review ? <Link className="button button-secondary" to={`/auctions/${item.auction_id}#review-section`}>Értékelés</Link> : null}{item.can_delete ? <button className="button button-danger" type="button" disabled={busyId === item.id} onClick={() => void remove(item)}>Tranzakció törlése</button> : null}</div>
+            <div className="transaction-actions"><button className="button button-secondary" type="button" disabled={busyId === item.id || (noteDrafts[item.id] ?? "").trim() === (item.own_note ?? "")} onClick={() => void saveNote(item)}>{busyId === item.id ? "Mentés…" : "Megjegyzés mentése"}</button><Link className="button button-secondary" to={`/auctions/${item.auction_id}#auction-conversation`}>Chat megnyitása</Link>{item.can_confirm ? <button className="button button-primary" type="button" disabled={busyId === item.id} onClick={() => void confirm(item)}>Teljesítés megerősítése</button> : null}{item.status === "transaction_open" && item.items?.length ? <button className="button button-danger" type="button" disabled={busyId === item.id} onClick={() => void cancel(item)}>Ügylet meghiúsult</button> : null}{item.can_review ? <Link className="button button-secondary" to={`/auctions/${item.auction_id}#review-section`}>Értékelés</Link> : null}{item.can_delete ? <button className="button button-danger" type="button" disabled={busyId === item.id} onClick={() => void remove(item)}>Tranzakció törlése</button> : null}</div>
           </article>
         ))}
       </div>

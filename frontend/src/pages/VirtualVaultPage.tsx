@@ -7,6 +7,7 @@ import { MultiValueFilter, normalizeFilterText } from "../components/MultiValueF
 import { canUseFoil, formatHkkRarity } from "../utils/hkk";
 import { ListingComposer } from "../components/ListingComposer";
 import { VaultBulkListingComposer } from "../components/VaultBulkListingComposer";
+import { useNotifications } from "../NotificationContext";
 
 const CardImage = (props: ComponentProps<typeof CardImagePreview>) => <CardImagePreview {...props} preview={false}/>;
 
@@ -114,9 +115,16 @@ function EditionCombobox({ editions, value, onChange, label, showGroups = true }
 }
 
 export function VirtualVaultPage() {
+  const { showToast } = useNotifications();
   const initialParams = useMemo(() => new URLSearchParams(window.location.search), []);
-  const [area, setArea] = useState<Area>(() => initialParams.get("area") === "trade" ? "trade" : "dashboard");
-  const [tradeView, setTradeView] = useState<TradeView>(() => initialParams.get("view") === "matches" ? "matches" : "trade");
+  const [area, setArea] = useState<Area>(() => {
+    const requested = initialParams.get("area");
+    return (["dashboard", "collection", "add", "trade", "decks", "loans", "points"] as Area[]).includes(requested as Area) ? requested as Area : "dashboard";
+  });
+  const [tradeView, setTradeView] = useState<TradeView>(() => {
+    const requested = initialParams.get("view");
+    return (["trade", "wanted", "matches"] as TradeView[]).includes(requested as TradeView) ? requested as TradeView : "trade";
+  });
   const [summary, setSummary] = useState<VaultSummary | null>(null);
   const [cards, setCards] = useState<VaultCard[]>([]);
   const [tradeCards, setTradeCards] = useState<PublicTradeCard[]>([]);
@@ -160,6 +168,7 @@ export function VirtualVaultPage() {
   const [tradeCardToRemove, setTradeCardToRemove] = useState<PublicTradeCard | null>(null);
   const [tradeQuantities, setTradeQuantities] = useState<Record<number, number>>({});
   const [tradeSortKey, setTradeSortKey] = useState<"external_card_id" | "card_name">("external_card_id");
+  const [tradeDisplayMode, setTradeDisplayMode] = useState<"grid" | "list">("grid");
   const [loanComposerOpen, setLoanComposerOpen] = useState(false);
   const [loanSearch, setLoanSearch] = useState("");
   const [loanEdition, setLoanEdition] = useState("");
@@ -264,7 +273,14 @@ export function VirtualVaultPage() {
         else if (target === "trade") await vaultApi.addTradeCard(card, selection.quantity, selection.variant);
         else await vaultApi.addWantedCard(card, selectedFolder!, selection.variant);
       }
-      setMessage(`${card.card_name}: ${selections.length} változat elmentve.`); await reload();
+      const feedback = target === "collection"
+        ? { title: "Mappába mentve", message: `${card.card_name} bekerült a gyűjteményedbe.`, targetUrl: "/vault?area=collection" }
+        : target === "trade"
+          ? { title: "Cseremappába mentve", message: `${card.card_name} bekerült a cseremappádba.`, targetUrl: "/vault?area=trade&view=trade" }
+          : { title: "Keresem listára mentve", message: `${card.card_name} felkerült a keresett lapjaid közé.`, targetUrl: "/vault?area=trade&view=wanted" };
+      setMessage("");
+      showToast(feedback);
+      await reload();
     }
     catch (error) { report(error); } finally { setBusy(false); }
   }
@@ -512,7 +528,7 @@ export function VirtualVaultPage() {
       </section></div> : null}
 
     {area === "trade" ? <section className="vault-content"><div><h2>Csere</h2><p className="muted">Saját cserelapok, keresett lapok és automatikus találatok.</p></div><nav className="vault-subtabs">{([ ["trade","Cseremappám"], ["wanted","Keresem"], ["matches","Találatok"] ] as [TradeView,string][]).map(([id,label]) => <button type="button" className={tradeView === id ? "is-active" : ""} onClick={() => setTradeView(id)} key={id}>{label}{id === "matches" && unseenMatchCount > 0 ? ` (${unseenMatchCount})` : ""}</button>)}</nav>
-      {tradeView === "trade" ? <><VaultBulkListingComposer tradeCards={sortedTradeCards} collectionCards={cards} onDone={async (text) => { setMessage(text); await reload(); }}/><div className="vault-trade-sort"><label>Rendezés<select value={tradeSortKey} onChange={(event) => setTradeSortKey(event.target.value as typeof tradeSortKey)}><option value="external_card_id">HKK ID</option><option value="card_name">Név</option></select></label></div><div className="vault-card-grid">{sortedTradeCards.map((card) => <article className="vault-card" key={card.id}><CardImage card={card}/><div className="vault-card-body"><strong>{card.card_name}</strong><CardMeta card={card}/><p>#{card.external_card_id} · {card.quantity} db · {VARIANTS.find((item) => item.value === card.print_variant)?.label}</p>{card.seeker_count ? <button type="button" className="button button-primary" onClick={() => void showSeekers(card)}>Ki keresi ezt a lapot? ({card.seeker_count})</button> : <small>Még senki nem jelölte keresettnek.</small>}<footer className="vault-trade-card-actions"><button type="button" className="button button-secondary is-active" aria-label={`${card.card_name} cserére kínálva`} title="Cserére kínálva" onClick={() => card.seeker_count ? void showSeekers(card) : setMessage("A lap cserére van kínálva. Új érdeklődő esetén értesítést kapsz.")}><HandshakeIcon/> Csere</button><button type="button" className="button button-secondary" aria-label={`${card.card_name} eladása`} title="Eladás vagy aukció" onClick={() => openTradeCardListing(card)}><SaleIcon/> Eladás</button><button type="button" className="button button-ghost is-danger" aria-label="Eltávolítás a cseremappából" disabled={busy} onClick={() => setTradeCardToRemove(card)}><TrashIcon/> Eltávolítás</button></footer></div></article>)}</div></> : null}
+      {tradeView === "trade" ? <><VaultBulkListingComposer tradeCards={sortedTradeCards} onDone={async (text) => { setMessage(text); await reload(); }}/><div className="vault-trade-sort"><label>Rendezés<select value={tradeSortKey} onChange={(event) => setTradeSortKey(event.target.value as typeof tradeSortKey)}><option value="external_card_id">HKK ID</option><option value="card_name">Név</option></select></label><div className="vault-view-switch" role="group" aria-label="Cseremappa megjelenítése"><button type="button" aria-pressed={tradeDisplayMode === "grid"} className={tradeDisplayMode === "grid" ? "is-active" : ""} onClick={() => setTradeDisplayMode("grid")}>Rács</button><button type="button" aria-pressed={tradeDisplayMode === "list"} className={tradeDisplayMode === "list" ? "is-active" : ""} onClick={() => setTradeDisplayMode("list")}>Lista</button></div></div><div className={`vault-trade-cards ${tradeDisplayMode === "grid" ? "vault-card-grid" : "vault-trade-list"}`}>{sortedTradeCards.map((card) => tradeDisplayMode === "grid" ? <article className="vault-card" key={card.id}><CardImage card={card}/><div className="vault-card-body"><strong>{card.card_name}</strong><CardMeta card={card}/><p>#{card.external_card_id} · {card.quantity} db · {VARIANTS.find((item) => item.value === card.print_variant)?.label}</p>{card.seeker_count ? <button type="button" className="button button-primary" onClick={() => void showSeekers(card)}>Ki keresi ezt a lapot? ({card.seeker_count})</button> : <small>Még senki nem jelölte keresettnek.</small>}<footer className="vault-trade-card-actions"><button type="button" className="button button-secondary is-active" aria-label={`${card.card_name} cserére kínálva`} title="Cserére kínálva" onClick={() => card.seeker_count ? void showSeekers(card) : setMessage("A lap cserére van kínálva. Új érdeklődő esetén értesítést kapsz.")}><HandshakeIcon/> Csere</button><button type="button" className="button button-secondary" aria-label={`${card.card_name} eladása`} title="Eladás vagy aukció" onClick={() => openTradeCardListing(card)}><SaleIcon/> Eladás</button><button type="button" className="button button-ghost is-danger" aria-label="Eltávolítás a cseremappából" disabled={busy} onClick={() => setTradeCardToRemove(card)}><TrashIcon/> Eltávolítás</button></footer></div></article> : <article className="vault-trade-list-row" key={card.id}><CardImagePreview card={card} className="vault-trade-list-image"/><div className="vault-trade-list-info"><strong>{card.card_name}</strong><CardMeta card={card}/><span>#{card.external_card_id} · {card.quantity} db · {VARIANTS.find((item) => item.value === card.print_variant)?.label}</span>{card.seeker_count ? <button type="button" className="button button-primary" onClick={() => void showSeekers(card)}>Ki keresi ezt a lapot? ({card.seeker_count})</button> : <small>Még senki nem jelölte keresettnek.</small>}</div><footer className="vault-trade-list-actions"><button type="button" className="button button-secondary is-active" aria-label={`${card.card_name} cserére kínálva`} title="Cserére kínálva" onClick={() => card.seeker_count ? void showSeekers(card) : setMessage("A lap cserére van kínálva. Új érdeklődő esetén értesítést kapsz.")}><HandshakeIcon/> Csere</button><button type="button" className="button button-secondary" aria-label={`${card.card_name} eladása`} title="Eladás vagy aukció" onClick={() => openTradeCardListing(card)}><SaleIcon/> Eladás</button><button type="button" className="button button-ghost is-danger" aria-label="Eltávolítás a cseremappából" disabled={busy} onClick={() => setTradeCardToRemove(card)}><TrashIcon/> Eltávolítás</button></footer></article>)}</div></> : null}
       {tradeView === "wanted" ? <div className="vault-card-grid">{wantedCards.map((card) => <article className="vault-card" key={card.id}><CardImage card={card}/><div className="vault-card-body"><strong>{card.card_name}</strong><p>{card.wanted_quantity} példány hiányzik</p><button type="button" className="button button-ghost" onClick={() => void vaultApi.setVaultWanted(card.id, false).then(reload).catch(report)}>Eltávolítás a Keresemből</button></div></article>)}</div> : null}
       {tradeView === "matches" ? <><div className="vault-match-grid">{wantedCards.filter((card) => card.offer_count > 0).map((card) => <article className="vault-match-card" key={card.id}><CardImage card={card} className="vault-match-card-image"/><strong>{card.card_name}</strong><span>{card.offer_count} elérhető ajánlat</span><button type="button" className="button button-primary" onClick={() => void vaultApi.listMatchingOffers(card.id).then(setOffers).catch(report)}>Ajánlatok</button></article>)}</div>{offers.length ? <div className="vault-offers">{offers.map((offer) => <article key={offer.id}><CardImage card={offer} className="vault-offer-card-image"/><div><strong>{offer.card_name}</strong><small>@{offer.owner_username} · {offer.quantity} db</small></div><button type="button" className="button button-primary" onClick={() => void vaultApi.expressTradeInterest(offer.id).then(reload).catch(report)}>Érdekel</button></article>)}</div> : null}<div className="vault-negotiations">{negotiations.map((trade) => <article key={trade.id}><div><strong>{trade.card.card_name}</strong><small>{trade.requester_display_name} ↔ {trade.owner_display_name} · {trade.status === "open" ? "egyeztetés" : "lezárt"}</small></div><div className="vault-messages">{trade.messages.map((item) => <p key={item.id}><strong>{item.sender_display_name}</strong> {item.message}</p>)}</div>{trade.status === "open" ? <form onSubmit={(event) => { event.preventDefault(); const form=event.currentTarget; const text=String(new FormData(form).get("message")||""); void vaultApi.postTradeMessage(trade.id,text).then(() => { form.reset(); return reload(); }).catch(report); }}><input name="message" placeholder="Üzenet az egyeztetéshez…" required/><button className="button button-secondary">Küldés</button></form> : null}</article>)}</div></> : null}
     </section> : null}

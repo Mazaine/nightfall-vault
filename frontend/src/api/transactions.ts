@@ -1,6 +1,6 @@
 import { apiRequest } from "./client";
 
-export type TransactionStatus = "transaction_open" | "completed" | "reviewed" | "archived";
+export type TransactionStatus = "transaction_open" | "completed" | "reviewed" | "archived" | "cancelled";
 
 export type AuctionTransaction = {
   id: number;
@@ -22,6 +22,8 @@ export type AuctionTransaction = {
   can_delete: boolean;
   auction: { id: number; title: string; finalized_at: string | null };
   partner: { username: string; full_name: string };
+  items?: Array<{ id: number; auction_id: number; title: string; quantity: number; unit_price: number; subtotal: number }>;
+  total?: number;
 };
 
 export type TransactionPage = { items: AuctionTransaction[]; total: number; limit: number; offset: number };
@@ -46,4 +48,8 @@ export function saveTransactionNote(transactionId: number, note: string) {
 
 export function deleteClosedTransaction(transactionId: number) {
   return apiRequest<void>(`/api/transactions/${transactionId}`, { method: "DELETE" });
+}
+
+export function cancelTransaction(transactionId: number) {
+  return apiRequest<AuctionTransaction>(`/api/transactions/${transactionId}/cancel`, { method: "POST" });
 }

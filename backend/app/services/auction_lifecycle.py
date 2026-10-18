@@ -392,6 +392,8 @@ def cancel_auction(db: Session, auction: Auction, user: User) -> Auction:
     require_owner_or_admin(auction, user)
     ensure_transition_allowed(auction.status, "cancelled")
     auction.status = "cancelled"
+    from app.services.cart import release_auction_reservations
+    release_auction_reservations(db, auction.id)
     db.add(auction)
     create_domain_audit_log(db, action="auction_status_changed", user_id=user.id, auction_id=auction.id, metadata={"to": "cancelled"})
     db.commit()

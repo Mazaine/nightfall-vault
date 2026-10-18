@@ -17,6 +17,7 @@ from app.api.auth import router as auth_router
 from app.api.blocks import router as blocks_router
 from app.api.bids import router as bids_router
 from app.api.categories import router as categories_router
+from app.api.cart import router as cart_router
 from app.api.follow import router as follow_router
 from app.api.health import router as health_router
 from app.api.newsletter import router as newsletter_router
@@ -104,6 +105,7 @@ PRIVATE_API_PREFIXES = (
     "/api/auth",
     "/api/blocks",
     "/api/bids",
+    "/api/cart",
     "/api/notifications",
     "/api/reports",
     "/api/realtime",
@@ -352,6 +354,7 @@ app.include_router(social_preview_router)
 app.include_router(auth_router)
 app.include_router(blocks_router)
 app.include_router(bids_router)
+app.include_router(cart_router)
 app.include_router(admin_router)
 app.include_router(admin_demo_auctions_router)
 app.include_router(auctions_router)

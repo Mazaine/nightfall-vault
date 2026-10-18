@@ -13,7 +13,7 @@ from app.models.auction import Auction
 from app.models.vault import VaultCardLoan, VaultCollectionCard, VaultDeck, VaultDeckCard, VaultFolder, VaultPointTransaction, VaultTrade, VaultTradeCard, VaultTradeMessage, VaultTradeReview
 from app.schemas.vault import BulkCardOperation, BulkCardOperationResult, CardLoanBatchCreate, CardLoanCreate, CardLoanRead, CardRead, CollectionCardCreate, CollectionCardUpdate, CollectionTradeUpdate, CollectionVariantCreate, DeckCardCreate, DeckCardRead, DeckCardUpdate, DeckCreate, DeckRead, DeckUpdate, FolderCreate, FolderRead, FolderReorder, FolderUpdate, HkkEditionCards, HkkEditionImport, HkkEditionImportResult, HkkEditionRead, HkkMarketPriceSuggestion, HkkSearchResult, PointHistory, PointTransactionRead, PublicTradeCardRead, QuantityUpdate, TradeCardCreate, TradeCardSeekerRead, TradeMessageCreate, TradeRead, TradeReviewCreate, TradeReviewRead, VaultMaintenanceRead, VaultMatchesSeen, VaultMatchStatus, VaultSummary, WantedCardCreate, WantedUpdate
 from app.services.notifications import create_notification
-from app.services.vault import account_for, buy_capacity_pack, card_snapshot_values, collection_card_for_user, complete_trade, fetch_hkk_card_image, folder_for_user, folder_used, grant_points, hkk_edition_cards, hkk_market_price_suggestion, import_hkk_edition, list_hkk_editions, point_balance, require_allocatable, require_collection_pocket_limit, require_print_variant_allowed, require_valid_card_snapshot, reserved_listing_quantity, search_hkk_cards, total_collection_capacity, trade_for_participant, utc_now
+from app.services.vault import account_for, buy_capacity_pack, card_snapshot_values, collection_card_for_user, complete_trade, fetch_hkk_card_image, folder_for_user, folder_used, grant_points, hkk_edition_cards, hkk_market_price_suggestion, import_hkk_edition, list_hkk_editions, point_balance, require_allocatable, require_collection_pocket_limit, require_print_variant_allowed, require_valid_card_snapshot, reserved_listing_quantity, reserved_trade_listing_quantity, search_hkk_cards, total_collection_capacity, trade_for_participant, utc_now
 from app.services.vault_matches import mark_vault_matches_seen, sync_vault_matches, sync_vault_matches_for_card, unseen_vault_matches
 from app.services.user_blocks import ensure_not_blocked
 
@@ -68,8 +68,8 @@ def refresh_wanted_quantity(db: Session, user_id: int, external_card_id: str) ->
     wanted_card.wanted_quantity = max(3 - owned_card_quantity(db, user_id, external_card_id), 0)
 
 
-def trade_card_read(card: VaultTradeCard, seeker_count: int = 0) -> PublicTradeCardRead:
-    return PublicTradeCardRead.model_validate({**card.__dict__, "owner_id": card.user_id, "owner_username": card.user.username, "seeker_count": seeker_count})
+def trade_card_read(card: VaultTradeCard, seeker_count: int = 0, available_listing_quantity: int | None = None) -> PublicTradeCardRead:
+    return PublicTradeCardRead.model_validate({**card.__dict__, "owner_id": card.user_id, "owner_username": card.user.username, "seeker_count": seeker_count, "available_listing_quantity": available_listing_quantity})
 
 
 def public_trade_card_read(db: Session, card: VaultTradeCard, seeker_count: int = 0) -> PublicTradeCardRead:
@@ -556,6 +556,10 @@ def set_collection_trade_quantities(payload: CollectionTradeUpdate, current_user
     trade_by_key = {(card.external_card_id, card.print_variant): card for card in trade_cards}
     for item in payload.items:
         card = cards_by_id[item.card_id]
+        trade_card = trade_by_key.get((card.external_card_id, card.print_variant))
+        reserved = reserved_trade_listing_quantity(db, trade_card.id) if trade_card is not None else 0
+        if item.quantity < reserved:
+            raise HTTPException(status_code=409, detail=f"A(z) {card.card_name} aktív hirdetéseihez {reserved} cseremappa-példány van lefoglalva.")
         available = max(card.quantity - active_loan_quantity(db, card.id), 0)
         if item.quantity > available:
             raise HTTPException(status_code=409, detail=f"A(z) {card.card_name} {card.print_variant} változatából legfeljebb {available} példány tehető cserére.")
@@ -909,7 +913,7 @@ def my_trade_cards(current_user: User = Depends(require_active_user), db: Sessio
         .where(VaultCollectionCard.user_id != current_user.id, VaultCollectionCard.wanted.is_(True), VaultCollectionCard.wanted_quantity > 0, VaultCollectionCard.external_card_id.in_([card.external_card_id for card in cards]))
         .group_by(VaultCollectionCard.external_card_id)
     ).all()) if cards else {}
-    return [trade_card_read(card, int(wanted_counts.get(card.external_card_id, 0))) for card in cards]
+    return [trade_card_read(card, int(wanted_counts.get(card.external_card_id, 0)), max(card.quantity - reserved_trade_listing_quantity(db, card.id), 0)) for card in cards]
 
 
 @router.get("/trade/{card_id}/seekers", response_model=list[TradeCardSeekerRead])
@@ -965,6 +969,9 @@ def add_trade_card(payload: TradeCardCreate, current_user: User = Depends(requir
         card = VaultTradeCard(user_id=current_user.id, quantity=payload.quantity, print_variant=variant, **card_snapshot_values(payload))
         db.add(card)
     else:
+        reserved = reserved_trade_listing_quantity(db, card.id)
+        if payload.quantity < reserved:
+            raise HTTPException(status_code=409, detail=f"Aktív hirdetésekhez {reserved} példány van lefoglalva; ennél kevesebbre nem állítható.")
         card.quantity = payload.quantity
         for key, value in card_snapshot_values(payload).items():
             setattr(card, key, value)
@@ -980,6 +987,9 @@ def update_trade_card(card_id: int, payload: QuantityUpdate, current_user: User 
     card = db.scalar(select(VaultTradeCard).where(VaultTradeCard.id == card_id, VaultTradeCard.user_id == current_user.id).with_for_update())
     if card is None:
         raise HTTPException(status_code=404, detail="A cserelap nem található.")
+    reserved = reserved_trade_listing_quantity(db, card.id)
+    if payload.quantity < reserved:
+        raise HTTPException(status_code=409, detail=f"Aktív hirdetésekhez {reserved} példány van lefoglalva; ennél kevesebbre nem állítható.")
     require_print_variant_allowed(
         payload.print_variant or card.print_variant,
         card.rarity,
@@ -1004,6 +1014,8 @@ def delete_trade_card(card_id: int, current_user: User = Depends(require_active_
     card = db.scalar(select(VaultTradeCard).where(VaultTradeCard.id == card_id, VaultTradeCard.user_id == current_user.id).with_for_update())
     if card is None:
         raise HTTPException(status_code=404, detail="A cserelap nem található.")
+    if reserved_trade_listing_quantity(db, card.id):
+        raise HTTPException(status_code=409, detail="Aktív hirdetéshez tartozó cserelap nem törölhető.")
     if db.scalar(select(VaultTrade.id).where(VaultTrade.offered_card_id == card.id, VaultTrade.status == "open")) is not None:
         raise HTTPException(status_code=409, detail="Nyitott egyeztetéshez tartozó lap nem törölhető.")
     external_card_id = card.external_card_id

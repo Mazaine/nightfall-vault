@@ -377,6 +377,48 @@ def test_atomic_batch_and_bundle_listings_are_idempotent_searchable_and_deduct_o
         cleanup_test_data(); cleanup()
 
 
+def test_trade_backed_batch_listing_uses_full_trade_quantity_and_closes_inventory_safely() -> None:
+    cleanup_test_data(); cleanup()
+    seller = create_test_user("trade-listing-seller@vault-test.local")
+    buyer = create_test_user("trade-listing-buyer@vault-test.local")
+    headers = auth_headers(seller)
+    try:
+        trade = client.post("/api/vault/trade", json=card_payload("trade-sale", "Cseremappa eladó lap", 3), headers=headers)
+        assert trade.status_code == 201, trade.text
+        trade_card = trade.json()
+        payload = {
+            "creation_key": str(uuid4()),
+            "mode": "individual",
+            "discount_percent": 0,
+            "items": [{
+                "vault_trade_card_id": trade_card["id"],
+                "quantity": 2,
+                "base_price": 600,
+                "final_price": 600,
+                "condition": "NM",
+                "description": "Cseremappából indított, kétpéldányos fix áras teszthirdetés.",
+            }],
+        }
+        created = client.post("/api/auctions/batch-fixed", json=payload, headers=headers)
+        assert created.status_code == 201, created.text
+        auction = created.json()["auctions"][0]
+        assert auction["vault_trade_card_id"] == trade_card["id"]
+        own_trade = client.get("/api/vault/trade", headers=headers).json()[0]
+        assert own_trade["quantity"] == 3 and own_trade["available_listing_quantity"] == 1
+        assert client.patch(f"/api/vault/trade/{trade_card['id']}", json={"quantity": 1}, headers=headers).status_code == 409
+        assert client.delete(f"/api/vault/trade/{trade_card['id']}", headers=headers).status_code == 409
+
+        bought = client.post(f"/api/auctions/{auction['id']}/bids", json={"amount": "600"}, headers=auth_headers(buyer))
+        assert bought.status_code == 201, bought.text
+        transaction = client.get("/api/transactions", headers=headers).json()["items"][0]
+        assert client.post(f"/api/transactions/{transaction['id']}/confirm-completion", headers=headers).status_code == 200
+        assert client.post(f"/api/transactions/{transaction['id']}/confirm-completion", headers=auth_headers(buyer)).status_code == 200
+        remaining = client.get("/api/vault/trade", headers=headers).json()
+        assert len(remaining) == 1 and remaining[0]["quantity"] == 1
+    finally:
+        cleanup_test_data(); cleanup()
+
+
 def test_public_trade_matching_interest_completion_and_idempotent_rewards() -> None:
     cleanup(); seeker = create_test_user("seeker@vault-test.local"); owner = create_test_user("trader@vault-test.local")
     db = SessionLocal()

@@ -11,6 +11,8 @@ const mocks = vi.hoisted(() => Object.fromEntries([
   "getHkkMarketPriceSuggestion",
 ].map((name) => [name, vi.fn()])) as Record<string, ReturnType<typeof vi.fn>>);
 vi.mock("../api/vault", () => mocks);
+const notificationMocks = vi.hoisted(() => ({ showToast: vi.fn() }));
+vi.mock("../NotificationContext", () => ({ useNotifications: () => ({ showToast: notificationMocks.showToast }) }));
 
 const summary = {
   total_collection_capacity: 1000, assigned_collection_capacity: 200, free_collection_capacity: 800, used_collection_slots: 1,
@@ -241,6 +243,26 @@ describe("VirtualVaultPage", () => {
     expect(await screen.findByText("Xenó lárva")).toBeInTheDocument();
   });
 
+  it("a cseremappában rács és lista nézetet vált, a hoveres nagyítás csak listában aktív", async () => {
+    render(<VirtualVaultPage />);
+    await screen.findByText("Mi történt a mappádban?");
+    fireEvent.click(screen.getByRole("button", { name: "Csere" }));
+    expect(screen.getByRole("button", { name: "Rács" })).toHaveAttribute("aria-pressed", "true");
+    const gridImage = await screen.findByAltText("Xenó lárva");
+    fireEvent.pointerEnter(gridImage.closest(".card-image-preview")!);
+    await new Promise((resolve) => setTimeout(resolve, 160));
+    expect(screen.queryByAltText("Xenó lárva nagyított képe")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Lista" }));
+    expect(screen.getByRole("button", { name: "Lista" })).toHaveAttribute("aria-pressed", "true");
+    expect(document.querySelector(".vault-trade-list-row")).toBeInTheDocument();
+    const listImage = screen.getByAltText("Xenó lárva");
+    fireEvent.pointerEnter(listImage.closest(".card-image-preview")!);
+    expect(await screen.findByAltText("Xenó lárva nagyított képe")).toBeInTheDocument();
+    fireEvent.pointerLeave(listImage.closest(".card-image-preview")!);
+    await waitFor(() => expect(screen.queryByAltText("Xenó lárva nagyított képe")).not.toBeInTheDocument());
+  });
+
   it("paklit létrehoz, HKK találatot szükséges mennyiséggel hozzáad", async () => {
     const deck = { id: 3, name: "Versenypakli", total_required_quantity: 0, owned_quantity: 0, missing_quantity: 0, available_trade_quantity: 0, cards: [] };
     mocks.createDeck.mockResolvedValue(deck); mocks.listDecks.mockResolvedValueOnce([]).mockResolvedValue([deck]); mocks.searchHkk.mockResolvedValue([hkk]); mocks.addDeckCard.mockResolvedValue(deck);
@@ -336,6 +358,20 @@ describe("VirtualVaultPage", () => {
       expect(mocks.addVaultCard).toHaveBeenCalledWith(hkk, 1, 9, "normal");
       expect(mocks.addVaultCard).toHaveBeenCalledWith(hkk, 1, 2, "foil");
     });
+    expect(notificationMocks.showToast).toHaveBeenCalledWith({ title: "Mappába mentve", message: "Orkling bekerült a gyűjteményedbe.", targetUrl: "/vault?area=collection" });
+  });
+
+  it("a lapfelvitel Keresem és Cseremappa műveleteiről toasttal jelez vissza", async () => {
+    mocks.searchHkk.mockResolvedValue([hkk]);
+    mocks.addWantedCard.mockResolvedValue(card);
+    mocks.addTradeCard.mockResolvedValue({ ...card, owner_id: 1, owner_username: "admin", seeker_count: 0 });
+    render(<VirtualVaultPage />); await screen.findByText("Mi történt a mappádban?"); fireEvent.click(screen.getByRole("button", { name: "Lapfelvitel" }));
+    fireEvent.change(screen.getByLabelText("Lap neve"), { target: { value: "Orkling" } }); fireEvent.click(screen.getByRole("button", { name: "Keresés" }));
+    await screen.findByText("Orkling");
+    fireEvent.click(screen.getByRole("button", { name: "Keresem" }));
+    await waitFor(() => expect(notificationMocks.showToast).toHaveBeenCalledWith({ title: "Keresem listára mentve", message: "Orkling felkerült a keresett lapjaid közé.", targetUrl: "/vault?area=trade&view=wanted" }));
+    fireEvent.click(screen.getByRole("button", { name: "Cseremappába" }));
+    await waitFor(() => expect(notificationMocks.showToast).toHaveBeenCalledWith({ title: "Cseremappába mentve", message: "Orkling bekerült a cseremappádba.", targetUrl: "/vault?area=trade&view=trade" }));
   });
 
   it("a mappazsebeket utólag szerkeszti, a külön kölcsönadás pedig nem igényel gyűjteményi rekordot", async () => {

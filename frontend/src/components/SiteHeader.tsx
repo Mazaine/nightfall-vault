@@ -4,6 +4,7 @@ import { useAuth } from "../AuthContext";
 import { getUnreadNotificationCount } from "../api/auctions";
 import { useNotifications } from "../NotificationContext";
 import { UNREAD_NOTIFICATION_COUNT_CHANGED } from "../utils/notificationEvents";
+import { CART_CHANGED_EVENT, getCart } from "../api/cart";
 
 const navItems: { label: string; to: string; authenticated?: boolean; primary?: boolean; emphasis?: boolean }[] = [
   { label: "Kezdőlap", to: "/" },
@@ -30,6 +31,7 @@ export function SiteHeader() {
   const [isAccountOpen, setIsAccountOpen] = useState(false);
   const { unreadCount, isRealtimeReady } = useNotifications();
   const [displayUnreadCount, setDisplayUnreadCount] = useState(unreadCount);
+  const [cartCount, setCartCount] = useState(0);
   const { user, isAdmin, isAuthenticated, logout } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
@@ -46,6 +48,23 @@ export function SiteHeader() {
   }, [location.pathname]);
 
   useEffect(() => { setDisplayUnreadCount(unreadCount); }, [unreadCount]);
+
+  useEffect(() => {
+    if (!isAuthenticated) { setCartCount(0); return; }
+    let active = true;
+    getCart().then((cart) => { if (active) setCartCount(cart.item_count); }).catch(() => undefined);
+    return () => { active = false; };
+  }, [isAuthenticated]);
+
+  useEffect(() => {
+    const update = (event: Event) => {
+      const count = (event as CustomEvent<number | undefined>).detail;
+      if (typeof count === "number") setCartCount(count);
+      else if (isAuthenticated) getCart().then((cart) => setCartCount(cart.item_count)).catch(() => undefined);
+    };
+    window.addEventListener(CART_CHANGED_EVENT, update);
+    return () => window.removeEventListener(CART_CHANGED_EVENT, update);
+  }, [isAuthenticated]);
 
   useEffect(() => {
     if (!isAuthenticated || isRealtimeReady) return;
@@ -130,6 +149,7 @@ export function SiteHeader() {
 
         <div className="header-actions" aria-label="Fiókműveletek">
           <Link className="icon-button icon-button-search" to="/marketplace" aria-label="Keresés a piactéren" />
+          {isAuthenticated ? <Link className="cart-link icon-button" to="/cart" aria-label={`Kosár${cartCount ? `, ${cartCount} tétel` : ""}`}><span aria-hidden="true">⌑</span>{cartCount > 0 ? <strong>{cartCount > 99 ? "99+" : cartCount}</strong> : null}</Link> : null}
           {isAuthenticated ? <Link className="notification-link icon-button" to="/account/notifications" aria-label={`Értesítések${displayUnreadCount ? `, ${displayUnreadCount} olvasatlan` : ""}`}><span className="visually-hidden">Értesítések</span>{displayUnreadCount > 0 ? <strong>{displayUnreadCount > 99 ? "99+" : displayUnreadCount}</strong> : null}</Link> : null}
           {isAuthenticated ? (
             <div className="account-menu-wrap">

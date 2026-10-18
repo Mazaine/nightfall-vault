@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, timezone
 from fastapi import HTTPException
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.dialects.postgresql import insert
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, joinedload, selectinload
 
 from app.core.config import settings
 from app.models.auction import Auction, AuctionReview
@@ -22,6 +22,7 @@ def transaction_options():
         joinedload(AuctionTransaction.auction),
         joinedload(AuctionTransaction.seller),
         joinedload(AuctionTransaction.buyer),
+        selectinload(AuctionTransaction.items),
     )
 
 
@@ -85,6 +86,11 @@ def serialize_transaction(transaction: AuctionTransaction, user_id: int) -> dict
     partner_completed_at = transaction.buyer_completed_at if seller_role else transaction.seller_completed_at
     reviews = transaction.auction.reviews if hasattr(transaction.auction, "reviews") else []
     has_reviewed = any(review.reviewer_id == user_id for review in reviews)
+    transaction_items = [{
+        "id": item.id, "auction_id": item.auction_id, "title": item.title_snapshot,
+        "quantity": item.quantity, "unit_price": item.unit_price,
+        "subtotal": item.unit_price * item.quantity,
+    } for item in transaction.items]
     return {
         "id": transaction.id,
         "auction_id": transaction.auction_id,
@@ -105,6 +111,8 @@ def serialize_transaction(transaction: AuctionTransaction, user_id: int) -> dict
         "can_delete": transaction.status != "transaction_open",
         "auction": transaction.auction,
         "partner": transaction.buyer if seller_role else transaction.seller,
+        "items": transaction_items,
+        "total": sum((item["subtotal"] for item in transaction_items), 0),
     }
 
 
@@ -154,6 +162,76 @@ def hide_closed_transaction(db: Session, transaction_id: int, user: User) -> Non
     db.commit()
 
 
+def _deduct_grouped_transaction_inventory(db: Session, transaction: AuctionTransaction) -> bool:
+    """Deduct each cart-checkout line exactly once after both parties confirm."""
+    from app.models.auction import AuctionBundleItem
+    from app.models.transaction import AuctionTransactionItem
+    from app.models.vault import VaultCollectionCard, VaultTradeCard
+
+    lines = list(db.scalars(select(AuctionTransactionItem).where(
+        AuctionTransactionItem.transaction_id == transaction.id,
+    ).order_by(AuctionTransactionItem.id).with_for_update()).all())
+    if not lines:
+        return False
+    auctions = {row.id: row for row in db.scalars(select(Auction).where(
+        Auction.id.in_([line.auction_id for line in lines]),
+    ).order_by(Auction.id).with_for_update()).all()}
+    for line in lines:
+        if line.inventory_deducted:
+            continue
+        auction = auctions.get(line.auction_id)
+        if auction is None:
+            raise HTTPException(status_code=409, detail="A tranzakció egyik hirdetése már nem található.")
+        if auction.listing_format == "bundle":
+            bundle_items = list(db.scalars(select(AuctionBundleItem).where(
+                AuctionBundleItem.auction_id == auction.id,
+            ).order_by(AuctionBundleItem.id).with_for_update()).all())
+            for bundle_item in bundle_items:
+                if bundle_item.vault_trade_card_id is not None:
+                    inventory = db.scalar(select(VaultTradeCard).where(
+                        VaultTradeCard.id == bundle_item.vault_trade_card_id,
+                        VaultTradeCard.user_id == transaction.seller_id,
+                    ).with_for_update())
+                else:
+                    inventory = db.scalar(select(VaultCollectionCard).where(
+                        VaultCollectionCard.id == bundle_item.vault_collection_card_id,
+                        VaultCollectionCard.user_id == transaction.seller_id,
+                    ).with_for_update())
+                if inventory is None or inventory.quantity < bundle_item.quantity:
+                    raise HTTPException(status_code=409, detail=f"A Vault-készlet nem elegendő ehhez a csomagtételhez: {bundle_item.card_name}.")
+                if bundle_item.vault_trade_card_id is not None and inventory.quantity == bundle_item.quantity:
+                    db.delete(inventory)
+                else:
+                    inventory.quantity -= bundle_item.quantity
+                    db.add(inventory)
+        else:
+            required = line.quantity
+            if auction.vault_trade_card_id is not None:
+                inventory = db.scalar(select(VaultTradeCard).where(
+                    VaultTradeCard.id == auction.vault_trade_card_id,
+                    VaultTradeCard.user_id == transaction.seller_id,
+                ).with_for_update())
+                if inventory is None or inventory.quantity < required:
+                    raise HTTPException(status_code=409, detail=f"A cseremappa-készlet nem elegendő ehhez a tételhez: {line.title_snapshot}.")
+                if inventory.quantity == required:
+                    db.delete(inventory)
+                else:
+                    inventory.quantity -= required
+                    db.add(inventory)
+            elif auction.vault_collection_card_id is not None:
+                inventory = db.scalar(select(VaultCollectionCard).where(
+                    VaultCollectionCard.id == auction.vault_collection_card_id,
+                    VaultCollectionCard.user_id == transaction.seller_id,
+                ).with_for_update())
+                if inventory is None or inventory.quantity < required:
+                    raise HTTPException(status_code=409, detail=f"A Vault-készlet nem elegendő ehhez a tételhez: {line.title_snapshot}.")
+                inventory.quantity -= required
+                db.add(inventory)
+        line.inventory_deducted = True
+        auction.vault_inventory_deducted = True
+        db.add_all([line, auction])
+    return True
+
 def confirm_completion(db: Session, transaction_id: int, user: User) -> AuctionTransaction:
     transaction = get_participant_transaction(db, transaction_id, user.id, lock=True)
     if transaction.status != "transaction_open":
@@ -193,21 +271,28 @@ def confirm_completion(db: Session, transaction_id: int, user: User) -> AuctionT
     )
     if transaction.seller_completed_at and transaction.buyer_completed_at:
         auction = db.scalar(select(Auction).where(Auction.id == transaction.auction_id).with_for_update())
-        if auction is not None and not auction.vault_inventory_deducted and auction.listing_format == "bundle":
+        grouped_inventory = _deduct_grouped_transaction_inventory(db, transaction)
+        if not grouped_inventory and auction is not None and not auction.vault_inventory_deducted and auction.listing_format == "bundle":
             from app.models.auction import AuctionBundleItem
-            from app.models.vault import VaultCollectionCard
-            bundle_items = list(db.scalars(select(AuctionBundleItem).where(AuctionBundleItem.auction_id == auction.id).order_by(AuctionBundleItem.vault_collection_card_id).with_for_update()).all())
+            from app.models.vault import VaultCollectionCard, VaultTradeCard
+            bundle_items = list(db.scalars(select(AuctionBundleItem).where(AuctionBundleItem.auction_id == auction.id).order_by(AuctionBundleItem.id).with_for_update()).all())
             card_ids = [item.vault_collection_card_id for item in bundle_items if item.vault_collection_card_id is not None]
+            trade_card_ids = [item.vault_trade_card_id for item in bundle_items if item.vault_trade_card_id is not None]
             vault_cards = {card.id: card for card in db.scalars(select(VaultCollectionCard).where(VaultCollectionCard.id.in_(card_ids), VaultCollectionCard.user_id == transaction.seller_id).order_by(VaultCollectionCard.id).with_for_update()).all()}
+            trade_cards = {card.id: card for card in db.scalars(select(VaultTradeCard).where(VaultTradeCard.id.in_(trade_card_ids), VaultTradeCard.user_id == transaction.seller_id).order_by(VaultTradeCard.id).with_for_update()).all()}
             for item in bundle_items:
-                vault_card = vault_cards.get(item.vault_collection_card_id)
-                if vault_card is None or vault_card.quantity < item.quantity:
+                inventory_card = trade_cards.get(item.vault_trade_card_id) if item.vault_trade_card_id is not None else vault_cards.get(item.vault_collection_card_id)
+                if inventory_card is None or inventory_card.quantity < item.quantity:
                     raise HTTPException(status_code=409, detail=f"A Vault-készlet időközben nem elegendő ehhez a csomagtételhez: {item.card_name}.")
             for item in bundle_items:
-                vault_cards[item.vault_collection_card_id].quantity -= item.quantity
+                inventory_card = trade_cards[item.vault_trade_card_id] if item.vault_trade_card_id is not None else vault_cards[item.vault_collection_card_id]
+                if item.vault_trade_card_id is not None and inventory_card.quantity == item.quantity:
+                    db.delete(inventory_card)
+                else:
+                    inventory_card.quantity -= item.quantity
             auction.vault_inventory_deducted = True
             db.add_all([*vault_cards.values(), auction])
-        elif auction is not None and auction.vault_collection_card_id is not None and not auction.vault_inventory_deducted:
+        elif not grouped_inventory and auction is not None and auction.vault_collection_card_id is not None and not auction.vault_inventory_deducted:
             from app.models.vault import VaultCollectionCard
             vault_card = db.scalar(select(VaultCollectionCard).where(
                 VaultCollectionCard.id == auction.vault_collection_card_id,
@@ -219,6 +304,22 @@ def confirm_completion(db: Session, transaction_id: int, user: User) -> AuctionT
             vault_card.quantity -= required
             auction.vault_inventory_deducted = True
             db.add_all([vault_card, auction])
+        elif not grouped_inventory and auction is not None and auction.vault_trade_card_id is not None and not auction.vault_inventory_deducted:
+            from app.models.vault import VaultTradeCard
+            trade_card = db.scalar(select(VaultTradeCard).where(
+                VaultTradeCard.id == auction.vault_trade_card_id,
+                VaultTradeCard.user_id == transaction.seller_id,
+            ).with_for_update())
+            required = int(auction.vault_quantity or 0)
+            if trade_card is None or trade_card.quantity < required:
+                raise HTTPException(status_code=409, detail="A cseremappa-készlet időközben nem elegendő a tranzakció lezárásához.")
+            if trade_card.quantity == required:
+                db.delete(trade_card)
+            else:
+                trade_card.quantity -= required
+                db.add(trade_card)
+            auction.vault_inventory_deducted = True
+            db.add(auction)
         transaction.status = "completed"
         transaction.completed_at = timestamp
         transaction.review_deadline = timestamp + timedelta(days=settings.transaction_review_window_days)
@@ -242,6 +343,46 @@ def confirm_completion(db: Session, transaction_id: int, user: User) -> AuctionT
         publish_auction_change(db, transaction.auction)
     return get_participant_transaction(db, transaction.id, user.id)
 
+
+def cancel_open_transaction(db: Session, transaction_id: int, user: User) -> AuctionTransaction:
+    """Cancel a still-open grouped checkout and return its listing quantities safely."""
+    from app.models.transaction import AuctionTransactionItem
+    from app.services.notifications import create_notification
+
+    transaction = get_participant_transaction(db, transaction_id, user.id, lock=True)
+    if transaction.status == "cancelled":
+        return transaction
+    if transaction.status != "transaction_open" or transaction.seller_completed_at or transaction.buyer_completed_at:
+        raise HTTPException(status_code=409, detail="Ez az ügylet már nem vonható vissza.")
+    lines = list(db.scalars(select(AuctionTransactionItem).where(
+        AuctionTransactionItem.transaction_id == transaction.id,
+    ).order_by(AuctionTransactionItem.id).with_for_update()).all())
+    if not lines:
+        raise HTTPException(status_code=409, detail="A hagyományos aukciós ügylet ezen a felületen nem vonható vissza.")
+    auction_ids = sorted({line.auction_id for line in lines} | {line.source_auction_id for line in lines})
+    auctions = {row.id: row for row in db.scalars(select(Auction).where(Auction.id.in_(auction_ids)).order_by(Auction.id).with_for_update()).all()}
+    for line in lines:
+        sold = auctions[line.auction_id]
+        source = auctions[line.source_auction_id]
+        if line.inventory_deducted:
+            raise HTTPException(status_code=409, detail="A már készletből levont ügylet nem vonható vissza.")
+        if sold.id == source.id:
+            sold.status = "active"
+            sold.winner_id = None
+            sold.finalized_at = None
+            db.add(sold)
+        else:
+            source.vault_quantity = int(source.vault_quantity or 0) + line.quantity
+            sold.status = "cancelled"
+            sold.winner_id = None
+            db.add_all([source, sold])
+    transaction.status = "cancelled"
+    db.add(transaction)
+    create_domain_audit_log(db, action="transaction_cancelled", user_id=user.id, auction_id=transaction.auction_id, metadata={"transaction_id": transaction.id})
+    for participant_id in (transaction.seller_id, transaction.buyer_id):
+        create_notification(db, user_id=participant_id, auction_id=transaction.auction_id, notification_type="transaction_cancelled", title="Az ügylet meghiúsult", message=f"A(z) {transaction.auction.title} ügyletet az egyik fél visszavonta.", target_url="/account/transactions", event_key=f"transaction-cancelled:{transaction.id}:{participant_id}")
+    db.commit()
+    return get_participant_transaction(db, transaction.id, user.id)
 
 def require_reviewable_transaction(db: Session, auction: Auction, user_id: int) -> AuctionTransaction:
     transaction = db.scalar(

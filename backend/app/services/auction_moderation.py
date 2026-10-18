@@ -19,6 +19,8 @@ def suspend_auction(db: Session, auction: Auction, admin: User, reason: str) -> 
     auction.moderated_at = now_utc()
     auction.moderated_by_admin_id = admin.id
     auction.moderation_reason = reason.strip()
+    from app.services.cart import release_auction_reservations
+    release_auction_reservations(db, auction.id)
     db.add(auction)
     create_domain_audit_log(db, action="auction_moderated_suspend", user_id=admin.id, auction_id=auction.id, metadata={"reason": auction.moderation_reason})
     db.commit()
@@ -53,6 +55,8 @@ def soft_delete_auction(db: Session, auction: Auction, admin: User, reason: str)
     auction.moderated_at = auction.deleted_at
     auction.moderated_by_admin_id = admin.id
     auction.moderation_reason = reason.strip()
+    from app.services.cart import release_auction_reservations
+    release_auction_reservations(db, auction.id)
     db.add(auction)
     create_domain_audit_log(db, action="auction_moderated_delete", user_id=admin.id, auction_id=auction.id, metadata={"reason": auction.moderation_reason})
     db.commit()

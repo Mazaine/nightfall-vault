@@ -3209,14 +3209,30 @@ h3 {
 .vault-loan-results select, .vault-loan-draft select { width: 5rem; }
 .vault-loan-fields { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-2); }
 .vault-loan-fields label { display: grid; gap: .3rem; color: var(--color-text-muted); font-size: .8rem; }
-.vault-trade-sort { display: flex; justify-content: flex-end; margin-bottom: var(--space-3); }
+.vault-trade-sort { display: flex; align-items: end; justify-content: flex-end; gap: var(--space-3); margin-bottom: var(--space-3); }
 .vault-trade-sort label { display: grid; gap: .25rem; color: var(--color-text-muted); font-size: .8rem; }
+.vault-view-switch { display: flex; overflow: hidden; border: 1px solid var(--color-divider); border-radius: var(--radius-sm); }
+.vault-view-switch button { min-height: 2.75rem; border: 0; border-right: 1px solid var(--color-divider); background: rgb(255 255 255 / .025); padding: .45rem .8rem; color: var(--color-text-muted); cursor: pointer; }
+.vault-view-switch button:last-child { border-right: 0; }
+.vault-view-switch button.is-active { background: rgb(124 58 237 / .2); color: var(--color-text); font-weight: 700; }
 .vault-trade-card-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-self: end; gap: .4rem; margin-top: auto; }
 .vault-trade-card-actions .button { display: inline-flex; min-width: 0; min-height: 2.25rem; align-items: center; justify-content: center; gap: .3rem; padding: .35rem .45rem; font-size: .75rem; }
 .vault-trade-card-actions .button:last-child { grid-column: 1 / -1; }
 .vault-trade-card-actions .is-active { border-color: rgb(134 239 172 / .6); background: rgb(34 197 94 / .12); color: #bbf7d0; }
 .vault-trade-card-actions .is-danger { border-color: rgb(248 113 113 / .45); color: #fca5a5; }
 .vault-trade-card-actions svg { width: 1rem; height: 1rem; flex: 0 0 auto; fill: none; stroke: currentcolor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+.vault-trade-list { display: grid; gap: .55rem; }
+.vault-trade-list-row { display: grid; grid-template-columns: 4.25rem minmax(0, 1fr) auto; align-items: center; min-width: 0; gap: var(--space-3); border: 1px solid var(--color-divider); border-radius: var(--radius-md); background: rgb(9 7 14 / .65); padding: .55rem; }
+.vault-trade-list-image, .vault-trade-list-row > .vault-card-placeholder { width: 4.25rem; aspect-ratio: 5 / 7; border-radius: var(--radius-sm); }
+.vault-trade-list-info { display: grid; min-width: 0; gap: .2rem; }
+.vault-trade-list-info strong, .vault-trade-list-info small, .vault-trade-list-info span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vault-trade-list-info small, .vault-trade-list-info span { color: var(--color-text-muted); }
+.vault-trade-list-info .button { justify-self: start; min-height: 2rem; margin-top: .2rem; padding: .3rem .55rem; font-size: .72rem; }
+.vault-trade-list-actions { display: flex; align-items: center; justify-content: flex-end; gap: .4rem; }
+.vault-trade-list-actions .button { display: inline-flex; min-height: 2.25rem; align-items: center; justify-content: center; gap: .3rem; padding: .35rem .55rem; font-size: .75rem; white-space: nowrap; }
+.vault-trade-list-actions .is-active { border-color: rgb(134 239 172 / .6); background: rgb(34 197 94 / .12); color: #bbf7d0; }
+.vault-trade-list-actions .is-danger { border-color: rgb(248 113 113 / .45); color: #fca5a5; }
+.vault-trade-list-actions svg { width: 1rem; height: 1rem; flex: 0 0 auto; fill: none; stroke: currentcolor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
 .vault-trade-quantity-dialog { border-color: rgb(168 85 247 / .45); }
 .vault-trade-quantity-dialog > label { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
 .vault-trade-quantity-dialog > label span { display: flex; gap: .5rem; }
@@ -3226,7 +3242,7 @@ h3 {
 .vault-confirm-dialog h2, .vault-confirm-dialog p { margin: 0; }
 .vault-confirm-dialog label { display: grid; gap: .35rem; color: var(--color-text-muted); }
 .vault-bulk-listing { display: grid; gap: var(--space-3); margin-bottom: var(--space-4); border: 1px solid rgb(168 85 247 / .3); border-radius: var(--radius-lg); background: rgb(15 11 24 / .7); padding: var(--space-3); }
-.vault-bulk-listing:has(.vault-bulk-toolbar) + .vault-trade-sort, .vault-bulk-listing:has(.vault-bulk-toolbar) ~ .vault-card-grid { display: none; }
+.vault-bulk-listing:has(.vault-bulk-toolbar) + .vault-trade-sort, .vault-bulk-listing:has(.vault-bulk-toolbar) ~ .vault-trade-cards { display: none; }
 .vault-bulk-modebar, .vault-bulk-toolbar, .vault-bulk-footer { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--space-2); }
 .vault-bulk-modebar > div, .vault-confirm-dialog footer { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: var(--space-2); }
 .vault-bulk-toolbar input { width: 4.5rem; }
@@ -3243,6 +3259,10 @@ h3 {
 .vault-bulk-card-fields > small { display: flex; align-items: center; justify-content: space-between; color: var(--color-text-muted); }
 .vault-bulk-card-fields > small.is-manual { color: var(--color-accent-gold); }
 .vault-bulk-card-fields > small button { border: 0; background: none; color: inherit; text-decoration: underline; cursor: pointer; }
+.vault-bulk-market-price { grid-column: 1 / -1; display: grid; gap: .15rem; border-top: 1px solid var(--color-border); padding-top: .4rem; font-size: .72rem; }
+.vault-bulk-market-price a { color: var(--color-accent-gold); font-weight: 700; text-underline-offset: .15rem; }
+.vault-bulk-market-price strong { color: #86efac; }
+.vault-bulk-market-price span { color: var(--color-text-muted); }
 .vault-bundle-fields { display: grid; grid-template-columns: minmax(0, 2fr) minmax(8rem, 1fr); gap: var(--space-2); }
 .vault-bundle-fields label { display: grid; gap: .3rem; color: var(--color-text-muted); }
 .vault-bundle-fields .is-wide { grid-column: 1 / -1; }
@@ -3403,6 +3423,10 @@ h3 {
   .vault-collection-toolbar { grid-template-columns: 1fr; }
   .vault-filter-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .vault-loan-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .vault-trade-list-row { grid-template-columns: 3.75rem minmax(0, 1fr); }
+  .vault-trade-list-image, .vault-trade-list-row > .vault-card-placeholder { width: 3.75rem; }
+  .vault-trade-list-actions { grid-column: 1 / -1; justify-content: stretch; }
+  .vault-trade-list-actions .button { flex: 1 1 8rem; }
 }
 
 @media (max-width: 600px) {
@@ -3416,6 +3440,10 @@ h3 {
   .vault-search-result .vault-card-actions { grid-column: 1 / -1; }
   .vault-search-result .button { flex: 1 1 10rem; }
   .vault-toolbar-controls { grid-template-columns: 1fr; }
+  .vault-trade-sort { align-items: stretch; flex-direction: column; }
+  .vault-view-switch { align-self: stretch; }
+  .vault-view-switch button { flex: 1; }
+  .vault-trade-list-actions { flex-wrap: wrap; }
   .vault-collection-search-row, .vault-filter-grid, .vault-post-tournament-grid { grid-template-columns: 1fr; }
   .vault-bulk-bar { position: static; display: grid; align-items: stretch; }
   .vault-maintenance-heading, .vault-maintenance article, .vault-post-tournament-grid article { align-items: stretch; flex-direction: column; }

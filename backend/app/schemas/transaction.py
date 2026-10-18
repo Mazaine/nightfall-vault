@@ -4,7 +4,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
-TransactionStatus = Literal["transaction_open", "completed", "reviewed", "archived"]
+TransactionStatus = Literal["transaction_open", "completed", "reviewed", "archived", "cancelled"]
 
 
 class TransactionUserRead(BaseModel):
@@ -20,6 +20,15 @@ class TransactionAuctionRead(BaseModel):
     finalized_at: datetime | None
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class TransactionItemRead(BaseModel):
+    id: int
+    auction_id: int
+    title: str
+    quantity: int
+    unit_price: float
+    subtotal: float
 
 
 class AuctionTransactionRead(BaseModel):
@@ -42,6 +51,8 @@ class AuctionTransactionRead(BaseModel):
     can_delete: bool
     auction: TransactionAuctionRead
     partner: TransactionUserRead
+    items: list[TransactionItemRead] = []
+    total: float = 0
 
 
 class AuctionTransactionPage(BaseModel):

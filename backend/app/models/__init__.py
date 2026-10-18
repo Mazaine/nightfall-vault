@@ -14,7 +14,8 @@ from app.models.stock_movement import StockMovement
 from app.models.security_log import AuditLog, LoginAttempt
 from app.models.demo_auction import DemoAuctionBatch
 from app.models.refresh_session import RefreshSession
-from app.models.transaction import AuctionTransaction
+from app.models.cart import Cart, CartItem, CheckoutBatch, InventoryReservation
+from app.models.transaction import AuctionTransaction, AuctionTransactionItem
 from app.models.user import SavedSearch, SellerFollow, User, UserAuthIdentity, VipActivationCode
 from app.models.vault import VaultAccount, VaultCapacityGrant, VaultCardLoan, VaultCollectionCard, VaultDeck, VaultDeckCard, VaultFolder, VaultMatchState, VaultPointTransaction, VaultTrade, VaultTradeCard, VaultTradeMessage, VaultTradeReview
 
@@ -53,6 +54,11 @@ __all__ = [
     "DemoAuctionBatch",
     "RefreshSession",
     "AuctionTransaction",
+    "AuctionTransactionItem",
+    "Cart",
+    "CartItem",
+    "CheckoutBatch",
+    "InventoryReservation",
     "User",
     "UserAuthIdentity",
     "SellerFollow",
