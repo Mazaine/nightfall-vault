@@ -28,11 +28,22 @@ def public_user_label(user: User) -> str:
     return user.full_name.strip() or username.split("@", 1)[0]
 
 
-def card_read(db: Session, card: VaultCollectionCard, *, offer_count: int | None = None, trade_card: VaultTradeCard | None = None, trade_card_loaded: bool = False) -> CardRead:
+def card_read(db: Session, card: VaultCollectionCard, *, offer_count: int | None = None, trade_card: VaultTradeCard | None = None, trade_card_loaded: bool = False, loaned_quantity: int | None = None, listed_quantity: int | None = None) -> CardRead:
     offers = offer_count if offer_count is not None else int(db.scalar(select(func.count()).select_from(VaultTradeCard).where(VaultTradeCard.external_card_id == card.external_card_id, VaultTradeCard.user_id != card.user_id)) or 0)
     if trade_card is None and not trade_card_loaded:
         trade_card = db.scalar(select(VaultTradeCard).where(VaultTradeCard.user_id == card.user_id, VaultTradeCard.external_card_id == card.external_card_id, VaultTradeCard.print_variant == card.print_variant))
-    return CardRead.model_validate({**card.__dict__, "offer_count": offers, "in_trade": trade_card is not None, "trade_card_id": trade_card.id if trade_card else None})
+    loaned = active_loan_quantity(db, card.id) if loaned_quantity is None else loaned_quantity
+    listed = reserved_listing_quantity(db, card.id) if listed_quantity is None else listed_quantity
+    return CardRead.model_validate({
+        **card.__dict__,
+        "offer_count": offers,
+        "in_trade": trade_card is not None,
+        "trade_card_id": trade_card.id if trade_card else None,
+        "trade_quantity": trade_card.quantity if trade_card else 0,
+        "loaned_quantity": loaned,
+        "listed_quantity": listed,
+        "available_listing_quantity": max(card.quantity - loaned - listed, 0),
+    })
 
 
 def folder_statistics(db: Session, user_id: int) -> dict[int, tuple[int, int]]:
@@ -335,6 +346,14 @@ def list_cards(folder_id: int | None = None, query: str | None = Query(default=N
         select(VaultTradeCard).where(VaultTradeCard.user_id == current_user.id, VaultTradeCard.external_card_id.in_(external_ids))
     ).all()
     trade_by_key = {(card.external_card_id, card.print_variant): card for card in own_trade_cards}
+    card_ids = [card.id for card in cards]
+    loaned_by_card = {int(card_id): int(quantity) for card_id, quantity in db.execute(
+        select(VaultCardLoan.collection_card_id, func.coalesce(func.sum(VaultCardLoan.quantity), 0))
+        .where(VaultCardLoan.collection_card_id.in_(card_ids), VaultCardLoan.status == "active")
+        .group_by(VaultCardLoan.collection_card_id)
+    ).all() if card_id is not None}
+    from app.services.batch_listings import reserved_collection_quantities
+    listed_by_card = reserved_collection_quantities(db, card_ids)
     return [
         card_read(
             db,
@@ -342,6 +361,8 @@ def list_cards(folder_id: int | None = None, query: str | None = Query(default=N
             offer_count=int(offer_counts.get(card.external_card_id, 0)),
             trade_card=trade_by_key.get((card.external_card_id, card.print_variant)),
             trade_card_loaded=True,
+            loaned_quantity=loaned_by_card.get(card.id, 0),
+            listed_quantity=listed_by_card.get(card.id, 0),
         )
         for card in cards
     ]

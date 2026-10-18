@@ -352,7 +352,7 @@ export function VirtualVaultPage() {
   }
 
   function openTradeCardListing(card: PublicTradeCard) {
-    const collectionCard = cards.find((item) => item.external_card_id === card.external_card_id && item.print_variant === card.print_variant && item.quantity > 0);
+    const collectionCard = cards.find((item) => item.external_card_id === card.external_card_id && item.print_variant === card.print_variant && (item.available_listing_quantity ?? item.quantity) > 0);
     if (!collectionCard) {
       setMessage("Ez a cserelap nincs a gyűjteményedben. Eladáshoz előbb add hozzá a saját mappádhoz.");
       return;
@@ -499,7 +499,7 @@ export function VirtualVaultPage() {
         <div className="vault-card-grid vault-collection-grid">{visibleCardGroups.map((group) => {
           const card = group.card;
           const wantedCard = group.variants.find((item) => item.wanted) || group.variants.find((item) => item.print_variant === "normal") || group.variants[0];
-          const availableCard = group.variants.find((item) => item.print_variant === "normal" && item.quantity > 0) || group.variants.find((item) => item.quantity > 0);
+          const availableCard = group.variants.find((item) => item.print_variant === "normal" && (item.available_listing_quantity ?? item.quantity) > 0) || group.variants.find((item) => (item.available_listing_quantity ?? item.quantity) > 0);
           const isWanted = group.variants.some((item) => item.wanted);
           const isInTrade = group.variants.some((item) => item.in_trade);
           const isSelected = group.variants.every((item) => selectedCardIds.has(item.id));
@@ -507,7 +507,7 @@ export function VirtualVaultPage() {
             {selectionMode ? <label className="vault-card-selector"><input type="checkbox" aria-label={card.card_name + " kijelölése"} checked={isSelected} onChange={() => toggleSelectedGroup(group)}/></label> : null}
             <CardImage card={card}/>
             <div className="vault-card-body">
-              <header className="vault-card-title"><strong>{card.card_name}</strong>{card.edition ? <small>{card.edition}</small> : null}</header>
+              <header className="vault-card-title"><strong title={card.card_name}>{card.card_name}</strong>{card.edition ? <small title={card.edition}>{card.edition}</small> : null}</header>
               <section className="vault-card-properties" aria-label="Tulajdonságok">
                 <CardMeta card={{ ...card, edition: null }}/>
                 <div className="vault-card-variant-quantities" aria-label={`${card.card_name} változatok`}>{groupVariantDefinitions(group).map((definition) => {

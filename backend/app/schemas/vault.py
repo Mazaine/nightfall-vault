@@ -142,6 +142,10 @@ class CardRead(BaseModel):
     offer_count: int = 0
     in_trade: bool = False
     trade_card_id: int | None = None
+    trade_quantity: int = 0
+    loaned_quantity: int = 0
+    listed_quantity: int = 0
+    available_listing_quantity: int = 0
 
 
 class PublicTradeCardRead(CardRead):

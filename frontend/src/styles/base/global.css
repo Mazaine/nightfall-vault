@@ -468,14 +468,14 @@ h3 {
 
 .auction-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   align-items: stretch;
   gap: var(--space-4);
   margin-top: var(--space-5);
 }
 
 .home-auction-grid {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
 }
 
 .home-featured-section {
@@ -1740,6 +1740,10 @@ h3 {
   font-weight: 700;
 }
 
+@media (max-width: 1400px) {
+  .auction-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+
 @media (max-width: 1100px) {
   .hero-layout,
   .content-grid,
@@ -1760,7 +1764,7 @@ h3 {
   }
 
   .auction-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .home-featured-section > .side-stack {
@@ -1773,6 +1777,10 @@ h3 {
   .rules-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+}
+
+@media (max-width: 900px) and (min-width: 761px) {
+  .auction-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 @media (max-width: 760px) {
@@ -3307,6 +3315,8 @@ h3 {
 .listing-market-price-note strong { color: #86efac; }
 .listing-market-price-line > span { color: var(--color-text-muted); font-size: .82rem; }
 .listing-market-price-note small { color: var(--color-text-muted); }
+.listing-inventory-summary { display: flex; align-items: center; flex-wrap: wrap; gap: .35rem .85rem; border: 1px solid var(--color-divider); border-radius: var(--radius-sm); background: rgb(255 255 255 / .025); padding: .55rem .7rem; color: var(--color-text-muted); font-size: .8rem; }
+.listing-inventory-summary strong { color: var(--color-text); }
 .listing-upload-actions, .listing-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 .listing-actions { justify-content: flex-end; }
 .listing-image-list { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: var(--space-2); }

@@ -19,7 +19,7 @@ const source: ListingSource = {
   cardName: "Ősi áldozat",
   edition: "Roxat céhei",
   imageUrl: null,
-  variants: [{ id: 14, print_variant: "normal", quantity: 2 }],
+  variants: [{ id: 14, print_variant: "normal", quantity: 3, trade_quantity: 2, loaned_quantity: 1, listed_quantity: 1, available_listing_quantity: 1 }],
 };
 
 describe("ListingComposer piaci ár hivatkozás", () => {
@@ -64,5 +64,15 @@ describe("ListingComposer piaci ár hivatkozás", () => {
     fireEvent.change(document.querySelector<HTMLInputElement>('input[name="reserve_price"]')!, { target: { value: "1500" } });
     fireEvent.click(screen.getByRole("button", { name: "Aukció indítása" }));
     await waitFor(() => expect(auctionMocks.createAuction).toHaveBeenLastCalledWith(expect.objectContaining({ listing_type: "auction", reserve_price: "1500" })));
+  });
+
+  it("a ténylegesen szabad készletet mutatja és nem a teljes tulajdonolt mennyiséget", () => {
+    render(<MemoryRouter><ListingComposer source={source}/></MemoryRouter>);
+    expect(screen.getByLabelText("Készletbontás")).toHaveTextContent("Saját: 3");
+    expect(screen.getByLabelText("Készletbontás")).toHaveTextContent("Cserében: 2");
+    expect(screen.getByLabelText("Készletbontás")).toHaveTextContent("Kölcsönadva: 1");
+    expect(screen.getByLabelText("Készletbontás")).toHaveTextContent("Meghirdetve: 1");
+    expect(screen.getByLabelText("Készletbontás")).toHaveTextContent("Szabadon hirdethető: 1");
+    expect(screen.getByLabelText("Darabszám").querySelectorAll("option")).toHaveLength(1);
   });
 });

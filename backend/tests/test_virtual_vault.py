@@ -313,6 +313,11 @@ def test_fixed_price_vault_listing_reserves_and_deducts_only_after_completion() 
         assert blocked.status_code == 409
         activated = client.post(f"/api/auctions/{created.json()['id']}/activate", headers=auth_headers(seller))
         assert activated.status_code == 200, activated.text
+        listed_card = client.get("/api/vault/cards", headers=auth_headers(seller)).json()[0]
+        assert listed_card["quantity"] == 2
+        assert listed_card["listed_quantity"] == 1
+        assert listed_card["loaned_quantity"] == 0
+        assert listed_card["available_listing_quantity"] == 1
         fixed_market = client.get("/api/auctions?listing_type=fixed&q=sale-card").json()
         auction_market = client.get("/api/auctions?listing_type=auction&q=sale-card").json()
         assert fixed_market["total"] == 1 and fixed_market["items"][0]["id"] == created.json()["id"]

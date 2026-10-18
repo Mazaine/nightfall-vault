@@ -36,6 +36,35 @@ def _reserved_quantity(db: Session, card_id: int) -> int:
     return singles + bundles
 
 
+def reserved_collection_quantities(db: Session, card_ids: list[int]) -> dict[int, int]:
+    """Return reserved listing quantities in two grouped queries for collection lists."""
+    if not card_ids:
+        return {}
+    totals: dict[int, int] = {}
+    single_rows = db.execute(select(
+        Auction.vault_collection_card_id,
+        func.coalesce(func.sum(Auction.vault_quantity), 0),
+    ).where(
+        Auction.vault_collection_card_id.in_(card_ids),
+        Auction.status.in_(RESERVING_STATUSES),
+        Auction.deleted_at.is_(None),
+        Auction.vault_inventory_deducted.is_(False),
+    ).group_by(Auction.vault_collection_card_id)).all()
+    bundle_rows = db.execute(select(
+        AuctionBundleItem.vault_collection_card_id,
+        func.coalesce(func.sum(AuctionBundleItem.quantity), 0),
+    ).join(Auction, Auction.id == AuctionBundleItem.auction_id).where(
+        AuctionBundleItem.vault_collection_card_id.in_(card_ids),
+        Auction.status.in_(RESERVING_STATUSES),
+        Auction.deleted_at.is_(None),
+        Auction.vault_inventory_deducted.is_(False),
+    ).group_by(AuctionBundleItem.vault_collection_card_id)).all()
+    for card_id, quantity in [*single_rows, *bundle_rows]:
+        if card_id is not None:
+            totals[int(card_id)] = totals.get(int(card_id), 0) + int(quantity)
+    return totals
+
+
 def _reserved_trade_quantity(db: Session, card_id: int) -> int:
     singles = int(db.scalar(select(func.coalesce(func.sum(Auction.vault_quantity), 0)).where(
         Auction.vault_trade_card_id == card_id,

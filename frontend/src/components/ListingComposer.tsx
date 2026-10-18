@@ -12,7 +12,7 @@ export type ListingSource = {
   cardName: string;
   edition: string | null;
   imageUrl: string | null;
-  variants: Pick<VaultCard, "id" | "print_variant" | "quantity">[];
+  variants: Pick<VaultCard, "id" | "print_variant" | "quantity" | "trade_quantity" | "loaned_quantity" | "listed_quantity" | "available_listing_quantity">[];
 };
 
 const variantLabel: Record<PrintVariant, string> = { normal: "Normál", foil: "Foil", fa: "FA", gfa: "GFA" };
@@ -33,8 +33,9 @@ function localIso(date: Date) {
 
 export function ListingComposer({ source, compact = false, onClose, onDone }: { source?: ListingSource; compact?: boolean; onClose?: () => void; onDone?: (auctionId: number) => void }) {
   const [mode, setMode] = useState<"fixed" | "auction">("fixed");
-  const [variantId, setVariantId] = useState(source?.variants.find((item) => item.quantity > 0)?.id ?? 0);
+  const [variantId, setVariantId] = useState(source?.variants.find((item) => (item.available_listing_quantity ?? item.quantity) > 0)?.id ?? 0);
   const selectedVariant = source?.variants.find((item) => item.id === variantId);
+  const availableQuantity = selectedVariant?.available_listing_quantity ?? selectedVariant?.quantity ?? 0;
   const [quantity, setQuantity] = useState(1);
   const [files, setFiles] = useState<File[]>([]);
   const [cover, setCover] = useState(0);
@@ -79,7 +80,7 @@ export function ListingComposer({ source, compact = false, onClose, onDone }: { 
     const price = Number(data.get("price"));
     if (!Number.isInteger(price) || price <= 0) return setMessage("Az ár pozitív egész forintösszeg legyen.");
     if (!files.length && !source?.externalCardId) return setMessage("Adj hozzá legalább egy saját fotót.");
-    if (source && (!selectedVariant || quantity > selectedVariant.quantity)) return setMessage("A kiválasztott mennyiség nem áll rendelkezésre.");
+    if (source && (!selectedVariant || quantity > availableQuantity)) return setMessage("A kiválasztott mennyiség nem áll szabadon rendelkezésre.");
     const startsAt = new Date(String(data.get("starts_at") || startDefault));
     const duration = Number(data.get("duration") || 7);
     const endsAt = mode === "fixed" ? new Date(Date.now() + 30 * 86_400_000) : new Date(startsAt.getTime() + duration * 86_400_000);
@@ -117,11 +118,12 @@ export function ListingComposer({ source, compact = false, onClose, onDone }: { 
     <div className="listing-mode" role="tablist" aria-label="Hirdetés típusa"><button type="button" role="tab" aria-selected={mode === "fixed"} className={mode === "fixed" ? "is-active" : ""} onClick={() => setMode("fixed")}>Fix áras eladás</button><button type="button" role="tab" aria-selected={mode === "auction"} className={mode === "auction" ? "is-active" : ""} onClick={() => setMode("auction")}>Aukció</button></div>
     {source ? <div className="listing-source"><CardImagePreview card={{ external_card_id: source.externalCardId, card_name: source.cardName, image_url: source.imageUrl }} preview={false}/><div><strong>{source.cardName}</strong><small>HKK #{source.externalCardId}{source.edition ? ` · ${source.edition}` : ""}</small></div></div> : <label>Név<input name="title" required minLength={2} maxLength={180}/></label>}
     <div className="listing-fields">
-      {source ? <label>Változat<select value={variantId} onChange={(event) => { setVariantId(Number(event.target.value)); setQuantity(1); }}>{source.variants.filter((item) => item.quantity > 0).map((item) => <option key={item.id} value={item.id}>{variantLabel[item.print_variant]} · {item.quantity} db</option>)}</select></label> : <label>Kategória<select name="category">{categories.map((category) => <option key={category}>{category}</option>)}</select></label>}
-      {source ? <label>Darabszám<select value={quantity} onChange={(event) => setQuantity(Number(event.target.value))}>{Array.from({ length: selectedVariant?.quantity || 1 }, (_, index) => <option key={index + 1}>{index + 1}</option>)}</select></label> : null}
+      {source ? <label>Változat<select value={variantId} onChange={(event) => { setVariantId(Number(event.target.value)); setQuantity(1); }}>{source.variants.filter((item) => (item.available_listing_quantity ?? item.quantity) > 0).map((item) => <option key={item.id} value={item.id}>{variantLabel[item.print_variant]} · {item.available_listing_quantity ?? item.quantity} db szabad</option>)}</select></label> : <label>Kategória<select name="category">{categories.map((category) => <option key={category}>{category}</option>)}</select></label>}
+      {source ? <label>Darabszám<select value={quantity} onChange={(event) => setQuantity(Number(event.target.value))}>{Array.from({ length: Math.max(availableQuantity, 1) }, (_, index) => <option key={index + 1}>{index + 1}</option>)}</select></label> : null}
       <label>{mode === "fixed" ? "Fix ár" : "Kikiáltási ár"}<span className="listing-money-input"><input name="price" type="number" min="1" step="1" required/><span>Ft</span></span></label>
       <label>Állapot<select name="condition" defaultValue="NM">{CARD_CONDITIONS.map((item) => <option value={item.value} key={item.value}>{item.nameHu}</option>)}</select></label>
     </div>
+    {source && selectedVariant ? <div className="listing-inventory-summary" aria-label="Készletbontás"><span>Saját: <strong>{selectedVariant.quantity}</strong></span><span>Cserében: <strong>{selectedVariant.trade_quantity ?? 0}</strong></span><span>Kölcsönadva: <strong>{selectedVariant.loaned_quantity ?? 0}</strong></span><span>Meghirdetve: <strong>{selectedVariant.listed_quantity ?? 0}</strong></span><span>Szabadon hirdethető: <strong>{availableQuantity}</strong></span></div> : null}
     {source ? <aside className="listing-market-price-note"><span className="listing-market-price-line"><a href={buildHkkMarketPriceUrl(source.cardName)} target="_blank" rel="noopener noreferrer">Piaci árak megtekintése</a>{marketPrice === undefined ? <span>Árjavaslat betöltése…</span> : marketPrice?.recommended_price ? <strong>Ajánlott ár: {marketPrice.recommended_price.toLocaleString("hu-HU")} Ft</strong> : <span>Nincs elég pontos piaci adat.</span>}</span>{marketPrice?.recommended_price ? <small>{marketPrice.offer_count} készleten lévő, egyező bolti ár mediánja{marketPrice.minimum_price !== marketPrice.maximum_price ? ` · ${marketPrice.minimum_price?.toLocaleString("hu-HU")}–${marketPrice.maximum_price?.toLocaleString("hu-HU")} Ft` : ""}. Az ármezőt nem módosítjuk automatikusan.</small> : null}<small>A bolti árak tájékoztató jellegűek. Ellenőrizd a kiegészítőt és a lapváltozatot!</small></aside> : null}
     {mode === "auction" ? <div className="listing-fields"><label>Indulás<input name="starts_at" type="datetime-local" defaultValue={startDefault} required/></label><label>Időtartam<select name="duration" defaultValue="7"><option value="1">1 nap</option><option value="3">3 nap</option><option value="7">7 nap</option><option value="14">14 nap</option></select></label><label>Licitlépcső<input name="bid_increment" type="number" min="1" step="1" defaultValue="100"/></label><label>Azonnali vételár<input name="buy_now_price" type="number" min="1" step="1" placeholder="Opcionális"/></label><label>Minimálár<input name="reserve_price" type="number" min="1" step="1" placeholder="Opcionális"/><small>A pontos összeg csak neked látható.</small></label></div> : null}
     <label>Rövid leírás / állapotmegjegyzés<textarea name="description" rows={3} minLength={10} maxLength={5000} defaultValue={source ? `${source.cardName}, ${variantLabel[selectedVariant?.print_variant || "normal"]} változat. A képeken látható állapotban.` : ""} required/></label>

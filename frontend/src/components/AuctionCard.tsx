@@ -263,7 +263,7 @@ export function AuctionCard({
           {item.isDemo ? <span className="demo-auction-badge">TESZT AUKCIÓ</span> : null}
         </div>
         <h3>
-          <Link className="auction-title-link" to={detailPath}>
+          <Link className="auction-title-link" to={detailPath} title={item.title}>
             {item.title}
           </Link>
         </h3>

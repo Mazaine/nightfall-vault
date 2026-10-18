@@ -6,7 +6,8 @@ export type VaultCard = {
   id: number; external_card_id: string; card_name: string; image_url: string | null; edition: string | null;
   card_type: string | null; subtype: string | null; color: string | null; rarity: string | null; quantity: number;
   folder_id: number | null; wanted: boolean; wanted_quantity: number; offer_count: number; print_variant: PrintVariant;
-  in_trade: boolean; trade_card_id: number | null;
+  in_trade: boolean; trade_card_id: number | null; trade_quantity?: number; loaned_quantity?: number;
+  listed_quantity?: number; available_listing_quantity?: number;
 };
 export type BulkCardAction = "move" | "trade_add" | "trade_remove" | "wanted_on" | "wanted_off" | "delete";
 export type VaultMaintenance = { stale_after_days: number; acquired_wanted: VaultCard[]; stale_trade_cards: PublicTradeCard[]; overdue_loans: VaultCardLoan[] };
