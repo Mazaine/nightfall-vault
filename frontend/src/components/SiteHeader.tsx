@@ -149,7 +149,7 @@ export function SiteHeader() {
 
         <div className="header-actions" aria-label="Fiókműveletek">
           <Link className="icon-button icon-button-search" to="/marketplace" aria-label="Keresés a piactéren" />
-          {isAuthenticated ? <Link className="cart-link icon-button" to="/cart" aria-label={`Kosár${cartCount ? `, ${cartCount} tétel` : ""}`}><span aria-hidden="true">⌑</span>{cartCount > 0 ? <strong>{cartCount > 99 ? "99+" : cartCount}</strong> : null}</Link> : null}
+          {isAuthenticated ? <Link className="cart-link icon-button" to="/cart" aria-label={`Kosár${cartCount ? `, ${cartCount} tétel` : ""}`}><svg className="cart-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3.5 9.5h17l-1.6 9H5.1l-1.6-9Z"/><path d="m8 9.5 4-5 4 5M8.5 13v2.5m3.5-2.5v2.5m3.5-2.5v2.5"/></svg>{cartCount > 0 ? <strong>{cartCount > 99 ? "99+" : cartCount}</strong> : null}</Link> : null}
           {isAuthenticated ? <Link className="notification-link icon-button" to="/account/notifications" aria-label={`Értesítések${displayUnreadCount ? `, ${displayUnreadCount} olvasatlan` : ""}`}><span className="visually-hidden">Értesítések</span>{displayUnreadCount > 0 ? <strong>{displayUnreadCount > 99 ? "99+" : displayUnreadCount}</strong> : null}</Link> : null}
           {isAuthenticated ? (
             <div className="account-menu-wrap">
