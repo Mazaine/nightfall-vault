@@ -38,4 +38,12 @@ describe("CommunityTradeBrowserPage", () => {
     expect(screen.queryByText("Match")).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Belépés az érdeklődéshez" })).toHaveAttribute("href", "/login?next=%2Fvault%2Fcommunity");
   });
+
+  it("a közösségi rácsban nem nyit hoveres képnagyítást", async () => {
+    render(<MemoryRouter><CommunityTradeBrowserPage/></MemoryRouter>);
+    const image = await screen.findByAltText("Angyalgólem");
+    fireEvent.pointerEnter(image.closest(".card-image-preview")!);
+    await new Promise((resolve) => setTimeout(resolve, 160));
+    expect(screen.queryByAltText("Angyalgólem nagyított képe")).not.toBeInTheDocument();
+  });
 });
