@@ -75,4 +75,15 @@ describe("ListingComposer piaci ár hivatkozás", () => {
     expect(screen.getByLabelText("Készletbontás")).toHaveTextContent("Szabadon hirdethető: 1");
     expect(screen.getByLabelText("Darabszám").querySelectorAll("option")).toHaveLength(1);
   });
+
+  it("nem engedi új hirdetésbe a felülvizsgálandó régi változatot", () => {
+    const conflicted: ListingSource = {
+      ...source,
+      variants: [{ ...source.variants[0], print_variant: "gfa", variant_needs_review: true }],
+    };
+    render(<MemoryRouter><ListingComposer source={conflicted}/></MemoryRouter>);
+    expect(screen.getByRole("status")).toHaveTextContent("nincs hitelesített, szabadon hirdethető változat");
+    expect(screen.getByRole("button", { name: "Meghirdetem fix áron" })).toBeDisabled();
+    expect(screen.getByLabelText("Változat").querySelectorAll("option")).toHaveLength(0);
+  });
 });

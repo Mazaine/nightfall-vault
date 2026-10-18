@@ -85,8 +85,9 @@ def refresh_wanted_quantity(db: Session, user_id: int, external_card_id: str) ->
     wanted_card.wanted_quantity = max(3 - owned_card_quantity(db, user_id, external_card_id), 0)
 
 
-def trade_card_read(card: VaultTradeCard, seeker_count: int = 0, available_listing_quantity: int | None = None) -> PublicTradeCardRead:
-    return PublicTradeCardRead.model_validate({**card.__dict__, "owner_id": card.user_id, "owner_username": card.user.username, "seeker_count": seeker_count, "available_listing_quantity": available_listing_quantity})
+def trade_card_read(db: Session, card: VaultTradeCard, seeker_count: int = 0, available_listing_quantity: int | None = None) -> PublicTradeCardRead:
+    statuses, images, verified = variant_metadata(db, card.external_card_id)
+    return PublicTradeCardRead.model_validate({**card.__dict__, "owner_id": card.user_id, "owner_username": card.user.username, "seeker_count": seeker_count, "available_listing_quantity": available_listing_quantity, "variant_statuses": statuses, "variant_image_urls": images, "variants_verified": verified, "variant_needs_review": statuses.get(card.print_variant) == "absent"})
 
 
 def public_trade_card_read(db: Session, card: VaultTradeCard, seeker_count: int = 0) -> PublicTradeCardRead:
@@ -98,6 +99,7 @@ def public_trade_card_read(db: Session, card: VaultTradeCard, seeker_count: int 
         Auction.status.in_(["scheduled", "active"]),
         Auction.deleted_at.is_(None),
     ).order_by(Auction.created_at.desc()).limit(1))
+    statuses, images, verified = variant_metadata(db, card.external_card_id)
     return PublicTradeCardRead.model_validate({
         **card.__dict__,
         "owner_id": card.user_id,
@@ -105,6 +107,10 @@ def public_trade_card_read(db: Session, card: VaultTradeCard, seeker_count: int 
         "seeker_count": seeker_count,
         "fixed_price_auction_id": listing.id if listing else None,
         "fixed_price": str(listing.buy_now_price) if listing and listing.buy_now_price is not None else None,
+        "variant_statuses": statuses,
+        "variant_image_urls": images,
+        "variants_verified": verified,
+        "variant_needs_review": statuses.get(card.print_variant) == "absent",
     })
 
 
@@ -223,7 +229,7 @@ def maintenance(current_user: User = Depends(require_active_user), db: Session =
     return VaultMaintenanceRead(
         stale_after_days=settings.vault_trade_review_days,
         acquired_wanted=[card_read(db, card) for card in acquired],
-        stale_trade_cards=[trade_card_read(card) for card in stale_trade],
+        stale_trade_cards=[trade_card_read(db, card) for card in stale_trade],
         overdue_loans=[CardLoanRead.model_validate(loan) for loan in overdue],
     )
 
@@ -497,15 +503,15 @@ def add_card(payload: CollectionCardCreate, current_user: User = Depends(require
     variant = payload.print_variant or "normal"
     existing = db.scalar(select(VaultCollectionCard).where(VaultCollectionCard.user_id == current_user.id, VaultCollectionCard.external_card_id == payload.external_card_id, VaultCollectionCard.print_variant == variant).with_for_update())
     sibling = db.scalar(select(VaultCollectionCard).where(VaultCollectionCard.user_id == current_user.id, VaultCollectionCard.external_card_id == payload.external_card_id).order_by(VaultCollectionCard.id).with_for_update())
+    next_quantity = payload.quantity if existing is None else existing.quantity + payload.quantity
     require_attested_variant(
         db,
         payload.external_card_id,
         variant,
         previous_variant=existing.print_variant if existing else None,
         previous_quantity=existing.quantity if existing else None,
-        quantity=payload.quantity,
+        quantity=next_quantity,
     )
-    next_quantity = payload.quantity if existing is None else existing.quantity + payload.quantity
     require_collection_pocket_limit(db, current_user.id, payload.external_card_id, next_quantity, card=existing)
     if existing is None:
         if sibling is not None and sibling.folder_id != folder.id:
@@ -932,7 +938,7 @@ def deck_card_offers(deck_id: int, card_id: int, current_user: User = Depends(re
     if card is None:
         raise HTTPException(status_code=404, detail="A paklilap nem található.")
     offers = db.scalars(select(VaultTradeCard).where(VaultTradeCard.external_card_id == card.external_card_id, VaultTradeCard.user_id != current_user.id).order_by(VaultTradeCard.updated_at.desc())).all()
-    return [trade_card_read(offer) for offer in offers]
+    return [trade_card_read(db, offer) for offer in offers]
 
 
 @router.get("/trade", response_model=list[PublicTradeCardRead])
@@ -943,7 +949,7 @@ def my_trade_cards(current_user: User = Depends(require_active_user), db: Sessio
         .where(VaultCollectionCard.user_id != current_user.id, VaultCollectionCard.wanted.is_(True), VaultCollectionCard.wanted_quantity > 0, VaultCollectionCard.external_card_id.in_([card.external_card_id for card in cards]))
         .group_by(VaultCollectionCard.external_card_id)
     ).all()) if cards else {}
-    return [trade_card_read(card, int(wanted_counts.get(card.external_card_id, 0)), max(card.quantity - reserved_trade_listing_quantity(db, card.id), 0)) for card in cards]
+    return [trade_card_read(db, card, int(wanted_counts.get(card.external_card_id, 0)), max(card.quantity - reserved_trade_listing_quantity(db, card.id), 0)) for card in cards]
 
 
 @router.get("/trade/{card_id}/seekers", response_model=list[TradeCardSeekerRead])
@@ -976,7 +982,7 @@ def verify_trade_card(card_id: int, current_user: User = Depends(require_active_
     card.updated_at = utc_now()
     db.commit()
     db.refresh(card)
-    return trade_card_read(card)
+    return trade_card_read(db, card)
 
 
 @router.post("/trade", response_model=PublicTradeCardRead, status_code=status.HTTP_201_CREATED)
@@ -1010,7 +1016,7 @@ def add_trade_card(payload: TradeCardCreate, current_user: User = Depends(requir
     sync_vault_matches_for_card(db, payload.external_card_id)
     db.commit()
     db.refresh(card)
-    return trade_card_read(card)
+    return trade_card_read(db, card)
 
 
 @router.patch("/trade/{card_id}", response_model=PublicTradeCardRead)
@@ -1038,7 +1044,7 @@ def update_trade_card(card_id: int, payload: QuantityUpdate, current_user: User 
     db.flush()
     sync_vault_matches_for_card(db, card.external_card_id)
     db.commit(); db.refresh(card)
-    return trade_card_read(card)
+    return trade_card_read(db, card)
 
 
 @router.delete("/trade/{card_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -1175,7 +1181,7 @@ def matching_offers(card_id: int, current_user: User = Depends(require_active_us
     if not card.wanted or card.wanted_quantity <= 0:
         raise HTTPException(status_code=409, detail="A lap nincs Keresem állapotban.")
     offers = db.scalars(select(VaultTradeCard).where(VaultTradeCard.external_card_id == card.external_card_id, VaultTradeCard.user_id != current_user.id).order_by(VaultTradeCard.updated_at.desc())).all()
-    return [trade_card_read(offer) for offer in offers]
+    return [trade_card_read(db, offer) for offer in offers]
 
 
 @router.post("/trade/{card_id}/interest", response_model=TradeRead, status_code=status.HTTP_201_CREATED)

@@ -3155,6 +3155,11 @@ h3 {
 .vault-variant-quantity { min-width: 0; justify-items: stretch; gap: .15rem !important; color: var(--color-text-muted); font-size: .68rem !important; }
 .vault-variant-quantity span { overflow: hidden; text-align: center; text-overflow: ellipsis; white-space: nowrap; }
 .vault-variant-quantity select { width: 100%; min-width: 0; min-height: 2rem; padding: .25rem 1.15rem .25rem .35rem; font-size: .78rem; }
+.vault-variant-quantity.is-review-required { color: #fbbf24; }
+.vault-unverified-variants { min-width: 0; border: 1px solid rgb(148 163 184 / .2); border-radius: var(--radius-sm); padding: .4rem .5rem; }
+.vault-unverified-variants summary { cursor: pointer; color: var(--color-text-muted); font-size: .72rem; line-height: 1.25; }
+.vault-unverified-variants[open] summary { margin-bottom: .45rem; }
+.vault-variant-review-warning { margin: 0; color: #fbbf24; font-size: .72rem; line-height: 1.35; }
 .playset-badge { flex: 0 0 auto; border: 1px solid rgb(168 85 247 / .5); border-radius: 999px; padding: .2rem .5rem; color: #ddd6fe; font-size: .78rem; }
 .playset-badge.q3, .complete-playset { color: #86efac !important; }
 .vault-card-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }

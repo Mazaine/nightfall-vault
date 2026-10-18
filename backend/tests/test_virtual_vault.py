@@ -646,6 +646,8 @@ def test_verified_variants_override_rarity_and_keep_legacy_conflicts_reviewable(
             db.add(legacy); db.commit(); db.refresh(legacy); legacy_id = legacy.id
         finally:
             db.close()
+        repeated_legacy = client.post("/api/vault/cards", json={**card_payload("legacy-common", "Régi foil", 1), "folder_id": folder["id"], "print_variant": "foil"}, headers=auth_headers(user))
+        assert repeated_legacy.status_code == 422
         assert client.patch(f"/api/vault/cards/{legacy_id}", json={"quantity": 1}, headers=auth_headers(user)).status_code == 200
         assert client.patch(f"/api/vault/cards/{legacy_id}", json={"quantity": 3}, headers=auth_headers(user)).status_code == 422
         legacy_cards = client.get("/api/vault/cards", headers=auth_headers(user)).json()
