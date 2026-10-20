@@ -1,6 +1,6 @@
 import { apiRequest } from "./client";
 
-export type CartItemState = "reserved" | "expired" | "unavailable";
+export type CartItemState = "available" | "quantity_changed" | "sold_out" | "listing_removed";
 export type CartItem = {
   id: number; auction_id: number; title: string; seller_id: number; seller_name: string;
   listing_format: "single" | "bundle"; variant: string | null; quantity: number; max_quantity: number;

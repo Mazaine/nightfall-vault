@@ -122,6 +122,7 @@ function toParams(filters: FilterState, offset: number): AuctionListParams {
 
 export function AuctionsPage() {
   const location = useLocation();
+  const isFixedStore = location.pathname === "/marketplace/fixed";
   const { subscribe } = useAuctionRealtime();
   const [searchParams] = useSearchParams();
   const { isAuthenticated } = useAuth();
@@ -185,7 +186,7 @@ export function AuctionsPage() {
     });
   }), [subscribe]);
 
-  const params = useMemo(() => toParams(appliedFilters, offset), [appliedFilters, offset]);
+  const params = useMemo(() => ({ ...toParams(appliedFilters, offset), marketplace_scope: isFixedStore ? "fixed_store" as const : "main" as const }), [appliedFilters, offset, isFixedStore]);
 
   const load = useCallback(async () => {
     setIsLoading(true);
@@ -308,11 +309,11 @@ export function AuctionsPage() {
 
   return (
     <section className="container page-shell">
-      <p className="eyebrow">Piactér</p>
+      <p className="eyebrow">{isFixedStore ? "Lapbolt" : "Piactér"}</p>
       <div className="section-heading page-heading">
         <div>
-          <h1>{location.pathname === "/auctions" ? "Aukciók" : "Piactér"}</h1>
-          <p className="section-note">Fix áras lapok és aukciók egy helyen, részletes kereséssel.</p>
+          <h1>{isFixedStore ? "Lapbolt" : location.pathname === "/auctions" ? "Aukciók" : "Piactér"}</h1>
+          <p className="section-note">{isFixedStore ? "Egyedi fix áras HKK-lapok, eladóktól egy közös katalógusban." : "Aktív aukciók és csomageladások, részletes kereséssel."}</p>
         </div>
         <Link className="button button-primary" to="/auctions/create">Aukció létrehozása</Link>
       </div>

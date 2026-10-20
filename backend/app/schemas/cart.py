@@ -36,7 +36,7 @@ class CartItemRead(BaseModel):
     current_price: Decimal
     subtotal: Decimal
     price_changed: bool
-    state: Literal["reserved", "expired", "unavailable"]
+    state: Literal["available", "quantity_changed", "sold_out", "listing_removed"]
     reservation_expires_at: datetime | None
     image_url: str | None
     external_card_id: str | None

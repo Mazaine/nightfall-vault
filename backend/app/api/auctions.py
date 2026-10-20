@@ -205,6 +205,7 @@ def list_public_auctions(
     status_filter: str | None = Query(default=None, alias="status"),
     listing_type: Literal["auction", "fixed"] | None = None,
     listing_format: Literal["single", "bundle"] | None = None,
+    marketplace_scope: Literal["main", "fixed_store"] | None = None,
     min_price: float | None = Query(default=None, ge=0),
     max_price: float | None = Query(default=None, ge=0),
     min_bids: int | None = Query(default=None, ge=0),
@@ -241,6 +242,10 @@ def list_public_auctions(
         soon_ending=soon_ending,
         new_only=new_only,
     )
+    if marketplace_scope == "main":
+        filtered_query = filtered_query.filter(or_(Auction.listing_type == "auction", Auction.listing_format == "bundle"))
+    elif marketplace_scope == "fixed_store":
+        filtered_query = filtered_query.filter(Auction.listing_type == "fixed", Auction.listing_format == "single")
     filtered_query = filtered_query.filter(auction_visibility_clause(current_user))
     total = filtered_query.count()
     rows = _apply_auction_sort(filtered_query, sort).offset(offset).limit(limit).all()

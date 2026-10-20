@@ -78,6 +78,7 @@ def add_calendar_months(value: datetime, months: int) -> datetime:
 def active_auction_count(db: Session, user_id: int) -> int:
     return int(db.scalar(select(func.count()).select_from(Auction).where(
         Auction.seller_id == user_id,
+        Auction.listing_type == "auction",
         Auction.status.in_(LIVE_AUCTION_STATUSES),
         Auction.ends_at > utc_now(),
         Auction.deleted_at.is_(None),

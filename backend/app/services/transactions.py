@@ -324,9 +324,27 @@ def confirm_completion(db: Session, transaction_id: int, user: User) -> AuctionT
         transaction.completed_at = timestamp
         transaction.review_deadline = timestamp + timedelta(days=settings.transaction_review_window_days)
         create_domain_audit_log(db, action="transaction_completed", auction_id=transaction.auction_id, metadata={"transaction_id": transaction.id})
-        for participant_id in (transaction.seller_id, transaction.buyer_id):
-            from app.services.vault import grant_points
-            grant_points(db, participant_id, 15, "AUCTION_TRANSACTION_COMPLETED", "auction_transaction", str(transaction.id))
+        from app.services.vault import grant_points
+        is_fixed_price_sale = transaction.auction.listing_type == "fixed"
+        participant_rewards = (
+            (
+                transaction.seller_id,
+                "FIXED_PRICE_SALE_COMPLETED" if is_fixed_price_sale else "AUCTION_TRANSACTION_COMPLETED",
+            ),
+            (
+                transaction.buyer_id,
+                "FIXED_PRICE_PURCHASE_COMPLETED" if is_fixed_price_sale else "AUCTION_TRANSACTION_COMPLETED",
+            ),
+        )
+        for participant_id, reward_reason in participant_rewards:
+            grant_points(
+                db,
+                participant_id,
+                15,
+                reward_reason,
+                "marketplace_transaction" if is_fixed_price_sale else "auction_transaction",
+                str(transaction.id),
+            )
             create_notification(
                 db,
                 user_id=participant_id,

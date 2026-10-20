@@ -251,7 +251,7 @@ def create_auction(db: Session, auction_create: AuctionCreate, seller: User) -> 
         buy_now_price=normalize_money(auction_create.buy_now_price) if auction_create.buy_now_price is not None else None,
         reserve_price=normalize_money(auction_create.reserve_price) if auction_create.reserve_price is not None else None,
         starts_at=normalize_datetime(auction_create.starts_at),
-        ends_at=normalize_datetime(auction_create.ends_at),
+        ends_at=(datetime(9999, 12, 31, 23, 59, 59, tzinfo=timezone.utc) if auction_create.listing_type == "fixed" else normalize_datetime(auction_create.ends_at)),
         five_minute_rule_enabled=auction_create.five_minute_rule_enabled,
         seller_declaration_accepted_at=now_utc(),
         seller_declaration_version=auction_create.seller_declaration_version or SELLER_DECLARATION_VERSION,
@@ -394,7 +394,7 @@ def activate_auction(db: Session, auction: Auction, user: User) -> Auction:
     auction.starts_at = normalize_start_for_activation(auction.starts_at, current_time)
     if auction.ends_at <= auction.starts_at:
         raise HTTPException(status_code=422, detail="A lejárati időnek későbbinek kell lennie a tényleges kezdési időnél.")
-    if user.role != "admin":
+    if user.role != "admin" and auction.listing_type == "auction":
         from app.services.membership import require_available_auction_slot
         require_available_auction_slot(db, user)
     next_status = "scheduled" if auction.starts_at > current_time else "active"

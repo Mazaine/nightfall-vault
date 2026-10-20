@@ -267,6 +267,7 @@ export type AuctionListParams = {
   status?: string;
   listing_type?: "auction" | "fixed";
   listing_format?: "single" | "bundle";
+  marketplace_scope?: "main" | "fixed_store";
   min_price?: string;
   max_price?: string;
   min_bids?: string;

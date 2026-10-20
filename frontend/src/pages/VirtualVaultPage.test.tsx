@@ -291,6 +291,26 @@ describe("VirtualVaultPage", () => {
     expect(within(dialog).getByRole("button", { name: "Meghirdetem fix áron" })).toBeEnabled();
   });
 
+  it("elfogyott szabad készletnél is megnyitja az Eladás modalt és megmagyarázza a tiltást", async () => {
+    mocks.listTradeCards.mockResolvedValue([{ ...card, quantity: 1, available_listing_quantity: 0, listed_quantity: 1, owner_id: 1, owner_username: "admin", seeker_count: 0 }]);
+    mocks.listVaultCards.mockResolvedValue([]);
+    render(<VirtualVaultPage />);
+    await screen.findByText("Mi történt a mappádban?");
+    fireEvent.click(screen.getByRole("button", { name: "Csere" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Xenó lárva eladása" }));
+    const dialog = screen.getByRole("dialog", { name: "Meghirdetés · Xenó lárva" });
+    expect(within(dialog).getByText(/nincs hitelesített, szabadon hirdethető változat/i)).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Meghirdetem fix áron" })).toBeDisabled();
+  });
+
+  it("a VP tájékoztató a fix áras eladás jutalmát is mutatja", async () => {
+    render(<VirtualVaultPage />);
+    await screen.findByText("Mi történt a mappádban?");
+    fireEvent.click(screen.getByRole("button", { name: /Kapacitás.*részletek/ }));
+    expect(await screen.findByText("Sikeresen lezárt fix áras eladás után")).toBeInTheDocument();
+    expect(screen.getAllByText("+15 VP")).toHaveLength(2);
+  });
+
   it("a cseremappából eltávolít, miközben a gyűjteménypéldány megmarad és a nézet frissül", async () => {
     mocks.deleteTradeCard.mockResolvedValue(undefined);
     render(<VirtualVaultPage />);

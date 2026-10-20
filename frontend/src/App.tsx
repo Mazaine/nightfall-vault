@@ -81,7 +81,7 @@ function App() {
             <Route path="/" element={<HomePage />} />
             <Route path="/auctions" element={<AuctionsPage />} />
             <Route path="/marketplace" element={<AuctionsPage />} />
-            <Route path="/marketplace/fixed" element={<Navigate to="/marketplace?listing_type=fixed" replace />} />
+            <Route path="/marketplace/fixed" element={<AuctionsPage />} />
             <Route path="/marketplace/auctions" element={<Navigate to="/marketplace?listing_type=auction" replace />} />
             <Route path="/auctions/:auctionId" element={<AuctionDetailPage />} />
             <Route path="/users/:username" element={<UserProfilePage />} />

@@ -400,7 +400,11 @@ export function AuctionDetailPage() {
   const galleryImages = [...auction.images].sort((left, right) => left.position - right.position);
   const referenceImageUrl = !galleryImages.length && auction.vault_external_card_id ? hkkCardImageUrl(auction.vault_external_card_id, null) : "";
   const bundleItems = auction.bundle_items ?? [];
-  const bundleMontage = !galleryImages.length && bundleItems.length ? bundleItems.slice(0, 4).map((item) => hkkCardImageUrl(item.external_card_id, item.image_url)) : [];
+  const bundleMontage = !galleryImages.length && bundleItems.length ? bundleItems.slice(0, 4).map((item) => ({
+    id: item.id,
+    name: item.card_name,
+    src: hkkCardImageUrl(item.external_card_id, item.image_url),
+  })) : [];
   const selectedImageIndex = Math.max(0, galleryImages.findIndex((image) => image.id === selectedImageId));
   const selectedImage = galleryImages[selectedImageIndex];
   const minimumBidAmount = Number(auction.current_price ?? auction.starting_price) + Number(auction.bid_increment);
@@ -426,8 +430,8 @@ export function AuctionDetailPage() {
   return (
     <section className="container page-shell detail-layout">
       <div className="auction-gallery">
-        <div className="detail-media auction-image">
-          {bundleMontage.length ? <div className="auction-bundle-montage is-detail" aria-label="A csomag automatikus borítója">{bundleMontage.map((src) => <SafeImage src={src} alt="" width={600} height={840} key={src}/>) }{bundleItems.length > 4 ? <strong>+{bundleItems.length - 4} további lap</strong> : null}</div> : <SafeImage
+        <div className={`detail-media auction-image${bundleMontage.length ? " is-bundle-montage" : ""}`}>
+          {bundleMontage.length ? <div className="auction-bundle-montage is-detail" aria-label="A csomag automatikus borítója">{bundleMontage.map((item) => <SafeImage src={item.src} alt={item.name} width={600} height={840} key={item.id}/>) }{bundleItems.length > 4 ? <strong>+{bundleItems.length - 4} további lap</strong> : null}</div> : <SafeImage
             src={selectedImage ? apiAssetUrl(selectedImage.detail_url ?? selectedImage.url) : referenceImageUrl}
             alt={selectedImage ? `${auction.title} – ${selectedImageIndex + 1}. kép` : auction.title}
             width={1200}
@@ -476,9 +480,9 @@ export function AuctionDetailPage() {
           {auction.listing_type !== "fixed" ? <><div><dt>Kezdőár</dt><dd>{formatMoney(auction.starting_price)}</dd></div><div><dt>Licitlépcső</dt><dd>{formatMoney(auction.bid_increment)}</dd></div></> : null}
           {auction.listing_type !== "fixed" && auction.reserve_price_met !== null && auction.reserve_price_met !== undefined ? <div><dt>Minimálár</dt><dd>{auction.reserve_price_met ? "Teljesült" : "Még nem teljesült"}{auction.is_owner && auction.reserve_price ? ` · ${formatMoney(auction.reserve_price)}` : ""}</dd></div> : null}
           {auction.watch_count ? <div><dt>Figyelők</dt><dd>{auction.watch_count} ember figyeli</dd></div> : null}
-          <div className={auction.five_minute_rule_enabled ? "detail-countdown-row" : undefined}><dt>Hátralévő idő</dt><dd><AuctionCountdown endsAt={auction.ends_at} status={auction.status} fiveMinuteRuleEnabled={auction.five_minute_rule_enabled} /></dd></div>
+          {auction.listing_type === "fixed" ? <div><dt>Elérhetőség</dt><dd>Lejárat nélkül</dd></div> : <div className={auction.five_minute_rule_enabled ? "detail-countdown-row" : undefined}><dt>Hátralévő idő</dt><dd><AuctionCountdown endsAt={auction.ends_at} status={auction.status} fiveMinuteRuleEnabled={auction.five_minute_rule_enabled} /></dd></div>}
           <div><dt>Kezdés</dt><dd>{formatLocalDateTime(auction.starts_at)}</dd></div>
-          <div><dt>Lejár</dt><dd>{formatAuctionEndDate(auction.ends_at)}</dd></div>
+          {auction.listing_type !== "fixed" ? <div><dt>Lejár</dt><dd>{formatAuctionEndDate(auction.ends_at)}</dd></div> : null}
           <div><dt>Eladó</dt><dd>{auction.seller?.username ? <Link className="seller-link" to={`/users/${auction.seller.username}`}>{auction.seller.full_name ?? auction.seller.username}</Link> : "Eladó"}</dd></div>
           {auction.listing_type !== "fixed" && auction.buy_now_enabled && auction.buy_now_price ? (
             <div><dt>Villámár</dt><dd>{formatMoney(auction.buy_now_price)}</dd></div>

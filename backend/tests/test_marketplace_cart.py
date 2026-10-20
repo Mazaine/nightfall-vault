@@ -44,7 +44,7 @@ def cleanup() -> None:
         db.execute(delete(User).where(User.email.like("cart-%@auction-test.local"))); db.commit()
 
 
-def test_cart_reservation_expiry_release_and_idor() -> None:
+def test_cart_does_not_reserve_inventory_and_keeps_idor_protection() -> None:
     cleanup()
     seller, first, second = user("seller"), user("first"), user("second")
     auction = listing(seller, "Kosár teszt foglalás", 3)
@@ -52,32 +52,19 @@ def test_cart_reservation_expiry_release_and_idor() -> None:
         created = client.post("/api/cart/items", json={"auction_id": auction.id, "quantity": 2}, headers=headers(first))
         assert created.status_code == 201, created.text
         item = created.json()["items"][0]
-        expires_at = item["reservation_expires_at"]
-        assert item["state"] == "reserved" and item["quantity"] == 2
-        assert 3590 <= (datetime.fromisoformat(expires_at) - datetime.fromisoformat(created.json()["server_time"])).total_seconds() <= 3600
+        assert item["state"] == "available" and item["quantity"] == 2
+        assert item["reservation_expires_at"] is None
         assert client.post("/api/cart/items", json={"auction_id": auction.id, "quantity": 1}, headers=headers(seller)).status_code == 409
         resized = client.patch(f"/api/cart/items/{item['id']}", json={"quantity": 3}, headers=headers(first))
         assert resized.status_code == 200 and resized.json()["items"][0]["quantity"] == 3
-        assert client.get("/api/cart", headers=headers(first)).json()["items"][0]["reservation_expires_at"] == expires_at
         blocked = client.post("/api/cart/items", json={"auction_id": auction.id, "quantity": 1}, headers=headers(second))
-        assert blocked.status_code == 409
+        assert blocked.status_code == 201
         assert client.patch(f"/api/cart/items/{item['id']}", json={"quantity": 1}, headers=headers(second)).status_code == 404
         with SessionLocal() as db:
             reservation = db.scalar(select(InventoryReservation).where(InventoryReservation.cart_item_id == item["id"]))
-            reservation.starts_at = datetime.now(timezone.utc) - timedelta(minutes=61)
-            reservation.expires_at = datetime.now(timezone.utc) - timedelta(seconds=1); db.commit()
-        second_cart = client.post("/api/cart/items", json={"auction_id": auction.id, "quantity": 3}, headers=headers(second))
-        assert second_cart.status_code == 201, second_cart.text
-        stale = client.get("/api/cart", headers=headers(first)).json()["items"][0]
-        assert stale["state"] == "unavailable"
-        assert client.delete(f"/api/cart/items/{second_cart.json()['items'][0]['id']}", headers=headers(second)).status_code == 200
-        renewed = client.post(f"/api/cart/items/{item['id']}/reserve", headers=headers(first))
-        assert renewed.status_code == 200 and renewed.json()["items"][0]["state"] == "reserved"
+            assert reservation is None
         assert client.post(f"/api/auctions/{auction.id}/cancel", headers=headers(seller)).status_code == 200
-        assert client.get("/api/cart", headers=headers(first)).json()["items"][0]["state"] == "unavailable"
-        with SessionLocal() as db:
-            reservation = db.scalar(select(InventoryReservation).where(InventoryReservation.cart_item_id == item["id"]))
-            assert reservation is not None and reservation.status == "released"
+        assert client.get("/api/cart", headers=headers(first)).json()["items"][0]["state"] == "listing_removed"
     finally:
         cleanup()
 
@@ -106,7 +93,7 @@ def test_multi_seller_checkout_is_atomic_grouped_and_idempotent() -> None:
         cleanup()
 
 
-def test_postgresql_lock_allows_only_one_last_copy_reservation() -> None:
+def test_two_buyers_can_cart_last_copy_but_only_one_can_checkout() -> None:
     cleanup()
     seller, first, second = user("lock-seller"), user("lock-first"), user("lock-second")
     auction = listing(seller, "Kosár teszt konkurens", 1)
@@ -115,7 +102,12 @@ def test_postgresql_lock_allows_only_one_last_copy_reservation() -> None:
             return client.post("/api/cart/items", json={"auction_id": auction.id, "quantity": 1}, headers=headers(buyer)).status_code
         with ThreadPoolExecutor(max_workers=2) as pool:
             statuses = sorted(pool.map(reserve, [first, second]))
-        assert statuses == [201, 409]
+        assert statuses == [201, 201]
+        def checkout(buyer: User, suffix: str) -> int:
+            return client.post("/api/cart/checkout", json={"idempotency_key": f"cart-race-{suffix}-key"}, headers=headers(buyer)).status_code
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            checkout_statuses = sorted(pool.map(lambda pair: checkout(*pair), [(first, "first"), (second, "second")]))
+        assert checkout_statuses == [200, 409]
     finally:
         cleanup()
 
@@ -159,7 +151,7 @@ def test_bundle_is_indivisible_and_failed_checkout_rolls_back_every_seller() -> 
         cleanup()
 
 
-def test_direct_buy_respects_cart_reservation_and_consumes_own_cart_row() -> None:
+def test_direct_buy_is_not_blocked_by_another_users_cart() -> None:
     cleanup()
     seller, reserver, other = user("direct-seller"), user("direct-reserver"), user("direct-other")
     auction = listing(seller, "Kosár teszt közvetlen vétel", 2)
@@ -167,15 +159,12 @@ def test_direct_buy_respects_cart_reservation_and_consumes_own_cart_row() -> Non
         added = client.post("/api/cart/items", json={"auction_id": auction.id, "quantity": 1}, headers=headers(reserver))
         assert added.status_code == 201, added.text
 
-        blocked = client.post(f"/api/auctions/{auction.id}/bids", json={"amount": "1200.00"}, headers=headers(other))
-        assert blocked.status_code == 409
-
-        purchased = client.post(f"/api/auctions/{auction.id}/bids", json={"amount": "1200.00"}, headers=headers(reserver))
+        purchased = client.post(f"/api/auctions/{auction.id}/bids", json={"amount": "1200.00"}, headers=headers(other))
         assert purchased.status_code == 201, purchased.text
-        assert client.get("/api/cart", headers=headers(reserver)).json()["items"] == []
+        assert client.get("/api/cart", headers=headers(reserver)).json()["items"][0]["state"] == "listing_removed"
         with SessionLocal() as db:
             reservation = db.scalar(select(InventoryReservation).where(InventoryReservation.auction_id == auction.id))
-            assert reservation is not None and reservation.status == "consumed"
+            assert reservation is None
     finally:
         cleanup()
 

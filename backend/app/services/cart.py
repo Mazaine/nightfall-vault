@@ -86,18 +86,8 @@ def release_auction_reservations(db: Session, auction_id: int) -> int:
 
 
 def validate_direct_purchase_reservations(db: Session, auction_id: int, buyer_id: int) -> None:
-    """Prevent the legacy buy-now path from consuming stock reserved by another buyer."""
-    timestamp = now_utc()
-    rows = list(db.scalars(select(InventoryReservation).where(
-        InventoryReservation.auction_id == auction_id,
-        InventoryReservation.status == "active",
-        InventoryReservation.expires_at > timestamp,
-    ).order_by(InventoryReservation.id).with_for_update()).all())
-    if any(row.user_id != buyer_id for row in rows):
-        raise HTTPException(
-            status_code=409,
-            detail="A hirdetés készletét jelenleg egy másik vásárló kosara foglalja.",
-        )
+    """A kosár nem foglal készletet, ezért nem blokkolhat közvetlen vásárlást."""
+    return None
 
 
 def consume_direct_purchase_reservations(db: Session, auction_id: int, buyer_id: int) -> int:
@@ -115,6 +105,14 @@ def consume_direct_purchase_reservations(db: Session, auction_id: int, buyer_id:
         row.cart_item.status = "checked_out"
         db.add(row)
         db.add(row.cart_item)
+    cart_item = db.scalar(select(CartItem).join(Cart).where(
+        Cart.user_id == buyer_id,
+        CartItem.auction_id == auction_id,
+        CartItem.status == "active",
+    ).with_for_update())
+    if cart_item is not None:
+        cart_item.status = "checked_out"
+        db.add(cart_item)
     return len(rows)
 
 def _get_or_create_cart(db: Session, user_id: int) -> Cart:
@@ -152,7 +150,7 @@ def _reserved_by_others(db: Session, auction_id: int, exclude_item_id: int | Non
 
 
 def _available(db: Session, auction: Auction, exclude_item_id: int | None = None) -> int:
-    return max(0, _listed_quantity(auction) - _reserved_by_others(db, auction.id, exclude_item_id))
+    return max(0, _listed_quantity(auction))
 
 
 def _reserve(db: Session, item: CartItem, auction: Auction, quantity: int, *, explicit_renewal: bool) -> InventoryReservation:
@@ -195,15 +193,9 @@ def add_cart_item(db: Session, user: User, auction_id: int, quantity: int) -> di
         item.status = "active"
         item.quantity = quantity
         item.price_snapshot = _price(auction)
-    current = item.reservation
-    if current is None or current.status != "active" or current.expires_at <= now_utc():
-        _reserve(db, item, auction, quantity, explicit_renewal=False)
-    elif current.quantity != quantity:
-        if _available(db, auction, item.id) < quantity:
-            raise HTTPException(status_code=409, detail="A kért mennyiség már nem elérhető.")
-        current.quantity = quantity
-        db.add(current)
-    create_domain_audit_log(db, action="cart_item_reserved", user_id=user.id, auction_id=auction.id, metadata={"quantity": quantity, "expires_at": item.reservation.expires_at.isoformat()})
+    if _available(db, auction) < quantity:
+        raise HTTPException(status_code=409, detail="A kért mennyiség jelenleg nem elérhető.")
+    create_domain_audit_log(db, action="cart_item_added", user_id=user.id, auction_id=auction.id, metadata={"quantity": quantity, "inventory_reserved": False})
     db.commit()
     return get_cart(db, user.id)
 
@@ -229,10 +221,6 @@ def update_cart_item(db: Session, user: User, item_id: int, quantity: int, *, ac
     item.quantity = quantity
     if accept_price or current_price < item.price_snapshot:
         item.price_snapshot = current_price
-    reservation = item.reservation
-    if reservation is not None and reservation.status == "active" and reservation.expires_at > now_utc():
-        reservation.quantity = quantity
-        db.add(reservation)
     db.add(item)
     db.commit()
     return get_cart(db, user.id)
@@ -258,25 +246,24 @@ def renew_cart_item(db: Session, user: User, item_id: int) -> dict:
         raise HTTPException(status_code=404, detail="A kosártétel nem található.")
     auction = _validate_listing(db.scalar(select(Auction).where(Auction.id == item.auction_id).with_for_update()), user.id)
     _validate_underlying_inventory(db, auction)
-    _reserve(db, item, auction, item.quantity, explicit_renewal=True)
-    db.commit()
+    if _available(db, auction) < item.quantity:
+        raise HTTPException(status_code=409, detail="A kért mennyiség jelenleg nem elérhető.")
     return get_cart(db, user.id)
 
 
 def _item_state(item: CartItem, timestamp: datetime) -> str:
-    reservation = item.reservation
-    if reservation is not None and reservation.status == "active" and reservation.expires_at > timestamp:
-        return "reserved"
-    return "expired"
+    return "available"
 
 
 def _item_dict(db: Session, item: CartItem, timestamp: datetime) -> dict:
     auction = item.auction
     state = _item_state(item, timestamp)
-    if auction.status != "active" or auction.deleted_at is not None:
-        state = "unavailable"
-    elif state == "expired" and _available(db, auction, item.id) < item.quantity:
-        state = "unavailable"
+    if auction.deleted_at is not None or auction.status != "active":
+        state = "listing_removed"
+    elif _available(db, auction) <= 0:
+        state = "sold_out"
+    elif _available(db, auction) < item.quantity:
+        state = "quantity_changed"
     current_price = _price(auction)
     if current_price < item.price_snapshot:
         item.price_snapshot = current_price
@@ -288,7 +275,7 @@ def _item_dict(db: Session, item: CartItem, timestamp: datetime) -> dict:
         "variant": auction.vault_print_variant, "quantity": item.quantity, "max_quantity": _listed_quantity(auction),
         "unit_price": item.price_snapshot, "current_price": current_price, "subtotal": item.price_snapshot * item.quantity,
         "price_changed": current_price > item.price_snapshot, "state": state,
-        "reservation_expires_at": item.reservation.expires_at if item.reservation else None,
+        "reservation_expires_at": None,
         "image_url": (cover.list_storage_key or cover.thumbnail_storage_key or cover.storage_key) if cover else None,
         "external_card_id": auction.vault_external_card_id,
         "bundle_items": [{"card_name": row.card_name, "quantity": row.quantity, "external_card_id": row.external_card_id, "image_url": row.image_url} for row in auction.bundle_items],
@@ -369,7 +356,7 @@ def checkout_cart(db: Session, user: User, idempotency_key: str, item_ids: list[
         if _price(auction) < item.price_snapshot:
             item.price_snapshot = _price(auction)
             db.add(item)
-        if _available(db, auction, item.id) < item.quantity:
+        if _available(db, auction) < item.quantity:
             raise HTTPException(status_code=409, detail=f"A(z) {auction.title} kért mennyisége már nem elérhető.")
     grouped: dict[int, list[tuple[CartItem, Auction, Auction]]] = defaultdict(list)
     for item in items:

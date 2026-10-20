@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import datetime, timezone
 from decimal import Decimal
 from uuid import NAMESPACE_URL, UUID, uuid5
 
@@ -98,7 +98,7 @@ def _fixed_auction(*, seller: User, title: str, description: str, price: int, co
         title=title, description=description, category="Hatalom Kártyái Kártyajáték",
         condition=condition, status="active", starting_price=Decimal("0.00"),
         bid_increment=money, current_price=money, buy_now_enabled=True, buy_now_price=money,
-        starts_at=now, ends_at=now + timedelta(days=30), five_minute_rule_enabled=False,
+        starts_at=now, ends_at=datetime(9999, 12, 31, 23, 59, 59, tzinfo=timezone.utc), five_minute_rule_enabled=False,
         seller_declaration_accepted_at=now, seller_declaration_version=SELLER_DECLARATION_VERSION,
     )
 

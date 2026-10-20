@@ -330,6 +330,24 @@ def test_fixed_price_vault_listing_reserves_and_deducts_only_after_completion() 
         assert client.get("/api/vault/cards", headers=auth_headers(seller)).json()[0]["quantity"] == 2
         assert client.post(f"/api/transactions/{transaction['id']}/confirm-completion", headers=auth_headers(buyer)).status_code == 200
         assert client.get("/api/vault/cards", headers=auth_headers(seller)).json()[0]["quantity"] == 1
+        repeated = client.post(f"/api/transactions/{transaction['id']}/confirm-completion", headers=auth_headers(buyer))
+        assert repeated.status_code == 200
+        db = SessionLocal()
+        try:
+            seller_rewards = list(db.scalars(select(VaultPointTransaction).where(
+                VaultPointTransaction.user_id == seller.id,
+                VaultPointTransaction.reason == "FIXED_PRICE_SALE_COMPLETED",
+                VaultPointTransaction.reference_id == str(transaction["id"]),
+            )).all())
+            buyer_rewards = list(db.scalars(select(VaultPointTransaction).where(
+                VaultPointTransaction.user_id == buyer.id,
+                VaultPointTransaction.reason == "FIXED_PRICE_PURCHASE_COMPLETED",
+                VaultPointTransaction.reference_id == str(transaction["id"]),
+            )).all())
+            assert len(seller_rewards) == 1 and seller_rewards[0].amount == 15
+            assert len(buyer_rewards) == 1 and buyer_rewards[0].amount == 15
+        finally:
+            db.close()
     finally:
         cleanup_test_data(); cleanup()
 

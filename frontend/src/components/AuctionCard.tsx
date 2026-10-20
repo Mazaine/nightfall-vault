@@ -250,7 +250,9 @@ export function AuctionCard({
         {item.montageImages?.length ? <div className="auction-bundle-montage" aria-label={`${item.title} csomag borítója`}>{item.montageImages.map((src) => <SafeImage src={src} alt="" loading="lazy" decoding="async" width={350} height={490} key={src}/>) }{(item.bundleItemCount ?? 0) > 4 ? <strong>+{(item.bundleItemCount ?? 0) - 4} további lap</strong> : null}</div> : <SafeImage src={item.imageUrl} alt={item.title} loading="lazy" decoding="async" width={700} height={700} />}
       </div>
       <span className={`auction-condition-badge condition-${cardCondition.value.toLowerCase()}`} title={`${cardCondition.value} – ${cardCondition.nameHu} (${cardCondition.nameEn})`}>{cardCondition.value}</span>
-      {showTimer && item.endsAt && item.status
+      {showTimer && isFixedPrice
+        ? <div className="auction-time">Lejárat nélkül</div>
+        : showTimer && item.endsAt && item.status
         ? <AuctionCountdown className="auction-time" endsAt={item.endsAt} status={item.status} fiveMinuteRuleEnabled={item.fiveMinuteRuleEnabled} fallback={item.time} />
         : showTimer ? <div className="auction-time">{item.time}</div> : null}
       {item.userIsOutbid && <div className="auction-alert">Rád licitáltak</div>}

@@ -142,6 +142,29 @@ describe("AuctionDetailPage", () => {
     expect(await screen.findByRole("img", { name: "Részletes aukció – 1. kép" })).toBeInTheDocument();
   });
 
+  it("a csomag automatikus borítóját kompakt részletoldali montázsban mutatja", async () => {
+    mocks.getAuction.mockResolvedValue({
+      ...auction,
+      listing_type: "fixed",
+      listing_format: "bundle",
+      images: [],
+      bundle_items: [
+        { id: 1, vault_collection_card_id: 1, vault_trade_card_id: null, external_card_id: "10426", card_name: "Burgling", edition: "Teszt", image_url: null, print_variant: "normal", quantity: 1, unit_price: "200" },
+        { id: 2, vault_collection_card_id: 2, vault_trade_card_id: null, external_card_id: "1726", card_name: "Altatódal", edition: "Teszt", image_url: null, print_variant: "normal", quantity: 1, unit_price: "200" },
+        { id: 3, vault_collection_card_id: 3, vault_trade_card_id: null, external_card_id: "8020", card_name: "Határozott tagadás", edition: "Teszt", image_url: null, print_variant: "normal", quantity: 1, unit_price: "200" },
+      ],
+    });
+
+    render(<MemoryRouter initialEntries={["/auctions/21"]}><Routes><Route path="/auctions/:auctionId" element={<AuctionDetailPage />} /></Routes></MemoryRouter>);
+
+    const montage = await screen.findByLabelText("A csomag automatikus borítója");
+    expect(montage).toHaveClass("is-detail");
+    expect(montage.closest(".detail-media")).toHaveClass("is-bundle-montage");
+    expect(screen.getByRole("img", { name: "Burgling" })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Altatódal" })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Határozott tagadás" })).toBeInTheDocument();
+  });
+
   it("Facebook-szerű lebegő chatet nyit, Enterrel egyszer küld, Shift+Enterrel nem küld", async () => {
     state.isAuthenticated = true;
     const chatAuction = { ...auction, status: "sold", winner_id: 2, can_chat: true, chat_read_only: false } as Auction;
