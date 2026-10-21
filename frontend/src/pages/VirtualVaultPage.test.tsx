@@ -8,9 +8,10 @@ const mocks = vi.hoisted(() => Object.fromEntries([
   "updateVaultCard", "deleteVaultCard", "deleteTradeCard", "buyVaultCapacity", "postTradeMessage", "listMatchingOffers", "expressTradeInterest", "createCardLoan", "returnCardLoan",
   "listTradeCardSeekers", "verifyTradeCard", "bulkUpdateVaultCards", "createDeck", "deleteDeck", "addDeckCard", "updateDeckCard", "deleteDeckCard", "listDeckCardOffers",
   "getMatchStatus", "markMatchesSeen", "createStandaloneCardLoans",
-  "getHkkMarketPriceSuggestion",
+  "getHkkMarketPriceSuggestion", "updateVaultTradeOffer", "acceptVaultTradeOffer", "cancelVaultTradeOffer",
 ].map((name) => [name, vi.fn()])) as Record<string, ReturnType<typeof vi.fn>>);
 vi.mock("../api/vault", () => mocks);
+vi.mock("../AuthContext", () => ({ useAuth: () => ({ isAuthenticated: true, user: { id: 1, username: "admin" } }) }));
 const notificationMocks = vi.hoisted(() => ({ showToast: vi.fn() }));
 vi.mock("../NotificationContext", () => ({ useNotifications: () => ({ showToast: notificationMocks.showToast }) }));
 

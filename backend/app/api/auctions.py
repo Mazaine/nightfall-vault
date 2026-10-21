@@ -324,7 +324,7 @@ def home_auction_overview(
     """Bounded, batched home data; auction eligibility follows the public listing rules."""
     now = datetime.now(timezone.utc)
     visible = auction_visibility_clause(current_user)
-    active = and_(Auction.status == "active", Auction.deleted_at.is_(None), Auction.starts_at <= now, Auction.ends_at > now, visible)
+    active = and_(Auction.status == "active", Auction.listing_type == "auction", Auction.deleted_at.is_(None), Auction.starts_at <= now, Auction.ends_at > now, visible)
     active_count = int(db.scalar(select(func.count(Auction.id)).where(active)) or 0)
     active_bid_count = outbid_count = draft_count = open_transaction_count = 0
     if current_user is not None:
@@ -340,7 +340,7 @@ def home_auction_overview(
         ) or 0)
 
     featured_base = select(Auction.id).join(User, User.id == Auction.seller_id).where(
-        Auction.status.in_(("active", "scheduled")), Auction.deleted_at.is_(None), Auction.ends_at > now, visible,
+        Auction.status.in_(("active", "scheduled")), Auction.listing_type == "auction", Auction.deleted_at.is_(None), Auction.ends_at > now, visible,
         or_(User.role == "admin", User.vip_expires_at > now),
     )
     featured_total = int(db.scalar(select(func.count()).select_from(featured_base.subquery())) or 0)

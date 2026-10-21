@@ -276,6 +276,7 @@ class VaultTrade(Base):
     requester_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     owner_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     offered_card_id: Mapped[int] = mapped_column(ForeignKey("vault_trade_cards.id", ondelete="RESTRICT"), nullable=False, index=True)
+    current_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1, server_default="1")
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="open", server_default="open")
     requester_confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     owner_confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -288,6 +289,63 @@ class VaultTrade(Base):
     offered_card = relationship("VaultTradeCard")
     messages = relationship("VaultTradeMessage", back_populates="trade", cascade="all, delete-orphan")
     reviews = relationship("VaultTradeReview", back_populates="trade", cascade="all, delete-orphan")
+    offer_versions = relationship("VaultTradeOfferVersion", back_populates="trade", cascade="all, delete-orphan", order_by="VaultTradeOfferVersion.version")
+
+
+class VaultTradeOfferVersion(Base):
+    __tablename__ = "vault_trade_offer_versions"
+    __table_args__ = (
+        UniqueConstraint("trade_id", "version", name="uq_vault_trade_offer_versions_trade_version"),
+        CheckConstraint("version > 0", name="ck_vault_trade_offer_versions_version"),
+        Index("ix_vault_trade_offer_versions_trade_created", "trade_id", "created_at"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    trade_id: Mapped[int] = mapped_column(ForeignKey("vault_trades.id", ondelete="CASCADE"), nullable=False, index=True)
+    version: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="RESTRICT"), nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+    trade = relationship("VaultTrade", back_populates="offer_versions")
+    created_by = relationship("User")
+    items = relationship("VaultTradeOfferItem", back_populates="offer_version", cascade="all, delete-orphan", order_by="VaultTradeOfferItem.id")
+    acceptances = relationship("VaultTradeOfferAcceptance", back_populates="offer_version", cascade="all, delete-orphan")
+
+
+class VaultTradeOfferItem(Base):
+    __tablename__ = "vault_trade_offer_items"
+    __table_args__ = (
+        UniqueConstraint("offer_version_id", "trade_card_id", name="uq_vault_trade_offer_items_version_card"),
+        CheckConstraint("quantity BETWEEN 1 AND 9", name="ck_vault_trade_offer_items_quantity"),
+        Index("ix_vault_trade_offer_items_owner", "owner_id", "trade_card_id"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    offer_version_id: Mapped[int] = mapped_column(ForeignKey("vault_trade_offer_versions.id", ondelete="CASCADE"), nullable=False, index=True)
+    owner_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="RESTRICT"), nullable=False, index=True)
+    trade_card_id: Mapped[int] = mapped_column(ForeignKey("vault_trade_cards.id", ondelete="RESTRICT"), nullable=False, index=True)
+    quantity: Mapped[int] = mapped_column(Integer, nullable=False)
+    estimated_unit_price: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+    offer_version = relationship("VaultTradeOfferVersion", back_populates="items")
+    owner = relationship("User")
+    trade_card = relationship("VaultTradeCard")
+
+
+class VaultTradeOfferAcceptance(Base):
+    __tablename__ = "vault_trade_offer_acceptances"
+    __table_args__ = (
+        UniqueConstraint("offer_version_id", "user_id", name="uq_vault_trade_offer_acceptances_version_user"),
+        Index("ix_vault_trade_offer_acceptances_user", "user_id", "accepted_at"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    offer_version_id: Mapped[int] = mapped_column(ForeignKey("vault_trade_offer_versions.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    accepted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+    offer_version = relationship("VaultTradeOfferVersion", back_populates="acceptances")
+    user = relationship("User")
 
 
 class VaultTradeMessage(Base):

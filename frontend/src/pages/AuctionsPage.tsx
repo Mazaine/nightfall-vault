@@ -122,9 +122,16 @@ function toParams(filters: FilterState, offset: number): AuctionListParams {
 
 export function AuctionsPage() {
   const location = useLocation();
-  const isFixedStore = location.pathname === "/marketplace/fixed";
   const { subscribe } = useAuctionRealtime();
   const [searchParams] = useSearchParams();
+  const requestedTab = searchParams.get("tab");
+  const marketTab: "auctions" | "cards" | "bundles" = location.pathname === "/marketplace/fixed"
+    ? "cards"
+    : requestedTab === "cards" || requestedTab === "bundles"
+      ? requestedTab
+      : searchParams.get("listing_type") === "fixed"
+        ? searchParams.get("listing_format") === "bundle" ? "bundles" : "cards"
+        : "auctions";
   const { isAuthenticated } = useAuth();
   const initialFilters = useMemo(() => ({
     ...INITIAL_FILTERS,
@@ -186,7 +193,14 @@ export function AuctionsPage() {
     });
   }), [subscribe]);
 
-  const params = useMemo(() => ({ ...toParams(appliedFilters, offset), marketplace_scope: isFixedStore ? "fixed_store" as const : "main" as const }), [appliedFilters, offset, isFixedStore]);
+  const params = useMemo(() => ({
+    ...toParams(appliedFilters, offset),
+    listing_type: marketTab === "auctions" ? "auction" as const : "fixed" as const,
+    listing_format: marketTab === "auctions" ? undefined : marketTab === "cards" ? "single" as const : "bundle" as const,
+    marketplace_scope: undefined,
+  }), [appliedFilters, offset, marketTab]);
+
+  useEffect(() => setOffset(0), [marketTab]);
 
   const load = useCallback(async () => {
     setIsLoading(true);
@@ -309,14 +323,20 @@ export function AuctionsPage() {
 
   return (
     <section className="container page-shell">
-      <p className="eyebrow">{isFixedStore ? "Lapbolt" : "Piactér"}</p>
+      <p className="eyebrow">Piactér</p>
       <div className="section-heading page-heading">
         <div>
-          <h1>{isFixedStore ? "Lapbolt" : location.pathname === "/auctions" ? "Aukciók" : "Piactér"}</h1>
-          <p className="section-note">{isFixedStore ? "Egyedi fix áras HKK-lapok, eladóktól egy közös katalógusban." : "Aktív aukciók és csomageladások, részletes kereséssel."}</p>
+          <h1>Piactér</h1>
+          <p className="section-note">Aukciók, fix áras HKK-lapok és csomagok egy helyen.</p>
         </div>
         <Link className="button button-primary" to="/auctions/create">Aukció létrehozása</Link>
       </div>
+
+      <nav className="marketplace-tabs" aria-label="Piactér kategóriák">
+        <Link className={marketTab === "auctions" ? "is-active" : ""} aria-current={marketTab === "auctions" ? "page" : undefined} to="/marketplace?tab=auctions">Aukciók</Link>
+        <Link className={marketTab === "cards" ? "is-active" : ""} aria-current={marketTab === "cards" ? "page" : undefined} to="/marketplace?tab=cards">Lapok</Link>
+        <Link className={marketTab === "bundles" ? "is-active" : ""} aria-current={marketTab === "bundles" ? "page" : undefined} to="/marketplace?tab=bundles">Csomagok</Link>
+      </nav>
 
       <button
         className="mobile-filter-toggle side-panel"
@@ -353,17 +373,6 @@ export function AuctionsPage() {
         </label>
         <label>Cím<input type="search" maxLength={180} value={filters.title} onChange={(event) => setFilters({ ...filters, title: event.target.value })} /></label>
         <label>Leírás<input type="search" maxLength={180} value={filters.description} onChange={(event) => setFilters({ ...filters, description: event.target.value })} /></label>
-        <label>
-          Hirdetés típusa
-          <select value={filters.listing_type} onChange={(event) => setFilters({ ...filters, listing_type: event.target.value as FilterState["listing_type"] })}>
-            <option value="">Minden hirdetés</option>
-            <option value="fixed">Fix áras lapok</option>
-            <option value="auction">Aukciók</option>
-          </select>
-          <select aria-label="Hirdetés formátuma" value={filters.listing_format} onChange={(event) => setFilters({ ...filters, listing_format: event.target.value as FilterState["listing_format"] })}>
-            <option value="">Egyedi és csomag</option><option value="single">Egyedi hirdetések</option><option value="bundle">Csomaghirdetések</option>
-          </select>
-        </label>
         <label>
           Kategória
           <select value={filters.category} onChange={(event) => setFilters({ ...filters, category: event.target.value, hatalom_era: event.target.value === "Hatalom Kártyái Kártyajáték" ? filters.hatalom_era : "" })}>
@@ -440,7 +449,7 @@ export function AuctionsPage() {
 
       {isLoading ? <LoadingState label="Aukciók betöltése" cards={4} /> : null}
       {error ? <ErrorState message={error} onRetry={() => void load()} /> : null}
-      {!isLoading && !error && auctions.length === 0 ? <EmptyState title="Nincs a szűrésnek megfelelő aukció." action={<button className="button button-secondary" type="button" onClick={resetFilters}>Szűrők törlése</button>} /> : null}
+      {!isLoading && !error && auctions.length === 0 ? <EmptyState title={`Nincs a szűrésnek megfelelő ${marketTab === "auctions" ? "aukció" : marketTab === "cards" ? "lap" : "csomag"}.`} action={<button className="button button-secondary" type="button" onClick={resetFilters}>Szűrők törlése</button>} /> : null}
 
       <div className="auction-grid page-grid" aria-busy={isLoading}>
         {auctions.map((auction, index) => <AuctionCard item={toAuctionCardItem(auction)} index={index} detailPath={`/auctions/${auction.id}`} key={auction.id} />)}

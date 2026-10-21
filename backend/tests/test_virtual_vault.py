@@ -10,7 +10,7 @@ from app.models.auction import Auction, AuctionBundleItem
 from app.models.security_log import AuditLog
 from app.models.moderation import UserBlock
 from app.models.notification import Notification, NotificationOutbox, NotificationPreference
-from app.models.vault import HkkCardVariantAttestation, VaultAccount, VaultCapacityGrant, VaultCardLoan, VaultCollectionCard, VaultDeck, VaultDeckCard, VaultFolder, VaultMatchState, VaultPointTransaction, VaultTrade, VaultTradeCard, VaultTradeMessage, VaultTradeReview
+from app.models.vault import HkkCardVariantAttestation, VaultAccount, VaultCapacityGrant, VaultCardLoan, VaultCollectionCard, VaultDeck, VaultDeckCard, VaultFolder, VaultMatchState, VaultPointTransaction, VaultTrade, VaultTradeCard, VaultTradeMessage, VaultTradeOfferAcceptance, VaultTradeOfferItem, VaultTradeOfferVersion, VaultTradeReview
 from app.services.membership import activate_code, generate_codes
 from app.services.vault import grant_capacity, grant_points, sign_card_snapshot
 from app.services import vault as vault_service
@@ -23,7 +23,7 @@ def cleanup() -> None:
     try:
         test_users = or_(User.email.like("%@vault-test.local"), User.email == "mazaine89@gmail.com")
         user_ids = list(db.scalars(select(User.id).where(test_users)).all())
-        for model in (VaultTradeReview, VaultTradeMessage, VaultTrade, VaultMatchState, VaultTradeCard, VaultCardLoan, VaultDeckCard, VaultDeck, VaultCollectionCard, VaultFolder, VaultCapacityGrant, VaultPointTransaction, VaultAccount, VipActivationCode, HkkCardVariantAttestation):
+        for model in (VaultTradeReview, VaultTradeMessage, VaultTradeOfferAcceptance, VaultTradeOfferItem, VaultTradeOfferVersion, VaultTrade, VaultMatchState, VaultTradeCard, VaultCardLoan, VaultDeckCard, VaultDeck, VaultCollectionCard, VaultFolder, VaultCapacityGrant, VaultPointTransaction, VaultAccount, VipActivationCode, HkkCardVariantAttestation):
             db.execute(delete(model))
         if user_ids:
             notification_ids = select(Notification.id).where(Notification.user_id.in_(user_ids))
@@ -991,5 +991,92 @@ def test_unverified_variant_is_not_blocked_by_rarity() -> None:
         unverified = client.post(f"/api/vault/cards/{common['id']}/variants", json={"quantity": 1, "print_variant": "foil"}, headers=headers)
         assert unverified.status_code == 201
         assert client.post(f"/api/vault/cards/{common['id']}/variants", json={"quantity": 1, "print_variant": "fa"}, headers=headers).status_code == 201
+    finally:
+        cleanup()
+
+
+def test_multi_card_trade_counteroffer_versions_and_exact_two_party_acceptance(monkeypatch) -> None:
+    cleanup(); requester = create_test_user("offer-requester@vault-test.local"); owner = create_test_user("offer-owner@vault-test.local")
+    monkeypatch.setattr("app.api.vault.hkk_market_price_suggestion", lambda card_name, edition, print_variant: {"recommended_price": 1000, "minimum_price": 900, "maximum_price": 1100, "offer_count": 2})
+    try:
+        requester_cards = [client.post("/api/vault/trade", json=card_payload(f"requester-{index}", f"Kért oldali {index}", 3), headers=auth_headers(requester)).json() for index in range(1, 3)]
+        owner_cards = [client.post("/api/vault/trade", json=card_payload(f"owner-{index}", f"Gazda oldali {index}", 4), headers=auth_headers(owner)).json() for index in range(1, 4)]
+        created = client.post(f"/api/vault/trade/{owner_cards[0]['id']}/interest", headers=auth_headers(requester))
+        assert created.status_code == 201
+        trade = created.json()
+        assert trade["current_version"] == 1 and len(trade["offer_versions"]) == 1
+
+        items = [
+            {"trade_card_id": requester_cards[0]["id"], "quantity": 1},
+            {"trade_card_id": owner_cards[0]["id"], "quantity": 1},
+            {"trade_card_id": owner_cards[1]["id"], "quantity": 2},
+            {"trade_card_id": owner_cards[2]["id"], "quantity": 1},
+        ]
+        counter = client.put(f"/api/vault/negotiations/{trade['id']}/offer", json={"expected_version": 1, "items": items}, headers=auth_headers(requester))
+        assert counter.status_code == 200
+        assert counter.json()["current_version"] == 2
+        assert len(counter.json()["offer_versions"]) == 2
+        assert sum(item["quantity"] for item in counter.json()["offer_versions"][-1]["items"] if item["owner_id"] == owner.id) == 4
+        assert {item["estimated_unit_price"] for item in counter.json()["offer_versions"][-1]["items"]} == {1000}
+
+        stale = client.put(f"/api/vault/negotiations/{trade['id']}/offer", json={"expected_version": 1, "items": items}, headers=auth_headers(owner))
+        assert stale.status_code == 409
+        foreign = create_test_user("offer-foreign@vault-test.local")
+        foreign_card = client.post("/api/vault/trade", json=card_payload("foreign-card", "Idegen lap", 1), headers=auth_headers(foreign)).json()
+        denied = client.put(f"/api/vault/negotiations/{trade['id']}/offer", json={"expected_version": 2, "items": [{"trade_card_id": foreign_card["id"], "quantity": 1}]}, headers=auth_headers(requester))
+        assert denied.status_code in (403, 404)
+
+        first_accept = client.post(f"/api/vault/negotiations/{trade['id']}/accept", json={"expected_version": 2}, headers=auth_headers(requester))
+        assert first_accept.status_code == 200 and first_accept.json()["status"] == "open"
+        repeated = client.post(f"/api/vault/negotiations/{trade['id']}/accept", json={"expected_version": 2}, headers=auth_headers(requester))
+        assert repeated.status_code == 200 and repeated.json()["status"] == "open"
+        completed = client.post(f"/api/vault/negotiations/{trade['id']}/accept", json={"expected_version": 2}, headers=auth_headers(owner))
+        assert completed.status_code == 200 and completed.json()["status"] == "completed"
+        assert set(completed.json()["offer_versions"][-1]["accepted_by"]) == {requester.id, owner.id}
+    finally:
+        cleanup()
+
+
+def test_trade_offer_can_be_rejected_or_withdrawn_idempotently() -> None:
+    cleanup(); requester = create_test_user("offer-cancel-requester@vault-test.local"); owner = create_test_user("offer-cancel-owner@vault-test.local")
+    try:
+        offered = client.post("/api/vault/trade", json=card_payload("cancel-owner-card", "Visszavonható lap", 2), headers=auth_headers(owner)).json()
+        trade = client.post(f"/api/vault/trade/{offered['id']}/interest", headers=auth_headers(requester)).json()
+        cancelled = client.post(f"/api/vault/negotiations/{trade['id']}/cancel", headers=auth_headers(owner))
+        assert cancelled.status_code == 200 and cancelled.json()["status"] == "cancelled"
+        repeated = client.post(f"/api/vault/negotiations/{trade['id']}/cancel", headers=auth_headers(owner))
+        assert repeated.status_code == 200 and repeated.json()["status"] == "cancelled"
+        stale_accept = client.post(f"/api/vault/negotiations/{trade['id']}/accept", json={"expected_version": 1}, headers=auth_headers(requester))
+        assert stale_accept.status_code == 409
+        db = SessionLocal()
+        try:
+            notice = db.scalar(select(Notification).where(Notification.user_id == requester.id, Notification.event_key == f"vault-trade-cancelled:{trade['id']}:1:{owner.id}"))
+            assert notice is not None and "elutasította" in notice.message
+        finally:
+            db.close()
+    finally:
+        cleanup()
+
+
+def test_community_browser_groups_offers_filters_and_excludes_self() -> None:
+    cleanup(); viewer = create_test_user("browser-viewer@vault-test.local"); first = create_test_user("browser-first@vault-test.local"); second = create_test_user("browser-second@vault-test.local")
+    try:
+        client.post("/api/vault/trade", json={**card_payload("shared-card", "Közös ajánlat", 2), "print_variant": "normal"}, headers=auth_headers(first))
+        client.post("/api/vault/trade", json={**card_payload("shared-card", "Közös ajánlat", 3), "print_variant": "fa"}, headers=auth_headers(second))
+        own = client.post("/api/vault/trade", json=card_payload("own-card", "Saját ajánlat", 5), headers=auth_headers(viewer))
+        assert own.status_code == 201
+
+        grouped = client.get("/api/vault/community/trades?view=cards&variants=normal,fa&min_quantity=2", headers=auth_headers(viewer))
+        assert grouped.status_code == 200 and grouped.json()["total"] == 1
+        item = grouped.json()["items"][0]
+        assert item["grouped"] is True and item["offer_count"] == 2 and item["total_quantity"] == 5
+        assert item["variant_quantities"] == {"normal": 2, "fa": 3}
+        assert all(row["external_card_id"] != "own-card" for row in grouped.json()["items"])
+
+        offers = client.get("/api/vault/community/trades/shared-card/offers?edition=Teszt%20kiad%C3%A1s", headers=auth_headers(viewer))
+        assert offers.status_code == 200 and {row["owner_id"] for row in offers.json()} == {first.id, second.id}
+        owners = client.get("/api/vault/community/owners", headers=auth_headers(viewer))
+        assert owners.status_code == 200 and {row["id"] for row in owners.json()} == {first.id, second.id}
+        assert client.get("/api/vault/community/trades?only_wanted=true").status_code == 401
     finally:
         cleanup()

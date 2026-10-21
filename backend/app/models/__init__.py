@@ -17,7 +17,7 @@ from app.models.refresh_session import RefreshSession
 from app.models.cart import Cart, CartItem, CheckoutBatch, InventoryReservation
 from app.models.transaction import AuctionTransaction, AuctionTransactionItem
 from app.models.user import SavedSearch, SellerFollow, User, UserAuthIdentity, VipActivationCode
-from app.models.vault import HkkCardVariantAttestation, VaultAccount, VaultCapacityGrant, VaultCardLoan, VaultCollectionCard, VaultDeck, VaultDeckCard, VaultFolder, VaultMatchState, VaultPointTransaction, VaultTrade, VaultTradeCard, VaultTradeMessage, VaultTradeReview
+from app.models.vault import HkkCardVariantAttestation, VaultAccount, VaultCapacityGrant, VaultCardLoan, VaultCollectionCard, VaultDeck, VaultDeckCard, VaultFolder, VaultMatchState, VaultPointTransaction, VaultTrade, VaultTradeCard, VaultTradeMessage, VaultTradeOfferAcceptance, VaultTradeOfferItem, VaultTradeOfferVersion, VaultTradeReview
 
 __all__ = [
     "Category",
@@ -77,5 +77,8 @@ __all__ = [
     "VaultTrade",
     "VaultTradeCard",
     "VaultTradeMessage",
+    "VaultTradeOfferAcceptance",
+    "VaultTradeOfferItem",
+    "VaultTradeOfferVersion",
     "VaultTradeReview",
 ]

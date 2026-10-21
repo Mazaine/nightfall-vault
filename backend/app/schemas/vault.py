@@ -165,6 +165,24 @@ class CommunityTradeCardRead(PublicTradeCardRead):
     is_wanted: bool | None = None
     is_match: bool | None = None
     can_express_interest: bool = False
+    grouped: bool = False
+    offer_count: int = 1
+    total_quantity: int = 0
+    variant_quantities: dict[PrintVariant, int] = Field(default_factory=dict)
+    last_updated_at: datetime | None = None
+    owner_rating: float | None = None
+    owner_rating_count: int = 0
+
+
+class CommunityTradeOwnerRead(BaseModel):
+    id: int
+    username: str
+    display_name: str
+    card_count: int
+    total_quantity: int
+    last_updated_at: datetime | None = None
+    rating: float | None = None
+    rating_count: int = 0
 
 
 class CommunityTradePage(BaseModel):
@@ -409,6 +427,50 @@ class TradeMessageRead(BaseModel):
     created_at: datetime
 
 
+class TradeOfferItemWrite(BaseModel):
+    trade_card_id: int = Field(gt=0)
+    quantity: int = Field(ge=1, le=9)
+
+
+class TradeOfferUpdate(BaseModel):
+    expected_version: int = Field(gt=0)
+    items: list[TradeOfferItemWrite] = Field(min_length=1, max_length=100)
+
+    @field_validator("items")
+    @classmethod
+    def unique_trade_cards(cls, value: list[TradeOfferItemWrite]) -> list[TradeOfferItemWrite]:
+        if len({item.trade_card_id for item in value}) != len(value):
+            raise ValueError("Egy cserelap egy ajánlatoldalon csak egyszer szerepelhet.")
+        return value
+
+
+class TradeOfferAccept(BaseModel):
+    expected_version: int = Field(gt=0)
+
+
+class TradeOfferItemRead(BaseModel):
+    id: int
+    owner_id: int
+    trade_card_id: int
+    external_card_id: str
+    card_name: str
+    image_url: str | None
+    edition: str | None
+    print_variant: PrintVariant
+    quantity: int
+    available_quantity: int
+    estimated_unit_price: int | None = None
+
+
+class TradeOfferVersionRead(BaseModel):
+    id: int
+    version: int
+    created_by_id: int
+    created_at: datetime
+    accepted_by: list[int] = Field(default_factory=list)
+    items: list[TradeOfferItemRead] = Field(default_factory=list)
+
+
 class TradeRead(BaseModel):
     id: int
     requester_id: int
@@ -419,8 +481,11 @@ class TradeRead(BaseModel):
     owner_display_name: str
     status: str
     reviewed_by_current_user: bool = False
+    current_version: int = 1
     requester_confirmed_at: datetime | None
     owner_confirmed_at: datetime | None
     completed_at: datetime | None
     card: CardRead
     messages: list[TradeMessageRead] = Field(default_factory=list)
+    offer_versions: list[TradeOfferVersionRead] = Field(default_factory=list)
+    available_cards: list[PublicTradeCardRead] = Field(default_factory=list)

@@ -1,6 +1,6 @@
 import { FormEvent, KeyboardEvent as ReactKeyboardEvent, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Link, useLocation, useParams } from "react-router";
+import { Link, useLocation, useNavigate, useParams } from "react-router";
 import { apiAssetUrl } from "../api/client";
 import { hkkCardImageUrl } from "../utils/hkk";
 import { ApiError } from "../api/client";
@@ -36,6 +36,7 @@ function appendUniqueMessage(items: AuctionMessage[], incoming: AuctionMessage) 
 export function AuctionDetailPage() {
   const { auctionId } = useParams();
   const location = useLocation();
+  const navigate = useNavigate();
   const { isAuthenticated, user } = useAuth();
   const { subscribe: subscribeNotifications, showToast } = useNotifications();
   const { subscribe: subscribeAuctionUpdates } = useAuctionRealtime();
@@ -53,6 +54,7 @@ export function AuctionDetailPage() {
   const [isMessageSending, setIsMessageSending] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(location.hash === "#auction-conversation");
   const [bidAmount, setBidAmount] = useState("");
+  const [purchaseQuantity, setPurchaseQuantity] = useState(1);
   const [bidMessage, setBidMessage] = useState("");
   const [watchlistMessage, setWatchlistMessage] = useState("");
   const [isBidSubmitting, setIsBidSubmitting] = useState(false);
@@ -91,6 +93,7 @@ export function AuctionDetailPage() {
     getAuction(auctionId)
       .then((data) => {
         setAuction(data);
+        setPurchaseQuantity(1);
         setSelectedImageId((data.images.find((image) => image.is_cover) ?? data.images[0])?.id ?? null);
         listAuctionBids(data.id).then(setBidHistory).catch(() => setBidHistory([]));
         listAuctionReviews(data.id, { limit: 20, sort: "newest" }).then((page) => setReviews(page.items)).catch(() => setReviews([]));
@@ -293,13 +296,14 @@ export function AuctionDetailPage() {
     setPendingBid(null);
   };
 
-  const addCurrentAuctionToCart = async () => {
+  const addCurrentAuctionToCart = async (openCart = false) => {
     if (!auction || isBidSubmitting) return;
     setIsBidSubmitting(true); setBidMessage("");
     try {
-      const cart = await addCartItem(auction.id, 1);
+      const cart = await addCartItem(auction.id, purchaseQuantity);
       announceCartChanged(cart.item_count);
-      showToast({ title: "Kosárba téve", message: `${auction.title} 60 percre lefoglalva.`, targetUrl: "/cart" });
+      showToast({ title: "Kosárba téve", message: `${purchaseQuantity} db ${auction.title} a kosaradba került. A készletet a véglegesítés ellenőrzi.`, targetUrl: "/cart" });
+      if (openCart) navigate("/cart");
     } catch (error) { setBidMessage(error instanceof Error ? error.message : "A kosárba helyezés nem sikerült."); }
     finally { setIsBidSubmitting(false); }
   };
@@ -487,6 +491,7 @@ export function AuctionDetailPage() {
           {auction.listing_type !== "fixed" && auction.buy_now_enabled && auction.buy_now_price ? (
             <div><dt>Villámár</dt><dd>{formatMoney(auction.buy_now_price)}</dd></div>
           ) : null}
+          {auction.listing_type === "fixed" ? <div><dt>Elérhető mennyiség</dt><dd>{auction.listing_format === "bundle" ? "1 csomag" : `${auction.vault_quantity ?? 1} db`}</dd></div> : null}
         </dl>
         {auction.status === "active" && !auction.is_owner && isAuthenticated && !auction.viewer_is_leading ? (
           <form className="bid-panel" id="bid-section" onSubmit={submitBid} noValidate>
@@ -505,11 +510,13 @@ export function AuctionDetailPage() {
             <button className="button button-primary" type="submit" disabled={isBidSubmitting}>
               {isBidSubmitting ? "Licit rögzítése..." : "Licitálok"}
             </button></> : null}
+            {auction.listing_type === "fixed" ? <label>Mennyiség<select aria-label="Vásárlási mennyiség" value={purchaseQuantity} onChange={(event) => setPurchaseQuantity(Number(event.target.value))}>{Array.from({ length: auction.listing_format === "bundle" ? 1 : Math.max(1, auction.vault_quantity ?? 1) }, (_, index) => <option key={index + 1} value={index + 1}>{index + 1}</option>)}</select></label> : null}
             {auction.buy_now_enabled && auction.buy_now_price ? (
-              <>{auction.listing_type === "fixed" ? <button className="button button-secondary" type="button" disabled={isBidSubmitting} onClick={() => void addCurrentAuctionToCart()}>Kosárba</button> : null}<button className="button button-lightning" id="buy-now-section" type="button" disabled={isBidSubmitting} onClick={() => void requestBidConfirmation(auction.buy_now_price ?? "", true)}>
+              <>{auction.listing_type === "fixed" ? <button className="button button-secondary" type="button" disabled={isBidSubmitting} onClick={() => void addCurrentAuctionToCart()}>Kosárba</button> : null}<button className="button button-lightning" id="buy-now-section" type="button" disabled={isBidSubmitting} onClick={() => auction.listing_type === "fixed" ? void addCurrentAuctionToCart(true) : void requestBidConfirmation(auction.buy_now_price ?? "", true)}>
                 {auction.listing_type === "fixed" ? "Megveszem" : `Villámár: ${formatMoney(auction.buy_now_price)}`}
               </button></>
             ) : null}
+            {auction.listing_type === "fixed" && auction.buy_now_price ? <p className="fixed-purchase-total">Végösszeg: {formatMoney(String(Number(auction.buy_now_price) * purchaseQuantity))}</p> : null}
             {bidMessage ? <p className="form-message" role="status" aria-live="polite">{bidMessage}</p> : null}
           </form>
         ) : null}
@@ -555,8 +562,8 @@ export function AuctionDetailPage() {
           ) : (
             <Link className="button button-secondary" to={`/login?next=${encodeURIComponent(`/auctions/${auction.id}`)}`}>Belépés a figyeléshez</Link>
           )}
-          {isAuthenticated && !auction.is_owner ? <button className="button button-ghost" type="button" onClick={() => setShowReportDialog(true)}>Aukció jelentése</button> : null}
-          <Link className="button button-ghost" to="/auctions">Vissza az aukciókhoz</Link>
+          {isAuthenticated && !auction.is_owner ? <button className="button button-ghost" type="button" onClick={() => setShowReportDialog(true)}>{auction.listing_type === "fixed" ? "Hirdetés jelentése" : "Aukció jelentése"}</button> : null}
+          <Link className="button button-ghost" to={auction.listing_type === "fixed" ? `/marketplace?tab=${auction.listing_format === "bundle" ? "bundles" : "cards"}` : "/marketplace?tab=auctions"}>Vissza a Piactérre</Link>
         </div>
         <div className="auction-share-actions" aria-label="Aukció megosztása">
           {typeof navigator !== "undefined" && "share" in navigator ? (

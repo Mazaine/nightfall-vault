@@ -60,7 +60,7 @@ describe("SiteHeader", () => {
     render(<MemoryRouter initialEntries={["/vault"]}><SiteHeader /></MemoryRouter>);
     const navigation = screen.getByRole("navigation", { name: "Elsődleges navigáció" });
     expect(Array.from(navigation.querySelectorAll("a")).map((link) => link.textContent)).toEqual([
-      "Kezdőlap", "Piactér", "Lapbolt", "Virtuális mappám", "Hirdetés feladása", "Saját ügyleteim", "Szabályok",
+      "Kezdőlap", "Piactér", "Cseremappák", "Virtuális mappám", "Hirdetés feladása", "Saját ügyleteim", "Szabályok",
     ]);
     const vaultLink = screen.getByRole("link", { name: "Virtuális mappám" });
     expect(vaultLink).toHaveClass("nav-vault-link", "active");

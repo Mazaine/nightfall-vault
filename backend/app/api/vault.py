@@ -10,8 +10,8 @@ from app.db.session import get_db
 from app.dependencies.auth import get_optional_current_user, require_active_user
 from app.models.user import User
 from app.models.auction import Auction
-from app.models.vault import VaultCardLoan, VaultCollectionCard, VaultDeck, VaultDeckCard, VaultFolder, VaultMatchState, VaultPointTransaction, VaultTrade, VaultTradeCard, VaultTradeMessage, VaultTradeReview
-from app.schemas.vault import BulkCardOperation, BulkCardOperationResult, CardLoanBatchCreate, CardLoanCreate, CardLoanRead, CardRead, CollectionCardCreate, CollectionCardUpdate, CollectionTradeUpdate, CollectionVariantCreate, CommunityTradeCardRead, CommunityTradePage, DeckCardCreate, DeckCardRead, DeckCardUpdate, DeckCreate, DeckRead, DeckUpdate, FolderCreate, FolderRead, FolderReorder, FolderUpdate, HkkEditionCards, HkkEditionImport, HkkEditionImportResult, HkkEditionRead, HkkMarketPriceSuggestion, HkkSearchResult, PointHistory, PointTransactionRead, PublicTradeCardRead, QuantityUpdate, TradeCardCreate, TradeCardSeekerRead, TradeMessageCreate, TradeRead, TradeReviewCreate, TradeReviewRead, VaultMaintenanceRead, VaultMatchesSeen, VaultMatchStatus, VaultSummary, WantedCardCreate, WantedUpdate
+from app.models.vault import VaultCardLoan, VaultCollectionCard, VaultDeck, VaultDeckCard, VaultFolder, VaultMatchState, VaultPointTransaction, VaultTrade, VaultTradeCard, VaultTradeMessage, VaultTradeOfferAcceptance, VaultTradeOfferItem, VaultTradeOfferVersion, VaultTradeReview
+from app.schemas.vault import BulkCardOperation, BulkCardOperationResult, CardLoanBatchCreate, CardLoanCreate, CardLoanRead, CardRead, CollectionCardCreate, CollectionCardUpdate, CollectionTradeUpdate, CollectionVariantCreate, CommunityTradeCardRead, CommunityTradeOwnerRead, CommunityTradePage, DeckCardCreate, DeckCardRead, DeckCardUpdate, DeckCreate, DeckRead, DeckUpdate, FolderCreate, FolderRead, FolderReorder, FolderUpdate, HkkEditionCards, HkkEditionImport, HkkEditionImportResult, HkkEditionRead, HkkMarketPriceSuggestion, HkkSearchResult, PointHistory, PointTransactionRead, PublicTradeCardRead, QuantityUpdate, TradeCardCreate, TradeCardSeekerRead, TradeMessageCreate, TradeOfferAccept, TradeOfferUpdate, TradeRead, TradeReviewCreate, TradeReviewRead, VaultMaintenanceRead, VaultMatchesSeen, VaultMatchStatus, VaultSummary, WantedCardCreate, WantedUpdate
 from app.services.notifications import create_notification
 from app.services.vault import account_for, buy_capacity_pack, card_snapshot_values, collection_card_for_user, complete_trade, fetch_hkk_card_image, folder_for_user, folder_used, grant_points, hkk_edition_cards, hkk_market_price_suggestion, import_hkk_edition, list_hkk_editions, point_balance, require_allocatable, require_collection_pocket_limit, require_valid_card_snapshot, reserved_listing_quantity, reserved_trade_listing_quantity, search_hkk_cards, total_collection_capacity, trade_for_participant, utc_now
 from app.services.hkk_variants import require_attested_variant, variant_metadata
@@ -164,17 +164,41 @@ def deck_read(db: Session, deck: VaultDeck, owned: dict[str, int] | None = None,
     )
 
 
-def trade_read(trade: VaultTrade, viewer_id: int) -> TradeRead:
+def trade_read(db: Session, trade: VaultTrade, viewer_id: int) -> TradeRead:
     messages = sorted(trade.messages, key=lambda item: (item.created_at, item.id))
+    versions = sorted(trade.offer_versions, key=lambda item: item.version)
+    available_cards = list(db.scalars(select(VaultTradeCard).where(VaultTradeCard.user_id.in_((trade.requester_id, trade.owner_id)), VaultTradeCard.quantity > 0).order_by(VaultTradeCard.user_id, VaultTradeCard.card_name, VaultTradeCard.id)).all())
     return TradeRead(
         id=trade.id, requester_id=trade.requester_id, requester_username=trade.requester.username,
         requester_display_name=public_user_label(trade.requester),
         owner_id=trade.owner_id, owner_username=trade.owner.username,
         owner_display_name=public_user_label(trade.owner), status=trade.status,
         reviewed_by_current_user=any(review.reviewer_id == viewer_id for review in trade.reviews),
+        current_version=trade.current_version,
         requester_confirmed_at=trade.requester_confirmed_at, owner_confirmed_at=trade.owner_confirmed_at,
         completed_at=trade.completed_at, card=CardRead.model_validate(trade.offered_card),
         messages=[{"id": item.id, "sender_id": item.sender_id, "sender_username": item.sender.username, "sender_display_name": public_user_label(item.sender), "message": item.message, "created_at": item.created_at} for item in messages],
+        offer_versions=[{
+            "id": version.id,
+            "version": version.version,
+            "created_by_id": version.created_by_id,
+            "created_at": version.created_at,
+            "accepted_by": sorted(acceptance.user_id for acceptance in version.acceptances),
+            "items": [{
+                "id": item.id,
+                "owner_id": item.owner_id,
+                "trade_card_id": item.trade_card_id,
+                "external_card_id": item.trade_card.external_card_id,
+                "card_name": item.trade_card.card_name,
+                "image_url": item.trade_card.image_url,
+                "edition": item.trade_card.edition,
+                "print_variant": item.trade_card.print_variant,
+                "quantity": item.quantity,
+                "available_quantity": max(item.trade_card.quantity - reserved_trade_listing_quantity(db, item.trade_card_id), 0),
+                "estimated_unit_price": item.estimated_unit_price,
+            } for item in version.items],
+        } for version in versions],
+        available_cards=[public_trade_card_read(db, card) for card in available_cards],
     )
 
 
@@ -1070,17 +1094,35 @@ def community_trade_cards(
     edition: str | None = Query(default=None, max_length=120),
     print_variant: str | None = Query(default=None, pattern=r"^(normal|foil|fa|gfa)$"),
     owner: str | None = Query(default=None, max_length=180),
+    owner_id: int | None = Query(default=None, ge=1),
+    editions: str | None = Query(default=None, max_length=1000),
+    rarities: str | None = Query(default=None, max_length=500),
+    colors: str | None = Query(default=None, max_length=500),
+    card_types: str | None = Query(default=None, max_length=500),
+    variants: str | None = Query(default=None, max_length=100),
+    min_quantity: int = Query(default=1, ge=1, le=999),
+    sort: str = Query(default="name", pattern=r"^(name|edition|rarity|updated)$"),
+    view: str = Query(default="cards", pattern=r"^(cards|players)$"),
+    only_wanted: bool = False,
+    mutual_match: bool = False,
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=48),
     current_user: User | None = Depends(get_optional_current_user),
     db: Session = Depends(get_db),
 ) -> CommunityTradePage:
     """Browse public trade offers without changing or filtering Match state."""
+    def values(raw: str | None) -> list[str]:
+        return [value.strip() for value in (raw or "").split(",") if value.strip()]
+
+    if (only_wanted or mutual_match) and current_user is None:
+        raise HTTPException(status_code=401, detail="Ehhez a gyorsszűrőhöz be kell jelentkezned.")
     statement = (
         select(VaultTradeCard)
         .join(User, User.id == VaultTradeCard.user_id)
-        .where(User.is_active.is_(True), User.deleted_at.is_(None), VaultTradeCard.quantity > 0)
+        .where(User.is_active.is_(True), User.deleted_at.is_(None), VaultTradeCard.quantity >= min_quantity)
     )
+    if current_user is not None:
+        statement = statement.where(VaultTradeCard.user_id != current_user.id)
     if query and query.strip():
         term = query.strip().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
         statement = statement.where(or_(VaultTradeCard.card_name.ilike(f"%{term}%", escape="\\"), VaultTradeCard.external_card_id.ilike(f"%{term}%", escape="\\")))
@@ -1088,16 +1130,59 @@ def community_trade_cards(
         statement = statement.where(VaultTradeCard.edition == edition.strip())
     if print_variant:
         statement = statement.where(VaultTradeCard.print_variant == print_variant)
+    edition_values = values(editions)
+    rarity_values = values(rarities)
+    color_values = values(colors)
+    type_values = values(card_types)
+    variant_values = values(variants)
+    if edition_values:
+        statement = statement.where(VaultTradeCard.edition.in_(edition_values))
+    if rarity_values:
+        statement = statement.where(VaultTradeCard.rarity.in_(rarity_values))
+    if color_values:
+        statement = statement.where(VaultTradeCard.color.in_(color_values))
+    if type_values:
+        statement = statement.where(VaultTradeCard.card_type.in_(type_values))
+    if variant_values:
+        statement = statement.where(VaultTradeCard.print_variant.in_(variant_values))
+    if owner_id:
+        statement = statement.where(VaultTradeCard.user_id == owner_id)
     if owner and owner.strip():
         owner_term = owner.strip().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
         statement = statement.where(User.username.ilike(f"%{owner_term}%", escape="\\"))
+    if current_user is not None and only_wanted:
+        wanted_ids = select(VaultCollectionCard.external_card_id).where(
+            VaultCollectionCard.user_id == current_user.id,
+            VaultCollectionCard.wanted.is_(True),
+            VaultCollectionCard.wanted_quantity > 0,
+        )
+        statement = statement.where(VaultTradeCard.external_card_id.in_(wanted_ids))
+    if current_user is not None and mutual_match:
+        my_offer_ids = select(VaultTradeCard.external_card_id).where(VaultTradeCard.user_id == current_user.id, VaultTradeCard.quantity > 0)
+        reciprocal_owners = select(VaultCollectionCard.user_id).where(
+            VaultCollectionCard.external_card_id.in_(my_offer_ids),
+            VaultCollectionCard.wanted.is_(True),
+            VaultCollectionCard.wanted_quantity > 0,
+        )
+        statement = statement.where(VaultTradeCard.user_id.in_(reciprocal_owners))
 
-    total = int(db.scalar(select(func.count()).select_from(statement.order_by(None).subquery())) or 0)
-    cards = list(db.scalars(
-        statement.order_by(VaultTradeCard.card_name, VaultTradeCard.external_card_id, VaultTradeCard.id)
-        .offset((page - 1) * page_size)
-        .limit(page_size)
-    ).all())
+    order_columns = {
+        "name": (VaultTradeCard.card_name, VaultTradeCard.external_card_id, VaultTradeCard.id),
+        "edition": (VaultTradeCard.edition, VaultTradeCard.card_name, VaultTradeCard.id),
+        "rarity": (VaultTradeCard.rarity, VaultTradeCard.card_name, VaultTradeCard.id),
+        "updated": (VaultTradeCard.updated_at.desc(), VaultTradeCard.id.desc()),
+    }[sort]
+    all_cards = list(db.scalars(statement.order_by(*order_columns)).all())
+    if view == "cards":
+        grouped: dict[tuple[str, str], list[VaultTradeCard]] = {}
+        for card in all_cards:
+            grouped.setdefault((card.external_card_id, card.edition or ""), []).append(card)
+        rows = list(grouped.values())
+    else:
+        rows = [[card] for card in all_cards]
+    total = len(rows)
+    rows = rows[(page - 1) * page_size:page * page_size]
+    cards = [card for row in rows for card in row]
 
     wanted_ids: set[str] = set()
     matched_offer_ids: set[int] = set()
@@ -1121,7 +1206,8 @@ def community_trade_cards(
         ).all())
 
     items: list[CommunityTradeCardRead] = []
-    for card in cards:
+    for row in rows:
+        card = row[0]
         public = public_trade_card_read(db, card)
         personalized = current_user is not None
         can_express = bool(
@@ -1129,14 +1215,96 @@ def community_trade_cards(
             and current_user.id != card.user_id
             and not has_block_between(db, current_user.id, card.user_id)
         )
+        variant_quantities = {variant: sum(item.quantity for item in row if item.print_variant == variant) for variant in ("normal", "foil", "fa", "gfa")}
+        variant_quantities = {variant: quantity for variant, quantity in variant_quantities.items() if quantity > 0}
+        owner_ids = {item.user_id for item in row}
+        review_stats = db.execute(select(func.avg(VaultTradeReview.rating), func.count(VaultTradeReview.id)).where(VaultTradeReview.reviewed_user_id == card.user_id)).one()
         items.append(CommunityTradeCardRead.model_validate({
             **public.model_dump(),
             "is_wanted": card.external_card_id in wanted_ids if personalized else None,
-            "is_match": card.id in matched_offer_ids if personalized else None,
+            "is_match": any(item.id in matched_offer_ids for item in row) if personalized else None,
             "can_express_interest": can_express,
+            "grouped": view == "cards",
+            "offer_count": len(owner_ids),
+            "total_quantity": sum(item.quantity for item in row),
+            "variant_quantities": variant_quantities,
+            "last_updated_at": max(item.updated_at for item in row),
+            "owner_rating": float(review_stats[0]) if review_stats[0] is not None and len(row) == 1 else None,
+            "owner_rating_count": int(review_stats[1]) if len(row) == 1 else 0,
         }))
     total_pages = max((total + page_size - 1) // page_size, 1)
     return CommunityTradePage(items=items, total=total, page=page, page_size=page_size, total_pages=total_pages)
+
+
+@router.get("/community/owners", response_model=list[CommunityTradeOwnerRead])
+def community_trade_owners(current_user: User | None = Depends(get_optional_current_user), db: Session = Depends(get_db)) -> list[CommunityTradeOwnerRead]:
+    statement = (
+        select(User, func.count(VaultTradeCard.id), func.sum(VaultTradeCard.quantity), func.max(VaultTradeCard.updated_at))
+        .join(VaultTradeCard, VaultTradeCard.user_id == User.id)
+        .where(User.is_active.is_(True), User.deleted_at.is_(None), VaultTradeCard.quantity > 0)
+        .group_by(User.id)
+        .order_by(User.username)
+    )
+    if current_user is not None:
+        statement = statement.where(User.id != current_user.id)
+    result: list[CommunityTradeOwnerRead] = []
+    for owner_user, card_count, total_quantity, last_updated_at in db.execute(statement).all():
+        average, rating_count = db.execute(select(func.avg(VaultTradeReview.rating), func.count(VaultTradeReview.id)).where(VaultTradeReview.reviewed_user_id == owner_user.id)).one()
+        result.append(CommunityTradeOwnerRead(id=owner_user.id, username=owner_user.username, display_name=public_user_label(owner_user), card_count=int(card_count), total_quantity=int(total_quantity or 0), last_updated_at=last_updated_at, rating=float(average) if average is not None else None, rating_count=int(rating_count)))
+    return result
+
+
+@router.get("/community/filters")
+def community_trade_filter_options(db: Session = Depends(get_db)) -> dict[str, list[str]]:
+    base = (User.is_active.is_(True), User.deleted_at.is_(None), VaultTradeCard.quantity > 0)
+    def distinct(column) -> list[str]:
+        return [value for value in db.scalars(select(column).join(User, User.id == VaultTradeCard.user_id).where(*base, column.is_not(None)).distinct().order_by(column)).all() if value]
+    return {
+        "editions": distinct(VaultTradeCard.edition),
+        "rarities": distinct(VaultTradeCard.rarity),
+        "colors": distinct(VaultTradeCard.color),
+        "card_types": distinct(VaultTradeCard.card_type),
+    }
+
+
+@router.get("/community/trades/{external_card_id}/offers", response_model=list[CommunityTradeCardRead])
+def community_trade_offers(external_card_id: str, edition: str | None = None, current_user: User | None = Depends(get_optional_current_user), db: Session = Depends(get_db)) -> list[CommunityTradeCardRead]:
+    statement = select(VaultTradeCard).join(User, User.id == VaultTradeCard.user_id).where(
+        VaultTradeCard.external_card_id == external_card_id,
+        VaultTradeCard.quantity > 0,
+        User.is_active.is_(True),
+        User.deleted_at.is_(None),
+    )
+    if edition is not None:
+        statement = statement.where(VaultTradeCard.edition == edition)
+    if current_user is not None:
+        statement = statement.where(VaultTradeCard.user_id != current_user.id)
+    offers = list(db.scalars(statement.order_by(User.username, VaultTradeCard.print_variant, VaultTradeCard.id)).all())
+    result: list[CommunityTradeCardRead] = []
+    for card in offers:
+        public = public_trade_card_read(db, card)
+        wanted = current_user is not None and db.scalar(select(VaultCollectionCard.id).where(VaultCollectionCard.user_id == current_user.id, VaultCollectionCard.external_card_id == card.external_card_id, VaultCollectionCard.wanted.is_(True), VaultCollectionCard.wanted_quantity > 0)) is not None
+        matched = current_user is not None and db.scalar(select(VaultMatchState.id).where(VaultMatchState.user_id == current_user.id, VaultMatchState.offered_card_id == card.id, VaultMatchState.is_active.is_(True))) is not None
+        average, rating_count = db.execute(select(func.avg(VaultTradeReview.rating), func.count(VaultTradeReview.id)).where(VaultTradeReview.reviewed_user_id == card.user_id)).one()
+        result.append(CommunityTradeCardRead.model_validate({**public.model_dump(), "is_wanted": wanted if current_user is not None else None, "is_match": matched if current_user is not None else None, "can_express_interest": bool(current_user is not None and not has_block_between(db, current_user.id, card.user_id)), "total_quantity": card.quantity, "variant_quantities": {card.print_variant: card.quantity}, "last_updated_at": card.updated_at, "owner_rating": float(average) if average is not None else None, "owner_rating_count": int(rating_count)}))
+    return result
+
+
+@router.get("/community/owners/{owner_id}/wanted-overlap", response_model=list[PublicTradeCardRead])
+def community_owner_wanted_overlap(owner_id: int, current_user: User = Depends(require_active_user), db: Session = Depends(get_db)) -> list[PublicTradeCardRead]:
+    if owner_id == current_user.id:
+        return []
+    ensure_not_blocked(db, current_user.id, owner_id)
+    owner_exists = db.scalar(select(User.id).where(User.id == owner_id, User.is_active.is_(True), User.deleted_at.is_(None)))
+    if owner_exists is None:
+        raise HTTPException(status_code=404, detail="A cserepartner nem található.")
+    wanted_ids = select(VaultCollectionCard.external_card_id).where(
+        VaultCollectionCard.user_id == owner_id,
+        VaultCollectionCard.wanted.is_(True),
+        VaultCollectionCard.wanted_quantity > 0,
+    )
+    cards = db.scalars(select(VaultTradeCard).where(VaultTradeCard.user_id == current_user.id, VaultTradeCard.quantity > 0, VaultTradeCard.external_card_id.in_(wanted_ids)).order_by(VaultTradeCard.card_name, VaultTradeCard.id)).all()
+    return [public_trade_card_read(db, card) for card in cards]
 
 
 @router.get("/public/{username}", response_model=list[PublicTradeCardRead])
@@ -1195,14 +1363,149 @@ def express_interest(card_id: int, current_user: User = Depends(require_active_u
     trade = db.scalar(select(VaultTrade).where(VaultTrade.requester_id == current_user.id, VaultTrade.offered_card_id == offered.id))
     if trade is None:
         trade = VaultTrade(requester_id=current_user.id, owner_id=offered.user_id, offered_card_id=offered.id)
-        db.add(trade); db.commit(); db.refresh(trade)
-    return trade_read(trade_for_participant(db, trade.id, current_user.id), current_user.id)
+        db.add(trade)
+        db.flush()
+        version = VaultTradeOfferVersion(trade_id=trade.id, version=1, created_by_id=current_user.id)
+        db.add(version)
+        db.flush()
+        db.add(VaultTradeOfferItem(offer_version_id=version.id, owner_id=offered.user_id, trade_card_id=offered.id, quantity=1))
+        db.commit()
+    return trade_read(db, trade_for_participant(db, trade.id, current_user.id), current_user.id)
 
 
 @router.get("/negotiations", response_model=list[TradeRead])
 def list_negotiations(current_user: User = Depends(require_active_user), db: Session = Depends(get_db)) -> list[TradeRead]:
     ids = db.scalars(select(VaultTrade.id).where(or_(VaultTrade.requester_id == current_user.id, VaultTrade.owner_id == current_user.id)).order_by(VaultTrade.updated_at.desc())).all()
-    return [trade_read(trade_for_participant(db, trade_id, current_user.id), current_user.id) for trade_id in ids]
+    return [trade_read(db, trade_for_participant(db, trade_id, current_user.id), current_user.id) for trade_id in ids]
+
+
+def _locked_offer_cards(db: Session, trade: VaultTrade, payload: TradeOfferUpdate) -> list[tuple[VaultTradeCard, int]]:
+    requested = {item.trade_card_id: item.quantity for item in payload.items}
+    cards = list(db.scalars(select(VaultTradeCard).where(VaultTradeCard.id.in_(requested)).with_for_update()).all())
+    if len(cards) != len(requested):
+        raise HTTPException(status_code=404, detail="Az ajánlat egyik cserelapja már nem érhető el.")
+    participants = {trade.requester_id, trade.owner_id}
+    if any(card.user_id not in participants for card in cards):
+        raise HTTPException(status_code=403, detail="Csak a csere két résztvevőjének publikus cserelapjai választhatók.")
+    if {card.user_id for card in cards} != participants:
+        raise HTTPException(status_code=422, detail="Az ajánlat mindkét oldalán legalább egy lapnak szerepelnie kell.")
+    result: list[tuple[VaultTradeCard, int]] = []
+    for card in cards:
+        quantity = requested[card.id]
+        available = max(card.quantity - reserved_trade_listing_quantity(db, card.id), 0)
+        if quantity > available:
+            raise HTTPException(status_code=409, detail=f"A(z) {card.card_name} lapból csak {available} db érhető el cserére.")
+        result.append((card, quantity))
+    return result
+
+
+@router.put("/negotiations/{trade_id}/offer", response_model=TradeRead)
+def update_trade_offer(trade_id: int, payload: TradeOfferUpdate, current_user: User = Depends(require_active_user), db: Session = Depends(get_db)) -> TradeRead:
+    trade = trade_for_participant(db, trade_id, current_user.id, lock=True)
+    if trade.status != "open":
+        raise HTTPException(status_code=409, detail="A lezárt egyeztetés ajánlata nem módosítható.")
+    if payload.expected_version != trade.current_version:
+        raise HTTPException(status_code=409, detail="Az ajánlat időközben megváltozott. Töltsd be a legújabb verziót.")
+    cards = _locked_offer_cards(db, trade, payload)
+    trade.current_version += 1
+    trade.requester_confirmed_at = None
+    trade.owner_confirmed_at = None
+    version = VaultTradeOfferVersion(trade_id=trade.id, version=trade.current_version, created_by_id=current_user.id)
+    db.add(version)
+    db.flush()
+    for card, quantity in cards:
+        suggested = hkk_market_price_suggestion(card.card_name, card.edition, card.print_variant).get("recommended_price")
+        db.add(VaultTradeOfferItem(offer_version_id=version.id, owner_id=card.user_id, trade_card_id=card.id, quantity=quantity, estimated_unit_price=suggested if isinstance(suggested, int) and suggested > 0 else None))
+    recipient_id = trade.owner_id if current_user.id == trade.requester_id else trade.requester_id
+    create_notification(
+        db,
+        user_id=recipient_id,
+        notification_type="auction_message",
+        title="Új csereajánlat",
+        message=f"{public_user_label(current_user)} módosította a csereajánlatot (#{trade.current_version}).",
+        target_url="/vault?area=trade&view=matches",
+        event_key=f"vault-trade-offer:{trade.id}:{trade.current_version}:{recipient_id}",
+    )
+    db.commit()
+    return trade_read(db, trade_for_participant(db, trade.id, current_user.id), current_user.id)
+
+
+def _accept_current_offer(db: Session, trade: VaultTrade, current_user: User, expected_version: int) -> TradeRead:
+    if trade.status == "completed":
+        return trade_read(db, trade_for_participant(db, trade.id, current_user.id), current_user.id)
+    if trade.status != "open":
+        raise HTTPException(status_code=409, detail="Ez az egyeztetés már nem fogadható el.")
+    if expected_version != trade.current_version:
+        raise HTTPException(status_code=409, detail="Csak az ajánlat legújabb verziója fogadható el.")
+    version = db.scalar(select(VaultTradeOfferVersion).where(VaultTradeOfferVersion.trade_id == trade.id, VaultTradeOfferVersion.version == expected_version).with_for_update())
+    if version is None:
+        raise HTTPException(status_code=409, detail="Az ajánlatverzió nem található.")
+    items = list(db.scalars(select(VaultTradeOfferItem).where(VaultTradeOfferItem.offer_version_id == version.id).order_by(VaultTradeOfferItem.id)).all())
+    cards = {card.id: card for card in db.scalars(select(VaultTradeCard).where(VaultTradeCard.id.in_([item.trade_card_id for item in items])).with_for_update()).all()}
+    if len(cards) != len(items):
+        raise HTTPException(status_code=409, detail="Az ajánlat egyik lapja már nem érhető el.")
+    for item in items:
+        card = cards[item.trade_card_id]
+        available = max(card.quantity - reserved_trade_listing_quantity(db, card.id), 0)
+        if card.user_id != item.owner_id or item.quantity > available:
+            raise HTTPException(status_code=409, detail=f"A(z) {card.card_name} lap készlete megváltozott; ellenajánlat szükséges.")
+    acceptance = db.scalar(select(VaultTradeOfferAcceptance).where(VaultTradeOfferAcceptance.offer_version_id == version.id, VaultTradeOfferAcceptance.user_id == current_user.id))
+    if acceptance is None:
+        db.add(VaultTradeOfferAcceptance(offer_version_id=version.id, user_id=current_user.id))
+        db.flush()
+    accepted_by = set(db.scalars(select(VaultTradeOfferAcceptance.user_id).where(VaultTradeOfferAcceptance.offer_version_id == version.id)).all())
+    if current_user.id == trade.requester_id:
+        trade.requester_confirmed_at = trade.requester_confirmed_at or utc_now()
+    else:
+        trade.owner_confirmed_at = trade.owner_confirmed_at or utc_now()
+    if {trade.requester_id, trade.owner_id}.issubset(accepted_by):
+        complete_trade(db, trade)
+    else:
+        recipient_id = trade.owner_id if current_user.id == trade.requester_id else trade.requester_id
+        create_notification(
+            db,
+            user_id=recipient_id,
+            notification_type="auction_message",
+            title="Csereajánlat elfogadva",
+            message=f"{public_user_label(current_user)} elfogadta a(z) #{version.version} csereajánlatot.",
+            target_url="/vault?area=trade&view=matches",
+            event_key=f"vault-trade-accepted:{trade.id}:{version.version}:{current_user.id}",
+        )
+    db.commit()
+    return trade_read(db, trade_for_participant(db, trade.id, current_user.id), current_user.id)
+
+
+@router.post("/negotiations/{trade_id}/accept", response_model=TradeRead)
+def accept_trade_offer(trade_id: int, payload: TradeOfferAccept, current_user: User = Depends(require_active_user), db: Session = Depends(get_db)) -> TradeRead:
+    trade = trade_for_participant(db, trade_id, current_user.id, lock=True)
+    return _accept_current_offer(db, trade, current_user, payload.expected_version)
+
+
+@router.post("/negotiations/{trade_id}/cancel", response_model=TradeRead)
+def cancel_trade_offer(trade_id: int, current_user: User = Depends(require_active_user), db: Session = Depends(get_db)) -> TradeRead:
+    trade = trade_for_participant(db, trade_id, current_user.id, lock=True)
+    if trade.status == "cancelled":
+        return trade_read(db, trade, current_user.id)
+    if trade.status != "open":
+        raise HTTPException(status_code=409, detail="A lezárt csereajánlat már nem vonható vissza.")
+    current_version = db.scalar(select(VaultTradeOfferVersion).where(VaultTradeOfferVersion.trade_id == trade.id, VaultTradeOfferVersion.version == trade.current_version))
+    is_withdrawal = current_version is not None and current_version.created_by_id == current_user.id
+    trade.status = "cancelled"
+    trade.requester_confirmed_at = None
+    trade.owner_confirmed_at = None
+    recipient_id = trade.owner_id if current_user.id == trade.requester_id else trade.requester_id
+    action = "visszavonta" if is_withdrawal else "elutasította"
+    create_notification(
+        db,
+        user_id=recipient_id,
+        notification_type="auction_message",
+        title="Csereajánlat visszavonva" if is_withdrawal else "Csereajánlat elutasítva",
+        message=f"{public_user_label(current_user)} {action} a(z) #{trade.current_version} csereajánlatot.",
+        target_url="/vault?area=trade&view=matches",
+        event_key=f"vault-trade-cancelled:{trade.id}:{trade.current_version}:{current_user.id}",
+    )
+    db.commit()
+    return trade_read(db, trade_for_participant(db, trade.id, current_user.id), current_user.id)
 
 
 @router.post("/negotiations/{trade_id}/messages", response_model=TradeRead)
@@ -1225,23 +1528,13 @@ def post_trade_message(trade_id: int, payload: TradeMessageCreate, current_user:
         event_key=f"vault-message:{message.id}:{recipient_id}",
     )
     db.commit()
-    return trade_read(trade_for_participant(db, trade.id, current_user.id), current_user.id)
+    return trade_read(db, trade_for_participant(db, trade.id, current_user.id), current_user.id)
 
 
 @router.post("/negotiations/{trade_id}/confirm", response_model=TradeRead)
 def confirm_trade(trade_id: int, current_user: User = Depends(require_active_user), db: Session = Depends(get_db)) -> TradeRead:
     trade = trade_for_participant(db, trade_id, current_user.id, lock=True)
-    if trade.status == "completed":
-        return trade_read(trade_for_participant(db, trade.id, current_user.id), current_user.id)
-    if trade.status != "open":
-        raise HTTPException(status_code=409, detail="Ez az egyeztetés már nem erősíthető meg.")
-    if current_user.id == trade.requester_id:
-        trade.requester_confirmed_at = trade.requester_confirmed_at or utc_now()
-    else:
-        trade.owner_confirmed_at = trade.owner_confirmed_at or utc_now()
-    complete_trade(db, trade)
-    db.commit()
-    return trade_read(trade_for_participant(db, trade.id, current_user.id), current_user.id)
+    return _accept_current_offer(db, trade, current_user, trade.current_version)
 
 
 @router.post("/negotiations/{trade_id}/reviews", response_model=TradeReviewRead, status_code=status.HTTP_201_CREATED)

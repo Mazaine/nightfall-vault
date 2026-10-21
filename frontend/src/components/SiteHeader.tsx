@@ -9,7 +9,7 @@ import { CART_CHANGED_EVENT, getCart } from "../api/cart";
 const navItems: { label: string; to: string; authenticated?: boolean; primary?: boolean; emphasis?: boolean }[] = [
   { label: "Kezdőlap", to: "/" },
   { label: "Piactér", to: "/marketplace" },
-  { label: "Lapbolt", to: "/marketplace/fixed" },
+  { label: "Cseremappák", to: "/vault/community" },
   { label: "Virtuális mappám", to: "/vault", authenticated: true, emphasis: true },
   { label: "Hirdetés feladása", to: "/auctions/create", authenticated: true, primary: true },
   { label: "Saját ügyleteim", to: "/account/transactions", authenticated: true },

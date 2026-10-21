@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session, joinedload, selectinload
 
 from app.core.config import settings
 from app.models.user import User
-from app.models.vault import VaultAccount, VaultCapacityGrant, VaultCollectionCard, VaultFolder, VaultPointTransaction, VaultTrade, VaultTradeCard, VaultTradeMessage
+from app.models.vault import VaultAccount, VaultCapacityGrant, VaultCollectionCard, VaultFolder, VaultPointTransaction, VaultTrade, VaultTradeCard, VaultTradeMessage, VaultTradeOfferAcceptance, VaultTradeOfferItem, VaultTradeOfferVersion
 
 
 BASE_COLLECTION_CAPACITY = 1000
@@ -238,7 +238,14 @@ def trade_for_participant(db: Session, trade_id: int, user_id: int, *, lock: boo
     if lock:
         statement = statement.with_for_update()
     else:
-        statement = statement.options(joinedload(VaultTrade.requester), joinedload(VaultTrade.owner), joinedload(VaultTrade.offered_card), selectinload(VaultTrade.messages).joinedload(VaultTradeMessage.sender))
+        statement = statement.options(
+            joinedload(VaultTrade.requester),
+            joinedload(VaultTrade.owner),
+            joinedload(VaultTrade.offered_card),
+            selectinload(VaultTrade.messages).joinedload(VaultTradeMessage.sender),
+            selectinload(VaultTrade.offer_versions).selectinload(VaultTradeOfferVersion.items).joinedload(VaultTradeOfferItem.trade_card),
+            selectinload(VaultTrade.offer_versions).selectinload(VaultTradeOfferVersion.acceptances),
+        )
     trade = db.scalar(statement)
     if trade is None:
         raise HTTPException(status_code=404, detail="Az egyeztetés nem található.")
