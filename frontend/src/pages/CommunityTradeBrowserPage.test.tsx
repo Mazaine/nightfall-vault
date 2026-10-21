@@ -61,6 +61,17 @@ describe("CommunityTradeBrowserPage", () => {
     expect(screen.queryByAltText("Angyalgólem nagyított képe")).not.toBeInTheDocument();
   });
 
+  it("globális listanézetet ment és csak ott használ hoveres képnagyítást", async () => {
+    render(<MemoryRouter><CommunityTradeBrowserPage/></MemoryRouter>);
+    await screen.findByText("Angyalgólem");
+    fireEvent.click(screen.getByRole("button", { name: "Lista" }));
+    expect(localStorage.getItem("nightfall-vault-card-display-mode")).toBe("list");
+    const image = screen.getByAltText("Angyalgólem");
+    expect(image.closest(".community-trade-list-row")).toBeInTheDocument();
+    fireEvent.pointerEnter(image.closest(".card-image-preview")!);
+    expect(await screen.findByAltText("Angyalgólem nagyított képe")).toBeInTheDocument();
+  });
+
   it("a mentett keresés átnevezhető natív prompt nélkül", async () => {
     const prompt = vi.spyOn(window, "prompt");
     render(<MemoryRouter><CommunityTradeBrowserPage/></MemoryRouter>);

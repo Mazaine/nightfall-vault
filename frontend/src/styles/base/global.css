@@ -3155,12 +3155,15 @@ h3 {
 .community-trade-page { display: grid; gap: var(--space-5); }
 .community-trade-filters { display: grid; grid-template-columns: minmax(12rem, 1.5fr) repeat(3, minmax(9rem, 1fr)) auto auto; align-items: end; gap: var(--space-2); border: 1px solid var(--color-divider); border-radius: var(--radius-md); background: rgb(9 7 14 / .65); padding: var(--space-4); }
 .community-trade-filters label { display: grid; min-width: 0; gap: .3rem; color: var(--color-text-muted); font-size: .8rem; }
-.community-trade-summary { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
+.community-trade-summary { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--space-3); }
 .community-trade-badges { display: flex; min-height: 1.6rem; flex-wrap: wrap; gap: .35rem; }
 .community-trade-badges span { border: 1px solid rgb(168 85 247 / .45); border-radius: 999px; background: rgb(124 58 237 / .12); padding: .2rem .45rem; color: #ddd6fe; font-size: .7rem; font-weight: 700; }
 .community-trade-badges span.is-match { border-color: rgb(134 239 172 / .55); background: rgb(34 197 94 / .12); color: #bbf7d0; }
 .community-trade-grid .vault-card-body { grid-template-rows: auto auto auto 1fr auto; }
 .community-trade-grid .vault-card-body > .button { align-self: end; }
+.vault-card-grid.community-trade-grid { grid-template-columns: repeat(auto-fill, minmax(min(100%, 13rem), 15.5rem)); justify-content: start; gap: .65rem; }
+.community-trade-list { width: 100%; }
+.community-trade-list-row { width: 100%; }
 .vault-collection-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .65rem; }
 .vault-card { position: relative; display: grid; grid-template-rows: auto 1fr; min-width: 0; overflow: hidden; border: 1px solid var(--color-divider); border-radius: var(--radius-md); background: rgb(9 7 14 / .65); }
 .vault-card.is-selected { border-color: var(--color-primary); box-shadow: 0 0 0 2px rgb(124 58 237 / .22); }
