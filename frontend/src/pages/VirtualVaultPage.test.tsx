@@ -461,6 +461,24 @@ describe("VirtualVaultPage", () => {
     await waitFor(() => expect(notificationMocks.showToast).toHaveBeenCalledWith({ title: "Cseremappába mentve", message: "Orkling bekerült a cseremappádba.", targetUrl: "/vault?area=trade&view=trade" }));
   });
 
+  it("hiányzó célmappánál látható visszajelzést ad a néma leállás helyett", async () => {
+    mocks.getVaultSummary.mockResolvedValue({ ...summary, folders: [] });
+    mocks.listVaultCards.mockResolvedValue([]);
+    mocks.searchHkk.mockResolvedValue([hkk]);
+    render(<VirtualVaultPage />); await screen.findByText("Mi történt a mappádban?");
+    fireEvent.click(screen.getByRole("button", { name: "Lapfelvitel" }));
+    fireEvent.change(screen.getByLabelText("Lap neve"), { target: { value: "Orkling" } });
+    fireEvent.click(screen.getByRole("button", { name: "Keresés" }));
+    await screen.findByText("Orkling");
+    fireEvent.click(screen.getByRole("button", { name: "Mappába" }));
+    expect(mocks.addVaultCard).not.toHaveBeenCalled();
+    expect(notificationMocks.showToast).toHaveBeenCalledWith({
+      title: "Nincs célmappa",
+      message: "A gyűjtemény még nem inicializálódott. Frissítsd az oldalt, majd próbáld újra.",
+      targetUrl: "/vault?area=collection",
+    });
+  });
+
   it("a mappazsebeket utólag szerkeszti, a külön kölcsönadás pedig nem igényel gyűjteményi rekordot", async () => {
     mocks.updateVaultFolder.mockResolvedValue(summary.folders[0]); mocks.searchHkk.mockResolvedValue([hkk]); mocks.createStandaloneCardLoans.mockResolvedValue([]);
     render(<VirtualVaultPage />); await screen.findByText("Mi történt a mappádban?"); fireEvent.click(screen.getByRole("button", { name: "Gyűjtemény" }));

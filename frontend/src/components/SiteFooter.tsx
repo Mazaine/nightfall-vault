@@ -21,6 +21,7 @@ export function SiteFooter() {
           <Link to="/terms">Felhasználási feltételek</Link>
           <Link to="/privacy">Adatvédelem</Link>
           <Link to="/support">Támogatás</Link>
+          <Link to="/contact">Kapcsolat</Link>
         </nav>
       </div>
     </footer>

@@ -205,8 +205,28 @@ def trade_read(db: Session, trade: VaultTrade, viewer_id: int) -> TradeRead:
 @router.get("/summary", response_model=VaultSummary)
 def summary(current_user: User = Depends(require_active_user), db: Session = Depends(get_db)) -> VaultSummary:
     account = account_for(db, current_user.id)
-    folders = db.scalars(select(VaultFolder).where(VaultFolder.user_id == current_user.id).order_by(VaultFolder.position, VaultFolder.id)).all()
     total = total_collection_capacity(db, current_user.id)
+    folders = list(db.scalars(select(VaultFolder).where(VaultFolder.user_id == current_user.id).order_by(VaultFolder.position, VaultFolder.id)).all())
+    # A collection and the wanted list both need a folder.  Older and newly
+    # registered accounts may not have one yet, so initialise a usable default
+    # folder when the Vault is opened for the first time.
+    if not folders:
+        default_folder = VaultFolder(
+            user_id=current_user.id,
+            name="Gyűjtemény",
+            capacity=total,
+            position=0,
+            color="#7c3aed",
+        )
+        try:
+            with db.begin_nested():
+                db.add(default_folder)
+                db.flush()
+            folders = [default_folder]
+        except IntegrityError:
+            # Two simultaneous first loads can race.  Keep the folder created
+            # by the other request instead of turning this into a 500 response.
+            folders = list(db.scalars(select(VaultFolder).where(VaultFolder.user_id == current_user.id).order_by(VaultFolder.position, VaultFolder.id)).all())
     assigned = sum(folder.capacity for folder in folders)
     folder_stats = folder_statistics(db, current_user.id)
     folder_reads = [

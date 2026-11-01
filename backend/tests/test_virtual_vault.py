@@ -50,6 +50,40 @@ def edition_cards() -> tuple[dict[str, str], list[dict]]:
     return {"id": "220", "name": "Teszt kiegészítő"}, cards
 
 
+def test_fresh_vault_initializes_default_folder_and_accepts_collection_and_wanted_cards() -> None:
+    cleanup(); user = create_test_user("fresh-account@vault-test.local")
+    try:
+        first_summary = client.get("/api/vault/summary", headers=auth_headers(user))
+        assert first_summary.status_code == 200
+        folders = first_summary.json()["folders"]
+        assert len(folders) == 1
+        assert folders[0]["name"] == "Gyűjtemény"
+        assert folders[0]["capacity"] == 1000
+
+        owned = client.post(
+            "/api/vault/cards",
+            json={**card_payload("fresh-owned", "Első saját lap", 1), "folder_id": folders[0]["id"]},
+            headers=auth_headers(user),
+        )
+        assert owned.status_code == 201
+
+        wanted_payload = card_payload("fresh-wanted", "Első keresett lap", 1)
+        wanted_payload.pop("quantity")
+        wanted = client.post(
+            "/api/vault/cards/wanted",
+            json={**wanted_payload, "folder_id": folders[0]["id"]},
+            headers=auth_headers(user),
+        )
+        assert wanted.status_code == 201
+        assert wanted.json()["wanted"] is True
+
+        repeated_summary = client.get("/api/vault/summary", headers=auth_headers(user))
+        assert repeated_summary.status_code == 200
+        assert [folder["id"] for folder in repeated_summary.json()["folders"]] == [folders[0]["id"]]
+    finally:
+        cleanup()
+
+
 def test_full_edition_import_quantities_missing_only_idempotence_and_zero_persistence(monkeypatch) -> None:
     cleanup(); user = create_test_user("edition@vault-test.local")
     monkeypatch.setattr(vault_service, "hkk_edition_cards", lambda edition_id: edition_cards())

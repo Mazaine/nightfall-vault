@@ -341,15 +341,21 @@ export function VirtualVaultPage() {
     catch (error) { report(error); } finally { setBusy(false); }
   }
   async function addResult(card: HkkCard, target: "collection" | "trade" | "wanted") {
-    if (target !== "trade" && !selectedFolder) return setMessage("Előbb válassz almappát.");
+    const targetFolderId = selectedFolder ?? summary?.folders[0]?.id;
+    if (target !== "trade" && !targetFolderId) {
+      const feedback = { title: "Nincs célmappa", message: "A gyűjtemény még nem inicializálódott. Frissítsd az oldalt, majd próbáld újra.", targetUrl: "/vault?area=collection" };
+      setMessage(feedback.message);
+      showToast(feedback);
+      return;
+    }
     const selections = selectableVariants(card).map((variant) => ({ variant: variant.value, quantity: resultQuantities[`${card.external_card_id}-${variant.value}`] ?? (variant.value === "normal" ? 1 : 0) })).filter((item) => item.quantity > 0);
     if (!selections.length) return setMessage("Válassz legalább egy lapváltozatot és darabszámot.");
     try {
       setBusy(true);
       for (const selection of selections) {
-        if (target === "collection") await vaultApi.addVaultCard(card, selectedFolder!, selection.quantity, selection.variant);
+        if (target === "collection") await vaultApi.addVaultCard(card, targetFolderId!, selection.quantity, selection.variant);
         else if (target === "trade") await vaultApi.addTradeCard(card, selection.quantity, selection.variant);
-        else await vaultApi.addWantedCard(card, selectedFolder!, selection.variant);
+        else await vaultApi.addWantedCard(card, targetFolderId!, selection.variant);
       }
       const feedback = target === "collection"
         ? { title: "Mappába mentve", message: `${card.card_name} bekerült a gyűjteményedbe.`, targetUrl: "/vault?area=collection" }
@@ -542,7 +548,7 @@ export function VirtualVaultPage() {
             <div className="vault-card-body"><header className="vault-card-title"><strong>{card.card_name}</strong><small>{card.edition}</small></header><CardMeta card={{ ...card, edition: null }}/>
               <div className="vault-card-variant-quantities">{visibleQuantityVariants(card).map((variant) => { const key = `${card.external_card_id}-${variant.value}`; return <label className="vault-variant-quantity" title={variant.title} key={variant.value}><span>{variant.label}</span><select aria-label={`${card.card_name} ${variant.label} példányszáma`} value={resultQuantities[key] ?? (variant.value === "normal" ? 1 : 0)} onChange={(event) => setResultQuantities((current) => ({ ...current, [key]: Number(event.target.value) }))}>{Array.from({ length: MAX_COPIES + 1 }, (_, quantity) => <option key={quantity}>{quantity}</option>)}</select></label>; })}</div>
               {!card.variants_verified ? <details className="vault-unverified-variants"><summary>Más változat hozzáadása · még nem hitelesített</summary><div className="vault-card-variant-quantities">{unverifiedVariants(card).map((variant) => { const key = `${card.external_card_id}-${variant.value}`; return <label className="vault-variant-quantity" title={`${variant.title} · Még nem hitelesített`} key={variant.value}><span>{variant.label}</span><select aria-label={`${card.card_name} ${variant.label} példányszáma`} value={resultQuantities[key] ?? 0} onChange={(event) => setResultQuantities((current) => ({ ...current, [key]: Number(event.target.value) }))}>{Array.from({ length: MAX_COPIES + 1 }, (_, quantity) => <option key={quantity}>{quantity}</option>)}</select></label>; })}</div></details> : null}
-              <footer className="vault-card-actions vault-search-card-actions"><button className="button button-secondary" type="button" onClick={() => void addResult(card, "collection")}>Mappába</button><button className="button button-ghost" type="button" onClick={() => void addResult(card, "wanted")}>Keresem</button><button className="button button-ghost" type="button" onClick={() => void addResult(card, "trade")}>Cseremappába</button></footer>
+              <footer className="vault-card-actions vault-search-card-actions"><button className="button button-secondary" type="button" disabled={busy} onClick={() => void addResult(card, "collection")}>Mappába</button><button className="button button-ghost" type="button" disabled={busy} onClick={() => void addResult(card, "wanted")}>Keresem</button><button className="button button-ghost" type="button" disabled={busy} onClick={() => void addResult(card, "trade")}>Cseremappába</button></footer>
             </div>
           </article>)}</div>
         </div> : null}
