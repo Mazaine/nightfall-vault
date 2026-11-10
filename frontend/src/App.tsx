@@ -36,6 +36,7 @@ const AccountProfilePage = lazy(() => import("./pages/AccountProfilePage").then(
 const AccountReportsPage = lazy(() => import("./pages/AccountReportsPage").then((module) => ({ default: module.AccountReportsPage })));
 const AccountConversationsPage = lazy(() => import("./pages/AccountConversationsPage").then((module) => ({ default: module.AccountConversationsPage })));
 const AccountTransactionsPage = lazy(() => import("./pages/AccountTransactionsPage").then((module) => ({ default: module.AccountTransactionsPage })));
+const TransactionConversationPage = lazy(() => import("./pages/TransactionConversationPage").then((module) => ({ default: module.TransactionConversationPage })));
 const NotificationsPage = lazy(() => import("./pages/NotificationsPage").then((module) => ({ default: module.NotificationsPage })));
 const VipMembershipPage = lazy(() => import("./pages/VipMembershipPage").then((module) => ({ default: module.VipMembershipPage })));
 const VirtualVaultPage = lazy(() => import("./pages/VirtualVaultPage").then((module) => ({ default: module.VirtualVaultPage })));
@@ -98,6 +99,7 @@ function App() {
                 <Route path="vip" element={<VipMembershipPage />} />
                 <Route path="messages" element={<AccountConversationsPage />} />
                 <Route path="transactions" element={<AccountTransactionsPage />} />
+                <Route path="transactions/conversations/:conversationId" element={<TransactionConversationPage />} />
                 <Route path="notifications" element={<NotificationsPage />} />
                 <Route path="saved-searches" element={<Navigate to="/auctions" replace />} />
                 <Route path="watchlist" element={<Navigate to="/my-bids?state=watched" replace />} />

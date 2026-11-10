@@ -43,6 +43,8 @@ def ensure_transaction_for_sold_auction(db: Session, auction: Auction) -> tuple[
         return None, False
     existing = db.scalar(select(AuctionTransaction).where(AuctionTransaction.auction_id == auction.id))
     if existing is not None:
+        from app.services.transaction_conversations import ensure_transaction_conversation
+        ensure_transaction_conversation(db, existing)
         return existing, False
     transaction_id = db.scalar(
         insert(AuctionTransaction)
@@ -56,6 +58,8 @@ def ensure_transaction_for_sold_auction(db: Session, auction: Auction) -> tuple[
     transaction = db.get(AuctionTransaction, transaction_id)
     if transaction is None:
         raise RuntimeError("A létrehozott tranzakció nem tölthető vissza.")
+    from app.services.transaction_conversations import ensure_transaction_conversation
+    ensure_transaction_conversation(db, transaction)
     create_domain_audit_log(
         db,
         action="transaction_created",
@@ -93,6 +97,7 @@ def serialize_transaction(transaction: AuctionTransaction, user_id: int) -> dict
     } for item in transaction.items]
     return {
         "id": transaction.id,
+        "conversation_id": transaction.conversation_id,
         "auction_id": transaction.auction_id,
         "status": transaction.status,
         "seller_completed_at": transaction.seller_completed_at,

@@ -299,6 +299,8 @@ def get_cart(db: Session, user_id: int) -> dict:
 def _sold_snapshot(db: Session, auction: Auction, buyer_id: int, quantity: int) -> Auction:
     total = _listed_quantity(auction)
     if auction.listing_format == "bundle" or quantity == total:
+        if auction.listing_format != "bundle":
+            auction.vault_quantity = None
         auction.status = "sold"
         auction.winner_id = buyer_id
         auction.finalized_at = now_utc()
@@ -372,6 +374,8 @@ def checkout_cart(db: Session, user: User, idempotency_key: str, item_ids: list[
         transaction = AuctionTransaction(auction_id=anchor.id, checkout_batch_id=batch.id, seller_id=seller_id, buyer_id=user.id, status="transaction_open")
         db.add(transaction)
         db.flush()
+        from app.services.transaction_conversations import ensure_transaction_conversation
+        ensure_transaction_conversation(db, transaction)
         for item, source, sold in rows:
             db.add(AuctionTransactionItem(transaction_id=transaction.id, auction_id=sold.id, source_auction_id=source.id, quantity=item.quantity, unit_price=item.price_snapshot, title_snapshot=sold.title))
             item.status = "checked_out"

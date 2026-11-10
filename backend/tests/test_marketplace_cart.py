@@ -9,11 +9,11 @@ from sqlalchemy import delete, select
 from app.core.security import create_access_token, hash_password
 from app.db.session import SessionLocal
 from app.main import app
-from app.models.auction import Auction
+from app.models.auction import Auction, AuctionMessage
 from app.models.cart import Cart, CartItem, CheckoutBatch, InventoryReservation
 from app.models.notification import Notification, NotificationOutbox
 from app.models.security_log import AuditLog
-from app.models.transaction import AuctionTransaction, AuctionTransactionItem
+from app.models.transaction import AuctionTransaction, AuctionTransactionItem, TransactionConversation, TransactionConversationMessage
 from app.models.user import User
 
 client = TestClient(app)
@@ -39,7 +39,7 @@ def listing(seller: User, title: str, quantity: int = 3, *, bundle: bool = False
 def cleanup() -> None:
     with SessionLocal() as db:
         db.execute(delete(NotificationOutbox)); db.execute(delete(Notification)); db.execute(delete(AuditLog))
-        db.execute(delete(AuctionTransactionItem)); db.execute(delete(AuctionTransaction)); db.execute(delete(InventoryReservation)); db.execute(delete(CartItem)); db.execute(delete(Cart)); db.execute(delete(CheckoutBatch))
+        db.execute(delete(TransactionConversationMessage)); db.execute(delete(AuctionMessage)); db.execute(delete(AuctionTransactionItem)); db.execute(delete(AuctionTransaction)); db.execute(delete(TransactionConversation)); db.execute(delete(InventoryReservation)); db.execute(delete(CartItem)); db.execute(delete(Cart)); db.execute(delete(CheckoutBatch))
         db.execute(delete(Auction).where(Auction.title.like("Kosár teszt%")))
         db.execute(delete(User).where(User.email.like("cart-%@auction-test.local"))); db.commit()
 
@@ -131,6 +131,116 @@ def test_cancelled_grouped_transaction_restores_partial_listing_quantity() -> No
         cleanup()
 
 
+def test_partial_then_full_quantity_checkout_updates_listing_and_transaction_items() -> None:
+    cleanup()
+    seller, first, second = user("quantity-seller"), user("quantity-first"), user("quantity-second")
+    auction = listing(seller, "Kosár teszt mennyiség", 3)
+    try:
+        assert client.post("/api/cart/items", json={"auction_id": auction.id, "quantity": 2}, headers=headers(first)).status_code == 201
+        partial = client.post("/api/cart/checkout", json={"idempotency_key": "cart-quantity-partial"}, headers=headers(first))
+        assert partial.status_code == 200, partial.text
+        with SessionLocal() as db:
+            source = db.get(Auction, auction.id)
+            item = db.scalar(select(AuctionTransactionItem).where(AuctionTransactionItem.source_auction_id == auction.id))
+            assert source.status == "active" and source.vault_quantity == 1
+            assert item is not None and item.quantity == 2 and item.unit_price == Decimal("1200")
+            assert item.quantity * item.unit_price == Decimal("2400")
+        partial_detail = client.get(f"/api/auctions/{auction.id}")
+        assert partial_detail.status_code == 200 and partial_detail.json()["available_quantity"] == 1
+
+        assert client.post("/api/cart/items", json={"auction_id": auction.id, "quantity": 1}, headers=headers(second)).status_code == 201
+        final = client.post("/api/cart/checkout", json={"idempotency_key": "cart-quantity-final"}, headers=headers(second))
+        assert final.status_code == 200, final.text
+        with SessionLocal() as db:
+            source = db.get(Auction, auction.id)
+            quantities = sorted(db.scalars(select(AuctionTransactionItem.quantity).where(AuctionTransactionItem.source_auction_id == auction.id)).all())
+            assert source.status == "sold" and source.vault_quantity is None
+            assert quantities == [1, 2]
+        sold_detail = client.get(f"/api/auctions/{auction.id}")
+        assert sold_detail.status_code == 200 and sold_detail.json()["available_quantity"] == 0
+    finally:
+        cleanup()
+
+
+def test_sold_listing_never_exposes_stale_quantity_as_available() -> None:
+    cleanup()
+    seller, buyer = user("stale-seller"), user("stale-buyer")
+    auction = listing(seller, "Kosár teszt régi eladott készlet", 1)
+    try:
+        with SessionLocal() as db:
+            row = db.get(Auction, auction.id)
+            row.status = "sold"; row.winner_id = buyer.id; row.finalized_at = datetime.now(timezone.utc); row.vault_quantity = 1
+            db.commit()
+        detail = client.get(f"/api/auctions/{auction.id}")
+        assert detail.status_code == 200
+        assert detail.json()["vault_quantity"] == 1
+        assert detail.json()["available_quantity"] == 0
+    finally:
+        cleanup()
+
+
+def test_partner_conversation_joins_purchases_keeps_legacy_messages_and_isolates_outsiders() -> None:
+    cleanup()
+    seller, buyer, outsider, other_seller = user("conversation-seller"), user("conversation-buyer"), user("conversation-outsider"), user("conversation-other")
+    first = listing(seller, "Kosár teszt közös chat A", 1)
+    second = listing(seller, "Kosár teszt közös chat B", 1)
+    third = listing(other_seller, "Kosár teszt külön chat", 1)
+    try:
+        transaction_ids: list[int] = []
+        for index, auction in enumerate((first, second), start=1):
+            assert client.post("/api/cart/items", json={"auction_id": auction.id, "quantity": 1}, headers=headers(buyer)).status_code == 201
+            checked = client.post("/api/cart/checkout", json={"idempotency_key": f"conversation-checkout-{index}"}, headers=headers(buyer))
+            assert checked.status_code == 200, checked.text
+            transaction_ids.append(checked.json()["transactions"][0]["id"])
+        assert client.post("/api/cart/items", json={"auction_id": third.id, "quantity": 1}, headers=headers(buyer)).status_code == 201
+        other_checked = client.post("/api/cart/checkout", json={"idempotency_key": "conversation-checkout-other"}, headers=headers(buyer))
+        assert other_checked.status_code == 200
+        with SessionLocal() as db:
+            transactions = list(db.scalars(select(AuctionTransaction).where(AuctionTransaction.id.in_(transaction_ids)).order_by(AuctionTransaction.id)).all())
+            assert transactions[0].conversation_id == transactions[1].conversation_id
+            conversation_id = int(transactions[0].conversation_id)
+            other_transaction = db.get(AuctionTransaction, other_checked.json()["transactions"][0]["id"])
+            assert other_transaction.conversation_id != conversation_id
+            other_conversation_id = int(other_transaction.conversation_id)
+            db.add_all([
+                AuctionMessage(auction_id=transactions[0].auction_id, sender_id=seller.id, message="Régi első hirdetés üzenete"),
+                AuctionMessage(auction_id=transactions[1].auction_id, sender_id=buyer.id, message="Régi második hirdetés üzenete"),
+            ])
+            db.commit()
+        buyer_view = client.get(f"/api/transactions/conversations/{conversation_id}", headers=headers(buyer))
+        assert buyer_view.status_code == 200, buyer_view.text
+        assert len(buyer_view.json()["transactions"]) == 2
+        assert [message["source"] for message in buyer_view.json()["messages"]] == ["legacy", "legacy"]
+        assert {message["auction_title"] for message in buyer_view.json()["messages"]} == {"Kosár teszt közös chat A", "Kosár teszt közös chat B"}
+        posted = client.post(f"/api/transactions/conversations/{conversation_id}/messages", json={"message": "Közös egyeztetés üzenete"}, headers=headers(buyer))
+        assert posted.status_code == 201, posted.text
+        assert [message["message"] for message in posted.json()["messages"]].count("Közös egyeztetés üzenete") == 1
+        seller_view = client.get(f"/api/transactions/conversations/{conversation_id}", headers=headers(seller))
+        assert seller_view.status_code == 200 and seller_view.json()["messages"][-1]["message"] == "Közös egyeztetés üzenete"
+        assert client.get(f"/api/transactions/conversations/{conversation_id}", headers=headers(outsider)).status_code == 404
+        assert client.get(f"/api/transactions/conversations/{other_conversation_id}", headers=headers(seller)).status_code == 404
+    finally:
+        cleanup()
+
+
+def test_owner_can_cancel_bundle_idempotently_and_carts_see_removed_listing() -> None:
+    cleanup()
+    seller, buyer = user("bundle-cancel-seller"), user("bundle-cancel-buyer")
+    bundle = listing(seller, "Kosár teszt megszakítható csomag", 1, bundle=True)
+    try:
+        assert client.post("/api/cart/items", json={"auction_id": bundle.id, "quantity": 1}, headers=headers(buyer)).status_code == 201
+        assert client.post(f"/api/auctions/{bundle.id}/cancel", headers=headers(buyer)).status_code == 403
+        first = client.post(f"/api/auctions/{bundle.id}/cancel", headers=headers(seller))
+        repeated = client.post(f"/api/auctions/{bundle.id}/cancel", headers=headers(seller))
+        assert first.status_code == 200 and first.json()["status"] == "cancelled"
+        assert repeated.status_code == 200 and repeated.json()["status"] == "cancelled"
+        assert client.get("/api/cart", headers=headers(buyer)).json()["items"][0]["state"] == "listing_removed"
+        public = client.get("/api/auctions?listing_type=fixed&listing_format=bundle").json()
+        assert all(item["id"] != bundle.id for item in public["items"])
+    finally:
+        cleanup()
+
+
 def test_bundle_is_indivisible_and_failed_checkout_rolls_back_every_seller() -> None:
     cleanup()
     seller_a, seller_b, buyer = user("atomic-a"), user("atomic-b"), user("atomic-buyer")
@@ -151,7 +261,7 @@ def test_bundle_is_indivisible_and_failed_checkout_rolls_back_every_seller() -> 
         cleanup()
 
 
-def test_direct_buy_is_not_blocked_by_another_users_cart() -> None:
+def test_legacy_fixed_price_bid_endpoint_is_rejected_without_consuming_inventory() -> None:
     cleanup()
     seller, reserver, other = user("direct-seller"), user("direct-reserver"), user("direct-other")
     auction = listing(seller, "Kosár teszt közvetlen vétel", 2)
@@ -160,8 +270,9 @@ def test_direct_buy_is_not_blocked_by_another_users_cart() -> None:
         assert added.status_code == 201, added.text
 
         purchased = client.post(f"/api/auctions/{auction.id}/bids", json={"amount": "1200.00"}, headers=headers(other))
-        assert purchased.status_code == 201, purchased.text
-        assert client.get("/api/cart", headers=headers(reserver)).json()["items"][0]["state"] == "listing_removed"
+        assert purchased.status_code == 409
+        assert "kosár-véglegesítéssel" in purchased.json()["detail"]
+        assert client.get("/api/cart", headers=headers(reserver)).json()["items"][0]["state"] == "available"
         with SessionLocal() as db:
             reservation = db.scalar(select(InventoryReservation).where(InventoryReservation.auction_id == auction.id))
             assert reservation is None

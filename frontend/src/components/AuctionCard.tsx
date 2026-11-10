@@ -9,7 +9,8 @@ import { AuctionCountdown } from "./AuctionCountdown";
 import { BidConfirmationDialog } from "./BidDialogs";
 import { SafeImage } from "./SafeImage";
 import { formatCardCondition, getCardCondition, type ReadableCardCondition } from "../data/cardConditions";
-import { addCartItem, announceCartChanged } from "../api/cart";
+import { addCartItem, announceCartChanged, checkoutCart } from "../api/cart";
+import { FixedPurchaseDialog } from "./FixedPurchaseDialog";
 
 function moneyToCents(value: string | null | undefined) {
   const amount = Number(value);
@@ -31,6 +32,7 @@ type AuctionCardProps = {
     listingFormat?: "single" | "bundle";
     bundleItemCount?: number;
     bundleCopyCount?: number;
+    availableQuantity?: number;
     montageImages?: string[];
     sellerId?: number;
     title: string;
@@ -95,6 +97,9 @@ export function AuctionCard({
   const [topBidId, setTopBidId] = useState(item.topBidId);
   const [canWithdraw, setCanWithdraw] = useState(Boolean(item.canWithdraw));
   const [pendingBid, setPendingBid] = useState<{ amount: string; isBuyNow: boolean } | null>(null);
+  const [pendingPurchase, setPendingPurchase] = useState(false);
+  const [purchaseQuantity, setPurchaseQuantity] = useState(1);
+  const [availableQuantity, setAvailableQuantity] = useState(Math.max(1, item.availableQuantity ?? 1));
   const [isWatched, setIsWatched] = useState(Boolean(item.isWatched));
   const [isWatchPending, setIsWatchPending] = useState(false);
   const parsedSellerRating = typeof item.sellerRating === "number"
@@ -122,7 +127,8 @@ export function AuctionCard({
     setDisplayPrice(item.price);
     setNextBidAmount(currentCents !== null && stepCents !== null ? centsToAmount(currentCents + stepCents) : "");
     setIsLocallyClosed(Boolean(item.isClosed));
-  }, [item.bidIncrementAmount, item.currentAmount, item.isClosed, item.price]);
+    setAvailableQuantity(Math.max(1, item.availableQuantity ?? 1));
+  }, [item.availableQuantity, item.bidIncrementAmount, item.currentAmount, item.isClosed, item.price]);
 
   useEffect(() => {
     setPersonalStatus(item.personalStatus);
@@ -229,6 +235,25 @@ export function AuctionCard({
     finally { setIsActionPending(false); }
   };
 
+  const buyFixedPrice = async () => {
+    if (!isAuthenticated) { navigate(`/login?next=${encodeURIComponent(detailPath)}`); return; }
+    if (isActionPending || !item.buyNowAmount) return;
+    setIsActionPending(true); setActionMessage("");
+    try {
+      const cart = await addCartItem(Number(item.id), purchaseQuantity);
+      const cartItem = cart.items.find((entry) => entry.auction_id === Number(item.id));
+      if (!cartItem) throw new Error("A megvásárolandó tétel nem található a kosárban.");
+      await checkoutCart(crypto.randomUUID(), [cartItem.id]);
+      const remaining = Math.max(availableQuantity - purchaseQuantity, 0);
+      setAvailableQuantity(Math.max(remaining, 1));
+      setIsLocallyClosed(remaining === 0);
+      announceCartChanged(Math.max(cart.item_count - purchaseQuantity, 0));
+      setPendingPurchase(false);
+      showToast({ title: "Sikeres vásárlás", message: `${purchaseQuantity} db ${item.title} megvásárlása sikerült.`, targetUrl: "/account/transactions" });
+    } catch (error) { setActionMessage(error instanceof Error ? error.message : "A vásárlás nem sikerült."); }
+    finally { setIsActionPending(false); }
+  };
+
   const confirmPendingBid = async (disableFuture: boolean) => {
     if (!pendingBid || isActionPending) return;
     const selected = pendingBid;
@@ -246,7 +271,7 @@ export function AuctionCard({
       onClick={(event) => { if (!(event.target as HTMLElement).closest("a,button,input,select,textarea")) navigate(detailPath); }}
       onKeyDown={(event) => { if ((event.key === "Enter" || event.key === " ") && event.target === event.currentTarget) { event.preventDefault(); navigate(detailPath); } }}
     >
-      <div className="auction-image">
+      <div className={`auction-image${item.type === "Hatalom Kártyái Kártyajáték" && item.listingFormat === "single" ? " is-hkk-card" : ""}`}>
         {item.montageImages?.length ? <div className="auction-bundle-montage" aria-label={`${item.title} csomag borítója`}>{item.montageImages.map((src) => <SafeImage src={src} alt="" loading="lazy" decoding="async" width={350} height={490} key={src}/>) }{(item.bundleItemCount ?? 0) > 4 ? <strong>+{(item.bundleItemCount ?? 0) - 4} további lap</strong> : null}</div> : <SafeImage src={item.imageUrl} alt={item.title} loading="lazy" decoding="async" width={700} height={700} />}
       </div>
       <span className={`auction-condition-badge condition-${cardCondition.value.toLowerCase()}`} title={`${cardCondition.value} – ${cardCondition.nameHu} (${cardCondition.nameEn})`}>{cardCondition.value}</span>
@@ -299,7 +324,7 @@ export function AuctionCard({
         <div className="auction-commerce-block">
           {isFixedPrice ? <div className="auction-price-action-row auction-fixed-price-row">
             <div className="auction-price-copy"><span>Fix ár</span><strong>{item.buyNowPrice ? formatCardMoney(item.buyNowPrice) : displayPrice}</strong></div>
-            {item.buyNowAmount && showBidActions && canUseQuickBid ? <div className="auction-fixed-actions"><button className="button button-secondary" type="button" disabled={isOwnAuction || isActionPending} onClick={() => void addToCart()}>Kosárba</button><button className="button button-primary" type="button" disabled={isOwnAuction || isActionPending} title={isOwnAuction ? "A saját hirdetésedet nem vásárolhatod meg." : undefined} onClick={() => void requestQuickAction(item.buyNowAmount ?? "", true)}>{isActionPending ? "Feldolgozás..." : "Megveszem"}</button></div> : null}
+            {item.buyNowAmount && showBidActions && canUseQuickBid ? <div className="auction-fixed-actions"><button className="button button-secondary" type="button" disabled={isOwnAuction || isActionPending} onClick={() => void addToCart()}>Kosárba</button><button className="button button-primary" type="button" disabled={isOwnAuction || isActionPending} title={isOwnAuction ? "A saját hirdetésedet nem vásárolhatod meg." : undefined} onClick={() => { setPurchaseQuantity(1); setPendingPurchase(true); }}>Megveszem</button></div> : null}
           </div> : <>
           <div className="auction-price-action-row">
             <div className="auction-price-copy">
@@ -331,6 +356,7 @@ export function AuctionCard({
         {actionMessage ? <p className="form-message auction-action-message" role="status" aria-live="polite">{actionMessage}</p> : null}
       </div>
       {pendingBid ? <BidConfirmationDialog amountLabel={formatMoney(pendingBid.amount)} isBuyNow={pendingBid.isBuyNow} busy={isActionPending} onClose={() => { if (!isActionPending) setPendingBid(null); }} onConfirm={(disableFuture) => void confirmPendingBid(disableFuture)} /> : null}
+      {pendingPurchase && item.buyNowAmount ? <FixedPurchaseDialog title={item.title} unitPrice={item.buyNowAmount} quantity={purchaseQuantity} maxQuantity={item.listingFormat === "bundle" ? 1 : availableQuantity} busy={isActionPending} onQuantityChange={setPurchaseQuantity} onClose={() => { if (!isActionPending) setPendingPurchase(false); }} onConfirm={() => void buyFixedPrice()}/> : null}
     </article>
   );
 }

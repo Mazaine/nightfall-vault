@@ -326,7 +326,17 @@ export function VirtualVaultPage() {
   async function runSearch(event: FormEvent) {
     event.preventDefault();
     if (!searchEdition && search.trim().length < 2) { setMessage("Adj meg legalább két karaktert vagy válassz kiegészítőt."); return; }
-    try { setBusy(true); setResults(await vaultApi.searchHkk(search, searchEdition || undefined)); setMessage(""); }
+    try {
+      setBusy(true);
+      const found = await vaultApi.searchHkk(search, searchEdition || undefined);
+      setResults([...found].sort((left, right) => {
+        const leftId = Number(left.external_card_id);
+        const rightId = Number(right.external_card_id);
+        if (Number.isFinite(leftId) && Number.isFinite(rightId) && leftId !== rightId) return rightId - leftId;
+        return left.card_name.localeCompare(right.card_name, "hu");
+      }));
+      setMessage("");
+    }
     catch (error) { report(error); } finally { setBusy(false); }
   }
   async function chooseEdition(id: string) {

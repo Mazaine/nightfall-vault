@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Auction, AuctionMessage } from "../api/auctions";
@@ -6,9 +6,12 @@ import { AuctionDetailPage } from "./AuctionDetailPage";
 
 const state = vi.hoisted(() => ({ isAuthenticated: false, notificationListener: null as ((event: { id: string; type: string; payload: Record<string, unknown> }) => void) | null }));
 const mocks = vi.hoisted(() => ({ getAuction: vi.fn(), listAuctionBids: vi.fn(), listAuctionReviews: vi.fn(), listRelatedAuctions: vi.fn(), listSellerOtherAuctions: vi.fn(), placeAuctionBid: vi.fn(), requestAuctionPhoto: vi.fn(), listAuctionMessages: vi.fn(), createAuctionMessage: vi.fn(), markAuctionMessagesRead: vi.fn(), getAuctionPresence: vi.fn(), sendTyping: vi.fn() }));
+const cartMocks = vi.hoisted(() => ({ addCartItem: vi.fn(), checkoutCart: vi.fn() }));
+const notificationMocks = vi.hoisted(() => ({ showToast: vi.fn() }));
 vi.mock("../api/auctions", async (importOriginal) => ({ ...(await importOriginal<typeof import("../api/auctions")>()), ...mocks }));
+vi.mock("../api/cart", async (importOriginal) => ({ ...(await importOriginal<typeof import("../api/cart")>()), ...cartMocks }));
 vi.mock("../AuthContext", () => ({ useAuth: () => ({ isAuthenticated: state.isAuthenticated, user: state.isAuthenticated ? { id: 2, full_name: "Teszt licitáló" } : null }) }));
-vi.mock("../NotificationContext", () => ({ useNotifications: () => ({ subscribe: (listener: typeof state.notificationListener) => { state.notificationListener = listener; return () => { state.notificationListener = null; }; } }) }));
+vi.mock("../NotificationContext", () => ({ useNotifications: () => ({ showToast: notificationMocks.showToast, subscribe: (listener: typeof state.notificationListener) => { state.notificationListener = listener; return () => { state.notificationListener = null; }; } }) }));
 
 const auction: Auction = { id: 21, seller_id: 1, title: "Részletes aukció", description: "Leírás", category: "Pokemon", condition: "fresh", status: "active", starting_price: "1000", bid_increment: "100", current_price: "1200", buy_now_enabled: true, buy_now_price: "2000", starts_at: "2026-07-01T10:00:00Z", ends_at: "2026-07-14T10:00:00Z", five_minute_rule_enabled: true, winner_id: null, highest_bid_id: null, images: [], bid_count: 2, is_owner: false };
 
@@ -17,6 +20,9 @@ describe("AuctionDetailPage", () => {
     Object.values(mocks).forEach((mock) => mock.mockReset());
     state.isAuthenticated = false;
     state.notificationListener = null;
+    cartMocks.addCartItem.mockReset().mockResolvedValue({ item_count: 1, items: [{ id: 90, auction_id: 21, quantity: 2 }] });
+    cartMocks.checkoutCart.mockReset().mockResolvedValue({ checkout_batch_id: 8, transaction_count: 1 });
+    notificationMocks.showToast.mockReset();
     mocks.getAuction.mockResolvedValue(auction);
     mocks.listAuctionBids.mockResolvedValue([]);
     mocks.listAuctionReviews.mockResolvedValue({ items: [], total: 0, limit: 20, offset: 0 });
@@ -39,13 +45,52 @@ describe("AuctionDetailPage", () => {
 
   it("fix áras hirdetésnél csak vásárlási műveletet és Megveszem gombot mutat", async () => {
     state.isAuthenticated = true;
-    mocks.getAuction.mockResolvedValue({ ...auction, listing_type: "fixed", starting_price: "0", current_price: "2000", bid_increment: "2000", bid_count: 0 });
+    mocks.getAuction.mockResolvedValue({ ...auction, listing_type: "fixed", available_quantity: 1, starting_price: "0", current_price: "2000", bid_increment: "2000", bid_count: 0 });
     render(<MemoryRouter initialEntries={["/auctions/21"]}><Routes><Route path="/auctions/:auctionId" element={<AuctionDetailPage />} /></Routes></MemoryRouter>);
     expect(await screen.findByText("Fix ár")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Megveszem" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Licitálok" })).not.toBeInTheDocument();
     expect(screen.queryByText("Licittörténet")).not.toBeInTheDocument();
     expect(screen.queryByText("Licitlépcső")).not.toBeInTheDocument();
+  });
+
+  it("fix áras részletoldalon a kiválasztott mennyiséget és teljes összeget véglegesíti", async () => {
+    state.isAuthenticated = true;
+    mocks.getAuction.mockResolvedValue({ ...auction, listing_type: "fixed", vault_quantity: 3, starting_price: "0", current_price: "2000", bid_increment: "2000", bid_count: 0 });
+    render(<MemoryRouter initialEntries={["/auctions/21"]}><Routes><Route path="/auctions/:auctionId" element={<AuctionDetailPage />} /></Routes></MemoryRouter>);
+    fireEvent.click(await screen.findByRole("button", { name: "Megveszem" }));
+    const dialog = screen.getByRole("dialog", { name: "Vásárlás megerősítése" });
+    fireEvent.change(within(dialog).getByLabelText("Vásárlási mennyiség"), { target: { value: "2" } });
+    expect(within(dialog).getByText(/4\s?000 Ft/)).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Megveszem" }));
+    await waitFor(() => expect(cartMocks.addCartItem).toHaveBeenCalledWith(21, 2));
+    expect(cartMocks.checkoutCart).toHaveBeenCalledWith(expect.any(String), [90]);
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Vásárlás megerősítése" })).not.toBeInTheDocument());
+  });
+
+  it("eladott fix hirdetésnél ügyleti szövegeket mutat és nem jelez elérhető készletet", async () => {
+    state.isAuthenticated = true;
+    mocks.getAuction.mockResolvedValue({ ...auction, listing_type: "fixed", status: "sold", winner_id: 2, can_chat: true, available_quantity: 0, vault_quantity: 1, starting_price: "0", current_price: "2000", bid_increment: "2000", bid_count: 0 });
+    render(<MemoryRouter initialEntries={["/auctions/21"]}><Routes><Route path="/auctions/:auctionId" element={<AuctionDetailPage />} /></Routes></MemoryRouter>);
+    expect(await screen.findByText(/Az eladás létrejött/)).toBeInTheDocument();
+    expect(screen.queryByText("Elérhető mennyiség")).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Kapcsolódó hirdetések" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Az eladó további hirdetései" })).toBeInTheDocument();
+    expect(screen.getByText("Még nincs értékelés ehhez az ügylethez.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Üzenetek megnyitása" }));
+    expect(screen.getByText("Ügylet egyeztetése")).toBeInTheDocument();
+  });
+
+  it("valódi aukción megtartja az aukciós feliratokat", async () => {
+    state.isAuthenticated = true;
+    mocks.getAuction.mockResolvedValue({ ...auction, status: "sold", winner_id: 2, can_chat: true });
+    render(<MemoryRouter initialEntries={["/auctions/21"]}><Routes><Route path="/auctions/:auctionId" element={<AuctionDetailPage />} /></Routes></MemoryRouter>);
+    expect(await screen.findByText(/Az aukció lezárult/)).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Kapcsolódó aukciók" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Az eladó további aukciói" })).toBeInTheDocument();
+    expect(screen.getByText("Még nincs értékelés ehhez az aukcióhoz.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Üzenetek megnyitása" }));
+    expect(screen.getByText("Aukciós chat")).toBeInTheDocument();
   });
 
   it("referenciaképnél fotót kér az eladótól", async () => {

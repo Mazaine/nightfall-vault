@@ -11,7 +11,9 @@ from app.main import app
 from app.models.auction import Auction, AuctionImage, AuctionMessage, AuctionPhotoRequest, AuctionReview, Bid, WatchlistItem
 from app.models.moderation import ModerationAction, Report, UserBlock, UserStrike
 from app.models.notification import Notification
+from app.models.cart import Cart, CartItem, CheckoutBatch, InventoryReservation
 from app.models.security_log import AuditLog
+from app.models.transaction import AuctionTransaction, AuctionTransactionItem
 from app.models.user import User
 
 
@@ -55,6 +57,12 @@ def cleanup_test_data() -> None:
         db.execute(delete(UserBlock))
         db.execute(delete(WatchlistItem))
         db.execute(delete(Notification))
+        db.execute(delete(AuctionTransactionItem))
+        db.execute(delete(AuctionTransaction))
+        db.execute(delete(InventoryReservation))
+        db.execute(delete(CartItem))
+        db.execute(delete(Cart))
+        db.execute(delete(CheckoutBatch))
         db.execute(delete(AuctionReview))
         db.execute(delete(AuctionMessage))
         db.execute(delete(Bid))

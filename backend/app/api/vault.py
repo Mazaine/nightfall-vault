@@ -280,8 +280,25 @@ def maintenance(current_user: User = Depends(require_active_user), db: Session =
 
 @router.post("/folders", response_model=FolderRead, status_code=status.HTTP_201_CREATED)
 def create_folder(payload: FolderCreate, current_user: User = Depends(require_active_user), db: Session = Depends(get_db)) -> FolderRead:
-    account_for(db, current_user.id, lock=True)
-    require_allocatable(db, current_user.id, payload.capacity)
+    account = account_for(db, current_user.id, lock=True)
+    if not account.vault_unlimited:
+        total = total_collection_capacity(db, current_user.id)
+        assigned = int(db.scalar(select(func.coalesce(func.sum(VaultFolder.capacity), 0)).where(VaultFolder.user_id == current_user.id)) or 0)
+        overflow = max(assigned + payload.capacity - total, 0)
+        if overflow:
+            default_folder = db.scalar(
+                select(VaultFolder)
+                .where(VaultFolder.user_id == current_user.id, VaultFolder.name == "Gyűjtemény")
+                .order_by(VaultFolder.position, VaultFolder.id)
+                .with_for_update()
+            )
+            reducible = max(default_folder.capacity - folder_used(db, default_folder.id), 0) if default_folder else 0
+            if reducible < overflow:
+                raise HTTPException(status_code=409, detail="Nincs ennyi szabad gyűjtőzseb.")
+            default_folder.capacity -= overflow
+            db.add(default_folder)
+        else:
+            require_allocatable(db, current_user.id, payload.capacity)
     current_max = db.scalar(select(func.max(VaultFolder.position)).where(VaultFolder.user_id == current_user.id))
     position = (int(current_max) if current_max is not None else -1) + 1
     folder = VaultFolder(user_id=current_user.id, name=payload.name.strip(), capacity=payload.capacity, position=position, color=payload.color)

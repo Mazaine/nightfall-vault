@@ -260,7 +260,9 @@ def test_base_capacities_folder_limits_playset_move_and_idor() -> None:
         assert client.patch(f"/api/vault/cards/{created.json()['id']}", json={"quantity": 1}, headers=auth_headers(stranger)).status_code == 404
         assert client.patch(f"/api/vault/folders/{other['id']}", json={"capacity": 20}, headers=auth_headers(stranger)).status_code == 404
         own_summary = client.get("/api/vault/summary", headers=auth_headers(stranger)).json()
-        assert own_summary["folders"] == []
+        assert len(own_summary["folders"]) == 1
+        assert own_summary["folders"][0]["name"] == "Gyűjtemény"
+        assert own_summary["folders"][0]["capacity"] == 1000
         assert client.patch(f"/api/vault/folders/{other['id']}", json={"capacity": 0}, headers=auth_headers(owner)).status_code == 409
         assert client.delete(f"/api/vault/folders/{other['id']}", headers=auth_headers(owner)).status_code == 409
         destination = client.post("/api/vault/folders", json={"name": "Archívum", "capacity": 5}, headers=auth_headers(owner)).json()
@@ -357,8 +359,10 @@ def test_fixed_price_vault_listing_reserves_and_deducts_only_after_completion() 
         auction_market = client.get("/api/auctions?listing_type=auction&q=sale-card").json()
         assert fixed_market["total"] == 1 and fixed_market["items"][0]["id"] == created.json()["id"]
         assert auction_market["total"] == 0
-        bought = client.post(f"/api/auctions/{created.json()['id']}/bids", json={"amount": "1000"}, headers=auth_headers(buyer))
-        assert bought.status_code == 201 and bought.json()["reaches_buy_now"] is True
+        carted = client.post("/api/cart/items", json={"auction_id": created.json()["id"], "quantity": 1}, headers=auth_headers(buyer))
+        assert carted.status_code == 201, carted.text
+        bought = client.post("/api/cart/checkout", json={"idempotency_key": f"fixed-vault-{uuid4()}"}, headers=auth_headers(buyer))
+        assert bought.status_code == 200 and bought.json()["item_count"] == 1
         transaction = client.get("/api/transactions", headers=auth_headers(seller)).json()["items"][0]
         assert client.post(f"/api/transactions/{transaction['id']}/confirm-completion", headers=auth_headers(seller)).status_code == 200
         assert client.get("/api/vault/cards", headers=auth_headers(seller)).json()[0]["quantity"] == 2
@@ -397,7 +401,7 @@ def test_atomic_batch_and_bundle_listings_are_idempotent_searchable_and_deduct_o
         buyer_folder = client.post("/api/vault/folders", json={"name": "Másé", "capacity": 1}, headers=auth_headers(buyer)).json()
         buyer_card = client.post("/api/vault/cards", json={**card_payload("foreign-batch", "Más tulajdona", 1), "folder_id": buyer_folder["id"]}, headers=auth_headers(buyer)).json()
         key = str(uuid4())
-        items = [{"vault_collection_card_id": card["id"], "quantity": 1, "base_price": 500 * index, "final_price": 400 * index, "condition": "NM", "description": f"Köteglap {index} részletes állapotleírása."} for index, card in enumerate(cards, start=1)]
+        items = [{"vault_collection_card_id": card["id"], "quantity": 1, "base_price": None if index == 1 else 500 * index, "final_price": 400 * index, "condition": "NM", "description": f"Köteglap {index} részletes állapotleírása."} for index, card in enumerate(cards, start=1)]
         individual = {"creation_key": key, "mode": "individual", "discount_percent": 20, "items": items}
         one_item_bundle = client.post("/api/auctions/batch-fixed", json={"creation_key": str(uuid4()), "mode": "bundle", "discount_percent": 0, "bundle_name": "Túl kicsi csomag", "bundle_description": "Legalább két lap kellene ebbe a csomagba.", "bundle_price": 500, "items": items[:1]}, headers=headers)
         assert one_item_bundle.status_code == 422
@@ -419,11 +423,13 @@ def test_atomic_batch_and_bundle_listings_are_idempotent_searchable_and_deduct_o
         assert bundle.status_code == 201, bundle.text
         auction = bundle.json()["auctions"][0]
         assert auction["listing_format"] == "bundle" and len(auction["bundle_items"]) == 3
+        assert auction["bundle_items"][0]["unit_price"] == "400.00"
         found = client.get("/api/auctions?listing_type=fixed&listing_format=bundle&q=batch-2").json()
         assert found["total"] == 1 and found["items"][0]["id"] == auction["id"]
 
-        bought = client.post(f"/api/auctions/{auction['id']}/bids", json={"amount": "2400"}, headers=auth_headers(buyer))
-        assert bought.status_code == 201
+        assert client.post("/api/cart/items", json={"auction_id": auction["id"], "quantity": 1}, headers=auth_headers(buyer)).status_code == 201
+        bought = client.post("/api/cart/checkout", json={"idempotency_key": f"bundle-vault-{uuid4()}"}, headers=auth_headers(buyer))
+        assert bought.status_code == 200
         transaction = client.get("/api/transactions", headers=headers).json()["items"][0]
         assert client.post(f"/api/transactions/{transaction['id']}/confirm-completion", headers=headers).status_code == 200
         assert client.post(f"/api/transactions/{transaction['id']}/confirm-completion", headers=auth_headers(buyer)).status_code == 200
@@ -466,8 +472,9 @@ def test_trade_backed_batch_listing_uses_full_trade_quantity_and_closes_inventor
         assert client.patch(f"/api/vault/trade/{trade_card['id']}", json={"quantity": 1}, headers=headers).status_code == 409
         assert client.delete(f"/api/vault/trade/{trade_card['id']}", headers=headers).status_code == 409
 
-        bought = client.post(f"/api/auctions/{auction['id']}/bids", json={"amount": "600"}, headers=auth_headers(buyer))
-        assert bought.status_code == 201, bought.text
+        assert client.post("/api/cart/items", json={"auction_id": auction["id"], "quantity": 2}, headers=auth_headers(buyer)).status_code == 201
+        bought = client.post("/api/cart/checkout", json={"idempotency_key": f"trade-vault-{uuid4()}"}, headers=auth_headers(buyer))
+        assert bought.status_code == 200, bought.text
         transaction = client.get("/api/transactions", headers=headers).json()["items"][0]
         assert client.post(f"/api/transactions/{transaction['id']}/confirm-completion", headers=headers).status_code == 200
         assert client.post(f"/api/transactions/{transaction['id']}/confirm-completion", headers=auth_headers(buyer)).status_code == 200

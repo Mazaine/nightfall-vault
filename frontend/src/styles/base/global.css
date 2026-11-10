@@ -462,6 +462,16 @@ h3 {
     linear-gradient(135deg, #1d1626, #090910 62%, #1a1024);
 }
 
+.auction-image.is-hkk-card {
+  height: auto;
+  aspect-ratio: 5 / 7;
+  padding: .35rem;
+}
+
+.auction-image.is-hkk-card img {
+  object-fit: contain;
+}
+
 .active-thumb {
   aspect-ratio: 1;
   border-radius: var(--radius-sm);
@@ -1135,6 +1145,11 @@ h3 {
 .page-heading {
   margin-bottom: var(--space-6);
 }
+.marketplace-page { padding-top: clamp(1.25rem, 2.5vw, 2.5rem); }
+.marketplace-hero { min-height: 0; align-items: center; margin-bottom: var(--space-4); border: 1px solid var(--color-divider); border-radius: var(--radius-lg); background: linear-gradient(100deg, rgb(38 20 63 / .48), rgb(12 10 17 / .92)); padding: clamp(1rem, 2.5vw, 2rem); }
+.marketplace-hero .eyebrow { margin-bottom: .25rem; }
+.marketplace-hero h1 { margin: 0; font-size: clamp(2rem, 4vw, 3.4rem); }
+.marketplace-hero .section-note { margin: .35rem 0 0; }
 .marketplace-tabs { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-bottom: var(--space-5); border-bottom: 1px solid var(--color-divider); }
 .marketplace-tabs a { border-bottom: 2px solid transparent; color: var(--color-text-muted); padding: .75rem 1rem; font-weight: var(--font-weight-semibold); text-decoration: none; }
 .marketplace-tabs a:hover { color: var(--color-text-primary); }
@@ -1919,9 +1934,10 @@ h3 {
   display: none;
 }
 
-.mobile-filter-toggle {
-  display: none;
-}
+.mobile-filter-toggle { display: none; }
+.marketplace-filter-toggle { display: flex; width: 100%; align-items: center; justify-content: space-between; margin-bottom: var(--space-3); border-color: rgb(168 85 247 / .5); background: linear-gradient(90deg, rgb(91 33 182 / .35), rgb(21 16 31 / .92)); color: var(--color-text-primary); cursor: pointer; font-weight: 800; text-align: left; }
+.marketplace-filter-toggle:hover, .marketplace-filter-toggle:focus-visible { border-color: var(--color-accent); box-shadow: 0 0 0 1px rgb(168 85 247 / .25); }
+.marketplace-filter-toggle .filter-count { display: grid; min-width: 1.75rem; min-height: 1.75rem; place-items: center; border-radius: 999px; background: var(--color-accent); color: white; }
 
 .auction-results-start {
   scroll-margin-top: 6rem;
@@ -2271,6 +2287,9 @@ h3 {
 }
 
 @media (max-width: 760px) {
+  .marketplace-page { padding-top: var(--space-3); }
+  .marketplace-hero { align-items: stretch; }
+  .marketplace-hero .button { width: 100%; }
   .mobile-filter-toggle {
     align-items: center;
     background: rgb(255 255 255 / 0.055);
@@ -2784,6 +2803,7 @@ h3 {
 .auction-status-sections > section { display: grid; gap: var(--space-4); }
 .auction-image img { display: block; width: 100%; height: 100%; object-fit: cover; }
 .detail-media.auction-image img { object-fit: contain; }
+.auction-image.is-hkk-card img { object-fit: contain; }
 
 @media (max-width: 760px) {
   .pwa-profile-card { grid-template-columns: 3.5rem minmax(0, 1fr); }
@@ -2825,6 +2845,28 @@ h3 {
 .transaction-actions { display: flex; flex-wrap: wrap; gap: var(--space-3); }
 .transaction-note { display: grid; gap: var(--space-2); font-weight: 700; }
 .transaction-note textarea { width: 100%; resize: vertical; }
+.transaction-partner-list { display: grid; gap: var(--space-6); }
+.transaction-partner-group { display: grid; gap: var(--space-4); border: 1px solid var(--color-border-strong); border-radius: var(--radius-lg); background: rgb(11 9 17 / .72); padding: var(--space-4); }
+.transaction-partner-group > header { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); }
+.transaction-partner-group > header h2, .transaction-partner-group > header p { margin: 0; }
+.transaction-partner-group > header .transaction-partner-summary { color: var(--color-text-primary); margin-top: var(--space-2); }
+.transaction-group-section { display: grid; gap: var(--space-3); }
+.transaction-group-section > h3, .transaction-group-section > summary { margin: 0; color: var(--color-text-primary); font-weight: 800; cursor: pointer; }
+.transaction-items-table { display: grid; min-width: 0; border: 1px solid var(--color-divider); border-radius: var(--radius-md); overflow: hidden; }
+.transaction-items-table > div { display: grid; grid-template-columns: minmax(8rem, 1fr) 3rem 7rem 7rem; gap: var(--space-2); align-items: center; padding: .55rem .7rem; }
+.transaction-items-table > div + div { border-top: 1px solid var(--color-divider); }
+.transaction-items-head { color: var(--color-text-muted); font-size: var(--font-size-caption); font-weight: 700; }
+.transaction-items-total { grid-template-columns: 1fr auto !important; background: rgb(124 58 237 / .08); }
+.transaction-items-table > div > :not(:first-child) { text-align: right; }
+@media (max-width: 640px) {
+  .transaction-partner-group > header { align-items: stretch; flex-direction: column; }
+  .transaction-partner-group > header .button { width: 100%; }
+  .transaction-items-head { display: none !important; }
+  .transaction-items-table > div { grid-template-columns: minmax(0, 1fr) auto; }
+  .transaction-items-table > div > :nth-child(2)::before { content: "Db: "; color: var(--color-text-muted); }
+  .transaction-items-table > div > :nth-child(3)::before { content: "Egységár: "; color: var(--color-text-muted); }
+  .transaction-items-table > div > :nth-child(4)::before { content: "Részösszeg: "; color: var(--color-text-muted); }
+}
 .moderation-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-4); margin-bottom: var(--space-8); }
 .moderation-form-grid form { display: grid; gap: var(--space-3); }
 .moderation-history { grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr)); margin: var(--space-4) 0 var(--space-8); }
@@ -3318,6 +3360,13 @@ h3 {
 .vault-confirm-dialog { display: grid; width: min(100%, 38rem); gap: var(--space-3); border: 1px solid rgb(248 113 113 / .45); border-radius: var(--radius-lg); background: var(--color-surface); box-shadow: 0 1.5rem 5rem rgb(0 0 0 / .5); padding: var(--space-5); }
 .vault-confirm-dialog h2, .vault-confirm-dialog p { margin: 0; }
 .vault-confirm-dialog label { display: grid; gap: .35rem; color: var(--color-text-muted); }
+.fixed-purchase-dialog { border-color: rgb(168 85 247 / .55); }
+.fixed-purchase-dialog select { width: 6rem; }
+.fixed-purchase-summary { display: grid; gap: .5rem; margin: 0; }
+.fixed-purchase-summary > div { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); border-top: 1px solid var(--color-divider); padding-top: .5rem; }
+.fixed-purchase-summary dt { color: var(--color-text-muted); }
+.fixed-purchase-summary dd { margin: 0; font-weight: 800; }
+.optional-label { font-weight: 400; color: var(--color-text-muted); }
 .vault-bulk-listing { display: grid; gap: var(--space-3); margin-bottom: var(--space-4); border: 1px solid rgb(168 85 247 / .3); border-radius: var(--radius-lg); background: rgb(15 11 24 / .7); padding: var(--space-3); }
 .vault-bulk-listing:has(.vault-bulk-toolbar) + .vault-trade-sort, .vault-bulk-listing:has(.vault-bulk-toolbar) ~ .vault-trade-cards { display: none; }
 .vault-bulk-modebar, .vault-bulk-toolbar, .vault-bulk-footer { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--space-2); }
@@ -3351,7 +3400,7 @@ h3 {
 @media (max-width: 800px) { .vault-bulk-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 480px) { .vault-bulk-grid, .vault-bundle-fields { grid-template-columns: 1fr; } .vault-bundle-fields .is-wide { grid-column: auto; } .vault-bulk-modebar > div { width: 100%; } .vault-bulk-modebar .button { flex: 1; } }
 .auction-bundle-montage { position: relative; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); width: 100%; height: 100%; overflow: hidden; background: #09070e; }
-.auction-bundle-montage > img { width: 100%; height: 100%; min-height: 0; object-fit: cover; }
+.auction-bundle-montage > img { width: 100%; height: 100%; min-height: 0; object-fit: contain; }
 .auction-bundle-montage > strong { position: absolute; right: .5rem; bottom: .5rem; border-radius: 999px; background: rgb(9 7 14 / .9); color: var(--color-accent-gold); padding: .35rem .6rem; font-size: .75rem; }
 .detail-media.auction-image.is-bundle-montage {
   height: auto;
@@ -3602,6 +3651,24 @@ h3 {
 @media (max-width: 390px) { .listing-fields { grid-template-columns: 1fr; } }
 
 @media (max-width: 340px) { .vault-card-direct-actions { gap: .3rem; } }
+
+.transaction-conversation-page { display: grid; gap: var(--space-4); width: min(1180px, calc(100% - 2rem)); margin: var(--space-6) auto var(--space-8); }
+.transaction-conversation-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-4); }
+.transaction-conversation-heading h1 { margin: var(--space-1) 0; }
+.transaction-conversation-summary { display: grid; gap: var(--space-3); }
+.transaction-conversation-total { display: flex; justify-content: space-between; gap: var(--space-3); padding-bottom: var(--space-3); border-bottom: 1px solid var(--color-divider); }
+.transaction-conversation-summary article { display: grid; gap: var(--space-2); padding: var(--space-3); border: 1px solid var(--color-divider); border-radius: var(--radius-md); }
+.transaction-conversation-summary article > header { display: flex; justify-content: space-between; gap: var(--space-3); flex-wrap: wrap; }
+.transaction-conversation-line { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: var(--space-3); align-items: center; }
+.transaction-conversation-subtotal { display: flex; justify-content: flex-end; gap: var(--space-3); border-top: 1px solid var(--color-divider); padding-top: var(--space-2); }
+.transaction-conversation-chat { display: grid; gap: var(--space-3); }
+.transaction-conversation-chat .message-list { max-height: 34rem; overflow-y: auto; }
+.transaction-message-source { display: inline-flex; margin: .25rem 0; color: var(--color-violet-300); font-size: var(--font-size-body-sm); }
+@media (max-width: 640px) {
+  .transaction-conversation-heading { align-items: stretch; flex-direction: column; }
+  .transaction-conversation-line { grid-template-columns: minmax(0, 1fr) auto; }
+  .transaction-conversation-line strong { grid-column: 1 / -1; }
+}
 
 /* Release pages */
 .information-page,

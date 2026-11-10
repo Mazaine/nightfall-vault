@@ -171,7 +171,8 @@ def create_fixed_listing_batch(db: Session, payload: BatchFixedListingCreate, se
                     vault_collection_card_id=None if is_trade else card.id,
                     external_card_id=card.external_card_id, card_name=card.card_name,
                     edition=card.edition, image_url=card.image_url, print_variant=card.print_variant,
-                    quantity=item.quantity, unit_price=Decimal(item.base_price).quantize(Decimal("0.01")),
+                    quantity=item.quantity,
+                    unit_price=Decimal(item.base_price or item.final_price).quantize(Decimal("0.01")),
                 ))
             created.append(auction)
         for auction in created:

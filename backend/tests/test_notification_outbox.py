@@ -166,6 +166,7 @@ def test_delivery_failure_does_not_rollback_committed_domain_data(monkeypatch) -
 @pytest.mark.parametrize("target", [
     "/auctions/1",
     "/account/transactions",
+    "/account/transactions/conversations/12",
     "/account/notifications",
     "/account/messages",
     "/vault",

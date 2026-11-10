@@ -4,6 +4,7 @@ export type TransactionStatus = "transaction_open" | "completed" | "reviewed" | 
 
 export type AuctionTransaction = {
   id: number;
+  conversation_id?: number | null;
   auction_id: number;
   status: TransactionStatus;
   seller_completed_at: string | null;
@@ -27,6 +28,31 @@ export type AuctionTransaction = {
 };
 
 export type TransactionPage = { items: AuctionTransaction[]; total: number; limit: number; offset: number };
+
+export type TransactionConversationMessage = {
+  id: number;
+  source: "common" | "legacy";
+  conversation_id: number;
+  auction_id: number | null;
+  auction_title: string | null;
+  sender_id: number;
+  sender: { username: string; full_name: string };
+  message: string;
+  created_at: string;
+  read_at: string | null;
+};
+
+export type TransactionConversation = {
+  id: number;
+  role: "seller" | "buyer";
+  partner: { username: string; full_name: string };
+  transactions: AuctionTransaction[];
+  messages: TransactionConversationMessage[];
+  item_count: number;
+  total: number;
+  created_at: string;
+  updated_at: string;
+};
 
 export function listTransactions(status = "", limit = 20) {
   const params = new URLSearchParams({ limit: String(limit) });
@@ -52,4 +78,15 @@ export function deleteClosedTransaction(transactionId: number) {
 
 export function cancelTransaction(transactionId: number) {
   return apiRequest<AuctionTransaction>(`/api/transactions/${transactionId}/cancel`, { method: "POST" });
+}
+
+export function getTransactionConversation(conversationId: number) {
+  return apiRequest<TransactionConversation>(`/api/transactions/conversations/${conversationId}`);
+}
+
+export function createTransactionConversationMessage(conversationId: number, message: string) {
+  return apiRequest<TransactionConversation>(`/api/transactions/conversations/${conversationId}/messages`, {
+    method: "POST",
+    body: JSON.stringify({ message }),
+  });
 }

@@ -48,6 +48,7 @@ export type Auction = {
   vault_external_card_id?: string | null;
   vault_print_variant?: string | null;
   vault_quantity?: number | null;
+  available_quantity?: number;
   vault_inventory_deducted?: boolean;
   title: string;
   description?: string;
@@ -110,7 +111,7 @@ export type BatchFixedListingPayload = {
   bundle_name?: string | null;
   bundle_description?: string | null;
   bundle_price?: number | null;
-  items: Array<{ vault_collection_card_id?: number | null; vault_trade_card_id?: number | null; quantity: number; base_price: number; final_price: number; condition: AuctionCondition; description: string }>;
+  items: Array<{ vault_collection_card_id?: number | null; vault_trade_card_id?: number | null; quantity: number; base_price: number | null; final_price: number; condition: AuctionCondition; description: string }>;
 };
 
 export type AuctionCreatePayload = {
@@ -268,6 +269,7 @@ export type AuctionListParams = {
   listing_type?: "auction" | "fixed";
   listing_format?: "single" | "bundle";
   marketplace_scope?: "main" | "fixed_store";
+  variant?: "normal" | "foil" | "fa" | "gfa";
   min_price?: string;
   max_price?: string;
   min_bids?: string;

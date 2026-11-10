@@ -35,6 +35,15 @@ router = APIRouter(prefix="/api/auctions", tags=["auctions"])
 AUCTION_SORTS = {"newest", "oldest", "highest_price", "lowest_price", "most_bids", "fewest_bids", "soon_ending", "buy_now_first"}
 
 
+def available_listing_quantity(auction: Auction) -> int:
+    """Purchasable quantity, distinct from the historical advertised quantity."""
+    if auction.listing_type != "fixed" or auction.status != "active" or auction.deleted_at is not None:
+        return 0
+    if auction.listing_format == "bundle":
+        return 1
+    return max(int(auction.vault_quantity or 0), 0)
+
+
 def seller_rating_summary(db: Session, seller_id: int) -> tuple[float | None, int]:
     average, count = db.query(func.avg(AuctionReview.rating), func.count(AuctionReview.id)).filter(AuctionReview.reviewed_user_id == seller_id).one()
     return (round(float(average), 2) if average is not None else None, int(count or 0))
@@ -59,6 +68,7 @@ def auction_list_item(
         viewer_is_watched = bool(db is not None and viewer is not None and db.scalar(select(WatchlistItem.id).where(WatchlistItem.auction_id == auction.id, WatchlistItem.user_id == viewer.id).limit(1)))
     withdrawal = bid_withdrawal_state(auction.highest_bid, auction, viewer, db=db) if viewer_is_leading and auction.highest_bid is not None else {"can_withdraw": False, "withdrawal_block_reason": None}
     return AuctionListItem.model_validate(auction).model_copy(update={
+        "available_quantity": available_listing_quantity(auction),
         "bid_count": count,
         "seller_average_rating": seller_average_rating,
         "seller_review_count": seller_review_count or 0,
@@ -76,7 +86,7 @@ def _escaped_contains(value: str) -> str:
     return f"%{value.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')}%"
 
 
-def _apply_auction_filters(query, *, query_text, title, description, seller, category, hatalom_era, condition, status_filter, listing_type, listing_format, min_price, max_price, min_bids, max_bids, buy_now, soon_ending, new_only):
+def _apply_auction_filters(query, *, query_text, title, description, seller, category, hatalom_era, condition, status_filter, listing_type, listing_format, variant, min_price, max_price, min_bids, max_bids, buy_now, soon_ending, new_only):
     now = datetime.now(timezone.utc)
     query = query.filter(
         Auction.status.in_(("scheduled", "active")),
@@ -109,6 +119,8 @@ def _apply_auction_filters(query, *, query_text, title, description, seller, cat
         query = query.filter(Auction.listing_type == listing_type)
     if listing_format:
         query = query.filter(Auction.listing_format == listing_format)
+    if variant:
+        query = query.filter(Auction.vault_print_variant == variant)
     if min_price is not None:
         query = query.filter(Auction.current_price >= min_price)
     if max_price is not None:
@@ -156,7 +168,7 @@ def _apply_auction_sort(query, sort: str):
 def auction_response(auction: Auction, user: User | None = None, db: Session | None = None) -> AuctionResponse:
     seller_average_rating, seller_review_count = seller_rating_summary(db, auction.seller_id) if db is not None else (None, 0)
     watch_count = db.scalar(select(func.count(WatchlistItem.id)).where(WatchlistItem.auction_id == auction.id)) if db is not None else 0
-    response = AuctionResponse.model_validate(auction).model_copy(update={"seller_average_rating": seller_average_rating, "seller_review_count": seller_review_count, "is_featured": bool(auction.seller and is_vip(auction.seller)), "watch_count": int(watch_count or 0)})
+    response = AuctionResponse.model_validate(auction).model_copy(update={"available_quantity": available_listing_quantity(auction), "seller_average_rating": seller_average_rating, "seller_review_count": seller_review_count, "is_featured": bool(auction.seller and is_vip(auction.seller)), "watch_count": int(watch_count or 0)})
     if user is not None:
         viewer_is_leading = bool(auction.highest_bid is not None and auction.highest_bid.bidder_id == user.id)
         withdrawal = bid_withdrawal_state(auction.highest_bid, auction, user, db=db) if viewer_is_leading and auction.highest_bid is not None else {"can_withdraw": False, "withdrawal_block_reason": None}
@@ -205,6 +217,7 @@ def list_public_auctions(
     status_filter: str | None = Query(default=None, alias="status"),
     listing_type: Literal["auction", "fixed"] | None = None,
     listing_format: Literal["single", "bundle"] | None = None,
+    variant: Literal["normal", "foil", "fa", "gfa"] | None = None,
     marketplace_scope: Literal["main", "fixed_store"] | None = None,
     min_price: float | None = Query(default=None, ge=0),
     max_price: float | None = Query(default=None, ge=0),
@@ -221,6 +234,14 @@ def list_public_auctions(
 ) -> AuctionListPage:
     if sort not in AUCTION_SORTS:
         raise HTTPException(status_code=422, detail="Érvénytelen rendezés.")
+    if listing_type == "fixed":
+        min_bids = None
+        max_bids = None
+        buy_now = None
+        soon_ending = False
+        new_only = False
+    elif listing_type == "auction":
+        variant = None
     base_query = db.query(Auction.id, func.count(Bid.id).label("bid_count")).join(User, User.id == Auction.seller_id).outerjoin(Bid, and_(Bid.auction_id == Auction.id, Bid.status == "active")).group_by(Auction.id, User.vip_expires_at)
     filtered_query = _apply_auction_filters(
         base_query,
@@ -234,6 +255,7 @@ def list_public_auctions(
         status_filter=status_filter,
         listing_type=listing_type,
         listing_format=listing_format,
+        variant=variant,
         min_price=min_price,
         max_price=max_price,
         min_bids=min_bids,

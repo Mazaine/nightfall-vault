@@ -386,7 +386,7 @@ class BatchFixedListingItemCreate(BaseModel):
     vault_collection_card_id: int | None = Field(default=None, gt=0)
     vault_trade_card_id: int | None = Field(default=None, gt=0)
     quantity: int = Field(ge=1, le=9)
-    base_price: int = Field(gt=0, le=999_999_999)
+    base_price: int | None = Field(default=None, gt=0, le=999_999_999)
     final_price: int = Field(gt=0, le=999_999_999)
     condition: AuctionCondition = "NM"
     description: str = Field(default="Újszerű HKK-lap a Virtuális HKK Mappából.", min_length=10, max_length=5000)
@@ -429,6 +429,7 @@ class AuctionListItem(BaseModel):
     vault_external_card_id: str | None = None
     vault_print_variant: str | None = None
     vault_quantity: int | None = None
+    available_quantity: int = 0
     vault_inventory_deducted: bool = False
     title: str
     external_link_label: str | None = None

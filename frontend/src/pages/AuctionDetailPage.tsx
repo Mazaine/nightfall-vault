@@ -12,13 +12,14 @@ import { AuctionCountdown } from "../components/AuctionCountdown";
 import { ReportDialog } from "../components/ReportDialog";
 import { SafeImage } from "../components/SafeImage";
 import { ChatTransactionPanel } from "../components/ChatTransactionPanel";
-import { BidConfirmationDialog, BidWithdrawalDialog } from "../components/BidDialogs";
-import { addWatchlistItem, auctionStreamUrl, createAuctionMessage, createAuctionReview, getAuction, getAuctionPresence, listAuctionBids, listAuctionMessages, listRelatedAuctions, listSellerOtherAuctions, markAuctionMessagesRead, placeAuctionBid, listAuctionReviews, requestAuctionPhoto, sendTyping, withdrawAuctionBid, type Auction, type AuctionBid, type AuctionMessage, type AuctionRealtimeSnapshot, type AuctionReview, type BidWithdrawalReason, type NotificationItem } from "../api/auctions";
+import { AuctionCancelDialog, BidConfirmationDialog, BidWithdrawalDialog } from "../components/BidDialogs";
+import { addWatchlistItem, auctionStreamUrl, cancelAuction, createAuctionMessage, createAuctionReview, getAuction, getAuctionPresence, listAuctionBids, listAuctionMessages, listRelatedAuctions, listSellerOtherAuctions, markAuctionMessagesRead, placeAuctionBid, listAuctionReviews, requestAuctionPhoto, sendTyping, withdrawAuctionBid, type Auction, type AuctionBid, type AuctionMessage, type AuctionRealtimeSnapshot, type AuctionReview, type BidWithdrawalReason, type NotificationItem } from "../api/auctions";
 import { formatAuctionEndDate, formatAuctionStatus, formatLocalDateTime, formatMoney, formatRemainingTime } from "../utils/format";
 import { disableBidConfirmation, isBidConfirmationDisabled } from "../utils/bidConfirmation";
 import { formatCardCondition } from "../data/cardConditions";
 import { copyAuctionLink, openFacebookAuctionShare, shareAuction } from "../utils/auctionShare";
-import { addCartItem, announceCartChanged } from "../api/cart";
+import { addCartItem, announceCartChanged, checkoutCart } from "../api/cart";
+import { FixedPurchaseDialog } from "../components/FixedPurchaseDialog";
 
 function moneyToCents(value: string | null | undefined) {
   const amount = Number(value);
@@ -55,6 +56,9 @@ export function AuctionDetailPage() {
   const [isChatOpen, setIsChatOpen] = useState(location.hash === "#auction-conversation");
   const [bidAmount, setBidAmount] = useState("");
   const [purchaseQuantity, setPurchaseQuantity] = useState(1);
+  const [purchaseConfirmationOpen, setPurchaseConfirmationOpen] = useState(false);
+  const [cancelConfirmationOpen, setCancelConfirmationOpen] = useState(false);
+  const [isCancelling, setIsCancelling] = useState(false);
   const [bidMessage, setBidMessage] = useState("");
   const [watchlistMessage, setWatchlistMessage] = useState("");
   const [isBidSubmitting, setIsBidSubmitting] = useState(false);
@@ -308,6 +312,35 @@ export function AuctionDetailPage() {
     finally { setIsBidSubmitting(false); }
   };
 
+  const buyCurrentAuction = async () => {
+    if (!auction || isBidSubmitting || !auction.buy_now_price) return;
+    setIsBidSubmitting(true); setBidMessage("");
+    try {
+      const cart = await addCartItem(auction.id, purchaseQuantity);
+      const cartItem = cart.items.find((entry) => entry.auction_id === auction.id);
+      if (!cartItem) throw new Error("A megvásárolandó tétel nem található a kosárban.");
+      await checkoutCart(crypto.randomUUID(), [cartItem.id]);
+      announceCartChanged(Math.max(cart.item_count - purchaseQuantity, 0));
+      setPurchaseConfirmationOpen(false);
+      showToast({ title: "Sikeres vásárlás", message: `${purchaseQuantity} db ${auction.title} megvásárlása sikerült.`, targetUrl: "/account/transactions" });
+      const refreshed = await getAuction(auction.id).catch(() => null);
+      if (refreshed) { setAuction(refreshed); setPurchaseQuantity(1); }
+    } catch (error) { setBidMessage(error instanceof Error ? error.message : "A vásárlás nem sikerült."); }
+    finally { setIsBidSubmitting(false); }
+  };
+
+  const cancelCurrentAuction = async () => {
+    if (!auction || isCancelling) return;
+    setIsCancelling(true); setBidMessage("");
+    try {
+      const result = await cancelAuction(auction.id);
+      setAuction((current) => current ? { ...current, status: result.status } : current);
+      setCancelConfirmationOpen(false);
+      showToast({ title: "Hirdetés megszakítva", message: "A hirdetés lekerült a Piactérről, a lefoglalások felszabadultak.", targetUrl: "/account/auctions" });
+    } catch (error) { setBidMessage(error instanceof Error ? error.message : "A hirdetés megszakítása nem sikerült."); }
+    finally { setIsCancelling(false); }
+  };
+
   const confirmWithdrawal = async (reasonCode: BidWithdrawalReason, reasonText: string | null) => {
     if (!auction || !withdrawBidTarget || isWithdrawingBid) return;
     setIsWithdrawingBid(true);
@@ -401,6 +434,8 @@ export function AuctionDetailPage() {
     return null;
   }
 
+  const availableQuantity = Math.max(0, auction.available_quantity ?? (auction.status === "active" ? (auction.listing_format === "bundle" ? 1 : auction.vault_quantity ?? 0) : 0));
+
   const galleryImages = [...auction.images].sort((left, right) => left.position - right.position);
   const referenceImageUrl = !galleryImages.length && auction.vault_external_card_id ? hkkCardImageUrl(auction.vault_external_card_id, null) : "";
   const bundleItems = auction.bundle_items ?? [];
@@ -491,9 +526,10 @@ export function AuctionDetailPage() {
           {auction.listing_type !== "fixed" && auction.buy_now_enabled && auction.buy_now_price ? (
             <div><dt>Villámár</dt><dd>{formatMoney(auction.buy_now_price)}</dd></div>
           ) : null}
-          {auction.listing_type === "fixed" ? <div><dt>Elérhető mennyiség</dt><dd>{auction.listing_format === "bundle" ? "1 csomag" : `${auction.vault_quantity ?? 1} db`}</dd></div> : null}
+          {auction.listing_type === "fixed" && auction.status === "active" ? <div><dt>Elérhető mennyiség</dt><dd>{auction.listing_format === "bundle" ? `${availableQuantity} csomag` : `${availableQuantity} db`}</dd></div> : null}
         </dl>
-        {auction.status === "active" && !auction.is_owner && isAuthenticated && !auction.viewer_is_leading ? (
+        {auction.is_owner && auction.status === "active" ? <button className="button button-danger" type="button" onClick={() => setCancelConfirmationOpen(true)}>{auction.listing_format === "bundle" ? "Csomaghirdetés megszakítása" : "Hirdetés megszakítása"}</button> : null}
+        {auction.status === "active" && (auction.listing_type !== "fixed" || availableQuantity > 0) && !auction.is_owner && isAuthenticated && !auction.viewer_is_leading ? (
           <form className="bid-panel" id="bid-section" onSubmit={submitBid} noValidate>
             {auction.listing_type !== "fixed" ? <><label>
               Licit összege
@@ -510,9 +546,9 @@ export function AuctionDetailPage() {
             <button className="button button-primary" type="submit" disabled={isBidSubmitting}>
               {isBidSubmitting ? "Licit rögzítése..." : "Licitálok"}
             </button></> : null}
-            {auction.listing_type === "fixed" ? <label>Mennyiség<select aria-label="Vásárlási mennyiség" value={purchaseQuantity} onChange={(event) => setPurchaseQuantity(Number(event.target.value))}>{Array.from({ length: auction.listing_format === "bundle" ? 1 : Math.max(1, auction.vault_quantity ?? 1) }, (_, index) => <option key={index + 1} value={index + 1}>{index + 1}</option>)}</select></label> : null}
+            {auction.listing_type === "fixed" ? <label>Mennyiség<select aria-label="Vásárlási mennyiség" value={purchaseQuantity} onChange={(event) => setPurchaseQuantity(Number(event.target.value))}>{Array.from({ length: availableQuantity }, (_, index) => <option key={index + 1} value={index + 1}>{index + 1}</option>)}</select></label> : null}
             {auction.buy_now_enabled && auction.buy_now_price ? (
-              <>{auction.listing_type === "fixed" ? <button className="button button-secondary" type="button" disabled={isBidSubmitting} onClick={() => void addCurrentAuctionToCart()}>Kosárba</button> : null}<button className="button button-lightning" id="buy-now-section" type="button" disabled={isBidSubmitting} onClick={() => auction.listing_type === "fixed" ? void addCurrentAuctionToCart(true) : void requestBidConfirmation(auction.buy_now_price ?? "", true)}>
+              <>{auction.listing_type === "fixed" ? <button className="button button-secondary" type="button" disabled={isBidSubmitting} onClick={() => void addCurrentAuctionToCart()}>Kosárba</button> : null}<button className="button button-lightning" id="buy-now-section" type="button" disabled={isBidSubmitting} onClick={() => auction.listing_type === "fixed" ? setPurchaseConfirmationOpen(true) : void requestBidConfirmation(auction.buy_now_price ?? "", true)}>
                 {auction.listing_type === "fixed" ? "Megveszem" : `Villámár: ${formatMoney(auction.buy_now_price)}`}
               </button></>
             ) : null}
@@ -552,8 +588,8 @@ export function AuctionDetailPage() {
         {auction.status === "sold" && auction.winner_id ? (
           <div className="side-panel sold-state-panel">
             {auction.can_chat
-              ? <>Az aukció lezárult. <a href="#auction-conversation">Nyisd meg a privát beszélgetést</a> a másik féllel az egyeztetéshez.</>
-              : "Az aukció lezárult. A privát kapcsolatfelvétel kizárólag az eladó és a nyertes számára érhető el."}
+              ? <>{auction.listing_type === "fixed" ? "Az eladás létrejött. " : "Az aukció lezárult. "}<a href="#auction-conversation">{auction.listing_type === "fixed" ? "Nyisd meg az ügylet egyeztetését" : "Nyisd meg a privát beszélgetést"}</a> a másik féllel.</>
+              : auction.listing_type === "fixed" ? "Az eladás lezárult. Az ügylet egyeztetése kizárólag az eladó és a vevő számára érhető el." : "Az aukció lezárult. A privát kapcsolatfelvétel kizárólag az eladó és a nyertes számára érhető el."}
           </div>
         ) : null}
         <div className="hero-actions">
@@ -615,7 +651,7 @@ export function AuctionDetailPage() {
         <section className="post-auction-panel">
           <h2>Értékelések</h2>
           {reviews.length === 0 ? (
-            <p>Még nincs értékelés ehhez az aukcióhoz.</p>
+            <p>{auction.listing_type === "fixed" ? "Még nincs értékelés ehhez az ügylethez." : "Még nincs értékelés ehhez az aukcióhoz."}</p>
           ) : (
             <div className="review-list">
               {reviews.map((review) => (
@@ -636,7 +672,7 @@ export function AuctionDetailPage() {
         {auction.can_chat && isChatOpen ? createPortal((
           <section className="post-auction-panel auction-conversation chat-dock" id="auction-conversation" role="dialog" aria-label={`${auction.title} privát beszélgetése`} onKeyDown={(event) => { if (event.key === "Escape") { event.preventDefault(); closeChat(); } }}>
             <header className="chat-dock-header">
-              <div><strong>Aukciós chat</strong><small>{auction.title}</small></div>
+              <div><strong>{auction.listing_type === "fixed" ? "Ügylet egyeztetése" : "Aukciós chat"}</strong><small>{auction.title}</small></div>
               <p className={`presence-indicator${presence?.online ? " is-online" : ""}`}>{presence?.online ? "Elérhető" : presence?.last_active_at ? `Utoljára aktív: ${formatLocalDateTime(presence.last_active_at)}` : "Nem elérhető"}</p>
               <button ref={chatMinimizeRef} className="chat-minimize-button" type="button" aria-label="Chat kis méretre zárása" onClick={closeChat}>−</button>
             </header>
@@ -682,18 +718,20 @@ export function AuctionDetailPage() {
           />
         ) : null}
         {pendingBid ? <BidConfirmationDialog amountLabel={formatMoney(pendingBid.amount)} isBuyNow={pendingBid.isBuyNow} busy={isBidSubmitting} onClose={() => { if (!isBidSubmitting) setPendingBid(null); }} onConfirm={(disableFuture) => void confirmPendingBid(disableFuture)} /> : null}
+        {purchaseConfirmationOpen && auction.buy_now_price ? <FixedPurchaseDialog title={auction.title} unitPrice={auction.buy_now_price} quantity={purchaseQuantity} maxQuantity={availableQuantity} busy={isBidSubmitting} onQuantityChange={setPurchaseQuantity} onClose={() => { if (!isBidSubmitting) setPurchaseConfirmationOpen(false); }} onConfirm={() => void buyCurrentAuction()}/> : null}
+        {cancelConfirmationOpen ? <AuctionCancelDialog title={auction.title} bidCount={auction.bid_count ?? 0} busy={isCancelling} onClose={() => { if (!isCancelling) setCancelConfirmationOpen(false); }} onConfirm={() => void cancelCurrentAuction()}/> : null}
         {withdrawBidTarget ? <BidWithdrawalDialog busy={isWithdrawingBid} onClose={() => { if (!isWithdrawingBid) setWithdrawBidTarget(null); }} onConfirm={(reason, text) => void confirmWithdrawal(reason, text)} /> : null}
       </div>
       <section className="account-section related-auctions-section" aria-labelledby="related-auctions-title">
-        <div className="section-heading"><h2 id="related-auctions-title">Kapcsolódó aukciók</h2></div>
-        {relatedAuctions.length === 0 ? <div className="side-panel empty-state">Jelenleg nincs kapcsolódó aukció.</div> : (
-          <div className="compact-auction-list">{relatedAuctions.map((item) => <Link className="compact-auction-row" to={`/auctions/${item.id}`} key={item.id}><strong>{item.title}</strong><span>{item.category}</span><span>{formatMoney(item.current_price)}</span><span>{item.bid_count ?? 0} licit</span></Link>)}</div>
+        <div className="section-heading"><h2 id="related-auctions-title">{auction.listing_type === "fixed" ? "Kapcsolódó hirdetések" : "Kapcsolódó aukciók"}</h2></div>
+        {relatedAuctions.length === 0 ? <div className="side-panel empty-state">{auction.listing_type === "fixed" ? "Jelenleg nincs kapcsolódó hirdetés." : "Jelenleg nincs kapcsolódó aukció."}</div> : (
+          <div className="compact-auction-list">{relatedAuctions.map((item) => <Link className="compact-auction-row" to={`/auctions/${item.id}`} key={item.id}><strong>{item.title}</strong><span>{item.category}</span><span>{formatMoney(item.current_price)}</span><span>{item.listing_type === "fixed" ? "Fix áras hirdetés" : `${item.bid_count ?? 0} licit`}</span></Link>)}</div>
         )}
       </section>
       <section className="account-section related-auctions-section" aria-labelledby="seller-auctions-title">
-        <div className="section-heading"><h2 id="seller-auctions-title">Az eladó további aukciói</h2></div>
-        {sellerAuctions.length === 0 ? <div className="side-panel empty-state">Az eladónak nincs másik publikus aukciója.</div> : (
-          <div className="compact-auction-list">{sellerAuctions.map((item) => <Link className="compact-auction-row" to={`/auctions/${item.id}`} key={item.id}><strong>{item.title}</strong><span>{item.category}</span><span>{formatMoney(item.current_price)}</span><span>{formatRemainingTime(item.ends_at, item.status)}</span></Link>)}</div>
+        <div className="section-heading"><h2 id="seller-auctions-title">{auction.listing_type === "fixed" ? "Az eladó további hirdetései" : "Az eladó további aukciói"}</h2></div>
+        {sellerAuctions.length === 0 ? <div className="side-panel empty-state">{auction.listing_type === "fixed" ? "Az eladónak nincs másik publikus hirdetése." : "Az eladónak nincs másik publikus aukciója."}</div> : (
+          <div className="compact-auction-list">{sellerAuctions.map((item) => <Link className="compact-auction-row" to={`/auctions/${item.id}`} key={item.id}><strong>{item.title}</strong><span>{item.category}</span><span>{formatMoney(item.current_price)}</span><span>{item.listing_type === "fixed" ? "Lejárat nélkül" : formatRemainingTime(item.ends_at, item.status)}</span></Link>)}</div>
         )}
       </section>
     </section>

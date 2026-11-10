@@ -410,6 +410,8 @@ def activate_auction(db: Session, auction: Auction, user: User) -> Auction:
 
 def cancel_auction(db: Session, auction: Auction, user: User) -> Auction:
     require_owner_or_admin(auction, user)
+    if auction.status == "cancelled":
+        return auction
     ensure_transition_allowed(auction.status, "cancelled")
     auction.status = "cancelled"
     from app.services.cart import release_auction_reservations

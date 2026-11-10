@@ -33,6 +33,7 @@ export function toAuctionCardItem(auction: Auction) {
       ? apiAssetUrl(coverImage.list_url ?? coverImage.thumbnail_url ?? coverImage.url)
       : auction.vault_external_card_id ? hkkCardImageUrl(auction.vault_external_card_id, null) : "",
     listingFormat: auction.listing_format ?? "single",
+    availableQuantity: Math.max(0, auction.available_quantity ?? (auction.status === "active" ? (auction.listing_format === "bundle" ? 1 : auction.vault_quantity ?? 0) : 0)),
     bundleItemCount: bundleItems.length,
     bundleCopyCount: bundleItems.reduce((sum, item) => sum + item.quantity, 0),
     montageImages: !coverImage && bundleItems.length ? bundleItems.slice(0, 4).map((item) => hkkCardImageUrl(item.external_card_id, item.image_url)) : [],

@@ -16,6 +16,9 @@ class SavedSearchCreate(BaseModel):
     hatalom_era: str | None = Field(default=None, max_length=20, pattern=r"^(retro|ujkor|uj_nemzedek)$")
     condition: str | None = Field(default=None, max_length=30)
     status: str | None = Field(default=None, max_length=30)
+    listing_type: str | None = Field(default=None, pattern=r"^(auction|fixed)$")
+    listing_format: str | None = Field(default=None, pattern=r"^(single|bundle)$")
+    variant: str | None = Field(default=None, pattern=r"^(normal|foil|fa|gfa)$")
     min_price: Decimal | None = Field(default=None, ge=0, max_digits=12, decimal_places=2)
     max_price: Decimal | None = Field(default=None, ge=0, max_digits=12, decimal_places=2)
     min_bids: int | None = Field(default=None, ge=0)
@@ -24,7 +27,7 @@ class SavedSearchCreate(BaseModel):
     soon_ending: bool = False
     new_only: bool = False
 
-    @field_validator("name", "query", "title", "description", "seller", "category", "hatalom_era", "condition", "status")
+    @field_validator("name", "query", "title", "description", "seller", "category", "hatalom_era", "condition", "status", "listing_type", "listing_format", "variant")
     @classmethod
     def normalize_text(cls, value: str | None) -> str | None:
         if value is None:
@@ -38,6 +41,16 @@ class SavedSearchCreate(BaseModel):
             raise ValueError("A legkisebb ár nem lehet nagyobb a legnagyobb árnál.")
         if self.min_bids is not None and self.max_bids is not None and self.min_bids > self.max_bids:
             raise ValueError("A legkisebb licitszám nem lehet nagyobb a legnagyobb licitszámnál.")
+        if self.listing_type == "fixed" and any((
+            self.min_bids is not None,
+            self.max_bids is not None,
+            self.buy_now is not None,
+            self.soon_ending,
+            self.new_only,
+        )):
+            raise ValueError("Fix áras mentett kereséshez nem adható meg aukciós szűrő.")
+        if self.listing_type == "auction" and self.variant is not None:
+            raise ValueError("A lapváltozat csak fix áras lapkeresésnél használható.")
         return self
 
 

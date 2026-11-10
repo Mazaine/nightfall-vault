@@ -5,11 +5,11 @@ import { AuctionCard } from "./AuctionCard";
 import { BID_CONFIRMATION_STORAGE_KEY } from "../utils/bidConfirmation";
 
 const state = vi.hoisted(() => ({ isAuthenticated: true }));
-const mocks = vi.hoisted(() => ({ placeAuctionBid: vi.fn(), withdrawAuctionBid: vi.fn(), showToast: vi.fn(), addCartItem: vi.fn(), announceCartChanged: vi.fn() }));
+const mocks = vi.hoisted(() => ({ placeAuctionBid: vi.fn(), withdrawAuctionBid: vi.fn(), showToast: vi.fn(), addCartItem: vi.fn(), checkoutCart: vi.fn(), announceCartChanged: vi.fn() }));
 vi.mock("../AuthContext", () => ({ useAuth: () => state }));
 vi.mock("../NotificationContext", () => ({ useNotifications: () => ({ showToast: mocks.showToast }) }));
 vi.mock("../api/auctions", async (importOriginal) => ({ ...(await importOriginal<typeof import("../api/auctions")>()), placeAuctionBid: mocks.placeAuctionBid, withdrawAuctionBid: mocks.withdrawAuctionBid }));
-vi.mock("../api/cart", () => ({ addCartItem: mocks.addCartItem, announceCartChanged: mocks.announceCartChanged }));
+vi.mock("../api/cart", () => ({ addCartItem: mocks.addCartItem, checkoutCart: mocks.checkoutCart, announceCartChanged: mocks.announceCartChanged }));
 
 const item = { id: 7, title: "Teszt kártya", type: "Pokemon", condition: "NM" as const, price: "1 200 Ft", step: "100 Ft", currentAmount: "1200.00", bidIncrementAmount: "100.00", time: "2 óra", sellerName: "Anna Kártyabarlang", sellerRating: 4, bidCount: 2, buyNowPrice: "2 000 Ft", buyNowAmount: "2000.00", imageUrl: "https://example.test/card.png", canBid: true };
 
@@ -26,7 +26,8 @@ describe("AuctionCard", () => {
     mocks.withdrawAuctionBid.mockResolvedValue({ current_price: "1200.00" });
     mocks.showToast.mockReset();
     mocks.addCartItem.mockReset();
-    mocks.addCartItem.mockResolvedValue({ item_count: 1 });
+    mocks.addCartItem.mockResolvedValue({ item_count: 1, items: [{ id: 88, auction_id: 7 }] });
+    mocks.checkoutCart.mockReset().mockResolvedValue({ transaction_count: 1 });
     mocks.announceCartChanged.mockReset();
     window.localStorage.clear();
     window.localStorage.setItem(BID_CONFIRMATION_STORAGE_KEY, "true");
@@ -96,8 +97,7 @@ describe("AuctionCard", () => {
   });
 
   it("fix áras hirdetésnél közvetlen és kosaras vásárlást is kínál", async () => {
-    mocks.placeAuctionBid.mockResolvedValue({ id: 3, amount: "2000.00", reaches_buy_now: true });
-    render(<MemoryRouter><AuctionCard item={{ ...item, listingType: "fixed" }} index={0} detailPath="/auctions/7" /></MemoryRouter>);
+    render(<MemoryRouter><AuctionCard item={{ ...item, listingType: "fixed", availableQuantity: 3 }} index={0} detailPath="/auctions/7" /></MemoryRouter>);
     expect(screen.getByText("Fix ár")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Licitálok" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "⚡ Lecsapom" })).not.toBeInTheDocument();
@@ -106,8 +106,12 @@ describe("AuctionCard", () => {
     await waitFor(() => expect(mocks.addCartItem).toHaveBeenCalledWith(7, 1));
     expect(mocks.announceCartChanged).toHaveBeenCalledWith(1);
     fireEvent.click(screen.getByRole("button", { name: "Megveszem" }));
-    fireEvent.click(screen.getByRole("button", { name: "Villámvásárlás véglegesítése" }));
-    await waitFor(() => expect(mocks.placeAuctionBid).toHaveBeenCalledWith(7, "2000.00"));
+    fireEvent.change(screen.getByLabelText("Vásárlási mennyiség"), { target: { value: "2" } });
+    expect(screen.getByText(/4\s?000 Ft/)).toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole("button", { name: "Megveszem" })[1]);
+    await waitFor(() => expect(mocks.addCartItem).toHaveBeenLastCalledWith(7, 2));
+    expect(mocks.checkoutCart).toHaveBeenCalledWith(expect.any(String), [88]);
+    expect(mocks.placeAuctionBid).not.toHaveBeenCalled();
   });
 
   it("az eladó értékelését csillagokkal, a licitszámot külön jeleníti meg", () => {

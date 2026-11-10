@@ -21,16 +21,20 @@ const SORT_OPTIONS = [
   ["buy_now_first", "Villámár előre"],
 ];
 
+type MarketTab = "auctions" | "cards" | "bundles";
+
 type FilterState = {
   q: string;
   title: string;
   description: string;
+  seller: string;
   category: string;
   hatalom_era: HatalomEra | "";
   condition: string;
   status: string;
   listing_type: "" | "auction" | "fixed";
   listing_format: "" | "single" | "bundle";
+  variant: "" | "normal" | "foil" | "fa" | "gfa";
   min_price: string;
   max_price: string;
   min_bids: string;
@@ -44,12 +48,14 @@ const INITIAL_FILTERS: FilterState = {
   q: "",
   title: "",
   description: "",
+  seller: "",
   category: "",
   hatalom_era: "",
   condition: "",
   status: "",
   listing_type: "",
   listing_format: "",
+  variant: "",
   min_price: "",
   max_price: "",
   min_bids: "",
@@ -58,6 +64,19 @@ const INITIAL_FILTERS: FilterState = {
   new_only: false,
   sort: "newest",
 };
+
+function filtersForTab(filters: FilterState, tab: MarketTab): FilterState {
+  if (tab === "auctions") return { ...filters, variant: "" };
+  return {
+    ...filters,
+    min_bids: "",
+    buy_now: "",
+    soon_ending: false,
+    new_only: false,
+    sort: ["most_bids", "fewest_bids", "soon_ending", "buy_now_first"].includes(filters.sort) ? "newest" : filters.sort,
+    ...(tab === "cards" ? { title: "", description: "" } : {}),
+  };
+}
 
 const PUBLIC_STATUS_ORDER: Partial<Record<Auction["status"], number>> = {
   active: 0,
@@ -80,9 +99,11 @@ function activeFilterEntries(filters: FilterState) {
     filters.q ? { key: "q", label: `Keresés: ${filters.q}` } : null,
     filters.title ? { key: "title", label: `Cím: ${filters.title}` } : null,
     filters.description ? { key: "description", label: `Leírás: ${filters.description}` } : null,
+    filters.seller ? { key: "seller", label: `Eladó: ${filters.seller}` } : null,
     filters.category ? { key: "category", label: `Kategória: ${filters.category}` } : null,
     filters.hatalom_era ? { key: "hatalom_era", label: `Korszak: ${eraLabels[filters.hatalom_era]}` } : null,
     filters.condition ? { key: "condition", label: `Állapot: ${condition ?? filters.condition}` } : null,
+    filters.variant ? { key: "variant", label: `Változat: ${filters.variant.toUpperCase()}` } : null,
     filters.min_price ? { key: "min_price", label: `Minimum ár: ${filters.min_price} Ft` } : null,
     filters.max_price ? { key: "max_price", label: `Maximum ár: ${filters.max_price} Ft` } : null,
     filters.min_bids ? { key: "min_bids", label: `Minimum licit: ${filters.min_bids}` } : null,
@@ -102,12 +123,14 @@ function toParams(filters: FilterState, offset: number): AuctionListParams {
     q: filters.q || undefined,
     title: filters.title || undefined,
     description: filters.description || undefined,
+    seller: filters.seller || undefined,
     category: filters.category || undefined,
     hatalom_era: filters.hatalom_era || undefined,
     condition: filters.condition || undefined,
     status: filters.status || undefined,
     listing_type: filters.listing_type || undefined,
     listing_format: filters.listing_format || undefined,
+    variant: filters.variant || undefined,
     min_price: filters.min_price || undefined,
     max_price: filters.max_price || undefined,
     min_bids: filters.min_bids || undefined,
@@ -125,7 +148,7 @@ export function AuctionsPage() {
   const { subscribe } = useAuctionRealtime();
   const [searchParams] = useSearchParams();
   const requestedTab = searchParams.get("tab");
-  const marketTab: "auctions" | "cards" | "bundles" = location.pathname === "/marketplace/fixed"
+  const marketTab: MarketTab = location.pathname === "/marketplace/fixed"
     ? "cards"
     : requestedTab === "cards" || requestedTab === "bundles"
       ? requestedTab
@@ -139,8 +162,9 @@ export function AuctionsPage() {
     soon_ending: searchParams.get("soon_ending") === "true",
     new_only: searchParams.get("new_only") === "true",
   }) as FilterState, [searchParams]);
-  const [filters, setFilters] = useState<FilterState>(initialFilters);
-  const [appliedFilters, setAppliedFilters] = useState<FilterState>(initialFilters);
+  const initialTabFilters = useMemo(() => filtersForTab(initialFilters, marketTab), [initialFilters, marketTab]);
+  const [filters, setFilters] = useState<FilterState>(initialTabFilters);
+  const [appliedFilters, setAppliedFilters] = useState<FilterState>(initialTabFilters);
   const [auctions, setAuctions] = useState<Auction[]>([]);
   const [total, setTotal] = useState(0);
   const [offset, setOffset] = useState(0);
@@ -153,7 +177,27 @@ export function AuctionsPage() {
   const [isMobile, setIsMobile] = useState(isMobileFilterViewport);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const resultsRef = useRef<HTMLDivElement>(null);
+  const previousTabRef = useRef<MarketTab>(marketTab);
+  const tabFiltersRef = useRef<Record<MarketTab, FilterState>>({ auctions: { ...INITIAL_FILTERS }, cards: { ...INITIAL_FILTERS }, bundles: { ...INITIAL_FILTERS } });
+  const tabAppliedRef = useRef<Record<MarketTab, FilterState>>({ auctions: { ...INITIAL_FILTERS }, cards: { ...INITIAL_FILTERS }, bundles: { ...INITIAL_FILTERS } });
   const appliedFilterEntries = useMemo(() => activeFilterEntries(appliedFilters), [appliedFilters]);
+  const visibleSavedSearches = useMemo(() => savedSearches.filter((item) => marketTab === "auctions"
+    ? (item.listing_type ?? "auction") === "auction"
+    : item.listing_type === "fixed" && item.listing_format === (marketTab === "cards" ? "single" : "bundle")), [marketTab, savedSearches]);
+
+  useEffect(() => {
+    const previousTab = previousTabRef.current;
+    if (previousTab === marketTab) return;
+    tabFiltersRef.current[previousTab] = filters;
+    tabAppliedRef.current[previousTab] = appliedFilters;
+    const nextFilters = filtersForTab(tabFiltersRef.current[marketTab], marketTab);
+    const nextApplied = filtersForTab(tabAppliedRef.current[marketTab], marketTab);
+    previousTabRef.current = marketTab;
+    setFilters(nextFilters);
+    setAppliedFilters(nextApplied);
+    setFiltersOpen(false);
+    setSelectedSavedSearchId(null);
+  }, [marketTab]);
 
   useEffect(() => {
     if (!window.matchMedia) return;
@@ -231,15 +275,18 @@ export function AuctionsPage() {
 
   const submitFilters = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    const scoped = filtersForTab(filters, marketTab);
     setOffset(0);
-    setAppliedFilters(filters);
-    if (isMobile) setFiltersOpen(false);
+    setFilters(scoped);
+    setAppliedFilters(scoped);
+    setFiltersOpen(false);
     focusResultsOnMobile();
   };
 
   const resetFilters = () => {
-    setFilters(INITIAL_FILTERS);
-    setAppliedFilters(INITIAL_FILTERS);
+    const reset = filtersForTab({ ...INITIAL_FILTERS }, marketTab);
+    setFilters(reset);
+    setAppliedFilters(reset);
     setSelectedSavedSearchId(null);
     setOffset(0);
     focusResultsOnMobile();
@@ -256,9 +303,11 @@ export function AuctionsPage() {
       q: item.query ?? "",
       title: item.title ?? "",
       description: item.description ?? "",
+      seller: item.seller ?? "",
       category: item.category ?? "",
       hatalom_era: item.hatalom_era ?? "",
       condition: item.condition ?? "",
+      variant: item.variant ?? "",
       min_price: item.min_price === undefined || item.min_price === null ? "" : String(item.min_price),
       max_price: item.max_price === undefined || item.max_price === null ? "" : String(item.max_price),
       min_bids: item.min_bids === undefined || item.min_bids === null ? "" : String(item.min_bids),
@@ -266,9 +315,10 @@ export function AuctionsPage() {
       soon_ending: Boolean(item.soon_ending),
       new_only: Boolean(item.new_only),
     };
+    const scoped = filtersForTab(nextFilters, marketTab);
     setSelectedSavedSearchId(item.id);
-    setFilters(nextFilters);
-    setAppliedFilters(nextFilters);
+    setFilters(scoped);
+    setAppliedFilters(scoped);
     setOffset(0);
     if (isMobile) setFiltersOpen(false);
     focusResultsOnMobile();
@@ -300,7 +350,13 @@ export function AuctionsPage() {
       return;
     }
     try {
-      const savedSearch = await createSavedSearch({ name: normalizedName, ...toParams(filters, 0), limit: undefined, offset: undefined, sort: undefined });
+      const savedSearch = await createSavedSearch({
+        name: normalizedName,
+        ...toParams(filtersForTab(filters, marketTab), 0),
+        listing_type: marketTab === "auctions" ? "auction" : "fixed",
+        listing_format: marketTab === "auctions" ? undefined : marketTab === "cards" ? "single" : "bundle",
+        limit: undefined, offset: undefined, sort: undefined,
+      });
       setSavedSearches((items) => [savedSearch, ...items]);
       setSelectedSavedSearchId(savedSearch.id);
       setSaveMessage("A keresés mentve. Az új találatokról in-app értesítést kapsz.");
@@ -322,14 +378,14 @@ export function AuctionsPage() {
   };
 
   return (
-    <section className="container page-shell">
-      <p className="eyebrow">Piactér</p>
-      <div className="section-heading page-heading">
+    <section className="container page-shell marketplace-page">
+      <div className="section-heading page-heading marketplace-hero">
         <div>
+          <p className="eyebrow">Piactér</p>
           <h1>Piactér</h1>
           <p className="section-note">Aukciók, fix áras HKK-lapok és csomagok egy helyen.</p>
         </div>
-        <Link className="button button-primary" to="/auctions/create">Aukció létrehozása</Link>
+        <Link className="button button-primary" to={marketTab === "auctions" ? "/auctions/create" : "/vault?area=trade"}>{marketTab === "auctions" ? "Aukció létrehozása" : "Hirdetés feladása"}</Link>
       </div>
 
       <nav className="marketplace-tabs" aria-label="Piactér kategóriák">
@@ -339,40 +395,42 @@ export function AuctionsPage() {
       </nav>
 
       <button
-        className="mobile-filter-toggle side-panel"
+        className="marketplace-filter-toggle side-panel"
         type="button"
-        aria-expanded={!isMobile || filtersOpen}
+        aria-label={`Keresés és szűrés – ${appliedFilterEntries.length} aktív szűrő`}
+        aria-expanded={filtersOpen}
         aria-controls="auction-filter-panel"
         onClick={() => setFiltersOpen((open) => !open)}
       >
-        <span>Keresés és szűrés</span>
+        <span><span aria-hidden="true">⌕</span> Keresés és szűrők <span aria-hidden="true">{filtersOpen ? "▴" : "▾"}</span></span>
         <span className="filter-count" aria-label={`${appliedFilterEntries.length} aktív szűrő`}>{appliedFilterEntries.length}</span>
       </button>
-      <form id="auction-filter-panel" className="filter-panel side-panel" onSubmit={submitFilters} hidden={isMobile && !filtersOpen}>
-        {isAuthenticated && savedSearches.length ? <div className="saved-search-strip filter-wide" aria-label="Mentett keresések">
+      <form id="auction-filter-panel" className="filter-panel side-panel" onSubmit={submitFilters} hidden={!filtersOpen}>
+        {isAuthenticated && visibleSavedSearches.length ? <div className="saved-search-strip filter-wide" aria-label="Mentett keresések">
           <strong>Mentett keresések</strong>
           <div className="filter-quick-chips">
-            {savedSearches.slice(0, 4).map((item) => (
+            {visibleSavedSearches.slice(0, 4).map((item) => (
               <button className={selectedSavedSearchId === item.id ? "is-active saved-search-chip" : "saved-search-chip"} type="button" title={item.name} aria-pressed={selectedSavedSearchId === item.id} onClick={() => applySavedSearch(item)} key={item.id}>{item.name.slice(0, 24)}</button>
             ))}
-            {savedSearches.length > 4 ? <div className="saved-search-more">
-              <button type="button" className={savedSearches.slice(4).some((item) => item.id === selectedSavedSearchId) ? "is-active" : ""} aria-expanded={showMoreSavedSearches} onClick={() => setShowMoreSavedSearches((open) => !open)}>Továbbiak</button>
+            {visibleSavedSearches.length > 4 ? <div className="saved-search-more">
+              <button type="button" className={visibleSavedSearches.slice(4).some((item) => item.id === selectedSavedSearchId) ? "is-active" : ""} aria-expanded={showMoreSavedSearches} onClick={() => setShowMoreSavedSearches((open) => !open)}>Továbbiak</button>
               {showMoreSavedSearches ? <div className="saved-search-more-menu">
-                {savedSearches.slice(4).map((item) => <button className={selectedSavedSearchId === item.id ? "is-active saved-search-chip" : "saved-search-chip"} type="button" title={item.name} aria-pressed={selectedSavedSearchId === item.id} onClick={() => applySavedSearch(item)} key={item.id}>{item.name.slice(0, 24)}</button>)}
+                {visibleSavedSearches.slice(4).map((item) => <button className={selectedSavedSearchId === item.id ? "is-active saved-search-chip" : "saved-search-chip"} type="button" title={item.name} aria-pressed={selectedSavedSearchId === item.id} onClick={() => applySavedSearch(item)} key={item.id}>{item.name.slice(0, 24)}</button>)}
               </div> : null}
             </div> : null}
           </div>
         </div> : null}
-        <div className="filter-quick-chips filter-wide" aria-label="Gyorsszűrők">
+        {marketTab === "auctions" ? <div className="filter-quick-chips filter-wide" aria-label="Gyorsszűrők">
           <button className={filters.soon_ending ? "is-active" : ""} type="button" aria-pressed={filters.soon_ending} onClick={() => setFilters({ ...filters, soon_ending: !filters.soon_ending })}>24 órán belül lejár</button>
           <button className={filters.new_only ? "is-active" : ""} type="button" aria-pressed={filters.new_only} onClick={() => setFilters({ ...filters, new_only: !filters.new_only })}>Az elmúlt 7 nap új aukciói</button>
-        </div>
+        </div> : null}
         <label className="filter-wide">
           Gyorskeresés
-          <input type="search" maxLength={180} placeholder="Cím vagy leírás" value={filters.q} onChange={(event) => setFilters({ ...filters, q: event.target.value })} />
+          <input type="search" maxLength={180} placeholder={marketTab === "cards" ? "Lapnév vagy HKK ID" : marketTab === "bundles" ? "Csomagnév vagy tartalom" : "Cím vagy leírás"} value={filters.q} onChange={(event) => setFilters({ ...filters, q: event.target.value })} />
         </label>
-        <label>Cím<input type="search" maxLength={180} value={filters.title} onChange={(event) => setFilters({ ...filters, title: event.target.value })} /></label>
-        <label>Leírás<input type="search" maxLength={180} value={filters.description} onChange={(event) => setFilters({ ...filters, description: event.target.value })} /></label>
+        {marketTab !== "cards" ? <label>{marketTab === "bundles" ? "Csomagnév" : "Cím"}<input type="search" maxLength={180} value={filters.title} onChange={(event) => setFilters({ ...filters, title: event.target.value })} /></label> : null}
+        {marketTab !== "cards" ? <label>Leírás<input type="search" maxLength={180} value={filters.description} onChange={(event) => setFilters({ ...filters, description: event.target.value })} /></label> : null}
+        <label>Eladó<input type="search" maxLength={80} value={filters.seller} onChange={(event) => setFilters({ ...filters, seller: event.target.value })} /></label>
         <label>
           Kategória
           <select value={filters.category} onChange={(event) => setFilters({ ...filters, category: event.target.value, hatalom_era: event.target.value === "Hatalom Kártyái Kártyajáték" ? filters.hatalom_era : "" })}>
@@ -396,6 +454,7 @@ export function AuctionsPage() {
             <option value="uj_nemzedek">Új nemzedék</option>
           </select>
         </label> : null}
+        {marketTab !== "auctions" ? <label>Lapváltozat<select value={filters.variant} onChange={(event) => setFilters({ ...filters, variant: event.target.value as FilterState["variant"] })}><option value="">Mind</option><option value="normal">Normál</option><option value="foil">Foil</option><option value="fa">FA</option><option value="gfa">GFA</option></select></label> : null}
         <label>
           Minimum ár
           <input type="number" min="0" value={filters.min_price} onChange={(event) => setFilters({ ...filters, min_price: event.target.value })} />
@@ -404,32 +463,32 @@ export function AuctionsPage() {
           Maximum ár
           <input type="number" min="0" value={filters.max_price} onChange={(event) => setFilters({ ...filters, max_price: event.target.value })} />
         </label>
-        <label>
+        {marketTab === "auctions" ? <label>
           Minimum licitszám
           <input type="number" min="0" value={filters.min_bids} onChange={(event) => setFilters({ ...filters, min_bids: event.target.value })} />
-        </label>
-        <label>
+        </label> : null}
+        {marketTab === "auctions" ? <label>
           Villámár
           <select value={filters.buy_now} onChange={(event) => setFilters({ ...filters, buy_now: event.target.value })}>
             <option value="">Mind</option>
             <option value="true">Csak villámáras</option>
             <option value="false">Villámár nélkül</option>
           </select>
-        </label>
+        </label> : null}
         <label>
           Rendezés
           <select value={filters.sort} onChange={(event) => setFilters({ ...filters, sort: event.target.value })}>
-            {SORT_OPTIONS.map(([value, label]) => <option value={value} key={value}>{label}</option>)}
+            {SORT_OPTIONS.filter(([value]) => marketTab === "auctions" || !["most_bids", "fewest_bids", "soon_ending", "buy_now_first"].includes(value)).map(([value, label]) => <option value={value} key={value}>{label}</option>)}
           </select>
         </label>
-        <label className="toggle-row compact-toggle">
+        {marketTab === "auctions" ? <label className="toggle-row compact-toggle">
           <input type="checkbox" checked={filters.soon_ending} onChange={(event) => setFilters({ ...filters, soon_ending: event.target.checked })} />
           Hamarosan lejár
-        </label>
-        <label className="toggle-row compact-toggle">
+        </label> : null}
+        {marketTab === "auctions" ? <label className="toggle-row compact-toggle">
           <input type="checkbox" checked={filters.new_only} onChange={(event) => setFilters({ ...filters, new_only: event.target.checked })} />
           Új aukciók
-        </label>
+        </label> : null}
         <div className="filter-actions">
           <button className="button button-secondary" type="button" onClick={resetFilters}>Alaphelyzet</button>
           <button className="button button-primary" type="submit">Szűrők alkalmazása</button>

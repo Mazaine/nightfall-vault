@@ -50,8 +50,30 @@ describe("Vault tömeges hirdetés", () => {
     fireEvent.click(screen.getByRole("button", { name: "Laponkénti eladás" }));
     fireEvent.click(screen.getAllByRole("checkbox")[0]);
     expect(screen.getByLabelText("Tesztlap 1 darabszám").querySelectorAll("option")).toHaveLength(3);
+    expect(screen.getByLabelText("Tesztlap 1 darabszám")).toHaveValue("3");
     await waitFor(() => expect(screen.getByText("Ajánlott ár: 350 Ft")).toBeInTheDocument());
     expect(screen.getByRole("link", { name: "Árfigyelő" })).toHaveAttribute("rel", "noopener noreferrer");
+  });
+
+  it("árjavaslat nélkül csak pozitív végleges árat kér és null alapárral véglegesít", async () => {
+    vaultMocks.getHkkMarketPriceSuggestion.mockResolvedValueOnce({ recommended_price: null, minimum_price: null, maximum_price: null, offer_count: 0 });
+    render(<VaultBulkListingComposer tradeCards={[trades[0]]} onDone={vi.fn()}/>);
+    fireEvent.click(screen.getByRole("button", { name: "Laponkénti eladás" }));
+    fireEvent.click(screen.getByRole("checkbox"));
+    fireEvent.change(screen.getByLabelText("Tesztlap 1 végleges ár"), { target: { value: "600" } });
+    fireEvent.click(screen.getByRole("button", { name: "Lapok véglegesítése" }));
+    fireEvent.click(screen.getByRole("button", { name: "Meghirdetem" }));
+    await waitFor(() => expect(auctionMocks.createFixedListingBatch).toHaveBeenCalledWith(expect.objectContaining({ items: [expect.objectContaining({ quantity: 3, base_price: null, final_price: 600 })] })));
+  });
+
+  it("a teljesen lefoglalt lapot elrejti, a részlegesen elérhetőnél csak a szabad készletet kínálja", () => {
+    const partial = { ...trades[0], id: 90, available_listing_quantity: 2 };
+    const full = { ...trades[1], id: 91, available_listing_quantity: 0 };
+    render(<VaultBulkListingComposer tradeCards={[partial, full]} onDone={vi.fn()}/>);
+    fireEvent.click(screen.getByRole("button", { name: "Laponkénti eladás" }));
+    expect(screen.queryByText(full.card_name)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("checkbox"));
+    expect(screen.getByLabelText(`${partial.card_name} darabszám`)).toHaveValue("2");
   });
 
   it("sikertelen véglegesítés után bezárja az előnézetet és kiírja a hibát", async () => {

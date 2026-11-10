@@ -22,6 +22,7 @@ class AuctionTransaction(Base):
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    conversation_id: Mapped[int | None] = mapped_column(ForeignKey("transaction_conversations.id", ondelete="SET NULL"), nullable=True, index=True)
     auction_id: Mapped[int] = mapped_column(ForeignKey("auctions.id", ondelete="CASCADE"), nullable=False, unique=True, index=True)
     checkout_batch_id: Mapped[int | None] = mapped_column(ForeignKey("checkout_batches.id", ondelete="SET NULL"), nullable=True, index=True)
     seller_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
@@ -43,7 +44,47 @@ class AuctionTransaction(Base):
     seller = relationship("User", foreign_keys=[seller_id])
     buyer = relationship("User", foreign_keys=[buyer_id])
     checkout_batch = relationship("CheckoutBatch", back_populates="transactions")
+    conversation = relationship("TransactionConversation", back_populates="transactions")
     items = relationship("AuctionTransactionItem", back_populates="transaction", cascade="all, delete-orphan", order_by="AuctionTransactionItem.id")
+
+
+class TransactionConversation(Base):
+    __tablename__ = "transaction_conversations"
+    __table_args__ = (
+        UniqueConstraint("seller_id", "buyer_id", name="uq_transaction_conversations_participants"),
+        CheckConstraint("seller_id <> buyer_id", name="ck_transaction_conversations_distinct_participants"),
+        Index("ix_transaction_conversations_participants", "seller_id", "buyer_id"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    seller_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    buyer_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
+
+    seller = relationship("User", foreign_keys=[seller_id])
+    buyer = relationship("User", foreign_keys=[buyer_id])
+    transactions = relationship("AuctionTransaction", back_populates="conversation", order_by="AuctionTransaction.created_at")
+    messages = relationship("TransactionConversationMessage", back_populates="conversation", cascade="all, delete-orphan", order_by="TransactionConversationMessage.created_at")
+
+
+class TransactionConversationMessage(Base):
+    __tablename__ = "transaction_conversation_messages"
+    __table_args__ = (
+        CheckConstraint("length(trim(message)) > 0", name="ck_transaction_conversation_messages_not_empty"),
+        CheckConstraint("length(message) <= 2000", name="ck_transaction_conversation_messages_max_length"),
+        Index("ix_transaction_conversation_messages_created", "conversation_id", "created_at"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    conversation_id: Mapped[int] = mapped_column(ForeignKey("transaction_conversations.id", ondelete="CASCADE"), nullable=False, index=True)
+    sender_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    message: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    conversation = relationship("TransactionConversation", back_populates="messages")
+    sender = relationship("User")
 
 
 class AuctionTransactionItem(Base):

@@ -1,13 +1,16 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
+from app.core.config import settings
+from app.core.rate_limit import check_rate_limit
 from app.dependencies.auth import require_active_user
 from app.models.transaction import AuctionTransaction
 from app.models.auction import Auction
 from app.models.user import User
-from app.schemas.transaction import AuctionTransactionPage, AuctionTransactionRead, TransactionNoteUpdate
+from app.schemas.transaction import AuctionTransactionPage, AuctionTransactionRead, TransactionConversationMessageCreate, TransactionConversationRead, TransactionNoteUpdate
 from app.services.transactions import cancel_open_transaction, confirm_completion, get_participant_transaction, hide_closed_transaction, is_transaction_hidden_for, serialize_transaction, transaction_options, update_transaction_note, visible_transaction_filters
+from app.services.transaction_conversations import create_conversation_message, get_participant_conversation, mark_conversation_read, serialize_conversation
 from app.services.demo_visibility import require_demo_auction_access
 
 
@@ -28,6 +31,29 @@ def list_my_transactions(
     total = query.count()
     items = query.order_by(AuctionTransaction.updated_at.desc(), AuctionTransaction.id.desc()).offset(offset).limit(limit).all()
     return AuctionTransactionPage(items=[AuctionTransactionRead.model_validate(serialize_transaction(item, current_user.id)) for item in items], total=total, limit=limit, offset=offset)
+
+
+@router.get("/conversations/{conversation_id}", response_model=TransactionConversationRead)
+def get_my_transaction_conversation(conversation_id: int, current_user: User = Depends(require_active_user), db: Session = Depends(get_db)) -> TransactionConversationRead:
+    conversation = get_participant_conversation(db, conversation_id, current_user.id)
+    mark_conversation_read(db, conversation, current_user.id)
+    conversation = get_participant_conversation(db, conversation_id, current_user.id)
+    return TransactionConversationRead.model_validate(serialize_conversation(db, conversation, current_user.id))
+
+
+@router.post("/conversations/{conversation_id}/messages", response_model=TransactionConversationRead, status_code=status.HTTP_201_CREATED)
+def post_transaction_conversation_message(
+    conversation_id: int,
+    payload: TransactionConversationMessageCreate,
+    request: Request,
+    current_user: User = Depends(require_active_user),
+    db: Session = Depends(get_db),
+) -> TransactionConversationRead:
+    check_rate_limit(request, "transaction:message", settings.chat_message_rate_limit_per_minute, str(current_user.id))
+    conversation = get_participant_conversation(db, conversation_id, current_user.id)
+    create_conversation_message(db, conversation, current_user, payload.message)
+    conversation = get_participant_conversation(db, conversation_id, current_user.id)
+    return TransactionConversationRead.model_validate(serialize_conversation(db, conversation, current_user.id))
 
 
 @router.get("/{transaction_id}", response_model=AuctionTransactionRead)
