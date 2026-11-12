@@ -74,7 +74,7 @@ def auction_list_item(
         "bid_count": count,
         "seller_average_rating": seller_average_rating,
         "seller_review_count": seller_review_count or 0,
-        "is_featured": bool(auction.seller and is_vip(auction.seller)),
+        "is_featured": bool(auction.listing_type == "auction" and auction.seller and is_vip(auction.seller)),
         "viewer_is_leading": viewer_is_leading,
         "viewer_top_bid_id": auction.highest_bid_id if viewer_is_leading else None,
         "viewer_can_withdraw": withdrawal["can_withdraw"],
@@ -177,7 +177,7 @@ def _apply_auction_sort(query, sort: str):
 def auction_response(auction: Auction, user: User | None = None, db: Session | None = None) -> AuctionResponse:
     seller_average_rating, seller_review_count = seller_rating_summary(db, auction.seller_id) if db is not None else (None, 0)
     watch_count = db.scalar(select(func.count(WatchlistItem.id)).where(WatchlistItem.auction_id == auction.id)) if db is not None else 0
-    response = AuctionResponse.model_validate(auction).model_copy(update={"available_quantity": available_listing_quantity(auction), "seller_average_rating": seller_average_rating, "seller_review_count": seller_review_count, "is_featured": bool(auction.seller and is_vip(auction.seller)), "watch_count": int(watch_count or 0)})
+    response = AuctionResponse.model_validate(auction).model_copy(update={"available_quantity": available_listing_quantity(auction), "seller_average_rating": seller_average_rating, "seller_review_count": seller_review_count, "is_featured": bool(auction.listing_type == "auction" and auction.seller and is_vip(auction.seller)), "watch_count": int(watch_count or 0)})
     if user is not None:
         viewer_is_leading = bool(auction.highest_bid is not None and auction.highest_bid.bidder_id == user.id)
         withdrawal = bid_withdrawal_state(auction.highest_bid, auction, user, db=db) if viewer_is_leading and auction.highest_bid is not None else {"can_withdraw": False, "withdrawal_block_reason": None}

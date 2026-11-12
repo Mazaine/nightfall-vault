@@ -770,3 +770,41 @@ def test_marketplace_default_rotates_sellers_without_reordering_price_sort() -> 
         assert len(random_cards) == 8
     finally:
         cleanup_test_data()
+
+
+def test_vip_highlighting_applies_to_auctions_not_fixed_singles() -> None:
+    """VIP account persists but only bid-based auctions receive featured surfaces."""
+    cleanup_test_data()
+    seller = create_test_user("vip-auction-only@auction-test.local", role="admin")
+    try:
+        ids = []
+        for title in ("VIP aukció", "VIP fix áras"):
+            created = client.post("/api/auctions", json=auction_payload(title=title), headers=auth_headers(seller))
+            assert created.status_code == 201, created.text
+            ids.append(created.json()["id"])
+        with SessionLocal() as db:
+            auction = db.get(Auction, ids[0])
+            fixed = db.get(Auction, ids[1])
+            now = datetime.now(timezone.utc)
+            for item in (auction, fixed):
+                item.status = "active"
+                item.starts_at = now - timedelta(minutes=10)
+                item.ends_at = now + timedelta(days=2)
+            fixed.listing_type = "fixed"
+            fixed.listing_format = "single"
+            fixed.vault_quantity = 1
+            db.commit()
+        auction_detail = client.get(f"/api/auctions/{ids[0]}").json()
+        fixed_detail = client.get(f"/api/auctions/{ids[1]}").json()
+        assert auction_detail["is_featured"] is True
+        assert fixed_detail["is_featured"] is False
+        listing = client.get("/api/auctions", params={"sort": "balanced"})
+        assert listing.status_code == 200
+        by_id = {row["id"]: row for row in listing.json()["items"]}
+        assert by_id[ids[0]]["is_featured"] is True
+        assert by_id[ids[1]]["is_featured"] is False
+        homepage = client.get("/api/auctions/home").json()
+        assert ids[0] in [a["id"] for a in homepage["featured"]]
+        assert ids[1] not in [a["id"] for a in homepage["featured"]]
+    finally:
+        cleanup_test_data()

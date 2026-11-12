@@ -39,6 +39,7 @@ def featured_auction_order():
         .select_from(seller)
         .where(
             seller.id == Auction.seller_id,
+            Auction.listing_type == "auction",
             or_(seller.role == "admin", seller.vip_lifetime.is_(True), seller.vip_expires_at > func.now()),
         )
     )
