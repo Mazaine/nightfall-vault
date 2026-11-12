@@ -3,6 +3,7 @@ import { MemoryRouter } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Auction } from "../../api/auctions";
 import { HomeFeatured } from "./HomeFeatured";
+import { HomeAuctionCarousel } from "./HomeAuctionCarousel";
 
 vi.mock("../../AuthContext", () => ({ useAuth: () => ({ isAuthenticated: false, isLoading: false }) }));
 
@@ -39,6 +40,16 @@ describe("HomeFeatured", () => {
     expect(screen.getByText("Kiemelt 1")).toBeInTheDocument();
   });
 
+  it("a véletlen lapok nem léptetnek automatikusan, de kézzel lapozhatók", () => {
+    const view = render(<MemoryRouter><HomeAuctionCarousel title="Fedezz fel lapokat" sectionClassName="home-random-cards" auctions={Array.from({ length: 5 }, (_, index) => auction(index + 1))} autoAdvance={false} /></MemoryRouter>);
+    act(() => { vi.advanceTimersByTime(24000); });
+    expect(screen.getByText("Kiemelt 1")).toBeInTheDocument();
+    expect(screen.queryByText("Kiemelt 5")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Következő fedezz fel lapokat" }));
+    expect(screen.getByText("Kiemelt 5")).toBeInTheDocument();
+    view.unmount();
+    expect(vi.getTimerCount()).toBe(0);
+  });
   it("reduced motion mellett nincs autoplay, unmountkor takarít", () => {
     const original = window.matchMedia;
     window.matchMedia = vi.fn().mockImplementation((query: string) => ({ matches: query.includes("prefers-reduced-motion"), addEventListener: vi.fn(), removeEventListener: vi.fn() })) as typeof window.matchMedia;

@@ -21,18 +21,30 @@ export function HomePage() {
   const [overview, setOverview] = useState<HomeAuctionOverview | null>(null);
   const [error, setError] = useState("");
   const requestNumber = useRef(0);
-  const refresh = useCallback(async () => {
+  const randomSampleLoaded = useRef(false);
+  const refresh = useCallback(async (resampleCards = false) => {
     const number = ++requestNumber.current;
     try {
-      const next = await getHomeAuctionOverview();
-      if (number === requestNumber.current) { setOverview(next); setError(""); }
+      // Background updates keep the initial draw; a new page/auth session draws again.
+      const includeRandom = resampleCards || !randomSampleLoaded.current;
+      const next = await getHomeAuctionOverview(includeRandom);
+      if (number === requestNumber.current) {
+        setOverview((current) => ({
+          ...next,
+          random_cards: includeRandom ? (next.random_cards ?? []) : (current?.random_cards ?? []),
+        }));
+        if (includeRandom) randomSampleLoaded.current = true;
+        setError("");
+      }
     } catch (failure) {
       if (number === requestNumber.current) setError(failure instanceof Error ? failure.message : "A kezdőlap adatai nem érhetők el.");
     }
   }, []);
   useEffect(() => {
     if (isLoading) return;
-    void refresh();
+    randomSampleLoaded.current = false;
+    setOverview(null);
+    void refresh(true);
     return () => { requestNumber.current += 1; };
   }, [isLoading, user?.id, refresh]);
   useEffect(() => {
@@ -40,9 +52,9 @@ export function HomePage() {
     const unsubscribe = subscribe((snapshot) => {
       setOverview((current) => current ? updateSnapshot(current, snapshot) : current);
       window.clearTimeout(timer);
-      timer = window.setTimeout(() => { if (!document.hidden) void refresh(); }, 500);
+      timer = window.setTimeout(() => { if (!document.hidden) void refresh(false); }, 500);
     });
-    const visible = () => { if (!document.hidden) void refresh(); };
+    const visible = () => { if (!document.hidden) void refresh(false); };
     document.addEventListener("visibilitychange", visible);
     return () => { unsubscribe(); window.clearTimeout(timer); document.removeEventListener("visibilitychange", visible); };
   }, [refresh, subscribe]);
@@ -54,6 +66,7 @@ export function HomePage() {
       {error && !overview ? <div className="container"><p role="alert">{error} <button className="button button-secondary" type="button" onClick={() => void refresh()}>Újrapróbálás</button></p></div> : null}
       <HomeAuctionCarousel
         title="Fedezz fel lapokat"
+        autoAdvance={false}
         auctions={overview?.random_cards ?? []}
         sectionClassName="home-discovery-section home-random-cards"
         browsePath="/marketplace?tab=cards"

@@ -23,10 +23,11 @@ type Props = {
   emptyTitle?: string;
   browsePath?: string;
   browseLabel?: string;
+  autoAdvance?: boolean;
   children?: ReactNode;
 };
 
-export function HomeAuctionCarousel({ title, auctions, sectionClassName, isLoading = false, emptyTitle, browsePath = "/auctions", browseLabel = "Összes aukció", children }: Props) {
+export function HomeAuctionCarousel({ title, auctions, sectionClassName, isLoading = false, emptyTitle, browsePath = "/auctions", browseLabel = "Összes aukció", autoAdvance = true, children }: Props) {
   const [pageIndex, setPageIndex] = useState(0);
   const [pageSize, setPageSize] = useState(getPageSize);
   const [paused, setPaused] = useState(false);
@@ -76,12 +77,12 @@ export function HomeAuctionCarousel({ title, auctions, sectionClassName, isLoadi
   };
 
   useEffect(() => {
-    if (pageCount <= 1 || paused || hidden || reducedMotion) return;
+    if (!autoAdvance || pageCount <= 1 || paused || hidden || reducedMotion) return;
     const timer = window.setInterval(() => {
       if (Date.now() >= manualPauseUntil.current) setPageIndex((current) => current >= pageCount - 1 ? 0 : current + 1);
     }, 6000);
     return () => window.clearInterval(timer);
-  }, [pageCount, paused, hidden, reducedMotion]);
+  }, [autoAdvance, pageCount, paused, hidden, reducedMotion]);
 
   useEffect(() => { setPageIndex((current) => Math.min(current, pageCount - 1)); }, [pageCount]);
 
