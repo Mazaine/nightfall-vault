@@ -958,7 +958,7 @@ def list_auction_reviews(
     current_user: User | None = Depends(get_optional_current_user),
     limit: int = Query(default=20, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
-    sort: str = Query(default="balanced"),
+    sort: str = Query(default="newest"),
     db: Session = Depends(get_db),
 ) -> AuctionReviewPage:
     auction = get_auction_or_404(db, auction_id)
