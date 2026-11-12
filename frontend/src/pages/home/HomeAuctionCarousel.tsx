@@ -21,10 +21,12 @@ type Props = {
   sectionClassName: string;
   isLoading?: boolean;
   emptyTitle?: string;
+  browsePath?: string;
+  browseLabel?: string;
   children?: ReactNode;
 };
 
-export function HomeAuctionCarousel({ title, auctions, sectionClassName, isLoading = false, emptyTitle, children }: Props) {
+export function HomeAuctionCarousel({ title, auctions, sectionClassName, isLoading = false, emptyTitle, browsePath = "/auctions", browseLabel = "Összes aukció", children }: Props) {
   const [pageIndex, setPageIndex] = useState(0);
   const [pageSize, setPageSize] = useState(getPageSize);
   const [paused, setPaused] = useState(false);
@@ -97,13 +99,13 @@ export function HomeAuctionCarousel({ title, auctions, sectionClassName, isLoadi
       <div className="main-column">
         <div className="section-heading">
           <h2>{title}</h2>
-          <Link className="text-link" to="/auctions">Összes aukció</Link>
+          <Link className="text-link" to={browsePath}>{browseLabel}</Link>
         </div>
         {isLoading ? <div className="skeleton-grid" role="status" aria-label={`${title} betöltése`}>{Array.from({ length: pageSize }).map((_, index) => <div className="skeleton-card" key={index} />)}</div> : null}
         {!isLoading && auctions.length === 0 && emptyTitle ? (
           <div className="side-panel empty-state">
             <h3>{emptyTitle}</h3>
-            <Link className="button button-secondary" to="/auctions">Aukciók böngészése</Link>
+            <Link className="button button-secondary" to={browsePath}>{browseLabel}</Link>
           </div>
         ) : null}
         {!isLoading && auctions.length > 0 ? (

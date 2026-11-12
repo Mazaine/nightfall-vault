@@ -4055,3 +4055,40 @@ h3 {
   .vault-bulk-grid { grid-template-columns: minmax(0, 1fr); }
   .vault-match-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
+/* Two-column phone cards: fit controls inside the available card width. */
+@media (max-width: 560px) {
+  .marketplace-results-grid .auction-card-status-row {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    gap: .35rem;
+    min-width: 0;
+  }
+  .marketplace-results-grid .auction-card-status-row .status-badge {
+    max-width: 100%;
+    min-width: 0;
+    padding-inline: .4rem;
+    font-size: .7rem;
+    white-space: nowrap;
+  }
+  .marketplace-results-grid .auction-status-prefix { display: none; }
+  .marketplace-results-grid .auction-watchlist-toggle {
+    flex: 0 0 auto;
+    min-width: 2.25rem;
+    min-height: 2.25rem;
+    max-width: 100%;
+    justify-content: center;
+    padding: .25rem .5rem;
+    font-size: 1.1rem;
+    line-height: 1;
+  }
+  .marketplace-results-grid .auction-watchlist-label { display: none; }
+  .marketplace-results-grid .auction-content h3 {
+    font-size: clamp(.95rem, 4vw, 1.05rem);
+    line-height: 1.25;
+    min-height: 0;
+    -webkit-line-clamp: 3;
+  }
+  .marketplace-results-grid .auction-price-copy strong { overflow-wrap: anywhere; }
+  .marketplace-results-grid .auction-card-fixed > .auction-time { display: none; }
+}

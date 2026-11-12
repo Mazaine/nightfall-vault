@@ -1,26 +1,37 @@
-import { Link } from "react-router";
+import { useState, type FormEvent } from "react";
+import { Link, useNavigate } from "react-router";
 
 export function HomeHero() {
+  const navigate = useNavigate();
+  const [query, setQuery] = useState("");
+
+  function searchCards(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const params = new URLSearchParams({ tab: "cards" });
+    if (query.trim()) params.set("q", query.trim());
+    navigate(`/marketplace?${params.toString()}`);
+  }
+
   return (
     <section className="hero-section" aria-labelledby="hero-title">
       <div className="hero-media" aria-hidden="true" />
       <div className="container hero-layout">
         <div className="hero-copy">
           <p className="eyebrow">Nightfall Vault</p>
-          <h1 id="hero-title">
-            <span>A HKK-lapok</span>
-            <span>új otthona</span>
-          </h1>
+          <h1 id="hero-title"><span>A HKK-lapok</span><span>új otthona</span></h1>
           <p className="hero-lead">
-            Gyűjts, cserélj, vásárolj és licitálj egy helyen! Rendszerezd lapjaidat a Virtuális HKK Mappában, fedezd fel más gyűjtők ajánlatait, vagy hirdesd meg saját kártyáidat.
+            Fedezz fel különleges lapokat, licitálj, cserélj, vagy építsd fel saját gyűjteményed.
           </p>
+          <form className="home-hero-search" role="search" onSubmit={searchCards}>
+            <label className="home-search-label" htmlFor="home-card-search">Keress a kártyák között</label>
+            <div className="home-search-control">
+              <input id="home-card-search" type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Lap neve vagy kiadása…" maxLength={180} />
+              <button className="button button-primary" type="submit">Keresés</button>
+            </div>
+          </form>
           <div className="hero-actions" aria-label="Elsődleges műveletek">
-            <Link className="button button-primary" to="/marketplace">
-              Piactér felfedezése
-            </Link>
-            <Link className="button button-secondary" to="/vault">
-              Virtuális mappám
-            </Link>
+            <Link className="button button-secondary" to="/marketplace?tab=cards">Lapok böngészése</Link>
+            <Link className="button button-secondary" to="/vault">Virtuális mappám</Link>
           </div>
         </div>
       </div>

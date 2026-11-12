@@ -6,10 +6,13 @@ import { HomeFeatured } from "./home/HomeFeatured";
 import { HomeHero } from "./home/HomeHero";
 import { HomeDashboard } from "./home/HomeDashboard";
 import { HomeAuctionSection } from "./home/HomeAuctionSection";
+import { HomeAuctionCarousel } from "./home/HomeAuctionCarousel";
+import { HomeQuickLinks } from "./home/HomeQuickLinks";
+import "./home/HomeLanding.css";
 
 function updateSnapshot(overview: HomeAuctionOverview, snapshot: AuctionRealtimeSnapshot): HomeAuctionOverview {
   const update = (items: HomeAuctionOverview["featured"]) => items.map((auction) => auction.id === snapshot.auction_id ? { ...auction, status: snapshot.status, current_price: snapshot.current_price, highest_bid_id: snapshot.highest_bid_id, winner_id: snapshot.winner_id, ends_at: snapshot.ends_at, bid_count: snapshot.bid_count } : auction);
-  return { ...overview, featured: update(overview.featured), soon_ending: update(overview.soon_ending), new_auctions: update(overview.new_auctions) };
+  return { ...overview, featured: update(overview.featured), soon_ending: update(overview.soon_ending), new_auctions: update(overview.new_auctions), random_cards: update(overview.random_cards ?? []) };
 }
 
 export function HomePage() {
@@ -46,11 +49,20 @@ export function HomePage() {
   return (
     <>
       <HomeHero />
+      <HomeQuickLinks />
       <HomeDashboard overview={overview} />
       {error && !overview ? <div className="container"><p role="alert">{error} <button className="button button-secondary" type="button" onClick={() => void refresh()}>Újrapróbálás</button></p></div> : null}
+      <HomeAuctionCarousel
+        title="Fedezz fel lapokat"
+        auctions={overview?.random_cards ?? []}
+        sectionClassName="home-discovery-section home-random-cards"
+        browsePath="/marketplace?tab=cards"
+        browseLabel="Összes lap"
+        isLoading={!overview && !error}
+        emptyTitle="Jelenleg nincs elérhető fix áras HKK-lap. Nézz körül a Piactéren!"
+      />
       <HomeFeatured auctions={overview?.featured ?? []} isLoading={!overview && !error} />
       <HomeAuctionSection title="Hamarosan lejár" auctions={overview?.soon_ending ?? []} />
-      <HomeAuctionSection title="Új aukciók" auctions={overview?.new_auctions ?? []} />
     </>
   );
 }
