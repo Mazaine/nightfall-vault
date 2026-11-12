@@ -37,8 +37,8 @@
 
 /* Home cards share the same cell height. VIP highlighting stays visual only:
    move its label over the image instead of adding an extra content row. */
-.home-auction-grid { align-items: stretch; }
-.home-auction-grid > .auction-card { align-self: stretch; height: 100%; }
+.auction-grid.home-auction-grid:not(.marketplace-results-grid) { align-items: stretch; }
+.auction-grid.home-auction-grid:not(.marketplace-results-grid) > .auction-card { align-self: stretch; height: 100%; }
 .home-auction-grid .auction-card-featured .auction-card-badges { display: contents; }
 .home-auction-grid .auction-card-featured .vip-featured-badge {
   position: absolute;
