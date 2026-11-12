@@ -39,6 +39,17 @@ describe("AuctionsPage", () => {
     expect(screen.getByRole("button", { name: "Lista" })).toHaveAttribute("aria-pressed", "true");
   });
 
+  it("a Csomagok / boosterek és kiegészítők fül megtartja a bundle szűrést", async () => {
+    mocks.listAuctions.mockResolvedValue({ items: [], total: 0, limit: 24, offset: 0 });
+    render(<MemoryRouter initialEntries={["/marketplace?tab=bundles"]}><AuctionsPage /></MemoryRouter>);
+    expect(screen.getByRole("link", { name: "Csomagok / boosterek és kiegészítők" }))
+      .toHaveAttribute("href", "/marketplace?tab=bundles");
+    expect(screen.getByPlaceholderText("Csomag, booster vagy kiegészítő neve")).toBeInTheDocument();
+    await waitFor(() => expect(mocks.listAuctions).toHaveBeenCalledWith(
+      expect.objectContaining({ listing_format: "bundle", listing_type: "fixed" }),
+    ));
+  });
+
   it("az alapértelmezett rendezés eladónként váltakozik, a legújabb külön választható", async () => {
     mocks.listAuctions.mockResolvedValue({ items: [auction], total: 1, limit: 24, offset: 0 });
     render(<MemoryRouter><AuctionsPage /></MemoryRouter>);

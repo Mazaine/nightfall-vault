@@ -99,7 +99,7 @@ function activeFilterEntries(filters: FilterState) {
   return [
     filters.status === "active" ? { key: "status", label: "Aktív aukciók" } : null,
     filters.listing_type ? { key: "listing_type", label: filters.listing_type === "fixed" ? "Fix áras lapok" : "Aukciók" } : null,
-    filters.listing_format ? { key: "listing_format", label: filters.listing_format === "bundle" ? "Csomagok" : "Egyedi hirdetések" } : null,
+    filters.listing_format ? { key: "listing_format", label: filters.listing_format === "bundle" ? "Csomagok / boosterek és kiegészítők" : "Egyedi hirdetések" } : null,
     filters.q ? { key: "q", label: `Keresés: ${filters.q}` } : null,
     filters.title ? { key: "title", label: `Cím: ${filters.title}` } : null,
     filters.description ? { key: "description", label: `Leírás: ${filters.description}` } : null,
@@ -396,7 +396,7 @@ export function AuctionsPage() {
         <div>
           <p className="eyebrow">Piactér</p>
           <h1>Piactér</h1>
-          <p className="section-note">Aukciók, fix áras HKK-lapok és csomagok egy helyen.</p>
+          <p className="section-note">Aukciók, fix áras HKK-lapok, csomagok, boosterek és kiegészítők egy helyen.</p>
         </div>
         <Link className="button button-primary" to={marketTab === "auctions" ? "/auctions/create" : "/vault?area=trade"}>{marketTab === "auctions" ? "Aukció létrehozása" : "Hirdetés feladása"}</Link>
       </div>
@@ -404,7 +404,7 @@ export function AuctionsPage() {
       <nav className="marketplace-tabs" aria-label="Piactér kategóriák">
         <Link className={marketTab === "auctions" ? "is-active" : ""} aria-current={marketTab === "auctions" ? "page" : undefined} to="/marketplace?tab=auctions">Aukciók</Link>
         <Link className={marketTab === "cards" ? "is-active" : ""} aria-current={marketTab === "cards" ? "page" : undefined} to="/marketplace?tab=cards">Lapok</Link>
-        <Link className={marketTab === "bundles" ? "is-active" : ""} aria-current={marketTab === "bundles" ? "page" : undefined} to="/marketplace?tab=bundles">Csomagok</Link>
+        <Link className={marketTab === "bundles" ? "is-active" : ""} aria-current={marketTab === "bundles" ? "page" : undefined} to="/marketplace?tab=bundles">Csomagok / boosterek és kiegészítők</Link>
       </nav>
 
       <button
@@ -439,9 +439,9 @@ export function AuctionsPage() {
         </div> : null}
         <label className="filter-wide">
           Gyorskeresés
-          <input type="search" maxLength={180} placeholder={marketTab === "cards" ? "Lapnév vagy HKK ID" : marketTab === "bundles" ? "Csomagnév vagy tartalom" : "Cím vagy leírás"} value={filters.q} onChange={(event) => setFilters({ ...filters, q: event.target.value })} />
+          <input type="search" maxLength={180} placeholder={marketTab === "cards" ? "Lapnév vagy HKK ID" : marketTab === "bundles" ? "Csomag, booster vagy kiegészítő neve" : "Cím vagy leírás"} value={filters.q} onChange={(event) => setFilters({ ...filters, q: event.target.value })} />
         </label>
-        {marketTab !== "cards" ? <label>{marketTab === "bundles" ? "Csomagnév" : "Cím"}<input type="search" maxLength={180} value={filters.title} onChange={(event) => setFilters({ ...filters, title: event.target.value })} /></label> : null}
+        {marketTab !== "cards" ? <label>{marketTab === "bundles" ? "Terméknév" : "Cím"}<input type="search" maxLength={180} value={filters.title} onChange={(event) => setFilters({ ...filters, title: event.target.value })} /></label> : null}
         {marketTab !== "cards" ? <label>Leírás<input type="search" maxLength={180} value={filters.description} onChange={(event) => setFilters({ ...filters, description: event.target.value })} /></label> : null}
         <label>Eladó<input type="search" maxLength={80} value={filters.seller} onChange={(event) => setFilters({ ...filters, seller: event.target.value })} /></label>
         <label>
@@ -526,7 +526,7 @@ export function AuctionsPage() {
 
       {isLoading ? <LoadingState label="Aukciók betöltése" cards={4} /> : null}
       {error ? <ErrorState message={error} onRetry={() => void load()} /> : null}
-      {!isLoading && !error && auctions.length === 0 ? <EmptyState title={`Nincs a szűrésnek megfelelő ${marketTab === "auctions" ? "aukció" : marketTab === "cards" ? "lap" : "csomag"}.`} action={<button className="button button-secondary" type="button" onClick={resetFilters}>Szűrők törlése</button>} /> : null}
+      {!isLoading && !error && auctions.length === 0 ? <EmptyState title={`Nincs a szűrésnek megfelelő ${marketTab === "auctions" ? "aukció" : marketTab === "cards" ? "lap" : "csomag, booster vagy kiegészítő"}.`} action={<button className="button button-secondary" type="button" onClick={resetFilters}>Szűrők törlése</button>} /> : null}
 
       <div className={displayMode === "grid" ? "auction-grid page-grid marketplace-results-grid" : "marketplace-results-list"} aria-busy={isLoading}>
         {auctions.map((auction, index) => <AuctionCard item={toAuctionCardItem(auction)} index={index} detailPath={`/auctions/${auction.id}`} key={auction.id} />)}

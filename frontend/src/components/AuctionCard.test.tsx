@@ -137,6 +137,17 @@ describe("AuctionCard", () => {
     expect(regular.container.querySelector(".foil-card-frame")).toBeNull();
   });
 
+  it("egységes HKK-képkeretet kapnak az egyedi lapok, a boosterek nem", () => {
+    const single = render(<MemoryRouter><AuctionCard item={{ ...item, type: "Hatalom Kártyái Kártyajáték", listingFormat: "single" }} index={0} detailPath="/auctions/7" /></MemoryRouter>);
+    expect(single.container.querySelector(".auction-image.is-hkk-card")).toBeInTheDocument();
+    single.unmount();
+    const shopCard = render(<MemoryRouter><AuctionCard item={{ ...item, shopSource: "dicemagic", listingFormat: "single" }} index={0} detailPath="/auctions/7" /></MemoryRouter>);
+    expect(shopCard.container.querySelector(".auction-image.is-hkk-card")).toBeInTheDocument();
+    shopCard.unmount();
+    const booster = render(<MemoryRouter><AuctionCard item={{ ...item, shopSource: "dicemagic", listingFormat: "bundle" }} index={0} detailPath="/auctions/7" /></MemoryRouter>);
+    expect(booster.container.querySelector(".auction-image.is-hkk-card")).toBeNull();
+  });
+
   it("hibás kép helyett hozzáférhető fallbacket mutat", () => {
     render(<MemoryRouter><AuctionCard item={item} index={0} detailPath="/auctions/7" /></MemoryRouter>);
     fireEvent.error(screen.getByRole("img", { name: "Teszt kártya" }));
