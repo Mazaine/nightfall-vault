@@ -748,7 +748,7 @@ def test_marketplace_default_rotates_sellers_without_reordering_price_sort() -> 
                     auction.created_at = now - timedelta(minutes=position + (100 if name == "Small" else 0))
             db.commit()
 
-        response = client.get("/api/auctions", params={"sort": "newest", "listing_type": "fixed", "limit": 5})
+        response = client.get("/api/auctions", params={"sort": "balanced", "listing_type": "fixed", "limit": 5})
         assert response.status_code == 200, response.text
         ids = [row["id"] for row in response.json()["items"]]
         assert len(ids) == 5
@@ -756,6 +756,9 @@ def test_marketplace_default_rotates_sellers_without_reordering_price_sort() -> 
         assert ids[1] in created_ids["Small"]
         assert ids[2] in created_ids["Big"]
         assert ids[3] in created_ids["Small"]
+
+        chronological = client.get("/api/auctions", params={"sort": "newest", "listing_type": "fixed"}).json()["items"]
+        assert [item["id"] for item in chronological[:2]] == created_ids["Big"][:2]
 
         prices = client.get("/api/auctions", params={"sort": "lowest_price", "listing_type": "fixed"}).json()["items"]
         values = [float(row["current_price"]) for row in prices]

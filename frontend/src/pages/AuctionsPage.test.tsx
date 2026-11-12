@@ -39,6 +39,16 @@ describe("AuctionsPage", () => {
     expect(screen.getByRole("button", { name: "Lista" })).toHaveAttribute("aria-pressed", "true");
   });
 
+  it("az alapértelmezett rendezés eladónként váltakozik, a legújabb külön választható", async () => {
+    mocks.listAuctions.mockResolvedValue({ items: [auction], total: 1, limit: 24, offset: 0 });
+    render(<MemoryRouter><AuctionsPage /></MemoryRouter>);
+    await waitFor(() => expect(mocks.listAuctions).toHaveBeenCalledWith(expect.objectContaining({ sort: "balanced" })));
+    const sort = screen.getByLabelText("Rendezés");
+    expect(sort).toHaveValue("balanced");
+    fireEvent.change(sort, { target: { value: "newest" } });
+    expect(sort).toHaveValue("newest");
+  });
+
   it("backend találatot navigálható kártyán jelenít meg", async () => {
     mocks.listAuctions.mockResolvedValue({ items: [auction], total: 1, limit: 24, offset: 0 });
     render(<MemoryRouter><AuctionsPage /></MemoryRouter>);

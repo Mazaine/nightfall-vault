@@ -32,7 +32,7 @@ from app.storage.paths import media_url
 router = APIRouter(prefix="/api/auctions", tags=["auctions"])
 
 
-AUCTION_SORTS = {"newest", "oldest", "highest_price", "lowest_price", "most_bids", "fewest_bids", "soon_ending", "buy_now_first"}
+AUCTION_SORTS = {"balanced", "newest", "oldest", "highest_price", "lowest_price", "most_bids", "fewest_bids", "soon_ending", "buy_now_first"}
 
 
 def available_listing_quantity(auction: Auction) -> int | None:
@@ -150,13 +150,8 @@ def _apply_auction_sort(query, sort: str):
         else_=4,
     )
     featured_first = featured_auction_order()
-    # One result from each seller per pass; explicit numeric sorts remain exact.
     if sort == "oldest":
-        seller_round = func.row_number().over(
-            partition_by=(Auction.status, Auction.seller_id),
-            order_by=(Auction.created_at.asc(), Auction.id.asc()),
-        )
-        return query.order_by(status_last, seller_round, featured_first, Auction.created_at.asc(), Auction.id.asc())
+        return query.order_by(status_last, featured_first, Auction.created_at.asc(), Auction.id.asc())
     if sort == "highest_price":
         return query.order_by(status_last, featured_first, Auction.current_price.desc(), Auction.id.desc())
     if sort == "lowest_price":
@@ -169,11 +164,14 @@ def _apply_auction_sort(query, sort: str):
         return query.order_by(status_last, featured_first, Auction.ends_at.asc(), Auction.id.asc())
     if sort == "buy_now_first":
         return query.order_by(status_last, featured_first, Auction.buy_now_enabled.desc(), Auction.created_at.desc(), Auction.id.desc())
-    seller_round = func.row_number().over(
-        partition_by=(Auction.status, Auction.seller_id),
-        order_by=(Auction.created_at.desc(), Auction.id.desc()),
-    )
-    return query.order_by(status_last, seller_round, featured_first, Auction.created_at.desc(), Auction.id.desc())
+    if sort == "balanced":
+        # Default marketplace: each seller gets one slot per pass.
+        seller_round = func.row_number().over(
+            partition_by=(Auction.status, Auction.seller_id),
+            order_by=(Auction.created_at.desc(), Auction.id.desc()),
+        )
+        return query.order_by(status_last, seller_round, featured_first, Auction.created_at.desc(), Auction.id.desc())
+    return query.order_by(status_last, featured_first, Auction.created_at.desc(), Auction.id.desc())
 
 
 def auction_response(auction: Auction, user: User | None = None, db: Session | None = None) -> AuctionResponse:
@@ -237,7 +235,7 @@ def list_public_auctions(
     buy_now: bool | None = None,
     soon_ending: bool = False,
     new_only: bool = False,
-    sort: str = Query(default="newest"),
+    sort: str = Query(default="balanced"),
     limit: int = Query(default=24, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
     current_user: User | None = Depends(get_optional_current_user),
@@ -960,7 +958,7 @@ def list_auction_reviews(
     current_user: User | None = Depends(get_optional_current_user),
     limit: int = Query(default=20, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
-    sort: str = Query(default="newest"),
+    sort: str = Query(default="balanced"),
     db: Session = Depends(get_db),
 ) -> AuctionReviewPage:
     auction = get_auction_or_404(db, auction_id)

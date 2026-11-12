@@ -33,11 +33,11 @@ A külső rendelésnek idempotens azonosítója van; uncertain állapotban
 **soha ne készítsenek új rendelést** ugyanarra a vásárlásra.
 
 ## Eladói egyensúly
-Az alapértelmezett `newest` és `oldest` rendezés az aktív
-hirdetésekből **eladónként egyet mutat körönként**.
+Az alapértelmezett `balanced` / „Ajánlott · minden eladótól” rendezés
+**eladónként egyet mutat körönként**.
 A célzott keresési szűrőket nem változtatja meg.
-A kifejezetten kiválasztott ár, licit és lejárat rendezések
-szigorúan az általuk kért sorrendet tartják.
+A kifejezetten kiválasztott `newest`, `oldest`, ár-, licit- és lejárat-
+rendezések továbbra is a választott szempontot követik.
 A főoldal 8 véletlen készletes HKK-lapjánál szintén eladónként váltakozik a válogatás.
 
 ## Visszaállítás
