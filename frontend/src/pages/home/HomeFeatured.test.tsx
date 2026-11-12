@@ -11,18 +11,18 @@ function auction(id: number): Auction {
   return { id, seller_id: 1, title: `Kiemelt ${id}`, category: "Pokemon", condition: "like_new", status: "active", starting_price: "1000", bid_increment: "100", current_price: "1200", buy_now_enabled: true, buy_now_price: "2000", starts_at: "2026-07-01T10:00:00Z", ends_at: "2026-10-14T10:00:00Z", five_minute_rule_enabled: true, winner_id: null, highest_bid_id: null, images: [], bid_count: 2, is_featured: true };
 }
 
-const renderFeatured = (count = 5) => render(<MemoryRouter><HomeFeatured auctions={Array.from({ length: count }, (_, index) => auction(index + 1))} /></MemoryRouter>);
+const renderFeatured = (count = 6) => render(<MemoryRouter><HomeFeatured auctions={Array.from({ length: count }, (_, index) => auction(index + 1))} /></MemoryRouter>);
 
 describe("HomeFeatured", () => {
   beforeEach(() => { vi.useFakeTimers(); });
   afterEach(() => { vi.useRealTimers(); });
 
-  it("négy kártyát mutat, kézzel lapoz és körbefordul", () => {
+  it("öt kártyát mutat, kézzel lapoz és körbefordul", () => {
     renderFeatured();
-    expect(screen.getByText("Kiemelt 4")).toBeInTheDocument();
-    expect(screen.queryByText("Kiemelt 5")).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Következő kiemelt aukciók" }));
     expect(screen.getByText("Kiemelt 5")).toBeInTheDocument();
+    expect(screen.queryByText("Kiemelt 6")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Következő kiemelt aukciók" }));
+    expect(screen.getByText("Kiemelt 6")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Következő kiemelt aukciók" }));
     expect(screen.getByText("Kiemelt 1")).toBeInTheDocument();
   });
@@ -30,10 +30,10 @@ describe("HomeFeatured", () => {
   it("6 másodpercenként vált, hover és kézi vezérlés után szünetel", () => {
     const view = renderFeatured();
     act(() => { vi.advanceTimersByTime(6000); });
-    expect(screen.getByText("Kiemelt 5")).toBeInTheDocument();
+    expect(screen.getByText("Kiemelt 6")).toBeInTheDocument();
     fireEvent.mouseEnter(view.container.querySelector(".home-featured-section")!);
     act(() => { vi.advanceTimersByTime(12000); });
-    expect(screen.getByText("Kiemelt 5")).toBeInTheDocument();
+    expect(screen.getByText("Kiemelt 6")).toBeInTheDocument();
     fireEvent.mouseLeave(view.container.querySelector(".home-featured-section")!);
     fireEvent.click(screen.getByRole("button", { name: "Előző kiemelt aukciók" }));
     act(() => { vi.advanceTimersByTime(6000); });
@@ -41,12 +41,12 @@ describe("HomeFeatured", () => {
   });
 
   it("a véletlen lapok nem léptetnek automatikusan, de kézzel lapozhatók", () => {
-    const view = render(<MemoryRouter><HomeAuctionCarousel title="Fedezz fel lapokat" sectionClassName="home-random-cards" auctions={Array.from({ length: 5 }, (_, index) => auction(index + 1))} autoAdvance={false} /></MemoryRouter>);
+    const view = render(<MemoryRouter><HomeAuctionCarousel title="Fedezz fel lapokat" sectionClassName="home-random-cards" auctions={Array.from({ length: 6 }, (_, index) => auction(index + 1))} autoAdvance={false} /></MemoryRouter>);
     act(() => { vi.advanceTimersByTime(24000); });
     expect(screen.getByText("Kiemelt 1")).toBeInTheDocument();
-    expect(screen.queryByText("Kiemelt 5")).not.toBeInTheDocument();
+    expect(screen.queryByText("Kiemelt 6")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Következő fedezz fel lapokat" }));
-    expect(screen.getByText("Kiemelt 5")).toBeInTheDocument();
+    expect(screen.getByText("Kiemelt 6")).toBeInTheDocument();
     view.unmount();
     expect(vi.getTimerCount()).toBe(0);
   });
