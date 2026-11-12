@@ -37,3 +37,19 @@
 
 /* Auction cards on the homepage intentionally reuse the marketplace grid-card styles
    from global.css. Only carousel paging differs. */
+
+/* Home carousels use marketplace-density cards rather than four oversized columns.
+   Match the page-size breakpoints in HomeAuctionCarousel.tsx. */
+.auction-grid.home-auction-grid {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  align-items: stretch;
+}
+@media (max-width: 1100px) {
+  .auction-grid.home-auction-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 900px) {
+  .auction-grid.home-auction-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 560px) {
+  .auction-grid.home-auction-grid { grid-template-columns: minmax(0, 1fr); }
+}
