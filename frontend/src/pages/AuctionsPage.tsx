@@ -4,6 +4,7 @@ import { listAuctions, type Auction, type AuctionListParams, type HatalomEra } f
 import { createSavedSearch, deleteSavedSearch, listSavedSearches, type SavedSearch } from "../api/searches";
 import { useAuth } from "../AuthContext";
 import { AuctionCard } from "../components/AuctionCard";
+import { CardViewSwitch } from "../components/CardViewSwitch";
 import { EmptyState, ErrorState, LoadingState } from "../components/AsyncStates";
 import { toAuctionCardItem } from "../utils/auctionPresentation";
 import { useAuctionRealtime } from "../AuctionRealtimeContext";
@@ -519,10 +520,7 @@ export function AuctionsPage() {
 
       <div className="marketplace-results-toolbar">
         <span className="marketplace-results-count">{!isLoading && !error ? `${total} találat` : "Találatok"}</span>
-        <div className="vault-view-switch" role="group" aria-label="Piactér megjelenítése">
-          <button type="button" className={displayMode === "grid" ? "is-active" : ""} aria-pressed={displayMode === "grid"} onClick={() => changeDisplayMode("grid")}>Rács</button>
-          <button type="button" className={displayMode === "list" ? "is-active" : ""} aria-pressed={displayMode === "list"} onClick={() => changeDisplayMode("list")}>Lista</button>
-        </div>
+        <CardViewSwitch label="Piactér megjelenítése" value={displayMode} onChange={changeDisplayMode} />
       </div>
 
       {isLoading ? <LoadingState label="Aukciók betöltése" cards={4} /> : null}
