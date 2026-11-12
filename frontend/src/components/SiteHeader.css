@@ -9,11 +9,11 @@
 
 .site-header-inner {
   display: grid;
-  grid-template-columns: minmax(12rem, auto) minmax(0, 1fr) auto;
+  grid-template-columns: minmax(10rem, auto) minmax(0, 1fr) auto;
   gap: clamp(0.75rem, 1.4vw, var(--space-5));
   align-items: center;
   width: min(100% - 2rem, var(--container-page));
-  min-height: 5rem;
+  min-height: 4.75rem;
   margin-inline: auto;
 }
 
@@ -26,8 +26,8 @@
 
 .brand-logo {
   display: block;
-  width: clamp(14rem, 21vw, 24rem);
-  height: 6.6rem;
+  width: clamp(10rem, 15vw, 15rem);
+  height: 4.75rem;
   object-fit: contain;
   object-position: left center;
   filter: drop-shadow(0 12px 26px rgb(139 92 246 / 0.28));
@@ -48,7 +48,7 @@
   min-height: 2.75rem;
   border-radius: var(--radius-sm);
   color: var(--color-text-muted);
-  font-size: clamp(0.76rem, 0.78vw, var(--font-size-body-sm));
+  font-size: clamp(0.82rem, 0.9vw, var(--font-size-body-sm));
   font-weight: var(--font-weight-medium);
   padding: var(--space-2) clamp(0.42rem, 0.68vw, var(--space-3));
   transition: color var(--transition-ui), background var(--transition-ui);
@@ -246,7 +246,7 @@
 
   .menu-backdrop {
     position: fixed;
-    inset: 5rem 0 0;
+    inset: 4.75rem 0 0;
     z-index: -1;
     display: block;
     border: 0;
@@ -272,8 +272,8 @@
   }
 
   .brand-logo {
-    width: clamp(8.25rem, 39vw, 11rem);
-    height: 4.5rem;
+    width: clamp(8.25rem, 36vw, 10.5rem);
+    height: 4rem;
   }
 
   .site-nav {
