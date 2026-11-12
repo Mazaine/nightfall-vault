@@ -51,6 +51,7 @@ class VipActivateRequest(BaseModel):
 class VipStatusRead(BaseModel):
     is_vip: bool
     vip_expires_at: datetime | None
+    vip_lifetime: bool = False
     active_auction_limit: int | None
     active_auction_count: int
     featured_auctions: bool

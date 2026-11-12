@@ -23,6 +23,7 @@ class User(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     is_email_verified: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     vip_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
+    vip_lifetime: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
     vip_reminder_one_day: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
     vip_reminder_one_hour: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
     vip_reminder_five_minutes: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
