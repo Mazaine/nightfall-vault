@@ -278,6 +278,12 @@ def test_public_partner_listing_checkout_and_lifetime_vip(monkeypatch):
         entry = added.json()["items"][0]
         assert entry["shop_source"] == "dicemagic"
         assert entry["quantity"] == 2
+        assert entry["max_quantity"] == 3
+        overstock = api.post("/api/shop/dicemagic/cart", headers=buyer_headers, json={
+            "auction_id": auction_id, "quantity": 4,
+        })
+        assert overstock.status_code == 422
+        assert api.get("/api/cart", headers=buyer_headers).json()["items"][0]["quantity"] == 2
         assert api.get("/api/cart", headers=buyer_headers).json()["item_count"] == 1
         assert api.get("/api/cart", headers=other_headers).json()["item_count"] == 0
 
