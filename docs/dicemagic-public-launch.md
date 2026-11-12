@@ -45,3 +45,18 @@ A láthatóság visszavonása: `DICEMAGIC_VISIBILITY=admin_only`,
 majd az érintett konténerek újralétrehozása. A már elfogadott
 rendelések történetét és a készletfoglásokat **nem szabad törölni**;
 a folyamatban lévő vásárlók ügyét partnerrel külön kell kezelni.
+
+## DiceMagic-termékek besorolása
+A szinkron-API ellenőrzött `type` mezője alapján a `card` termékek
+a **Lapok** (single), a `booster` termékek a **Csomagok** (bundle)
+fülön jelennek meg. A bontatlan booster, display és hasonló termék egyetlen
+eladási egység, az import nem talál ki csomagtartalmat. Ez a már
+szinkronizált termékekre is érvényes a következő sikeres szinkronkor.
+Amennyiben a partner displayt `card` típussal küld, a felülvizsgálatig
+nem következtetünk csak a névből, a típust a partnerrel tisztázni kell.
+
+## Tesztrendelések
+Nem admin vásárló sem az admin végpontokon, sem a nyilvános checkout
+folyamatban nem adhat le `test_order=true` kérést; a backend 422-t ad.
+Az admin megerősített tesztrendelése a partnernél valódi megrendelés,
+ezért partneri egyeztetés nélkül nem indítható.

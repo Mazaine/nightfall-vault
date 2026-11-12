@@ -112,6 +112,8 @@ def test_import_visibility_shared_cart_durable_order_and_stale_stock(monkeypatch
             db.commit()
             summary = sync_products(db)
             assert summary["new"] == 2 and summary["boosters"] == 1
+            booster = db.scalar(select(DiceMagicProduct).where(DiceMagicProduct.outer_id == "booster-fixture"))
+            assert db.get(Auction, booster.auction_id).listing_format == "bundle"
             product = db.scalar(select(DiceMagicProduct).where(DiceMagicProduct.outer_id == "fixture-1"))
             auction_id = product.auction_id
             state(db).orders_enabled = True
@@ -123,6 +125,14 @@ def test_import_visibility_shared_cart_durable_order_and_stale_stock(monkeypatch
             public = api.get("/api/auctions", params={"listing_type": "fixed"}, headers=headers).json()
             assert all(row["id"] != auction_id for row in (public if isinstance(public, list) else public["items"]))
         assert api.get(f"/api/auctions/{auction_id}", headers=admin_headers).status_code == 200
+        bundles = api.get("/api/auctions", params={
+            "listing_type": "fixed", "listing_format": "bundle",
+        }, headers=admin_headers).json()["items"]
+        assert any(row["listing_format"] == "bundle" and row["shop_source"] == "dicemagic" for row in bundles)
+        singles = api.get("/api/auctions", params={
+            "listing_type": "fixed", "listing_format": "single",
+        }, headers=admin_headers).json()["items"]
+        assert all(row["listing_format"] == "single" for row in singles)
         assert api.post("/api/admin/integrations/dicemagic/cart", headers=user_headers, json={"auction_id": auction_id, "quantity": 1}).status_code == 403
         added = api.post("/api/admin/integrations/dicemagic/cart", headers=admin_headers, json={"auction_id": auction_id, "quantity": 2})
         assert added.status_code == 200, added.text

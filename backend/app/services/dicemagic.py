@@ -114,6 +114,9 @@ def sync_products(db, *, force=False):
         raise DiceMagicError("older_snapshot_rejected")
     summary = {"new": 0, "updated": 0, "inactive": 0, "cards": 0, "boosters": 0, "active": 0, "out_of_stock": 0}
     for raw, (stock, price, regular, variant) in zip(items, normalized):
+        # The partner's structured product type is authoritative.
+        # Each booster/display is one sealed sellable unit, not individual cards.
+        listing_format = "bundle" if raw["type"] == "booster" else "single"
         product = existing.pop(raw["outer_id"], None)
         if product is None:
             auction = Auction(seller_id=seller.id, creation_key=str(uuid4()), listing_type="fixed", listing_format="single", title=raw["name"][:180], description="DiceMagic bolti termék. Átutalás és átvétel egyeztetése a bolttal.", category="Hatalom Kártyái Kártyajáték", condition="NM", status="active", starting_price=0, bid_increment=1, current_price=price or 1, buy_now_enabled=True, buy_now_price=price or 1, starts_at=utcnow(), ends_at=utcnow()+timedelta(days=36500), seller_declaration_accepted_at=utcnow(), seller_declaration_version="dicemagic-v1", shop_source="dicemagic")
@@ -128,6 +131,7 @@ def sync_products(db, *, force=False):
         active = bool(price and raw["in_stock"] and stock != 0)
         product.snapshot, product.stock, product.active, product.synced_at = raw, stock, active, utcnow()
         product.snapshot_generated_at = generated_at
+        auction.listing_format = listing_format
         auction.title = raw["name"][:180]
         auction.shop_edition = raw.get("edition")
         auction.shop_variant = raw.get("graphic_type")
