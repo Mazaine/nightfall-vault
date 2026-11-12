@@ -4,6 +4,7 @@ import { blockUser, unblockUser } from "../api/blocks";
 import { createUserReport, userReportReasons } from "../api/reports";
 import { followSeller, getPublicUserProfile, listPublicBusinessHistory, listPublicUserReviews, unfollowSeller, type PublicBusinessHistoryItem, type PublicReview, type PublicUserProfile } from "../api/users";
 import { apiAssetUrl } from "../api/client";
+import { CardImageZoom } from "../components/CardImageZoom";
 import { useAuth } from "../AuthContext";
 import { ReportDialog } from "../components/ReportDialog";
 import { formatLocalDateTime, formatMoney, formatRemainingTime } from "../utils/format";
@@ -39,7 +40,7 @@ function BusinessHistory({ items }: { items: PublicBusinessHistoryItem[] }) {
   if (items.length === 0) return <p className="empty-state">Még nincs publikus üzleti előzmény.</p>;
   return <div className="business-history-list">{items.map((item) => (
     <article className="business-history-row" key={item.auction_id}>
-      <div className="business-history-image">{item.image_url ? <img src={apiAssetUrl(item.image_url)} alt="" loading="lazy" /> : <span aria-hidden="true">◇</span>}</div>
+      <div className="business-history-image card-image-zoom-host">{item.image_url ? <><img src={apiAssetUrl(item.image_url)} alt="" loading="lazy" /><CardImageZoom src={apiAssetUrl(item.image_url)} alt={item.auction_title} /></> : <span aria-hidden="true">◇</span>}</div>
       <div className="business-history-copy">
         <Link className="text-link" to={`/auctions/${item.auction_id}`}><strong>{item.auction_title}</strong></Link>
         <span>{formatLocalDateTime(item.closed_at)}</span>
