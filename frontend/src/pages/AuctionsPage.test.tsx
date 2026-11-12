@@ -57,6 +57,9 @@ describe("AuctionsPage", () => {
     mocks.listAuctions.mockResolvedValue({ items: [{ ...auction, images: [{ id: 1, auction_id: 12, storage_key: "legacy-original", url: "/media/original.webp", list_url: "/media/list.webp", original_filename: "card.png", content_type: "image/webp", file_size: 10, position: 0, is_cover: true, created_at: "2026-07-01T10:00:00Z" }] }], total: 1, limit: 24, offset: 0 });
     render(<MemoryRouter><AuctionsPage /></MemoryRouter>);
     expect(await screen.findByRole("img", { name: "Publikus aukció" })).toHaveAttribute("src", "http://localhost:8000/media/list.webp");
+    fireEvent.click(screen.getByRole("button", { name: "Lap nagyítása: Publikus aukció" }));
+    expect(screen.getByRole("dialog", { name: "Publikus aukció" })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Publikus aukció nagyított képe" })).toHaveAttribute("src", "http://localhost:8000/media/original.webp");
   });
 
   it("mobilon összecsukva indul, alkalmazás után címkéket mutat és a találatokhoz görget", async () => {
