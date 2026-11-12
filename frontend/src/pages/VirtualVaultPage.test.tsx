@@ -91,7 +91,7 @@ describe("VirtualVaultPage", () => {
     render(<VirtualVaultPage />);
     await screen.findByText("Mi történt a mappádban?");
     fireEvent.click(screen.getByRole("button", { name: "Gyűjtemény" }));
-    const ownedCard = (await screen.findByText("Xenó lárva")).closest(".vault-card")!;
+    const ownedCard = (await screen.findByText("Xenó lárva")).closest<HTMLElement>(".vault-card")!;
     const meta = ownedCard.querySelector(".vault-card-properties > small");
     expect(meta).toHaveTextContent("Ritka");
     expect(meta).toHaveAttribute("title", expect.stringContaining("Lény"));
@@ -99,7 +99,7 @@ describe("VirtualVaultPage", () => {
     expect(within(ownedCard).getByRole("button", { name: "Eladás vagy aukció" })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Csere" }));
-    const tradeCard = (await screen.findByText("Xenó lárva")).closest(".vault-card")!;
+    const tradeCard = (await screen.findByText("Xenó lárva")).closest<HTMLElement>(".vault-card")!;
     expect(tradeCard).toHaveTextContent("2 db · Normál");
     expect(tradeCard).not.toHaveTextContent("#101");
     expect(within(tradeCard).getByRole("button", { name: "Eltávolítás a cseremappából" })).toBeInTheDocument();
@@ -110,7 +110,7 @@ describe("VirtualVaultPage", () => {
     render(<VirtualVaultPage />);
     await screen.findByText("Mi történt a mappádban?");
     fireEvent.click(screen.getByRole("button", { name: "Csere" }));
-    const tradeCard = (await screen.findByText("Xenó lárva")).closest(".vault-card")!;
+    const tradeCard = (await screen.findByText("Xenó lárva")).closest<HTMLElement>(".vault-card")!;
     expect(within(tradeCard).queryByText("Még senki nem jelölte keresettnek.")).not.toBeInTheDocument();
     expect(within(tradeCard).getByRole("button", { name: "Xenó lárva eladása" })).toBeInTheDocument();
   });
