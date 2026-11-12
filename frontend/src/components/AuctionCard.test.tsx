@@ -97,7 +97,7 @@ describe("AuctionCard", () => {
   });
 
   it("a mobilrács ikonfigyelése teljes hozzáférhető névvel működik", () => {
-    const view = render(<MemoryRouter><AuctionCard item={{ ...item, listingType: "fixed", statusLabel: "Aktív" }} index={0} detailPath="/auctions/7" /></MemoryRouter>);
+    const view = render(<MemoryRouter><AuctionCard item={{ ...item, sellerId: 1, listingType: "fixed", statusLabel: "Aktív" }} index={0} detailPath="/auctions/7" /></MemoryRouter>);
     const button = screen.getByRole("button", { name: "Figyelőlistára" });
     expect(button).toHaveAttribute("title", "Figyelőlistára teszem");
     expect(button.querySelector(".auction-watchlist-label")).toHaveTextContent("Figyelőlistára");
