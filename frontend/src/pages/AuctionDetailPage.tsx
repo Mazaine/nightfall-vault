@@ -11,6 +11,7 @@ import { useAuctionRealtime } from "../AuctionRealtimeContext";
 import { AuctionCountdown } from "../components/AuctionCountdown";
 import { ReportDialog } from "../components/ReportDialog";
 import { SafeImage } from "../components/SafeImage";
+import { CardImageZoom } from "../components/CardImageZoom";
 import { ChatTransactionPanel } from "../components/ChatTransactionPanel";
 import { AuctionCancelDialog, BidConfirmationDialog, BidWithdrawalDialog } from "../components/BidDialogs";
 import { addWatchlistItem, auctionStreamUrl, cancelAuction, createAuctionMessage, createAuctionReview, getAuction, getAuctionPresence, listAuctionBids, listAuctionMessages, listRelatedAuctions, listSellerOtherAuctions, markAuctionMessagesRead, placeAuctionBid, listAuctionReviews, requestAuctionPhoto, sendTyping, withdrawAuctionBid, type Auction, type AuctionBid, type AuctionMessage, type AuctionRealtimeSnapshot, type AuctionReview, type BidWithdrawalReason, type NotificationItem } from "../api/auctions";
@@ -477,6 +478,7 @@ export function AuctionDetailPage() {
             width={1200}
             height={1200}
           />}
+          {bundleMontage.length ? <CardImageZoom src={bundleMontage[0]?.src} alt={`${auction.title} – csomag első lapja`} /> : <CardImageZoom src={selectedImage ? apiAssetUrl(selectedImage.detail_url ?? selectedImage.url) : referenceImageUrl} alt={auction.title} />}
           {referenceImageUrl ? <span className="auction-reference-image-badge">HKK referenciakép</span> : null}
           {galleryImages.length > 1 ? (
             <>
