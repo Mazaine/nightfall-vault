@@ -287,6 +287,7 @@ export function AuctionCard({
       {outcomeLabel ? <div className={`auction-outcome-badge is-${item.outcomeStatus}`}>{outcomeLabel}</div> : personalStatus ? <div className={`auction-personal-badge is-${personalStatus}`}>{personalStatus === "leading" ? "Te vezetsz" : personalStatus === "outbid" ? "Túllicitáltak" : personalStatus === "watched" ? "Figyelőlistán" : "Kiszálltál"}</div> : null}
 
       <div className="auction-content">
+        <div className="auction-card-details">
         {item.shopSource && item.shopRegularPrice && Number(item.currentAmount) < item.shopRegularPrice ? <p><del>{formatMoney(item.shopRegularPrice)}</del> · Akció</p> : null}
         <div className="auction-card-badges" aria-hidden={!item.isFeatured && !item.isDemo}>
           {item.listingFormat === "bundle" ? <span className="status-badge">CSOMAG · {item.bundleItemCount} lap / {item.bundleCopyCount} példány</span> : null}
@@ -325,6 +326,8 @@ export function AuctionCard({
             </>}
           </span>
         </div>
+        </div>
+        <div className="auction-card-transaction">
         <div className="auction-commerce-block">
           {isFixedPrice ? <div className="auction-price-action-row auction-fixed-price-row">
             <div className="auction-price-copy"><span>Fix ár</span><strong>{item.buyNowPrice ? formatCardMoney(item.buyNowPrice) : displayPrice}</strong></div>
@@ -358,6 +361,7 @@ export function AuctionCard({
         </div>
         <div className="auction-actions-slot">{showOpenAction ? <div className="auction-actions"><Link className="button button-secondary" to={detailPath}>Aukció megnyitása</Link></div> : null}</div>
         {actionMessage ? <p className="form-message auction-action-message" role="status" aria-live="polite">{actionMessage}</p> : null}
+        </div>
       </div>
       {pendingBid ? <BidConfirmationDialog amountLabel={formatMoney(pendingBid.amount)} isBuyNow={pendingBid.isBuyNow} busy={isActionPending} onClose={() => { if (!isActionPending) setPendingBid(null); }} onConfirm={(disableFuture) => void confirmPendingBid(disableFuture)} /> : null}
       {pendingPurchase && item.buyNowAmount ? <FixedPurchaseDialog title={item.title} unitPrice={item.buyNowAmount} quantity={purchaseQuantity} maxQuantity={item.listingFormat === "bundle" ? 1 : availableQuantity} busy={isActionPending} onQuantityChange={setPurchaseQuantity} onClose={() => { if (!isActionPending) setPendingPurchase(false); }} onConfirm={() => void buyFixedPrice()}/> : null}
