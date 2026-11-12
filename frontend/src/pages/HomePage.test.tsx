@@ -18,11 +18,20 @@ vi.mock("./home/HomeHero", () => ({ HomeHero: () => <div>Hero</div> }));
 vi.mock("./home/HomeDashboard", () => ({ HomeDashboard: ({ overview }: { overview: HomeAuctionOverview | null }) => <div data-testid="active-count">{overview?.active_count}</div> }));
 vi.mock("./home/HomeFeatured", () => ({ HomeFeatured: ({ auctions }: { auctions: HomeAuctionOverview["featured"] }) => <div data-testid="bid-count">{auctions[0]?.bid_count}</div> }));
 vi.mock("./home/HomeAuctionSection", () => ({ HomeAuctionSection: () => null }));
+vi.mock("./home/HomeQuickLinks", () => ({ HomeQuickLinks: () => <div>Gyors elérés</div> }));
+vi.mock("./home/HomeAuctionCarousel", () => ({ HomeAuctionCarousel: ({ title, auctions }: { title: string; auctions: HomeAuctionOverview["featured"] }) => <div data-testid="random-cards">{title}: {auctions.map((a) => a.title).join(", ")}</div> }));
 
 const initial: HomeAuctionOverview = { active_count: 1, active_bid_count: 0, outbid_count: 0, draft_count: 0, open_transaction_count: 0, featured: [{ id: 5, seller_id: 1, title: "Kiemelt", category: "Pokemon", condition: "NM", status: "active", starting_price: "1000", bid_increment: "100", current_price: "1200", buy_now_enabled: false, buy_now_price: null, starts_at: "2026-09-01T10:00:00Z", ends_at: "2026-10-01T10:00:00Z", five_minute_rule_enabled: false, winner_id: null, highest_bid_id: null, images: [], bid_count: 2 }], soon_ending: [], new_auctions: [] };
 
 describe("HomePage realtime", () => {
   afterEach(() => { vi.useRealTimers(); mocks.get.mockReset(); mocks.listener = null; mocks.unsubscribe.mockReset(); });
+  it("nem a legújabb aukciókat, hanem a készletes véletlen lapokat mutatja", async () => {
+    mocks.get.mockResolvedValue({ ...initial, new_auctions: [{ ...initial.featured[0], id: 20, title: "Új feltöltés" }], random_cards: [{ ...initial.featured[0], id: 21, title: "Készletes lap" }] });
+    const view = render(<HomePage />);
+    await waitFor(() => expect(screen.getByTestId("random-cards")).toHaveTextContent("Készletes lap"));
+    expect(screen.getByTestId("random-cards")).not.toHaveTextContent("Új feltöltés");
+    view.unmount();
+  });
   it("SSE után azonnal frissíti a licitszámot, majd összevontan újrakéri a számlálókat", async () => {
     mocks.get.mockResolvedValueOnce(initial).mockResolvedValue({ ...initial, active_count: 2, featured: [{ ...initial.featured[0], bid_count: 3 }] });
     const view = render(<HomePage />);

@@ -576,6 +576,46 @@ def test_home_overview_counts_order_and_private_watch_aggregation() -> None:
     cleanup_test_data()
 
 
+def test_home_random_cards_only_include_available_visible_hkk_stock() -> None:
+    cleanup_test_data()
+    seller = create_test_user("seller-random-home@auction-test.local", role="admin")
+    buyer = create_test_user("buyer-random-home@auction-test.local")
+    now = datetime.now(timezone.utc)
+    ids = []
+    for index in range(3):
+        response = client.post(
+            "/api/auctions",
+            json=auction_payload(title=f"Random stock {index}", category="Hatalom Kártyái Kártyajáték"),
+            headers=auth_headers(seller),
+        )
+        assert response.status_code == 201, response.text
+        ids.append(response.json()["id"])
+    with SessionLocal() as db:
+        for index, auction_id in enumerate(ids):
+            auction = db.get(Auction, auction_id)
+            auction.status = "active"
+            auction.starts_at = now - timedelta(hours=1)
+            auction.ends_at = now + timedelta(days=1)
+            auction.listing_type = "fixed"
+            auction.listing_format = "single"
+            auction.vault_quantity = 2 if index == 0 else None
+            if index == 2:
+                auction.shop_source = "dicemagic"
+                auction.shop_stock = 5
+        db.commit()
+
+    try:
+        public = client.get("/api/auctions/home")
+        buyer_response = client.get("/api/auctions/home", headers=auth_headers(buyer))
+        admin_response = client.get("/api/auctions/home", headers=auth_headers(seller))
+        assert public.status_code == buyer_response.status_code == admin_response.status_code == 200
+        assert [item["id"] for item in public.json()["random_cards"]] == [ids[0]]
+        assert [item["id"] for item in buyer_response.json()["random_cards"]] == [ids[0]]
+        assert {item["id"] for item in admin_response.json()["random_cards"]} == {ids[0], ids[2]}
+    finally:
+        cleanup_test_data()
+
+
 def test_home_personal_bid_query_compiles_with_joined_bid() -> None:
     from sqlalchemy import true
     from sqlalchemy.dialects import postgresql

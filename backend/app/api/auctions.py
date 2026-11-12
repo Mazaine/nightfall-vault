@@ -378,9 +378,27 @@ def home_auction_overview(
             featured_ids.extend(db.scalars(ordered.limit(min(24, featured_total) - len(featured_ids))).all())
     soon_ids = list(db.scalars(select(Auction.id).where(active, Auction.ends_at <= now + timedelta(hours=24)).order_by(Auction.ends_at.asc(), Auction.id.asc()).limit(4)).all())
     new_ids = list(db.scalars(select(Auction.id).where(active).order_by(Auction.starts_at.desc(), Auction.id.desc()).limit(4)).all())
-    all_ids = set(featured_ids + soon_ids + new_ids)
+    # Real, available HKK singles; never bypass the marketplace's demo/shop visibility.
+    available_stock = or_(
+        and_(Auction.shop_source.is_(None), Auction.vault_quantity > 0),
+        and_(Auction.shop_source.is_not(None), Auction.shop_stock > 0),
+    )
+    random_ids = list(db.scalars(
+        select(Auction.id).where(
+            Auction.status == "active",
+            Auction.listing_type == "fixed",
+            Auction.listing_format == "single",
+            Auction.category == "Hatalom Kártyái Kártyajáték",
+            Auction.deleted_at.is_(None),
+            Auction.starts_at <= now,
+            Auction.ends_at > now,
+            available_stock,
+            visible,
+        ).order_by(func.random()).limit(8)
+    ).all())
+    all_ids = set(featured_ids + soon_ids + new_ids + random_ids)
     if not all_ids:
-        return HomeAuctionOverview(active_count=active_count, active_bid_count=active_bid_count, outbid_count=outbid_count, draft_count=draft_count, open_transaction_count=open_transaction_count, featured=[], soon_ending=[], new_auctions=[])
+        return HomeAuctionOverview(active_count=active_count, active_bid_count=active_bid_count, outbid_count=outbid_count, draft_count=draft_count, open_transaction_count=open_transaction_count, featured=[], soon_ending=[], new_auctions=[], random_cards=[])
     home_statement = select(Auction).options(selectinload(Auction.seller), selectinload(Auction.images), joinedload(Auction.bundle_items), selectinload(Auction.highest_bid)).where(Auction.id.in_(all_ids))
     auctions = {auction.id: auction for auction in db.execute(home_statement).unique().scalars().all()}
     bid_counts = dict(db.execute(select(Bid.auction_id, func.count(Bid.id)).where(Bid.auction_id.in_(all_ids), Bid.status == "active").group_by(Bid.auction_id)).all())
@@ -407,7 +425,7 @@ def home_auction_overview(
             elif auction_id in watched_ids:
                 personal_status = "watched"
         items[auction_id] = auction_list_item(auction, int(bid_counts.get(auction_id, 0)), seller_average_rating=average, seller_review_count=review_count, viewer=current_user, viewer_personal_status=personal_status, viewer_is_watched=auction_id in watched_ids)
-    return HomeAuctionOverview(active_count=active_count, active_bid_count=active_bid_count, outbid_count=outbid_count, draft_count=draft_count, open_transaction_count=open_transaction_count, featured=[items[id] for id in featured_ids], soon_ending=[items[id] for id in soon_ids], new_auctions=[items[id] for id in new_ids])
+    return HomeAuctionOverview(active_count=active_count, active_bid_count=active_bid_count, outbid_count=outbid_count, draft_count=draft_count, open_transaction_count=open_transaction_count, featured=[items[id] for id in featured_ids], soon_ending=[items[id] for id in soon_ids], new_auctions=[items[id] for id in new_ids], random_cards=[items[id] for id in random_ids])
 
 
 @router.post("", response_model=AuctionResponse, status_code=status.HTTP_201_CREATED)

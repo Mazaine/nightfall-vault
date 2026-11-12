@@ -542,6 +542,7 @@ class HomeAuctionOverview(BaseModel):
     featured: list[AuctionListItem]
     soon_ending: list[AuctionListItem]
     new_auctions: list[AuctionListItem]
+    random_cards: list[AuctionListItem] = Field(default_factory=list)
 
 
 class AuctionStatusResponse(BaseModel):
