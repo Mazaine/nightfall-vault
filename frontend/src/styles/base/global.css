@@ -4252,3 +4252,46 @@ h3 {
   .vault-collection-grid .vault-card-direct-actions { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .vault-collection-grid .vault-card-action-icon { min-height: 2.35rem; }
 }
+
+/* Matching results are also HKK cards; the bulk editor keeps its compact layout. */
+.vault-match-grid {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 13.75rem), 1fr));
+  align-items: stretch;
+}
+.vault-match-grid > .vault-match-card {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  align-self: stretch;
+  gap: .5rem;
+  padding: .75rem;
+}
+.vault-match-grid .vault-match-card-image {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  max-width: none;
+  height: clamp(14rem, 20vw, 18rem);
+  aspect-ratio: auto;
+  padding: .35rem;
+}
+.vault-match-grid .vault-match-card-image .card-image-preview-thumbnail {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.vault-match-grid .vault-match-card > strong {
+  display: -webkit-box;
+  min-height: 2.5em;
+  overflow: hidden;
+  line-height: 1.25;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+.vault-match-grid .vault-match-card > .button { margin-top: auto; }
+@media (max-width: 760px) {
+  .vault-match-grid .vault-match-card-image { height: clamp(12rem, 52vw, 17rem); }
+}
+@media (max-width: 560px) {
+  .vault-match-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
