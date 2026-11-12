@@ -11,6 +11,7 @@ from app.schemas.user import PublicAuctionSummary, PublicBusinessHistoryPage, Pu
 from app.services.user_blocks import is_blocked_by
 from app.services.membership import featured_auction_order
 from app.services.demo_visibility import auction_visibility_clause, can_access_demo_auctions
+from app.services.dicemagic_access import dicemagic_public
 from app.storage.paths import media_url
 
 router = APIRouter(prefix="/api/users", tags=["users"])
@@ -20,9 +21,19 @@ REVIEW_SORTS = {"newest", "oldest", "rating_high", "rating_low"}
 
 
 def _public_user_or_404(db: Session, username: str) -> User:
-    user = db.scalar(select(User).where(User.username == username, User.deleted_at.is_(None), User.is_active.is_(True)))
+    user = db.scalar(select(User).where(User.username == username, User.deleted_at.is_(None)))
     if user is None:
         raise HTTPException(status_code=404, detail="A felhasználó nem található.")
+    if not user.is_active:
+        # Only the non-login partner shop identity is publicly inspectable.
+        partner_profile = (
+            dicemagic_public()
+            and user.username == "dicemagic_shop"
+            and user.email == "dicemagic-integration@nightfall.invalid"
+            and not user.password_login_enabled
+        )
+        if not partner_profile:
+            raise HTTPException(status_code=404, detail="A felhasználó nem található.")
     return user
 
 
