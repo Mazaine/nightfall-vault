@@ -84,6 +84,8 @@ const PUBLIC_STATUS_ORDER: Partial<Record<Auction["status"], number>> = {
 };
 
 const MOBILE_FILTER_MEDIA_QUERY = "(max-width: 760px)";
+const MARKETPLACE_DISPLAY_MODE_KEY = "nightfall-vault-marketplace-display-mode";
+type MarketplaceDisplayMode = "grid" | "list";
 
 function isMobileFilterViewport() {
   return typeof window !== "undefined" && Boolean(window.matchMedia?.(MOBILE_FILTER_MEDIA_QUERY).matches);
@@ -176,6 +178,10 @@ export function AuctionsPage() {
   const [showMoreSavedSearches, setShowMoreSavedSearches] = useState(false);
   const [isMobile, setIsMobile] = useState(isMobileFilterViewport);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [displayMode, setDisplayMode] = useState<MarketplaceDisplayMode>(() => {
+    try { return window.localStorage.getItem(MARKETPLACE_DISPLAY_MODE_KEY) === "list" ? "list" : "grid"; }
+    catch { return "grid"; }
+  });
   const resultsRef = useRef<HTMLDivElement>(null);
   const previousTabRef = useRef<MarketTab>(marketTab);
   const tabFiltersRef = useRef<Record<MarketTab, FilterState>>({ auctions: { ...INITIAL_FILTERS }, cards: { ...INITIAL_FILTERS }, bundles: { ...INITIAL_FILTERS } });
@@ -207,6 +213,11 @@ export function AuctionsPage() {
     mediaQuery.addEventListener?.("change", updateViewport);
     return () => mediaQuery.removeEventListener?.("change", updateViewport);
   }, []);
+
+  const changeDisplayMode = (mode: MarketplaceDisplayMode) => {
+    setDisplayMode(mode);
+    try { window.localStorage.setItem(MARKETPLACE_DISPLAY_MODE_KEY, mode); } catch { /* The selection still works when storage is disabled. */ }
+  };
 
   const focusResultsOnMobile = () => {
     if (!isMobile) return;
@@ -506,11 +517,19 @@ export function AuctionsPage() {
           <button className="button button-ghost" type="button" onClick={resetFilters}>Szűrők törlése</button>
         </div> : null}
 
+      <div className="marketplace-results-toolbar">
+        <span className="marketplace-results-count">{!isLoading && !error ? `${total} találat` : "Találatok"}</span>
+        <div className="vault-view-switch" role="group" aria-label="Piactér megjelenítése">
+          <button type="button" className={displayMode === "grid" ? "is-active" : ""} aria-pressed={displayMode === "grid"} onClick={() => changeDisplayMode("grid")}>Rács</button>
+          <button type="button" className={displayMode === "list" ? "is-active" : ""} aria-pressed={displayMode === "list"} onClick={() => changeDisplayMode("list")}>Lista</button>
+        </div>
+      </div>
+
       {isLoading ? <LoadingState label="Aukciók betöltése" cards={4} /> : null}
       {error ? <ErrorState message={error} onRetry={() => void load()} /> : null}
       {!isLoading && !error && auctions.length === 0 ? <EmptyState title={`Nincs a szűrésnek megfelelő ${marketTab === "auctions" ? "aukció" : marketTab === "cards" ? "lap" : "csomag"}.`} action={<button className="button button-secondary" type="button" onClick={resetFilters}>Szűrők törlése</button>} /> : null}
 
-      <div className="auction-grid page-grid" aria-busy={isLoading}>
+      <div className={displayMode === "grid" ? "auction-grid page-grid marketplace-results-grid" : "marketplace-results-list"} aria-busy={isLoading}>
         {auctions.map((auction, index) => <AuctionCard item={toAuctionCardItem(auction)} index={index} detailPath={`/auctions/${auction.id}`} key={auction.id} />)}
       </div>
 
