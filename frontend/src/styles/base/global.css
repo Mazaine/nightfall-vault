@@ -252,7 +252,7 @@ h3 {
 h1 {
   max-width: 15ch;
   margin-bottom: var(--space-4);
-  font-size: var(--font-size-display);
+  font-size: var(--font-size-page-title, clamp(2rem, 4vw, 3.4rem));
   line-height: var(--line-height-tight);
   text-transform: uppercase;
 }
@@ -565,6 +565,25 @@ h3 {
   gap: var(--space-2);
   margin-top: auto;
   grid-template-rows: minmax(3.1rem, auto) minmax(3.45rem, auto) minmax(1.25rem, auto);
+}
+
+/* Fixed-price listings have one price row, not the three auction rows. */
+.auction-card-fixed {
+  height: auto;
+  align-self: start;
+}
+
+.auction-card-fixed .auction-content {
+  align-content: start;
+}
+
+.auction-card-fixed .auction-commerce-block {
+  margin-top: 0;
+  grid-template-rows: auto;
+}
+
+.auction-actions-slot:empty {
+  display: none;
 }
 
 .auction-price-action-row {
@@ -1148,7 +1167,7 @@ h3 {
 .marketplace-page { padding-top: clamp(1.25rem, 2.5vw, 2.5rem); }
 .marketplace-hero { min-height: 0; align-items: center; margin-bottom: var(--space-4); border: 1px solid var(--color-divider); border-radius: var(--radius-lg); background: linear-gradient(100deg, rgb(38 20 63 / .48), rgb(12 10 17 / .92)); padding: clamp(1rem, 2.5vw, 2rem); }
 .marketplace-hero .eyebrow { margin-bottom: .25rem; }
-.marketplace-hero h1 { margin: 0; font-size: clamp(2rem, 4vw, 3.4rem); }
+.marketplace-hero h1 { margin: 0; }
 .marketplace-hero .section-note { margin: .35rem 0 0; }
 .marketplace-tabs { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-bottom: var(--space-5); border-bottom: 1px solid var(--color-divider); }
 .marketplace-tabs a { border-bottom: 2px solid transparent; color: var(--color-text-muted); padding: .75rem 1rem; font-weight: var(--font-weight-semibold); text-decoration: none; }
@@ -2386,8 +2405,6 @@ h3 {
 
 .reports-page-heading h1 {
   max-width: none;
-  font-size: clamp(2.4rem, 4vw, 3.5rem);
-  line-height: 1;
 }
 
 .reports-list {
@@ -2508,8 +2525,6 @@ h3 {
 
 .blocked-users-page-heading h1 {
   max-width: none;
-  font-size: clamp(2.25rem, 4vw, 3.5rem);
-  line-height: 1.02;
 }
 
 .blocked-users-list {
