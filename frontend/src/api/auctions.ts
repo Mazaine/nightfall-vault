@@ -328,8 +328,8 @@ export type HomeAuctionOverview = {
   random_cards?: Auction[];
 };
 
-export function getHomeAuctionOverview() {
-  return apiRequest<HomeAuctionOverview>("/api/auctions/home");
+export function getHomeAuctionOverview(includeRandom = true) {
+  return apiRequest<HomeAuctionOverview>(`/api/auctions/home${includeRandom ? "" : "?include_random=false"}`);
 }
 
 export function getAuction(auctionId: string | number) {

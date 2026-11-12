@@ -342,6 +342,7 @@ def _home_personal_bid_statement(user_id: int, active_filter):
 
 @router.get("/home", response_model=HomeAuctionOverview)
 def home_auction_overview(
+    include_random: bool = True,
     current_user: User | None = Depends(get_optional_current_user),
     db: Session = Depends(get_db),
 ) -> HomeAuctionOverview:
@@ -378,24 +379,27 @@ def home_auction_overview(
             featured_ids.extend(db.scalars(ordered.limit(min(24, featured_total) - len(featured_ids))).all())
     soon_ids = list(db.scalars(select(Auction.id).where(active, Auction.ends_at <= now + timedelta(hours=24)).order_by(Auction.ends_at.asc(), Auction.id.asc()).limit(4)).all())
     new_ids = list(db.scalars(select(Auction.id).where(active).order_by(Auction.starts_at.desc(), Auction.id.desc()).limit(4)).all())
-    # Real, available HKK singles; never bypass the marketplace's demo/shop visibility.
-    available_stock = or_(
-        and_(Auction.shop_source.is_(None), Auction.vault_quantity > 0),
-        and_(Auction.shop_source.is_not(None), Auction.shop_stock > 0),
-    )
-    random_ids = list(db.scalars(
-        select(Auction.id).where(
-            Auction.status == "active",
-            Auction.listing_type == "fixed",
-            Auction.listing_format == "single",
-            Auction.category == "Hatalom Kártyái Kártyajáték",
-            Auction.deleted_at.is_(None),
-            Auction.starts_at <= now,
-            Auction.ends_at > now,
-            available_stock,
-            visible,
-        ).order_by(func.random()).limit(8)
-    ).all())
+    random_ids: list[int] = []
+    if include_random:
+        # Select once per page load, not after SSE/visibility refreshes.
+        # Never bypass the marketplace's demo/shop visibility restrictions.
+        available_stock = or_(
+            and_(Auction.shop_source.is_(None), Auction.vault_quantity > 0),
+            and_(Auction.shop_source.is_not(None), Auction.shop_stock > 0),
+        )
+        random_ids = list(db.scalars(
+            select(Auction.id).where(
+                Auction.status == "active",
+                Auction.listing_type == "fixed",
+                Auction.listing_format == "single",
+                Auction.category == "Hatalom Kártyái Kártyajáték",
+                Auction.deleted_at.is_(None),
+                Auction.starts_at <= now,
+                Auction.ends_at > now,
+                available_stock,
+                visible,
+            ).order_by(func.random()).limit(8)
+        ).all())
     all_ids = set(featured_ids + soon_ids + new_ids + random_ids)
     if not all_ids:
         return HomeAuctionOverview(active_count=active_count, active_bid_count=active_bid_count, outbid_count=outbid_count, draft_count=draft_count, open_transaction_count=open_transaction_count, featured=[], soon_ending=[], new_auctions=[], random_cards=[])

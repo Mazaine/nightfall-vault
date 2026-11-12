@@ -608,7 +608,10 @@ def test_home_random_cards_only_include_available_visible_hkk_stock() -> None:
         public = client.get("/api/auctions/home")
         buyer_response = client.get("/api/auctions/home", headers=auth_headers(buyer))
         admin_response = client.get("/api/auctions/home", headers=auth_headers(seller))
-        assert public.status_code == buyer_response.status_code == admin_response.status_code == 200
+        background_response = client.get("/api/auctions/home?include_random=false", headers=auth_headers(seller))
+        assert public.status_code == buyer_response.status_code == admin_response.status_code == background_response.status_code == 200
+        assert background_response.json()["random_cards"] == []
+        assert background_response.json()["active_count"] == admin_response.json()["active_count"]
         assert [item["id"] for item in public.json()["random_cards"]] == [ids[0]]
         assert [item["id"] for item in buyer_response.json()["random_cards"]] == [ids[0]]
         assert {item["id"] for item in admin_response.json()["random_cards"]} == {ids[0], ids[2]}

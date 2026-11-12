@@ -32,6 +32,26 @@ describe("HomePage realtime", () => {
     expect(screen.getByTestId("random-cards")).not.toHaveTextContent("Új feltöltés");
     view.unmount();
   });
+  it("háttérfrissítéskor megőrzi a korábban kiválasztott lapokat", async () => {
+    mocks.get.mockResolvedValueOnce({
+      ...initial, random_cards: [{ ...initial.featured[0], id: 21, title: "Kiválasztott lap" }],
+    }).mockResolvedValue({
+      ...initial, active_count: 2, random_cards: [{ ...initial.featured[0], id: 22, title: "Másik lap" }],
+    });
+    const view = render(<HomePage />);
+    await waitFor(() => expect(screen.getByTestId("random-cards")).toHaveTextContent("Kiválasztott lap"));
+    const hiddenDescriptor = Object.getOwnPropertyDescriptor(document, "hidden");
+    Object.defineProperty(document, "hidden", { configurable: true, value: false });
+    vi.useFakeTimers();
+    act(() => { mocks.listener?.({ auction_id: 5, status: "active", current_price: "1300", highest_bid_id: null, winner_id: null, ends_at: "2026-10-01T10:00:00Z", bid_count: 3, bids: [] }); });
+    await act(async () => { vi.advanceTimersByTime(500); await Promise.resolve(); });
+    expect(mocks.get).toHaveBeenNthCalledWith(1, true);
+    expect(mocks.get).toHaveBeenNthCalledWith(2, false);
+    expect(screen.getByTestId("random-cards")).toHaveTextContent("Kiválasztott lap");
+    expect(screen.getByTestId("random-cards")).not.toHaveTextContent("Másik lap");
+    view.unmount();
+    if (hiddenDescriptor) Object.defineProperty(document, "hidden", hiddenDescriptor);
+  });
   it("SSE után azonnal frissíti a licitszámot, majd összevontan újrakéri a számlálókat", async () => {
     mocks.get.mockResolvedValueOnce(initial).mockResolvedValue({ ...initial, active_count: 2, featured: [{ ...initial.featured[0], bid_count: 3 }] });
     const view = render(<HomePage />);
