@@ -28,10 +28,12 @@ export function formatHkkRarity(value: string | null | undefined): string | null
   return label ? `${value} – ${label}` : value;
 }
 
-export function hkkCardImageUrl(externalCardId: string, fallback: string | null | undefined, variant: "normal" | "fa" | "gfa" = "normal"): string {
+export function hkkCardImageUrl(externalCardId: string, fallback: string | null | undefined, variant: "normal" | "foil" | "fa" | "gfa" = "normal"): string {
   const normalizedId = externalCardId.trim();
   if (/^[1-9][0-9]*$/.test(normalizedId)) {
-    const search = variant === "normal" ? "" : `?variant=${variant}`;
+    // Physical foil uses the normal official artwork with an independent UI finish.
+    // Full Art and Golden Full Art have actual secondary official images.
+    const search = variant === "normal" || variant === "foil" ? "" : `?variant=${variant}`;
     return apiAssetUrl(`/api/vault/hkk/images/${normalizedId}${search}`);
   }
   return apiAssetUrl(fallback);

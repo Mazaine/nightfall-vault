@@ -5,10 +5,11 @@ import "./CardImageZoom.css";
 type Props = {
   src?: string | null;
   alt: string;
+  foil?: boolean;
 };
 
 /** Small zoom control for trading-card images, with a readable full-screen viewer. */
-export function CardImageZoom({ src, alt }: Props) {
+export function CardImageZoom({ src, alt, foil = false }: Props) {
   const [open, setOpen] = useState(false);
   const [zoom, setZoom] = useState(1);
   const trigger = useRef<HTMLButtonElement>(null);
@@ -74,6 +75,7 @@ export function CardImageZoom({ src, alt }: Props) {
           </header>
           <div className="card-image-zoom-viewport">
             <img
+              className={foil ? "foil-zoom-image" : undefined}
               src={src}
               alt={`${alt} nagyított képe`}
               draggable={false}

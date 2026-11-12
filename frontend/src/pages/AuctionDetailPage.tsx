@@ -439,7 +439,12 @@ export function AuctionDetailPage() {
   const availableQuantity = Math.max(0, auction.shop_source ? Math.min(999, auction.available_quantity ?? (auction.status === "active" ? 999 : 0)) : auction.available_quantity ?? (auction.status === "active" ? (auction.listing_format === "bundle" ? 1 : auction.vault_quantity ?? 0) : 0));
 
   const galleryImages = [...auction.images].sort((left, right) => left.position - right.position);
-  const referenceImageUrl = auction.shop_image_url || (!galleryImages.length && auction.vault_external_card_id ? hkkCardImageUrl(auction.vault_external_card_id, null) : "");
+  const printVariant = auction.vault_print_variant === "foil" || auction.vault_print_variant === "fa" || auction.vault_print_variant === "gfa"
+    ? auction.vault_print_variant : "normal";
+  const referenceImageUrl = auction.shop_image_url || (!galleryImages.length && auction.vault_external_card_id ? hkkCardImageUrl(auction.vault_external_card_id, null, printVariant) : "");
+  const foilFrame = !auction.shop_source && !galleryImages.length && auction.listing_format !== "bundle"
+    && auction.category === "Hatalom Kártyái Kártyajáték"
+    && Boolean(auction.vault_external_card_id) && printVariant === "foil";
   const bundleItems = auction.bundle_items ?? [];
   const bundleMontage = !galleryImages.length && bundleItems.length ? bundleItems.slice(0, 4).map((item) => ({
     id: item.id,
@@ -471,14 +476,14 @@ export function AuctionDetailPage() {
   return (
     <section className="container page-shell detail-layout">
       <div className="auction-gallery">
-        <div className={`detail-media auction-image${bundleMontage.length ? " is-bundle-montage" : ""}`}>
-          {bundleMontage.length ? <div className="auction-bundle-montage is-detail" aria-label="A csomag automatikus borítója">{bundleMontage.map((item) => <div className="detail-bundle-card-zoom card-image-zoom-host" key={item.id}><SafeImage src={item.src} alt={item.name} width={600} height={840}/><CardImageZoom src={item.src} alt={item.name}/></div>) }{bundleItems.length > 4 ? <strong>+{bundleItems.length - 4} további lap</strong> : null}</div> : <SafeImage
+        <div className={`detail-media auction-image${bundleMontage.length ? " is-bundle-montage" : ""}${foilFrame ? " is-foil" : ""}`}>
+          {bundleMontage.length ? <div className="auction-bundle-montage is-detail" aria-label="A csomag automatikus borítója">{bundleMontage.map((item) => <div className="detail-bundle-card-zoom card-image-zoom-host" key={item.id}><SafeImage src={item.src} alt={item.name} width={600} height={840}/><CardImageZoom src={item.src} alt={item.name}/></div>) }{bundleItems.length > 4 ? <strong>+{bundleItems.length - 4} további lap</strong> : null}</div> : foilFrame ? <span className="foil-card-frame" aria-label="Foil változat szivárványos kerettel"><SafeImage src={referenceImageUrl} alt={auction.title} width={1200} height={1200}/></span> : <SafeImage
             src={selectedImage ? apiAssetUrl(selectedImage.detail_url ?? selectedImage.url) : referenceImageUrl}
             alt={selectedImage ? `${auction.title} – ${selectedImageIndex + 1}. kép` : auction.title}
             width={1200}
             height={1200}
           />}
-          {!bundleMontage.length ? <CardImageZoom src={selectedImage ? apiAssetUrl(selectedImage.detail_url ?? selectedImage.url) : referenceImageUrl} alt={auction.title} /> : null}
+          {!bundleMontage.length ? <CardImageZoom src={selectedImage ? apiAssetUrl(selectedImage.detail_url ?? selectedImage.url) : referenceImageUrl} alt={auction.title} foil={foilFrame} /> : null}
           {referenceImageUrl ? <span className="auction-reference-image-badge">HKK referenciakép</span> : null}
           {galleryImages.length > 1 ? (
             <>

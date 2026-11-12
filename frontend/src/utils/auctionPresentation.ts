@@ -7,9 +7,17 @@ export function toAuctionCardItem(auction: Auction) {
   const sellerName = auction.seller?.full_name ?? auction.seller?.username ?? "Eladó";
   const coverImage = auction.images.find((image) => image.is_cover) ?? auction.images[0];
   const bundleItems = auction.bundle_items ?? [];
+  const printVariant = auction.vault_print_variant === "foil" || auction.vault_print_variant === "fa" || auction.vault_print_variant === "gfa"
+    ? auction.vault_print_variant : "normal";
+  // A single listed physical print variant controls its finish; DiceMagic images
+  // are always preserved as the partner supplies them.
+  const foilFrame = !auction.shop_source && !coverImage && auction.listing_format !== "bundle"
+    && auction.category === "Hatalom Kártyái Kártyajáték"
+    && Boolean(auction.vault_external_card_id) && printVariant === "foil";
   return {
     id: auction.id,
     shopSource: auction.shop_source,
+    foilFrame,
     shopRegularPrice: auction.shop_regular_price,
     listingType: auction.listing_type ?? "auction",
     sellerId: auction.seller_id,
@@ -33,10 +41,10 @@ export function toAuctionCardItem(auction: Auction) {
     isClosed: ["ended", "sold", "unsold", "cancelled", "suspended"].includes(auction.status),
     imageUrl: auction.shop_image_url || (coverImage
       ? apiAssetUrl(coverImage.list_url ?? coverImage.thumbnail_url ?? coverImage.url)
-      : auction.vault_external_card_id ? hkkCardImageUrl(auction.vault_external_card_id, null) : ""),
+      : auction.vault_external_card_id ? hkkCardImageUrl(auction.vault_external_card_id, null, printVariant) : ""),
     zoomImageUrl: auction.shop_image_url || (coverImage
       ? apiAssetUrl(coverImage.detail_url ?? coverImage.url)
-      : auction.vault_external_card_id ? hkkCardImageUrl(auction.vault_external_card_id, null) : ""),
+      : auction.vault_external_card_id ? hkkCardImageUrl(auction.vault_external_card_id, null, printVariant) : ""),
     listingFormat: auction.listing_format ?? "single",
     availableQuantity: Math.max(0, auction.shop_source ? Math.min(999, auction.available_quantity ?? (auction.status === "active" ? 999 : 0)) : auction.available_quantity ?? (auction.status === "active" ? (auction.listing_format === "bundle" ? 1 : auction.vault_quantity ?? 0) : 0)),
     bundleItemCount: bundleItems.length,

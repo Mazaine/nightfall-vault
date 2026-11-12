@@ -107,3 +107,52 @@
   .card-image-zoom-dialog { width: 100%; height: 100dvh; border: 0; border-radius: 0; }
   .card-image-zoom-trigger { width: 2.2rem; height: 2.2rem; right: .25rem; bottom: .25rem; }
 }
+
+
+/* Foil print finish on private HKK reference images only.
+   The card picture remains an unmodified official normal image; Full Art
+   and Golden Full Art always load their own variant image without this style. */
+.auction-image.is-foil {
+  display: grid;
+  place-items: center;
+}
+.auction-image.is-foil > .foil-card-frame {
+  position: relative;
+  display: block;
+  box-sizing: border-box;
+  height: 100%;
+  max-height: 100%;
+  width: auto;
+  max-width: 100%;
+  aspect-ratio: 5 / 7;
+  overflow: hidden;
+  border: 3px solid transparent;
+  border-radius: .35rem;
+  background: linear-gradient(#100e1c, #100e1c) padding-box,
+    conic-gradient(from 18deg, #57efff, #ac68ff, #ff65cf, #ffe681, #7cffb4, #57efff) border-box;
+  box-shadow: 0 0 .65rem rgb(138 84 245 / .28), 0 0 .35rem rgb(82 235 250 / .2);
+}
+.auction-image.is-foil > .foil-card-frame img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.auction-image.is-foil > .foil-card-frame::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(115deg, transparent 30%, rgb(130 226 255 / .09) 43%,
+    rgb(251 194 255 / .16) 50%, rgb(247 236 158 / .1) 57%, transparent 70%);
+  mix-blend-mode: screen;
+}
+
+.card-image-zoom-viewport img.foil-zoom-image {
+  box-sizing: border-box;
+  border: 4px solid transparent;
+  border-radius: .4rem;
+  background: linear-gradient(#090910, #090910) padding-box,
+    conic-gradient(#57efff, #ac68ff, #ff65cf, #ffe681, #7cffb4, #57efff) border-box;
+  box-shadow: 0 0 1.2rem rgb(138 84 245 / .35);
+}

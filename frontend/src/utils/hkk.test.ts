@@ -13,6 +13,7 @@ describe("HKK megjelenítési segédek", () => {
   });
 
   it("az igazolt FA/GFA képet a változat-paraméteres saját proxyból tölti", () => {
+    expect(hkkCardImageUrl("12064", null, "foil")).toBe("http://localhost:8000/api/vault/hkk/images/12064");
     expect(hkkCardImageUrl("12064", null, "fa")).toBe("http://localhost:8000/api/vault/hkk/images/12064?variant=fa");
     expect(hkkCardImageUrl("12064", null, "gfa")).toBe("http://localhost:8000/api/vault/hkk/images/12064?variant=gfa");
   });

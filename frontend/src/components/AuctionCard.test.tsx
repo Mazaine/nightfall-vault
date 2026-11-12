@@ -129,6 +129,14 @@ describe("AuctionCard", () => {
     expect(screen.getByLabelText("2 licit érkezett")).toHaveTextContent("2 licit");
   });
 
+  it("csak a saját foil referenciaképén van szivárványos keret, FA/GFA/DiceMagic nem kapja", () => {
+    const foil = render(<MemoryRouter><AuctionCard item={{ ...item, type: "Hatalom Kártyái Kártyajáték", foilFrame: true, listingFormat: "single" }} index={0} detailPath="/auctions/7" /></MemoryRouter>);
+    expect(foil.container.querySelector(".auction-image.is-foil .foil-card-frame")).toBeInTheDocument();
+    foil.unmount();
+    const regular = render(<MemoryRouter><AuctionCard item={{ ...item, type: "Hatalom Kártyái Kártyajáték", foilFrame: false, listingFormat: "single" }} index={0} detailPath="/auctions/7" /></MemoryRouter>);
+    expect(regular.container.querySelector(".foil-card-frame")).toBeNull();
+  });
+
   it("hibás kép helyett hozzáférhető fallbacket mutat", () => {
     render(<MemoryRouter><AuctionCard item={item} index={0} detailPath="/auctions/7" /></MemoryRouter>);
     fireEvent.error(screen.getByRole("img", { name: "Teszt kártya" }));
