@@ -1,8 +1,6 @@
 from datetime import date, timedelta
-from urllib.parse import urlsplit
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, Response, status
-from fastapi.responses import RedirectResponse
 from sqlalchemy import delete, func, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -16,7 +14,7 @@ from app.models.vault import VaultCardLoan, VaultCollectionCard, VaultDeck, Vaul
 from app.schemas.vault import BulkCardOperation, BulkCardOperationResult, CardLoanBatchCreate, CardLoanCreate, CardLoanRead, CardRead, CollectionCardCreate, CollectionCardUpdate, CollectionTradeUpdate, CollectionVariantCreate, CommunityTradeCardRead, CommunityTradeOwnerRead, CommunityTradePage, DeckCardCreate, DeckCardRead, DeckCardUpdate, DeckCreate, DeckRead, DeckUpdate, FolderCreate, FolderRead, FolderReorder, FolderUpdate, HkkEditionCards, HkkEditionImport, HkkEditionImportResult, HkkEditionRead, HkkMarketPriceSuggestion, HkkSearchResult, PointHistory, PointTransactionRead, PublicTradeCardRead, QuantityUpdate, TradeCardCreate, TradeCardSeekerRead, TradeMessageCreate, TradeOfferAccept, TradeOfferUpdate, TradeRead, TradeReviewCreate, TradeReviewRead, VaultMaintenanceRead, VaultMatchesSeen, VaultMatchStatus, VaultSummary, WantedCardCreate, WantedUpdate
 from app.services.notifications import create_notification
 from app.services.vault import account_for, buy_capacity_pack, card_snapshot_values, collection_card_for_user, complete_trade, fetch_hkk_card_image, folder_for_user, folder_used, grant_points, hkk_edition_cards, hkk_market_price_suggestion, import_hkk_edition, list_hkk_editions, point_balance, require_allocatable, require_collection_pocket_limit, require_valid_card_snapshot, reserved_listing_quantity, reserved_trade_listing_quantity, search_hkk_cards, total_collection_capacity, trade_for_participant, utc_now
-from app.services.hkk_variants import attestation_map, require_attested_variant, variant_metadata
+from app.services.hkk_variants import require_attested_variant, variant_metadata
 from app.services.vault_matches import mark_vault_matches_seen, sync_vault_matches, sync_vault_matches_for_card, unseen_vault_matches
 from app.services.user_blocks import ensure_not_blocked, has_block_between
 
@@ -1623,36 +1621,8 @@ def hkk_search(q: str | None = Query(default=None, max_length=120), limit: int =
 
 
 @router.get("/hkk/images/{card_id}", include_in_schema=False)
-def hkk_card_image(card_id: int = Path(gt=0), variant: str = Query(default="normal", pattern=r"^(normal|foil|fa|gfa)$"), db: Session = Depends(get_db)) -> Response:
-    if variant == "foil":
-        # Only use a separate, independently attested official foil artwork.
-        # The HKK catalog usually gives foil and normal the SAME source image;
-        # foil existence by itself does not mean an alternate photo exists.
-        variants = attestation_map(db, str(card_id))
-        foil = variants.get("foil")
-        normal = variants.get("normal")
-        if foil and foil.status == "exists" and foil.image_url:
-            candidate = foil.image_url
-            parsed = urlsplit(candidate)
-            normal_url = normal.image_url if normal else (
-                f"{settings.hkk_catalog_base_url.rstrip('/')}/HKKCardImage.php?cardID={card_id}"
-            )
-            if (
-                candidate != normal_url
-                and foil.manually_verified
-                and parsed.scheme == "https"
-                and parsed.hostname in {
-                    "lapkereso.hkk.hu", "verseny.hkk.hu",
-                    "www.beholder.hu", "beholder.hu",
-                }
-                and not parsed.username and not parsed.password
-            ):
-                return RedirectResponse(candidate, status_code=307, headers={
-                    "Cache-Control": "public, max-age=3600",
-                })
-        # Fallback is explicitly the official NORMAL reference image. It
-        # does not claim to be an actual foil photograph.
-    elif variant != "normal":
+def hkk_card_image(card_id: int = Path(gt=0), variant: str = Query(default="normal", pattern=r"^(normal|fa|gfa)$"), db: Session = Depends(get_db)) -> Response:
+    if variant != "normal":
         statuses, images, _ = variant_metadata(db, str(card_id))
         if statuses.get(variant) != "exists" or variant not in images:
             raise HTTPException(status_code=404, detail="Ehhez a lapváltozathoz nincs igazolt hivatalos kép.")

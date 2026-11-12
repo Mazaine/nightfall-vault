@@ -9,9 +9,15 @@ export function toAuctionCardItem(auction: Auction) {
   const bundleItems = auction.bundle_items ?? [];
   const printVariant = auction.vault_print_variant === "foil" || auction.vault_print_variant === "fa" || auction.vault_print_variant === "gfa"
     ? auction.vault_print_variant : "normal";
+  // A single listed physical print variant controls its finish; DiceMagic images
+  // are always preserved as the partner supplies them.
+  const foilFrame = !auction.shop_source && !coverImage && auction.listing_format !== "bundle"
+    && auction.category === "Hatalom Kártyái Kártyajáték"
+    && Boolean(auction.vault_external_card_id) && printVariant === "foil";
   return {
     id: auction.id,
     shopSource: auction.shop_source,
+    foilFrame,
     shopRegularPrice: auction.shop_regular_price,
     listingType: auction.listing_type ?? "auction",
     sellerId: auction.seller_id,

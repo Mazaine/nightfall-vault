@@ -59,6 +59,7 @@ type AuctionCardProps = {
     sellerProfilePath?: string;
     imageUrl?: string;
     zoomImageUrl?: string;
+    foilFrame?: boolean;
     statusLabel?: string;
     bidCount?: number;
     canBid?: boolean;
@@ -278,8 +279,8 @@ export function AuctionCard({
       onClick={(event) => { if (!(event.target as HTMLElement).closest("a,button,input,select,textarea")) navigate(detailPath); }}
       onKeyDown={(event) => { if ((event.key === "Enter" || event.key === " ") && event.target === event.currentTarget) { event.preventDefault(); navigate(detailPath); } }}
     >
-      <div className={`auction-image${(item.shopSource || item.type === "Hatalom Kártyái Kártyajáték") && item.listingFormat === "single" ? " is-hkk-card" : ""}`}>
-        {item.montageImages?.length ? <div className="auction-bundle-montage" aria-label={`${item.title} csomag borítója`}>{item.montageImages.map((src) => <SafeImage src={src} alt="" loading="lazy" decoding="async" width={350} height={490} key={src}/>) }{(item.bundleItemCount ?? 0) > 4 ? <strong>+{(item.bundleItemCount ?? 0) - 4} további lap</strong> : null}</div> : <SafeImage src={item.imageUrl} alt={item.title} loading="lazy" decoding="async" width={700} height={700} onError={() => setImageFailed(true)} />}
+      <div className={`auction-image${(item.shopSource || item.type === "Hatalom Kártyái Kártyajáték") && item.listingFormat === "single" ? " is-hkk-card" : ""}${item.foilFrame ? " is-foil" : ""}`}>
+        {item.montageImages?.length ? <div className="auction-bundle-montage" aria-label={`${item.title} csomag borítója`}>{item.montageImages.map((src) => <SafeImage src={src} alt="" loading="lazy" decoding="async" width={350} height={490} key={src}/>) }{(item.bundleItemCount ?? 0) > 4 ? <strong>+{(item.bundleItemCount ?? 0) - 4} további lap</strong> : null}</div> : item.foilFrame ? <span className="foil-card-frame" aria-label="Foil változat szivárványos kerettel"><SafeImage src={item.imageUrl} alt={item.title} loading="lazy" decoding="async" width={700} height={700} onError={() => setImageFailed(true)} /></span> : <SafeImage src={item.imageUrl} alt={item.title} loading="lazy" decoding="async" width={700} height={700} onError={() => setImageFailed(true)} />}
         {!imageFailed ? <CardImageZoom src={item.montageImages?.[0] ?? item.zoomImageUrl ?? item.imageUrl} alt={item.title} /> : null}
       </div>
       <span className={`auction-condition-badge condition-${cardCondition.value.toLowerCase()}`} title={`${cardCondition.value} – ${cardCondition.nameHu} (${cardCondition.nameEn})`}>{cardCondition.value}</span>
