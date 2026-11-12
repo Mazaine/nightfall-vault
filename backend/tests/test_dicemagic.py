@@ -240,11 +240,13 @@ def test_public_partner_listing_checkout_and_lifetime_vip(monkeypatch):
         buyer_headers = {"Authorization": "Bearer " + create_access_token(subject=users[0])}
         other_headers = {"Authorization": "Bearer " + create_access_token(subject=users[1])}
         assert api.get(f"/api/auctions/{auction_id}").status_code == 404
+        assert api.get("/api/users/dicemagic_shop").status_code == 404
         assert api.post("/api/shop/dicemagic/cart", headers=buyer_headers,
                         json={"auction_id": auction_id, "quantity": 1}).status_code == 404
 
         monkeypatch.setattr(settings, "dicemagic_visibility", "public")
         assert api.get(f"/api/auctions/{auction_id}").status_code == 200
+        assert api.get("/api/users/dicemagic_shop").status_code == 200
         assert any(row["id"] == auction_id for row in api.get("/api/auctions", params={"listing_type": "fixed"}).json()["items"])
         assert api.get("/api/shop/dicemagic/status", headers=buyer_headers).json()["enabled"] is True
         assert api.post("/api/admin/integrations/dicemagic/cart", headers=buyer_headers,

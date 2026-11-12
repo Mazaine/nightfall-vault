@@ -9,7 +9,7 @@ from decimal import Decimal
 from uuid import uuid4
 from urllib.parse import urlsplit
 from fastapi import HTTPException
-from sqlalchemy import select, text
+from sqlalchemy import func, select, text
 from app.core.config import settings
 from app.services.dicemagic_access import can_buy_dicemagic
 from app.models.auction import Auction
@@ -196,6 +196,18 @@ def prepare_order(db, user, key, items, details):
         raise HTTPException(422, "Tesztrendelést csak adminisztrátor adhat fel.")
     if not 1 <= len(items) <= 100:
         raise HTTPException(422, "Legfeljebb 100 bolti tétel rendelhető.")
+    if user.role != "admin":
+        # Stop public unsubmitted checkouts from blocking arbitrary inventory.
+        if not settings.dicemagic_real_order_enabled or not state(db).orders_enabled:
+            raise HTTPException(409, "A bolti rendelésküldés jelenleg nem elérhető.")
+        if len(items) > 30:
+            raise HTTPException(422, "Egyszerre legfeljebb 30 különböző bolti tétel rendelhető.")
+        pending = int(db.scalar(select(func.count(DiceMagicOrder.id)).where(
+            DiceMagicOrder.buyer_id == user.id,
+            DiceMagicOrder.status.in_(("queued", "sending", "unknown")),
+        )) or 0)
+        if pending:
+            raise HTTPException(409, "Előbb a már folyamatban lévő bolti rendelésedet fejezd be.")
     lines, holds = [], []
     for item in sorted(items, key=lambda row: row.auction_id):
         if not 1 <= item.quantity <= 999:
