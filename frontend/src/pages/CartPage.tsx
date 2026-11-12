@@ -119,7 +119,15 @@ export function CartPage() {
       <div className="cart-list">{cart.items.map((item) => <article className={`cart-item is-${item.state}`} key={item.id}>
         <div className="cart-item-image card-image-zoom-host"><SafeImage src={imageFor(item)} alt={item.title} loading="lazy" /><CardImageZoom src={imageFor(item)} alt={item.title}/></div>
         <div className="cart-item-copy"><h2><Link to={`/auctions/${item.auction_id}`}>{item.title}</Link></h2><p>Eladó: {item.seller_name}{item.variant ? ` · ${item.variant.toUpperCase()}` : ""}</p>{item.listing_format === "bundle" ? <small>Csomag · {item.bundle_items.length} különböző lap</small> : null}</div>
-        <label>Darabszám<select aria-label={`${item.title} darabszáma`} value={item.quantity} disabled={busy || item.listing_format === "bundle" || item.state === "order_pending"} onChange={(event) => void mutate(() => item.shop_source ? addCartItem(item.auction_id, Number(event.target.value), true) : updateCartItem(item.id, Number(event.target.value)))}>{Array.from({ length: Math.max(1, item.max_quantity) }, (_, index) => <option value={index + 1} key={index + 1}>{index + 1}</option>)}</select></label>
+        <div className="cart-quantity">
+          <span>Darabszám</span>
+          {item.shop_source ? <div className="cart-quantity-stepper" role="group" aria-label={`${item.title} darabszáma`}>
+            <button type="button" aria-label={`${item.title} darabszám csökkentése`} disabled={busy || item.state === "order_pending" || item.quantity <= 1} onClick={() => void mutate(() => addCartItem(item.auction_id, item.quantity - 1, true))}>−</button>
+            <output aria-live="polite" aria-label={`${item.title} kiválasztott darabszáma`}>{item.quantity}</output>
+            <button type="button" aria-label={`${item.title} darabszám növelése`} disabled={busy || item.state === "order_pending" || item.quantity >= Math.min(999, item.max_quantity)} onClick={() => void mutate(() => addCartItem(item.auction_id, item.quantity + 1, true))}>+</button>
+          </div> : <select aria-label={`${item.title} darabszáma`} value={item.quantity} disabled={busy || item.listing_format === "bundle" || item.state === "order_pending"} onChange={(event) => void mutate(() => updateCartItem(item.id, Number(event.target.value)))}>{Array.from({ length: Math.max(1, item.max_quantity) }, (_, index) => <option value={index + 1} key={index + 1}>{index + 1}</option>)}</select>}
+          {item.shop_source && item.stock_tracked && item.state !== "order_pending" ? <small>Elérhető: {item.max_quantity} db</small> : null}
+        </div>
         <div className="cart-price"><span>{formatMoney(item.unit_price)} / db</span><strong>{formatMoney(item.subtotal)}</strong></div>
         <div className="cart-reservation"><strong>{cartStateCopy[item.state][0]}</strong><small>{cartStateCopy[item.state][1]}</small></div>
         {item.price_changed ? <button className="button button-secondary" disabled={busy} onClick={() => void mutate(() => item.shop_source ? addCartItem(item.auction_id, item.quantity, true, true) : updateCartItem(item.id, item.quantity, true))}>Új ár elfogadása: {formatMoney(item.current_price)}</button> : null}
