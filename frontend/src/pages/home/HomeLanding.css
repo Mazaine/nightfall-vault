@@ -35,19 +35,5 @@
 }
 @media (prefers-reduced-motion: reduce) { .home-quick-tile { transition: none; } }
 
-/* Home cards share the same cell height. VIP highlighting stays visual only:
-   move its label over the image instead of adding an extra content row. */
-.auction-grid.home-auction-grid:not(.marketplace-results-grid) { align-items: stretch; }
-.auction-grid.home-auction-grid:not(.marketplace-results-grid) > .auction-card { align-self: stretch; height: 100%; }
-.home-auction-grid .auction-card-featured .auction-card-badges { display: contents; }
-.home-auction-grid .auction-card-featured .vip-featured-badge {
-  position: absolute;
-  z-index: 5;
-  top: .65rem;
-  left: .65rem;
-  pointer-events: none;
-  background: rgb(13 11 24 / .9);
-  box-shadow: 0 .2rem .75rem rgb(0 0 0 / .35);
-}
-.home-auction-grid .auction-card-featured:has(.auction-personal-badge, .auction-outcome-badge) .vip-featured-badge { top: 3rem; }
-.home-auction-grid .auction-card-fixed .auction-commerce-block { margin-top: auto; }
+/* Auction cards on the homepage intentionally reuse the marketplace grid-card styles
+   from global.css. Only carousel paging differs. */
