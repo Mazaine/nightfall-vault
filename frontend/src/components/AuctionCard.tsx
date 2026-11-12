@@ -268,7 +268,7 @@ export function AuctionCard({
   return (
     <article
       aria-label={`${item.title} aukció, állapot: ${formatCardCondition(item.condition)}${personalStatus ? `, ${personalStatus === "leading" ? "te vezetsz" : personalStatus === "outbid" ? "rád licitáltak" : personalStatus === "watched" ? "figyelt aukció" : "kiszálltál"}` : ""}`}
-      className={`auction-card auction-card-${index + 1}${isLocallyClosed ? " auction-card-closed" : ""}${item.isFeatured ? " auction-card-featured" : ""}${personalStatus ? ` auction-card-personal-${personalStatus}` : ""}`}
+      className={`auction-card auction-card-${index + 1}${isFixedPrice ? " auction-card-fixed" : ""}${isLocallyClosed ? " auction-card-closed" : ""}${item.isFeatured ? " auction-card-featured" : ""}${personalStatus ? ` auction-card-personal-${personalStatus}` : ""}`}
       role="link"
       tabIndex={0}
       onClick={(event) => { if (!(event.target as HTMLElement).closest("a,button,input,select,textarea")) navigate(detailPath); }}
