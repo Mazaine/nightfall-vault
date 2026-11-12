@@ -8,6 +8,7 @@ import { disableBidConfirmation, isBidConfirmationDisabled } from "../utils/bidC
 import { AuctionCountdown } from "./AuctionCountdown";
 import { BidConfirmationDialog } from "./BidDialogs";
 import { SafeImage } from "./SafeImage";
+import { CardImageZoom } from "./CardImageZoom";
 import { formatCardCondition, getCardCondition, type ReadableCardCondition } from "../data/cardConditions";
 import { addCartItem, announceCartChanged, checkoutCart } from "../api/cart";
 import { FixedPurchaseDialog } from "./FixedPurchaseDialog";
@@ -57,6 +58,7 @@ type AuctionCardProps = {
     userIsOutbid?: boolean;
     sellerProfilePath?: string;
     imageUrl?: string;
+    zoomImageUrl?: string;
     statusLabel?: string;
     bidCount?: number;
     canBid?: boolean;
@@ -104,6 +106,8 @@ export function AuctionCard({
   const [availableQuantity, setAvailableQuantity] = useState(Math.max(1, item.availableQuantity ?? 1));
   const [isWatched, setIsWatched] = useState(Boolean(item.isWatched));
   const [isWatchPending, setIsWatchPending] = useState(false);
+  const [imageFailed, setImageFailed] = useState(false);
+  useEffect(() => setImageFailed(false), [item.imageUrl, item.montageImages]);
   const parsedSellerRating = typeof item.sellerRating === "number"
     ? item.sellerRating
     : Number.parseFloat(String(item.sellerRating ?? "").replace(",", "."));
@@ -275,7 +279,8 @@ export function AuctionCard({
       onKeyDown={(event) => { if ((event.key === "Enter" || event.key === " ") && event.target === event.currentTarget) { event.preventDefault(); navigate(detailPath); } }}
     >
       <div className={`auction-image${(item.shopSource || item.type === "Hatalom Kártyái Kártyajáték") && item.listingFormat === "single" ? " is-hkk-card" : ""}`}>
-        {item.montageImages?.length ? <div className="auction-bundle-montage" aria-label={`${item.title} csomag borítója`}>{item.montageImages.map((src) => <SafeImage src={src} alt="" loading="lazy" decoding="async" width={350} height={490} key={src}/>) }{(item.bundleItemCount ?? 0) > 4 ? <strong>+{(item.bundleItemCount ?? 0) - 4} további lap</strong> : null}</div> : <SafeImage src={item.imageUrl} alt={item.title} loading="lazy" decoding="async" width={700} height={700} />}
+        {item.montageImages?.length ? <div className="auction-bundle-montage" aria-label={`${item.title} csomag borítója`}>{item.montageImages.map((src) => <SafeImage src={src} alt="" loading="lazy" decoding="async" width={350} height={490} key={src}/>) }{(item.bundleItemCount ?? 0) > 4 ? <strong>+{(item.bundleItemCount ?? 0) - 4} további lap</strong> : null}</div> : <SafeImage src={item.imageUrl} alt={item.title} loading="lazy" decoding="async" width={700} height={700} onError={() => setImageFailed(true)} />}
+        {!imageFailed ? <CardImageZoom src={item.montageImages?.[0] ?? item.zoomImageUrl ?? item.imageUrl} alt={item.title} /> : null}
       </div>
       <span className={`auction-condition-badge condition-${cardCondition.value.toLowerCase()}`} title={`${cardCondition.value} – ${cardCondition.nameHu} (${cardCondition.nameEn})`}>{cardCondition.value}</span>
       {showTimer && isFixedPrice
