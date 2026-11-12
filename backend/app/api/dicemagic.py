@@ -2,12 +2,13 @@ from datetime import timedelta
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from typing import Annotated, Literal
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.db.session import get_db
 from app.dependencies.auth import require_admin
 from app.models.auction import Auction
+from app.models.user import User
 from app.models.cart import Cart, CartItem
 from app.models.dicemagic import DiceMagicOrder, DiceMagicProduct, DiceMagicSyncLog
 from app.services.dicemagic import state, sync_products, prepare_order, send_order, order_read, utcnow
@@ -21,18 +22,19 @@ router = APIRouter(prefix="/api/admin/integrations/dicemagic", tags=["dicemagic"
 class PrivacyApply(BaseModel):
     expected: dict[Annotated[int, Field(gt=0)], Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]] = Field(min_length=1, max_length=100)
     confirmed: bool = False
+    buyer_id: int | None = Field(default=None, gt=0)
 
 
 @router.get("/privacy/preview")
-def privacy_preview(user=Depends(require_admin), db: Session = Depends(get_db)):
+def privacy_preview(buyer_id: int | None = None, user=Depends(require_admin), db: Session = Depends(get_db)):
     from app.services.dicemagic_privacy import preview
-    return preview(db, user)
+    return preview(db, user, buyer_id=buyer_id)
 
 
 @router.post("/privacy/anonymize")
 def privacy_apply(payload: PrivacyApply, user=Depends(require_admin), db: Session = Depends(get_db)):
     from app.services.dicemagic_privacy import anonymize
-    return anonymize(db, user, payload.expected, payload.confirmed)
+    return anonymize(db, user, payload.expected, payload.confirmed, buyer_id=payload.buyer_id)
 
 
 class Controls(BaseModel):
@@ -88,8 +90,12 @@ def logs(db: Session = Depends(get_db)):
 
 @router.get("/orders")
 def orders(user=Depends(require_admin), db: Session = Depends(get_db)):
+    # Admins may supervise ordinary buyers but cannot inspect another
+    # administrator's own partner test orders.
     return [{**order_read(row), "buyer_id": row.buyer_id} for row in db.scalars(
-        select(DiceMagicOrder).order_by(DiceMagicOrder.id.desc()).limit(100)
+        select(DiceMagicOrder).join(User, User.id == DiceMagicOrder.buyer_id)
+        .where(or_(DiceMagicOrder.buyer_id == user.id, User.role != "admin"))
+        .order_by(DiceMagicOrder.id.desc()).limit(100)
     )]
 
 

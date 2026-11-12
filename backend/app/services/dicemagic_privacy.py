@@ -7,6 +7,7 @@ from fastapi import HTTPException
 from sqlalchemy import func, select
 from app.core.config import settings
 from app.models.dicemagic import DiceMagicOrder, DiceMagicOrderHold
+from app.models.user import User
 from app.models.transaction import AuctionTransaction
 from app.services.dicemagic import utcnow
 from app.services.security_audit import create_domain_audit_log
@@ -39,22 +40,30 @@ def eligible(db, order, now):
     return closed_at < now - timedelta(days=days)
 
 
-def preview(db, user):
+def _target_buyer_id(db, user, buyer_id):
     if user.role != "admin":
         raise HTTPException(403, "Adminisztrátori jogosultság szükséges.")
-    orders = db.scalars(select(DiceMagicOrder).where(DiceMagicOrder.status.in_(["accepted", "cancelled", "rejected"])).order_by(DiceMagicOrder.id)).all()
+    target = user.id if buyer_id is None else buyer_id
+    buyer = db.get(User, target)
+    if buyer is None or (target != user.id and buyer.role == "admin"):
+        raise HTTPException(404, "A vevő nem található.")
+    return target
+
+
+def preview(db, user, *, buyer_id=None):
+    target = _target_buyer_id(db, user, buyer_id)
+    orders = db.scalars(select(DiceMagicOrder).where(DiceMagicOrder.buyer_id == target, DiceMagicOrder.status.in_(["accepted", "cancelled", "rejected"])).order_by(DiceMagicOrder.id)).all()
     now = utcnow()
     return {"policy_approved": settings.dicemagic_retention_policy_approved,
             "retention_days": settings.dicemagic_order_retention_days,
             "items": [{"id": order.id, "status": order.status, "token": fingerprint(order)} for order in orders if eligible(db, order, now)][:100]}
 
 
-def anonymize(db, user, expected, confirmed):
-    if user.role != "admin":
-        raise HTTPException(403, "Adminisztrátori jogosultság szükséges.")
+def anonymize(db, user, expected, confirmed, *, buyer_id=None):
+    target = _target_buyer_id(db, user, buyer_id)
     if not confirmed or not settings.dicemagic_retention_policy_approved or not settings.dicemagic_order_retention_days:
         raise HTTPException(409, "Jóváhagyott adatmegőrzési szabályzat és külön megerősítés szükséges.")
-    orders = list(db.scalars(select(DiceMagicOrder).where(DiceMagicOrder.id.in_(expected)).order_by(DiceMagicOrder.id).with_for_update().execution_options(populate_existing=True)))
+    orders = list(db.scalars(select(DiceMagicOrder).where(DiceMagicOrder.buyer_id == target, DiceMagicOrder.id.in_(expected)).order_by(DiceMagicOrder.id).with_for_update().execution_options(populate_existing=True)))
     now = utcnow()
     if len(orders) != len(expected) or any(not eligible(db, order, now) or not hmac.compare_digest(fingerprint(order), expected[order.id]) for order in orders):
         raise HTTPException(409, "A rendelés vagy az előnézet megváltozott. Készíts új előnézetet.")

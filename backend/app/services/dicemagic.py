@@ -256,6 +256,10 @@ def send_order(db, order_id, user, *, admin_override=False):
     order = db.scalar(statement)
     if order is None:
         raise HTTPException(404, "A rendelés nem található.")
+    if admin_override and order.buyer_id != user.id:
+        buyer = db.get(User, order.buyer_id)
+        if buyer is None or buyer.role == "admin":
+            raise HTTPException(404, "A rendelés nem található.")
     buyer_id = order.buyer_id
     if order.status == "accepted":
         from app.services.dicemagic_transactions import link_accepted_order

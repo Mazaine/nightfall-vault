@@ -72,3 +72,9 @@ folyamat is kezeli az összes lezárt vásárlói rendelést.
 Az admin rendelésküldés az **eredeti vevő azonosítójával** véglegesíti
 a partner felé a vásárló megrendelését. A vevők nem küldhetik el más
 felhasználók rendeléseit; az admin külön megerősítése kötelező.
+
+Az adminok **nem** láthatják egymás saját DiceMagic-tesztrendeléseit.
+A vásárlói rendelésfelügyelet csak nem admin vásárlókra terjed ki.
+Az adatvédelmi előnézet alapértelmezésben továbbra is a kezelő
+saját rendeléseit vizsgálja; normál vevőnél külön `buyer_id` paraméterrel
+és jóváhagyott adatmegőrzési szabályzattal lehet felülvizsgálatot kérni.
