@@ -43,6 +43,9 @@ jobs:
   production-contract:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    # The example .env sets a placeholder image tag; CI must build and test the same local tag.
+    env:
+      NIGHTFALL_IMAGE_TAG: local
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
       - name: Validate scripts and tracked secrets
