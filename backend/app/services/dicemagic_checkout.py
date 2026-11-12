@@ -8,6 +8,7 @@ from app.models.cart import Cart, CartItem, CheckoutBatch
 from app.models.dicemagic import DiceMagicCheckoutAttempt, DiceMagicOrder
 from app.models.transaction import AuctionTransaction
 from app.services.dicemagic import prepare_order, order_read
+from app.services.dicemagic_access import can_buy_dicemagic
 
 
 def checkout_with_shop(db, user, key, item_ids, details, confirmed, private_checkout):
@@ -22,7 +23,7 @@ def checkout_with_shop(db, user, key, item_ids, details, confirmed, private_chec
     shop = [row for row in items if row.auction.shop_source]
     if not shop and attempt is None:
         return private_checkout(db, user, key, item_ids)
-    if user.role != "admin":
+    if not can_buy_dicemagic(user):
         raise HTTPException(404, "A bolti termék nem található.")
     if attempt is None:
         if not details or not confirmed:

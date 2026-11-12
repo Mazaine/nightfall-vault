@@ -44,7 +44,7 @@ class Controls(BaseModel):
 @router.get("")
 def status(db: Session = Depends(get_db)):
     config = state(db)
-    result = {"enabled": settings.dicemagic_enabled, "client_id_configured": bool(settings.dicemagic_client_id), "secret_configured": bool(settings.dicemagic_client_secret), "visibility": "admin_only", "token_cached": client.token is not None and client.expires > __import__("time").monotonic(), "order_permission": "unknown", "order_environment_enabled": settings.dicemagic_real_order_enabled, "orders_enabled": config.orders_enabled, "sync_enabled": config.sync_enabled, "last_sync_at": config.last_sync_at, "next_sync_at": config.last_sync_at + timedelta(seconds=settings.dicemagic_sync_interval_seconds) if config.last_sync_at and config.sync_enabled else None, "last_error": config.last_error, "summary": config.summary}
+    result = {"enabled": settings.dicemagic_enabled, "client_id_configured": bool(settings.dicemagic_client_id), "secret_configured": bool(settings.dicemagic_client_secret), "visibility": settings.dicemagic_visibility, "token_cached": client.token is not None and client.expires > __import__("time").monotonic(), "order_permission": "unknown", "order_environment_enabled": settings.dicemagic_real_order_enabled, "orders_enabled": config.orders_enabled, "sync_enabled": config.sync_enabled, "last_sync_at": config.last_sync_at, "next_sync_at": config.last_sync_at + timedelta(seconds=settings.dicemagic_sync_interval_seconds) if config.last_sync_at and config.sync_enabled else None, "last_error": config.last_error, "summary": config.summary}
     db.commit()
     return result
 

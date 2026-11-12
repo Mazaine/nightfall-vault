@@ -13,6 +13,7 @@ from app.models.transaction import AuctionTransaction, AuctionTransactionItem
 from app.models.user import User
 from app.services.notifications import create_notification
 from app.services.security_audit import create_domain_audit_log
+from app.services.dicemagic_access import can_buy_dicemagic
 
 RESERVATION_MINUTES = 60
 MAX_RESERVATION_ATTEMPTS = 4
@@ -232,7 +233,7 @@ def update_cart_item(db: Session, user: User, item_id: int, quantity: int, *, ac
 
 def remove_cart_item(db: Session, user: User, item_id: int) -> dict:
     if item_id in pending_shop_item_ids(db, user.id):
-        raise HTTPException(409, "A bolti tétel már előkészített rendeléshez tartozik. A visszavonást az adminisztrátori rendeléskezelőben egyeztesd.")
+        raise HTTPException(409, "A bolti tétel már előkészített rendeléshez tartozik. Visszavonáshoz egyeztess az ügyfélszolgálattal.")
     item = db.scalar(select(CartItem).join(Cart).where(CartItem.id == item_id, Cart.user_id == user.id, CartItem.status == "active").with_for_update())
     if item is None:
         raise HTTPException(status_code=404, detail="A kosártétel nem található.")
@@ -301,8 +302,8 @@ def get_cart(db: Session, user_id: int) -> dict:
         joinedload(CartItem.reservation), joinedload(CartItem.auction).joinedload(Auction.seller), joinedload(CartItem.auction).selectinload(Auction.images), joinedload(CartItem.auction).selectinload(Auction.bundle_items),
     ).order_by(CartItem.created_at, CartItem.id)).unique().all())
     viewer = db.get(User, user_id)
-    pending_ids = pending_shop_item_ids(db, user_id) if viewer.role == "admin" else set()
-    result = [_item_dict(db, item, timestamp, item.id in pending_ids) for item in items if not item.auction.shop_source or viewer.role == "admin"]
+    pending_ids = pending_shop_item_ids(db, user_id) if can_buy_dicemagic(viewer) else set()
+    result = [_item_dict(db, item, timestamp, item.id in pending_ids) for item in items if not item.auction.shop_source or can_buy_dicemagic(viewer)]
     resume_key = None
     if pending_ids:
         from app.models.dicemagic import DiceMagicCheckoutAttempt, DiceMagicOrder

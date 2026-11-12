@@ -11,6 +11,7 @@ from urllib.parse import urlsplit
 from fastapi import HTTPException
 from sqlalchemy import select, text
 from app.core.config import settings
+from app.services.dicemagic_access import can_buy_dicemagic
 from app.models.auction import Auction
 from app.models.cart import Cart, CartItem
 from app.models.dicemagic import DiceMagicState, DiceMagicProduct, DiceMagicOrder, DiceMagicSyncLog, DiceMagicOrderHold
@@ -102,9 +103,12 @@ def sync_products(db, *, force=False):
         raise DiceMagicError("duplicate_snapshot_ids")
     seller = db.scalar(select(User).where(User.username == "dicemagic_shop"))
     if seller is None:
-        seller = User(username="dicemagic_shop", full_name="DiceMagic", email="dicemagic-integration@nightfall.invalid", password_hash=DISABLED_INTEGRATION_PASSWORD_HASH, password_login_enabled=False, role="user", is_active=False, is_email_verified=False)
+        seller = User(username="dicemagic_shop", full_name="DiceMagic", email="dicemagic-integration@nightfall.invalid", password_hash=DISABLED_INTEGRATION_PASSWORD_HASH, password_login_enabled=False, role="user", is_active=False, is_email_verified=False, vip_lifetime=True)
         db.add(seller)
         db.flush()
+    elif seller.email != "dicemagic-integration@nightfall.invalid" or seller.password_login_enabled or seller.is_active:
+        raise DiceMagicError("dicemagic_integration_identity_conflict", 409)
+    seller.vip_lifetime = True
     existing = {p.outer_id: p for p in db.scalars(select(DiceMagicProduct).order_by(DiceMagicProduct.id).with_for_update()).all()}
     if any(p.snapshot_generated_at and generated_at < p.snapshot_generated_at for p in existing.values()):
         raise DiceMagicError("older_snapshot_rejected")
@@ -177,7 +181,7 @@ def order_read(order):
 
 def prepare_order(db, user, key, items, details):
     from app.schemas.dicemagic import ShopCheckout
-    if user.role != "admin":
+    if not can_buy_dicemagic(user):
         raise HTTPException(404, "A bolti termék nem található.")
     db.execute(text("SELECT pg_advisory_xact_lock(hashtext(:key))"), {"key": "dicemagic:"+str(user.id)+":"+key})
     existing = db.scalar(select(DiceMagicOrder).where(DiceMagicOrder.buyer_id == user.id, DiceMagicOrder.idempotency_key == key))
@@ -188,6 +192,8 @@ def prepare_order(db, user, key, items, details):
     if not settings.dicemagic_enabled:
         raise HTTPException(409, "A DiceMagic-integráció nincs engedélyezve.")
     details = ShopCheckout.model_validate(details)
+    if user.role != "admin" and details.test_order:
+        raise HTTPException(422, "Tesztrendelést csak adminisztrátor adhat fel.")
     if not 1 <= len(items) <= 100:
         raise HTTPException(422, "Legfeljebb 100 bolti tétel rendelhető.")
     lines, holds = [], []
@@ -224,7 +230,7 @@ def send_order(db, order_id, user):
     buyer_id = user.id
     statement = select(DiceMagicOrder).where(DiceMagicOrder.id == order_id, DiceMagicOrder.buyer_id == buyer_id).with_for_update().execution_options(populate_existing=True)
     order = db.scalar(statement)
-    if user.role != "admin" or order is None:
+    if not can_buy_dicemagic(user) or order is None:
         raise HTTPException(404, "A rendelés nem található.")
     if order.status == "accepted":
         from app.services.dicemagic_transactions import link_accepted_order

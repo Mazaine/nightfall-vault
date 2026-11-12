@@ -7,7 +7,7 @@ import { DiceMagicPrivacy } from "../../components/DiceMagicPrivacy";
 import { formatMoney } from "../../utils/format";
 
 const base = "/api/admin/integrations/dicemagic";
-type Status = { enabled: boolean; client_id_configured: boolean; secret_configured: boolean; sync_enabled: boolean; orders_enabled: boolean; order_environment_enabled: boolean; last_sync_at: string | null; last_error: string | null; summary: Record<string, number> };
+type Status = { visibility: "admin_only" | "public"; enabled: boolean; client_id_configured: boolean; secret_configured: boolean; sync_enabled: boolean; orders_enabled: boolean; order_environment_enabled: boolean; last_sync_at: string | null; last_error: string | null; summary: Record<string, number> };
 const statuses: Record<string, string> = { queued: "Külön küldésre vár", sending: "Küldés folyamatban", accepted: "A partner elfogadta; fizetés és átvétel egyeztetendő", unknown: "Bizonytalan eredmény", rejected: "Elutasítva", cancelled: "Partnerrel egyeztetve visszavonva" };
 
 export function AdminDiceMagicPage() {
@@ -30,7 +30,7 @@ export function AdminDiceMagicPage() {
     finally { setBusy(false); }
   }
   return <section className="side-panel">
-    <h1>Integrációk · DiceMagic</h1><p>DiceMagic láthatóság: Csak admin</p>
+    <h1>Integrációk · DiceMagic</h1><p>DiceMagic láthatóság: {status?.visibility === "public" ? "Nyilvános – mindenki számára" : "Csak admin"}</p>
     {message && <p role="status">{message}</p>}
     {status && <>
       <p>Integráció: {status.enabled ? "bekapcsolva" : "kikapcsolva"} · Client ID: {status.client_id_configured ? "beállítva" : "hiányzik"} · Secret: {status.secret_configured ? "beállítva" : "hiányzik"}</p>
