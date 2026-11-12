@@ -4023,3 +4023,14 @@ h3 {
 .account-own-auction-list .own-auction-card > .auction-card { width: 100%; }
 .account-own-auction-list .owner-actions { justify-content: flex-start; }
 .account-own-auction-list .own-auction-card.is-editing { max-width: none; }
+
+/* Match marketplace card width on all ordinary auction grids.
+   Home carousels deliberately retain their fixed per-page item counts. */
+.auction-grid:not(.marketplace-results-grid):not(.home-auction-grid) {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 13.75rem), 1fr));
+}
+@media (max-width: 560px) {
+  .auction-grid:not(.marketplace-results-grid):not(.home-auction-grid) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
