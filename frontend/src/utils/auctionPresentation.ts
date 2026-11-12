@@ -34,6 +34,9 @@ export function toAuctionCardItem(auction: Auction) {
     imageUrl: auction.shop_image_url || (coverImage
       ? apiAssetUrl(coverImage.list_url ?? coverImage.thumbnail_url ?? coverImage.url)
       : auction.vault_external_card_id ? hkkCardImageUrl(auction.vault_external_card_id, null) : ""),
+    zoomImageUrl: auction.shop_image_url || (coverImage
+      ? apiAssetUrl(coverImage.detail_url ?? coverImage.url)
+      : auction.vault_external_card_id ? hkkCardImageUrl(auction.vault_external_card_id, null) : ""),
     listingFormat: auction.listing_format ?? "single",
     availableQuantity: Math.max(0, auction.shop_source ? Math.min(999, auction.available_quantity ?? (auction.status === "active" ? 999 : 0)) : auction.available_quantity ?? (auction.status === "active" ? (auction.listing_format === "bundle" ? 1 : auction.vault_quantity ?? 0) : 0)),
     bundleItemCount: bundleItems.length,
