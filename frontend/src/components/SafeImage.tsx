@@ -4,7 +4,7 @@ type SafeImageProps = ImgHTMLAttributes<HTMLImageElement> & {
   fallbackClassName?: string;
 };
 
-export function SafeImage({ src, alt, fallbackClassName = "image-fallback", ...props }: SafeImageProps) {
+export function SafeImage({ src, alt, fallbackClassName = "image-fallback", onError, ...props }: SafeImageProps) {
   const [failed, setFailed] = useState(!src);
 
   useEffect(() => setFailed(!src), [src]);
@@ -12,5 +12,5 @@ export function SafeImage({ src, alt, fallbackClassName = "image-fallback", ...p
   if (failed || !src) {
     return <span className={fallbackClassName} role="img" aria-label={alt ? `${alt} – kép nem érhető el` : "Kép nem érhető el"}>Kép nem érhető el</span>;
   }
-  return <img {...props} src={src} alt={alt} onError={() => setFailed(true)} />;
+  return <img {...props} src={src} alt={alt} onError={(event) => { setFailed(true); onError?.(event); }} />;
 }
