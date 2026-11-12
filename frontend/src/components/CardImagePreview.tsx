@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { hkkCardImageUrl } from "../utils/hkk";
+import { CardImageZoom } from "./CardImageZoom";
 
 type CardImage = {
   external_card_id: string;
@@ -17,6 +18,8 @@ export function CardImagePreview({ card, className = "", preview = true }: { car
   const showTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [visible, setVisible] = useState(false);
+  const [imageFailed, setImageFailed] = useState(false);
+  useEffect(() => setImageFailed(false), [imageUrl]);
   const [position, setPosition] = useState<PreviewPosition>({ left: 12, top: 12, width: 300 });
 
   const clearTimers = useCallback(() => {
@@ -52,7 +55,7 @@ export function CardImagePreview({ card, className = "", preview = true }: { car
 
   useEffect(() => () => clearTimers(), [clearTimers]);
 
-  if (!imageUrl) return <div className={["vault-card-placeholder", className].filter(Boolean).join(" ")} aria-hidden="true">HKK</div>;
+  if (!imageUrl || imageFailed) return <div className={["vault-card-placeholder", className].filter(Boolean).join(" ")} aria-hidden="true">HKK</div>;
 
   const show = () => {
     clearTimers();
@@ -68,7 +71,8 @@ export function CardImagePreview({ card, className = "", preview = true }: { car
 
   return <>
     <span ref={anchorRef} className={["card-image-preview", className].filter(Boolean).join(" ")} onPointerEnter={preview ? show : undefined} onPointerLeave={preview ? hide : undefined}>
-      <img className="card-image-preview-thumbnail" src={imageUrl} alt={card.card_name} loading="lazy" />
+      <img className="card-image-preview-thumbnail" src={imageUrl} alt={card.card_name} loading="lazy" onError={() => setImageFailed(true)} />
+      <CardImageZoom src={imageUrl} alt={card.card_name} />
     </span>
     {preview && visible && typeof document !== "undefined" ? createPortal(
       <span className="card-image-preview-popover" style={position} role="presentation">
