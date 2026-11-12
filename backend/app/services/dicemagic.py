@@ -242,12 +242,21 @@ def prepare_order(db, user, key, items, details):
     return order
 
 
-def send_order(db, order_id, user):
-    buyer_id = user.id
-    statement = select(DiceMagicOrder).where(DiceMagicOrder.id == order_id, DiceMagicOrder.buyer_id == buyer_id).with_for_update().execution_options(populate_existing=True)
-    order = db.scalar(statement)
-    if not can_buy_dicemagic(user) or order is None:
+def send_order(db, order_id, user, *, admin_override=False):
+    if not can_buy_dicemagic(user):
         raise HTTPException(404, "A rendelés nem található.")
+    if admin_override and user.role != "admin":
+        raise HTTPException(403, "A rendeléshez adminisztrátori jogosultság szükséges.")
+    # Staff can send/retry a customer's prepared order, but a normal buyer may
+    # only send their own. Keep the original buyer for all transactions.
+    statement = select(DiceMagicOrder).where(DiceMagicOrder.id == order_id)
+    if not admin_override:
+        statement = statement.where(DiceMagicOrder.buyer_id == user.id)
+    statement = statement.with_for_update().execution_options(populate_existing=True)
+    order = db.scalar(statement)
+    if order is None:
+        raise HTTPException(404, "A rendelés nem található.")
+    buyer_id = order.buyer_id
     if order.status == "accepted":
         from app.services.dicemagic_transactions import link_accepted_order
         link_accepted_order(db, order)
@@ -296,8 +305,8 @@ def send_order(db, order_id, user):
                                            DiceMagicOrderHold.resolved_at.is_not(None)).limit(1)) is not None
     if order.status in {"accepted", "cancelled"} or reconciled_rejection:
         if accepted_response and order.status != "accepted":
-            create_domain_audit_log(db, action="dicemagic_late_acceptance_review", user_id=buyer_id,
-                metadata={"order_id": order.id, "attempt": attempt, "status": order.status,
+            create_domain_audit_log(db, action="dicemagic_late_acceptance_review", user_id=user.id,
+                metadata={"order_id": order.id, "buyer_id": buyer_id, "attempt": attempt, "status": order.status,
                           "shop_order_id": accepted_response["shop_order_id"]})
     elif accepted_response and order.status in {"sending", "unknown", "rejected"}:
         # A verified success for the same immutable external ID is authoritative,
@@ -311,7 +320,7 @@ def send_order(db, order_id, user):
             item = db.get(CartItem, item_id)
             if item:
                 item.status = "checked_out"
-        create_domain_audit_log(db, action="dicemagic_order_accepted", user_id=buyer_id, metadata={"order_id": order.id, "attempt": attempt})
+        create_domain_audit_log(db, action="dicemagic_order_accepted", user_id=user.id, metadata={"order_id": order.id, "buyer_id": buyer_id, "attempt": attempt})
     elif order.status == "sending" and order.attempts == attempt:
         # Only the currently leased generation may record a negative outcome.
         order.status, order.error = outcome, error

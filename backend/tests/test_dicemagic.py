@@ -305,10 +305,16 @@ def test_public_partner_listing_checkout_and_lifetime_vip(monkeypatch):
                         headers=other_headers, json={"confirm_real_order": True}).status_code == 404
         assert api.post(f"/api/shop/dicemagic/orders/{order_id}/send",
                         headers=buyer_headers, json={"confirm_real_order": False}).status_code == 422
-        delivered = api.post(f"/api/shop/dicemagic/orders/{order_id}/send",
-                             headers=buyer_headers, json={"confirm_real_order": True})
+        # Staff can safely submit a buyer-owned order under its original buyer ID.
+        delivered = api.post(f"/api/admin/integrations/dicemagic/orders/{order_id}/send",
+                             headers=admin_headers, json={"confirm_real_order": True})
         assert delivered.status_code == 200, delivered.text
         assert delivered.json()["status"] == "accepted"
+        # Buyer endpoint keeps ownership and idempotent accepted-order reads.
+        buyer_delivered = api.post(f"/api/shop/dicemagic/orders/{order_id}/send",
+                                   headers=buyer_headers, json={"confirm_real_order": True})
+        assert buyer_delivered.status_code == 200, buyer_delivered.text
+        assert buyer_delivered.json()["status"] == "accepted"
         again = api.post(f"/api/shop/dicemagic/orders/{order_id}/send",
                          headers=buyer_headers, json={"confirm_real_order": True})
         assert again.status_code == 200 and len(sent) == 1

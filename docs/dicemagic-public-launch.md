@@ -68,3 +68,7 @@ elvégezni a szabályozott készlet-egyeztetést. A vevő az admin
 listákat/egyeztetést nem érheti el, a vevői küldési végpont továbbra
 is a saját `buyer_id` alapján engedélyez. A jóváhagyott adatmegőrzési
 folyamat is kezeli az összes lezárt vásárlói rendelést.
+
+Az admin rendelésküldés az **eredeti vevő azonosítójával** véglegesíti
+a partner felé a vásárló megrendelését. A vevők nem küldhetik el más
+felhasználók rendeléseit; az admin külön megerősítése kötelező.

@@ -143,7 +143,7 @@ class Send(BaseModel):
 def send(order_id: int, payload: Send, user=Depends(require_admin), db: Session = Depends(get_db)):
     if not payload.confirm_real_order:
         raise HTTPException(422, "A valódi rendelés elküldését meg kell erősíteni.")
-    return send_order(db, order_id, user)
+    return send_order(db, order_id, user, admin_override=True)
 
 
 class Reconcile(BaseModel):
