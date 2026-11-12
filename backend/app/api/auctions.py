@@ -12,6 +12,7 @@ from app.core.rate_limit import check_rate_limit
 from app.db.session import get_db
 from app.dependencies.auth import get_optional_current_user, require_active_user, require_admin
 from app.models.auction import Auction, AuctionBidExclusion, AuctionBundleItem, AuctionMessage, AuctionPhotoRequest, AuctionReview, Bid, WatchlistItem
+from app.models.dicemagic import DiceMagicProduct
 from app.models.notification import Notification
 from app.models.transaction import AuctionTransaction
 from app.models.user import User
@@ -33,6 +34,20 @@ router = APIRouter(prefix="/api/auctions", tags=["auctions"])
 
 
 AUCTION_SORTS = {"balanced", "newest", "oldest", "highest_price", "lowest_price", "most_bids", "fewest_bids", "soon_ending", "buy_now_first"}
+
+
+def low_priority_dicemagic_card():
+    """Partner common/uncommon singles remain purchasable but not home recommendations."""
+    return and_(
+        Auction.shop_source == "dicemagic",
+        exists(
+            select(DiceMagicProduct.id).where(
+                DiceMagicProduct.auction_id == Auction.id,
+                DiceMagicProduct.snapshot["type"].as_string() == "card",
+                DiceMagicProduct.snapshot["rarity"].as_string().in_(("common", "uncommon")),
+            ).correlate(Auction)
+        ),
+    )
 
 
 def available_listing_quantity(auction: Auction) -> int | None:
@@ -165,12 +180,14 @@ def _apply_auction_sort(query, sort: str):
     if sort == "buy_now_first":
         return query.order_by(status_last, featured_first, Auction.buy_now_enabled.desc(), Auction.created_at.desc(), Auction.id.desc())
     if sort == "balanced":
-        # Default marketplace: each seller gets one slot per pass.
+        # Only the default discovery order deprioritizes common/uncommon DiceMagic cards.
+        # Apply before LIMIT/OFFSET so low-rarity cards cannot crowd out rare cards on page 1.
+        rarity_last = case((low_priority_dicemagic_card(), 1), else_=0)
         seller_round = func.row_number().over(
-            partition_by=(Auction.status, Auction.seller_id),
+            partition_by=(Auction.status, rarity_last, Auction.seller_id),
             order_by=(Auction.created_at.desc(), Auction.id.desc()),
         )
-        return query.order_by(status_last, seller_round, featured_first, Auction.created_at.desc(), Auction.id.desc())
+        return query.order_by(status_last, rarity_last, seller_round, featured_first, Auction.created_at.desc(), Auction.id.desc())
     return query.order_by(status_last, featured_first, Auction.created_at.desc(), Auction.id.desc())
 
 
@@ -411,6 +428,7 @@ def home_auction_overview(
             Auction.ends_at > now,
             available_stock,
             visible,
+            ~low_priority_dicemagic_card(),
         ).subquery()
         random_ids = list(db.scalars(
             select(sample.c.id).order_by(
