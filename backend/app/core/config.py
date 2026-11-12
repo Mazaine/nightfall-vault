@@ -5,6 +5,15 @@ from urllib.parse import urlsplit
 
 
 class Settings(BaseSettings):
+    dicemagic_enabled: bool = False
+    dicemagic_client_id: str = ""
+    dicemagic_client_secret: str = ""
+    dicemagic_sync_enabled: bool = False
+    dicemagic_sync_interval_seconds: int = Field(default=300, ge=300)
+    dicemagic_visibility: str = "admin_only"
+    dicemagic_real_order_enabled: bool = False
+    dicemagic_order_retention_days: int | None = Field(default=None, ge=1, le=36500)
+    dicemagic_retention_policy_approved: bool = False
     project_name: str = "Nightfall Vault API"
     database_url: str = ""
     backend_cors_origins: list[str] = Field(default_factory=lambda: ["http://localhost:5173"], validation_alias=AliasChoices("backend_cors_origins", "BACKEND_CORS_ORIGINS", "CORS_ORIGINS"))

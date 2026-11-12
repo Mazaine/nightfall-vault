@@ -177,6 +177,8 @@ def close_expired_auctions(db: Session, limit: int = 50) -> int:
 
 
 def run_scheduler_iteration(db: Session) -> SchedulerIterationResult:
+    from app.services.dicemagic import sync_if_due
+    sync_if_due(db)
     is_leader = bool(
         db.scalar(
             text("SELECT pg_try_advisory_xact_lock(:lock_key)"),

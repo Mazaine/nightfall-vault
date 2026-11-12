@@ -1,0 +1,7 @@
+.dicemagic-checkout { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .8rem; min-width: 0; margin: 0; padding: 0; border: 0; }
+.dicemagic-checkout label { display: flex; flex-direction: column; gap: .35rem; min-width: 0; }
+.dicemagic-checkout input, .dicemagic-checkout select, .dicemagic-checkout textarea { min-width: 0; max-width: 100%; }
+.dicemagic-checkout label:has(input[type="checkbox"]), .dicemagic-checkout p { grid-column: 1 / -1; }
+.dicemagic-checkout label:has(input[type="checkbox"]) { flex-direction: row; align-items: flex-start; }
+.dicemagic-checkout > button { grid-column: 1 / -1; justify-self: start; }
+@media (max-width: 600px) { .dicemagic-checkout { grid-template-columns: minmax(0, 1fr); } }

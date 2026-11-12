@@ -4,8 +4,11 @@ import sys
 from datetime import datetime, timezone
 
 from app.core.config import settings
+from app.core.redaction import redact
 
-SENSITIVE_KEYS = {"authorization", "password", "token", "secret", "api_key", "brevo_api_key"}
+class RedactingFormatter(logging.Formatter):
+    def format(self, record: logging.LogRecord) -> str:
+        return redact(super().format(record))
 
 
 class JsonFormatter(logging.Formatter):
@@ -14,11 +17,11 @@ class JsonFormatter(logging.Formatter):
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "level": record.levelname,
             "logger": record.name,
-            "message": record.getMessage(),
+            "message": redact(record.getMessage()),
         }
         request_id = getattr(record, "request_id", None)
         if request_id:
-            payload["request_id"] = request_id
+            payload["request_id"] = redact(str(request_id))
         return json.dumps(payload, ensure_ascii=False)
 
 
@@ -28,8 +31,11 @@ def configure_logging() -> None:
     if settings.log_format.lower() == "json" or settings.environment == "production":
         handler.setFormatter(JsonFormatter())
     else:
-        handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s [%(name)s] %(message)s"))
+        handler.setFormatter(RedactingFormatter("%(asctime)s %(levelname)s [%(name)s] %(message)s"))
     root = logging.getLogger()
     root.handlers.clear()
     root.addHandler(handler)
     root.setLevel(level)
+    for name in ("uvicorn", "uvicorn.error", "uvicorn.access"):
+        for existing in logging.getLogger(name).handlers:
+            existing.setFormatter(handler.formatter)

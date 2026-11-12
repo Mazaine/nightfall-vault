@@ -22,7 +22,12 @@
 .cart-summary > div { display: grid; text-align: right; }
 .cart-success { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
 .cart-success h2, .cart-success p { margin: 0; }
-.cart-checkout-preview { width: min(44rem, calc(100vw - 2rem)); }
+.cart-checkout-backdrop { padding: 1rem; }
+.cart-checkout-preview { width: min(44rem, calc(100vw - 2rem)); min-width: 0; max-height: calc(100dvh - 2rem); grid-template-rows: auto minmax(0, 1fr) auto; overflow: hidden; background: var(--color-surface-strong); }
+.cart-checkout-body { display: grid; gap: var(--space-3); min-width: 0; overflow-y: auto; overscroll-behavior: contain; }
+.cart-checkout-body li, .cart-checkout-body p { overflow-wrap: anywhere; }
+.cart-checkout-body .side-panel { min-width: 0; padding: var(--space-3); }
+.cart-checkout-preview > footer { border-top: 1px solid var(--color-divider); padding-top: var(--space-3); }
 .checkout-seller { border-top: 1px solid var(--color-divider); padding-top: var(--space-2); }
 .checkout-seller h3 { margin-bottom: var(--space-1); }
 .checkout-seller ul { margin: 0 0 var(--space-3); padding-left: 1.2rem; }
@@ -33,6 +38,8 @@
   .cart-price, .cart-reservation { min-width: 0; }
 }
 @media (max-width: 640px) {
+  .cart-checkout-preview > footer { display: grid; grid-template-columns: minmax(0, 1fr); }
+  .cart-checkout-preview > footer .button { min-width: 0; white-space: normal; }
   .cart-page { padding-block: var(--space-3); }
   .cart-item { grid-template-columns: 4rem minmax(0, 1fr); align-items: start; }
   .cart-item > img { grid-row: 1 / 3; width: 4rem; }

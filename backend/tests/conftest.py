@@ -1,6 +1,7 @@
 """Global pytest safety guard and isolated test database bootstrap."""
 
 import os
+from tempfile import TemporaryDirectory
 from urllib.parse import urlparse
 
 
@@ -26,9 +27,20 @@ def _activate_test_database() -> None:
 
     os.environ["DATABASE_URL"] = test_url
     os.environ["ENVIRONMENT"] = "test"
+    # Local integration credentials must never activate partner HTTP in the test suite.
+    os.environ["DICEMAGIC_ENABLED"] = "false"
+    os.environ["DICEMAGIC_SYNC_ENABLED"] = "false"
+    os.environ["DICEMAGIC_REAL_ORDER_ENABLED"] = "false"
 
 
 _activate_test_database()
+
+# The database guard alone is insufficient: uploads must never land in the
+# development/production media volume. Keep this directory alive for the session;
+# TemporaryDirectory removes only its own newly created tree on process exit.
+_test_media_directory = TemporaryDirectory(prefix="nightfall-pytest-media-")
+os.environ["MEDIA_ROOT"] = _test_media_directory.name
+os.environ["STORAGE_UPLOAD_DIR"] = _test_media_directory.name
 
 
 def pytest_sessionstart(session) -> None:

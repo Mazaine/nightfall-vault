@@ -1,4 +1,5 @@
 from app.models.category import Category
+from app.models.dicemagic import DiceMagicState, DiceMagicProduct, DiceMagicOrder, DiceMagicSyncLog, DiceMagicOrderHold, DiceMagicCheckoutAttempt
 from app.models.auction import Auction, AuctionBidExclusion, AuctionBundleItem, AuctionImage, AuctionMessage, AuctionPhotoRequest, AuctionReview, Bid, WatchlistItem
 from app.models.email_verification_token import EmailVerificationToken
 from app.models.newsletter import NewsletterCampaign, NewsletterSubscriber

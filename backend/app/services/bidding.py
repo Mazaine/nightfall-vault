@@ -324,6 +324,8 @@ def place_bid(db: Session, auction_id: int, bidder: User, amount: Decimal) -> tu
         raise HTTPException(status_code=404, detail="Az aukció nem található.")
 
     require_demo_auction_access(auction, bidder)
+    if auction.shop_source:
+        raise HTTPException(status_code=409, detail="A bolti termék csak a DiceMagic rendelési folyamatban vásárolható meg.")
     auction = _sync_locked_auction_for_bidding(db, auction)
     if auction.status != "active":
         db.add(auction)

@@ -81,6 +81,8 @@ def get_participant_transaction(db: Session, transaction_id: int, user_id: int, 
     transaction = db.scalar(statement)
     if transaction is None:
         raise HTTPException(status_code=404, detail="A tranzakció nem található.")
+    if transaction.auction.shop_source and db.get(User, user_id).role != "admin":
+        raise HTTPException(404, "A tranzakció nem található.")
     return transaction
 
 
@@ -375,6 +377,8 @@ def cancel_open_transaction(db: Session, transaction_id: int, user: User) -> Auc
     transaction = get_participant_transaction(db, transaction_id, user.id, lock=True)
     if transaction.status == "cancelled":
         return transaction
+    if transaction.auction.shop_source:
+        raise HTTPException(409, "A bolti rendelés visszavonását a DiceMagicgel kell egyeztetni. A készlet csak adminisztrátori ellenőrzés után oldható fel.")
     if transaction.status != "transaction_open" or transaction.seller_completed_at or transaction.buyer_completed_at:
         raise HTTPException(status_code=409, detail="Ez az ügylet már nem vonható vissza.")
     lines = list(db.scalars(select(AuctionTransactionItem).where(

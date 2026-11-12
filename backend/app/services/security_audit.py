@@ -3,6 +3,7 @@ from jwt import InvalidTokenError
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
+from app.core.redaction import redact_metadata
 from app.core.rate_limit import get_client_ip
 from app.models.security_log import AuditLog, LoginAttempt
 
@@ -49,7 +50,7 @@ def create_admin_audit_log(db: Session, request, status_code: int | None) -> Aud
         status_code=status_code,
         ip_address=get_client_ip(request),
         user_agent=request.headers.get("user-agent"),
-        metadata_json={"query": str(request.url.query) if request.url.query else None},
+        metadata_json={"query_parameter_count": len(request.query_params)},
     )
     db.add(log)
     return log
@@ -72,7 +73,7 @@ def create_domain_audit_log(
         status_code=None,
         ip_address=None,
         user_agent=None,
-        metadata_json=metadata,
+        metadata_json=redact_metadata(metadata),
     )
     db.add(log)
     return log

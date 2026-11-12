@@ -1,6 +1,7 @@
 import { NavLink, Outlet } from "react-router";
 
 const adminLinks = [
+  { label: "DiceMagic integráció", to: "/admin/integrations/dicemagic" },
   { label: "Áttekintés", to: "/admin", end: true },
   { label: "Jelentések", to: "/admin/reports" },
   { label: "Moderáció", to: "/admin/moderation" },

@@ -28,6 +28,8 @@ function formatCardMoney(value: string | number) {
 type AuctionCardProps = {
   item: {
     id: string | number;
+    shopSource?: string | null;
+    shopRegularPrice?: number | null;
     listingType?: "auction" | "fixed";
     listingFormat?: "single" | "bundle";
     bundleItemCount?: number;
@@ -228,7 +230,7 @@ export function AuctionCard({
     if (isActionPending) return;
     setIsActionPending(true); setActionMessage("");
     try {
-      const cart = await addCartItem(Number(item.id), 1);
+      const cart = await (item.shopSource ? addCartItem(Number(item.id), 1, true) : addCartItem(Number(item.id), 1));
       announceCartChanged(cart.item_count);
       showToast({ title: "Kosárba téve", message: `${item.title} 60 percre lefoglalva.`, targetUrl: "/cart" });
     } catch (error) { setActionMessage(error instanceof Error ? error.message : "A kosárba helyezés nem sikerült."); }
@@ -240,7 +242,8 @@ export function AuctionCard({
     if (isActionPending || !item.buyNowAmount) return;
     setIsActionPending(true); setActionMessage("");
     try {
-      const cart = await addCartItem(Number(item.id), purchaseQuantity);
+      const cart = await (item.shopSource ? addCartItem(Number(item.id), purchaseQuantity, true) : addCartItem(Number(item.id), purchaseQuantity));
+      if (item.shopSource) { announceCartChanged(cart.item_count); navigate("/cart"); return; }
       const cartItem = cart.items.find((entry) => entry.auction_id === Number(item.id));
       if (!cartItem) throw new Error("A megvásárolandó tétel nem található a kosárban.");
       await checkoutCart(crypto.randomUUID(), [cartItem.id]);
@@ -271,7 +274,7 @@ export function AuctionCard({
       onClick={(event) => { if (!(event.target as HTMLElement).closest("a,button,input,select,textarea")) navigate(detailPath); }}
       onKeyDown={(event) => { if ((event.key === "Enter" || event.key === " ") && event.target === event.currentTarget) { event.preventDefault(); navigate(detailPath); } }}
     >
-      <div className={`auction-image${item.type === "Hatalom Kártyái Kártyajáték" && item.listingFormat === "single" ? " is-hkk-card" : ""}`}>
+      <div className={`auction-image${(item.shopSource || item.type === "Hatalom Kártyái Kártyajáték") && item.listingFormat === "single" ? " is-hkk-card" : ""}`}>
         {item.montageImages?.length ? <div className="auction-bundle-montage" aria-label={`${item.title} csomag borítója`}>{item.montageImages.map((src) => <SafeImage src={src} alt="" loading="lazy" decoding="async" width={350} height={490} key={src}/>) }{(item.bundleItemCount ?? 0) > 4 ? <strong>+{(item.bundleItemCount ?? 0) - 4} további lap</strong> : null}</div> : <SafeImage src={item.imageUrl} alt={item.title} loading="lazy" decoding="async" width={700} height={700} />}
       </div>
       <span className={`auction-condition-badge condition-${cardCondition.value.toLowerCase()}`} title={`${cardCondition.value} – ${cardCondition.nameHu} (${cardCondition.nameEn})`}>{cardCondition.value}</span>
@@ -284,6 +287,7 @@ export function AuctionCard({
       {outcomeLabel ? <div className={`auction-outcome-badge is-${item.outcomeStatus}`}>{outcomeLabel}</div> : personalStatus ? <div className={`auction-personal-badge is-${personalStatus}`}>{personalStatus === "leading" ? "Te vezetsz" : personalStatus === "outbid" ? "Túllicitáltak" : personalStatus === "watched" ? "Figyelőlistán" : "Kiszálltál"}</div> : null}
 
       <div className="auction-content">
+        {item.shopSource && item.shopRegularPrice && Number(item.currentAmount) < item.shopRegularPrice ? <p><del>{formatMoney(item.shopRegularPrice)}</del> · Akció</p> : null}
         <div className="auction-card-badges" aria-hidden={!item.isFeatured && !item.isDemo}>
           {item.listingFormat === "bundle" ? <span className="status-badge">CSOMAG · {item.bundleItemCount} lap / {item.bundleCopyCount} példány</span> : null}
           {item.isFeatured ? <span className="vip-featured-badge">VIP KIEMELT</span> : null}

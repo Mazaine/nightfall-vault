@@ -44,6 +44,7 @@ const PublicTradeFolderPage = lazy(() => import("./pages/PublicTradeFolderPage")
 const CommunityTradeBrowserPage = lazy(() => import("./pages/CommunityTradeBrowserPage").then((module) => ({ default: module.CommunityTradeBrowserPage })));
 const CartPage = lazy(() => import("./pages/CartPage").then((module) => ({ default: module.CartPage })));
 const AdminLayout = lazy(() => import("./pages/admin/AdminLayout").then((module) => ({ default: module.AdminLayout })));
+const AdminDiceMagicPage = lazy(() => import("./pages/admin/AdminDiceMagicPage").then((module) => ({ default: module.AdminDiceMagicPage })));
 const AdminDashboardPage = lazy(() => import("./pages/admin/AdminDashboardPage").then((module) => ({ default: module.AdminDashboardPage })));
 const AdminUsersPage = lazy(() => import("./pages/admin/AdminUsersPage").then((module) => ({ default: module.AdminUsersPage })));
 const AdminAuctionsPage = lazy(() => import("./pages/admin/AdminAuctionsPage").then((module) => ({ default: module.AdminAuctionsPage })));
@@ -123,6 +124,7 @@ function App() {
             <Route path="/auth/verify-email" element={<EmailVerificationPage />} />
             <Route path="/auth/social/complete" element={<SocialAuthCompletePage />} />
             <Route path="/admin" element={<AdminRoute />}>
+              <Route path="integrations/dicemagic" element={<AdminDiceMagicPage />} />
               <Route index element={<AdminDashboardPage />} />
               <Route path="auctions" element={<AdminAuctionsPage />} />
               <Route path="users" element={<AdminUsersPage />} />

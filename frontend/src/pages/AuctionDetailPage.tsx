@@ -304,7 +304,7 @@ export function AuctionDetailPage() {
     if (!auction || isBidSubmitting) return;
     setIsBidSubmitting(true); setBidMessage("");
     try {
-      const cart = await addCartItem(auction.id, purchaseQuantity);
+      const cart = await (auction.shop_source ? addCartItem(auction.id, purchaseQuantity, true) : addCartItem(auction.id, purchaseQuantity));
       announceCartChanged(cart.item_count);
       showToast({ title: "Kosárba téve", message: `${purchaseQuantity} db ${auction.title} a kosaradba került. A készletet a véglegesítés ellenőrzi.`, targetUrl: "/cart" });
       if (openCart) navigate("/cart");
@@ -316,7 +316,8 @@ export function AuctionDetailPage() {
     if (!auction || isBidSubmitting || !auction.buy_now_price) return;
     setIsBidSubmitting(true); setBidMessage("");
     try {
-      const cart = await addCartItem(auction.id, purchaseQuantity);
+      const cart = await (auction.shop_source ? addCartItem(auction.id, purchaseQuantity, true) : addCartItem(auction.id, purchaseQuantity));
+      if (auction.shop_source) { announceCartChanged(cart.item_count); navigate("/cart"); return; }
       const cartItem = cart.items.find((entry) => entry.auction_id === auction.id);
       if (!cartItem) throw new Error("A megvásárolandó tétel nem található a kosárban.");
       await checkoutCart(crypto.randomUUID(), [cartItem.id]);
@@ -434,10 +435,10 @@ export function AuctionDetailPage() {
     return null;
   }
 
-  const availableQuantity = Math.max(0, auction.available_quantity ?? (auction.status === "active" ? (auction.listing_format === "bundle" ? 1 : auction.vault_quantity ?? 0) : 0));
+  const availableQuantity = Math.max(0, auction.shop_source ? Math.min(999, auction.available_quantity ?? (auction.status === "active" ? 999 : 0)) : auction.available_quantity ?? (auction.status === "active" ? (auction.listing_format === "bundle" ? 1 : auction.vault_quantity ?? 0) : 0));
 
   const galleryImages = [...auction.images].sort((left, right) => left.position - right.position);
-  const referenceImageUrl = !galleryImages.length && auction.vault_external_card_id ? hkkCardImageUrl(auction.vault_external_card_id, null) : "";
+  const referenceImageUrl = auction.shop_image_url || (!galleryImages.length && auction.vault_external_card_id ? hkkCardImageUrl(auction.vault_external_card_id, null) : "");
   const bundleItems = auction.bundle_items ?? [];
   const bundleMontage = !galleryImages.length && bundleItems.length ? bundleItems.slice(0, 4).map((item) => ({
     id: item.id,
@@ -513,6 +514,8 @@ export function AuctionDetailPage() {
           <p className="auction-external-link"><a className="text-link" href={auction.external_link_url} target="_blank" rel="noopener noreferrer nofollow">{auction.external_link_label}</a></p>
         ) : null}
         <dl className="detail-list">
+          {auction.shop_source ? <div><dt>Bolt / változat</dt><dd>DiceMagic · {auction.shop_edition} · {auction.shop_variant || "Bolti termék"}</dd></div> : null}
+          {auction.shop_regular_price && Number(auction.buy_now_price) < auction.shop_regular_price ? <div><dt>Eredeti ár</dt><dd><del>{formatMoney(auction.shop_regular_price)}</del></dd></div> : null}
           <div><dt>Állapot</dt><dd>{formatCardCondition(auction.condition)}</dd></div>
           {auction.has_printing_error ? <div className="printing-error-detail"><dt>Nyomdahiba</dt><dd><strong>Nyomdahibás / gyártási hibás</strong>{auction.printing_error_description ? <small>{auction.printing_error_description}</small> : null}</dd></div> : null}
           <div><dt>{auction.listing_type === "fixed" ? "Fix ár" : "Aktuális licit"}</dt><dd>{formatMoney(auction.listing_type === "fixed" ? auction.buy_now_price ?? auction.current_price : auction.current_price ?? auction.starting_price)}</dd></div>
@@ -526,7 +529,7 @@ export function AuctionDetailPage() {
           {auction.listing_type !== "fixed" && auction.buy_now_enabled && auction.buy_now_price ? (
             <div><dt>Villámár</dt><dd>{formatMoney(auction.buy_now_price)}</dd></div>
           ) : null}
-          {auction.listing_type === "fixed" && auction.status === "active" ? <div><dt>Elérhető mennyiség</dt><dd>{auction.listing_format === "bundle" ? `${availableQuantity} csomag` : `${availableQuantity} db`}</dd></div> : null}
+          {auction.listing_type === "fixed" && auction.status === "active" ? <div><dt>Elérhető mennyiség</dt><dd>{auction.shop_source && auction.shop_stock === null ? "Rendelhető; a készletet a bolt ellenőrzi." : auction.listing_format === "bundle" ? `${availableQuantity} csomag` : `${availableQuantity} db`}</dd></div> : null}
         </dl>
         {auction.is_owner && auction.status === "active" ? <button className="button button-danger" type="button" onClick={() => setCancelConfirmationOpen(true)}>{auction.listing_format === "bundle" ? "Csomaghirdetés megszakítása" : "Hirdetés megszakítása"}</button> : null}
         {auction.status === "active" && (auction.listing_type !== "fixed" || availableQuantity > 0) && !auction.is_owner && isAuthenticated && !auction.viewer_is_leading ? (

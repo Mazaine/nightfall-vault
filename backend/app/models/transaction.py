@@ -90,7 +90,7 @@ class TransactionConversationMessage(Base):
 class AuctionTransactionItem(Base):
     __tablename__ = "auction_transaction_items"
     __table_args__ = (
-        CheckConstraint("quantity BETWEEN 1 AND 9", name="ck_auction_transaction_items_quantity"),
+        CheckConstraint("(shop_source IS NULL AND quantity BETWEEN 1 AND 9) OR (shop_source IS NOT NULL AND shop_source = 'dicemagic' AND quantity BETWEEN 1 AND 999)", name="ck_auction_transaction_items_quantity"),
         CheckConstraint("unit_price > 0", name="ck_auction_transaction_items_unit_price"),
         UniqueConstraint("transaction_id", "auction_id", name="uq_auction_transaction_items_transaction_auction"),
         Index("ix_auction_transaction_items_auction", "auction_id"),
@@ -102,6 +102,7 @@ class AuctionTransactionItem(Base):
     quantity: Mapped[int] = mapped_column(Integer, nullable=False)
     unit_price: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     title_snapshot: Mapped[str] = mapped_column(String(180), nullable=False)
+    shop_source: Mapped[str | None] = mapped_column(String(30), nullable=True)
     inventory_deducted: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
     transaction = relationship("AuctionTransaction", back_populates="items")

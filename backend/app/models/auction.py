@@ -39,6 +39,12 @@ class Auction(Base):
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    shop_source: Mapped[str | None] = mapped_column(String(30), index=True)
+    shop_stock: Mapped[int | None] = mapped_column(Integer)
+    shop_image_url: Mapped[str | None] = mapped_column(String(1000))
+    shop_edition: Mapped[str | None] = mapped_column(String(255))
+    shop_variant: Mapped[str | None] = mapped_column(String(30))
+    shop_regular_price: Mapped[int | None] = mapped_column(Integer)
     seller_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
     demo_batch_id: Mapped[int | None] = mapped_column(ForeignKey("demo_auction_batches.id", ondelete="SET NULL"), nullable=True, index=True)
     creation_key: Mapped[str | None] = mapped_column(String(36), nullable=True)

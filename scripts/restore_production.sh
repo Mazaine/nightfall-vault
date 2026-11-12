@@ -9,7 +9,7 @@ backup="${1:-}"
 grep -q '^format=nightfall-backup-v1$' "$backup/manifest.txt" || die "Ismeretlen backup-formátum."
 log "Biztonsági mentés készül a visszaállítás előtt."
 "$ROOT_DIR/scripts/backup_production.sh"
-compose stop backend auction-scheduler reverse-proxy
+compose stop reverse-proxy backend auction-scheduler notification-outbox
 compose exec -T postgres psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c 'DROP SCHEMA public CASCADE; CREATE SCHEMA public;'
 compose exec -T postgres pg_restore --exit-on-error --no-owner -U "$POSTGRES_USER" -d "$POSTGRES_DB" < "$backup/database.dump"
 docker_raw run --rm -v "${MEDIA_VOLUME_NAME}:/target" -v "$backup:/backup:ro" alpine:3.20 sh -c 'find /target -mindepth 1 -delete && tar -C /target -xzf /backup/media.tar.gz'

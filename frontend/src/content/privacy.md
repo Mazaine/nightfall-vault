@@ -956,6 +956,34 @@ Ha az incidens valószínűsíthetően magas kockázattal jár az Érintettek jo
 
 # 17. A tájékoztató módosítása
 
+## DiceMagic bolti rendelésközvetítés – adminisztrátori próba
+
+A külön engedélyezett bolti próba során a Nightfall Vault a Felhasználó által megadott
+nevet, e-mail-címet, opcionális telefonszámot, szállítási és számlázási adatokat,
+megjegyzést, valamint a rendelés tételeit és összegeit továbbítja a DiceMagic webshopnak.
+Az adatátadás a rendelési adatlapon külön jóváhagyást igényel. A fizetést, számlázást
+és szállítást a DiceMagic kezeli; ezek teljesítését a Nightfall nem igazolja automatikusan.
+
+A Nightfallnál tárolt rendelési név-, cím-, elérhetőségi és megjegyzésadatokra
+**90 napos működési megőrzési idő** vonatkozik. Ez a rendelés lezárása, az utolsó
+készletegyeztetés, illetve az ügylet teljesítési, módosítási és felülvizsgálati
+határideje közül a legkésőbbi időponttól számítandó. Nyitott, bizonytalan,
+teljesítetlen vagy készlet szempontjából egyeztetetlen rendelés adatai nem kerülnek
+ebbe a törlési körbe. Nyitott jogvita vagy külön megőrzési kötelezettség esetén
+egyedi felülvizsgálat szükséges.
+
+A törlés hozzáférés-védett adminisztrátori előnézet és külön megerősítés alapján
+történik. A 90 nap nem az összes platformadat általános megőrzési ideje: a tételek,
+árak, rendelési és idempotencia-azonosítók, ügyletkapcsolatok és a fiókhoz kapcsolt
+előzmények megmaradnak, saját adatkezelési céljuk szerint. Ez adatminimalizálás,
+nem teljes fióktörlés vagy minden kapcsolódó adat visszafordíthatatlan anonimizálása.
+A DiceMagic saját nyilvántartását és a biztonsági mentéseket nem törli ez az adminművelet.
+Érintetti kérelemmel az e tájékoztatóban megadott adatkezelői elérhetőségen lehet jelentkezni.
+
+A 90 nap belső működési szabály, nem általános jogszabályi határidő. Ez a kiegészítés
+az adminisztrátori bolti próbát írja le; a nyilvános bolti indulás előtt a teljes
+partneri adatkezelési és tájékoztatási rend felülvizsgálandó.
+
 Az Adatkezelő jogosult a jelen Adatkezelési Tájékoztatót módosítani, különösen ha:
 
 * a Nightfall Vault működése megváltozik;

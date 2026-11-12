@@ -28,12 +28,16 @@ def _price(auction: Auction) -> Decimal:
 
 
 def _listed_quantity(auction: Auction) -> int:
+    if auction.shop_source:
+        return min(999, auction.shop_stock) if auction.shop_stock is not None else 999
     return 1 if auction.listing_format == "bundle" else int(auction.vault_quantity or 1)
 
 
 def _validate_listing(auction: Auction | None, user_id: int) -> Auction:
     if auction is None or auction.deleted_at is not None:
         raise HTTPException(status_code=404, detail="A hirdetés nem található.")
+    if auction.shop_source:
+        raise HTTPException(status_code=409, detail="A bolti tételhez az adminisztrátori vásárlási folyamat szükséges.")
     if auction.listing_type != "fixed":
         raise HTTPException(status_code=409, detail="Csak fix áras hirdetés tehető kosárba.")
     if auction.status != "active":
@@ -211,7 +215,7 @@ def update_cart_item(db: Session, user: User, item_id: int, quantity: int, *, ac
     if auction.listing_format == "bundle" and quantity != 1:
         raise HTTPException(status_code=422, detail="A csomag mennyisége nem módosítható.")
     current_price = _price(auction)
-    if current_price < item.price_snapshot:
+    if current_price < item.price_snapshot and not auction.shop_source:
         item.price_snapshot = current_price
         db.add(item)
     if current_price > item.price_snapshot and not accept_price:
@@ -227,6 +231,8 @@ def update_cart_item(db: Session, user: User, item_id: int, quantity: int, *, ac
 
 
 def remove_cart_item(db: Session, user: User, item_id: int) -> dict:
+    if item_id in pending_shop_item_ids(db, user.id):
+        raise HTTPException(409, "A bolti tétel már előkészített rendeléshez tartozik. A visszavonást az adminisztrátori rendeléskezelőben egyeztesd.")
     item = db.scalar(select(CartItem).join(Cart).where(CartItem.id == item_id, Cart.user_id == user.id, CartItem.status == "active").with_for_update())
     if item is None:
         raise HTTPException(status_code=404, detail="A kosártétel nem található.")
@@ -255,7 +261,7 @@ def _item_state(item: CartItem, timestamp: datetime) -> str:
     return "available"
 
 
-def _item_dict(db: Session, item: CartItem, timestamp: datetime) -> dict:
+def _item_dict(db: Session, item: CartItem, timestamp: datetime, pending: bool = False) -> dict:
     auction = item.auction
     state = _item_state(item, timestamp)
     if auction.deleted_at is not None or auction.status != "active":
@@ -265,18 +271,21 @@ def _item_dict(db: Session, item: CartItem, timestamp: datetime) -> dict:
     elif _available(db, auction) < item.quantity:
         state = "quantity_changed"
     current_price = _price(auction)
-    if current_price < item.price_snapshot:
+    if current_price < item.price_snapshot and not auction.shop_source:
         item.price_snapshot = current_price
         db.add(item)
+    if pending:
+        state = "order_pending"
     cover = next((image for image in auction.images if image.is_cover), auction.images[0] if auction.images else None)
     return {
         "id": item.id, "auction_id": auction.id, "title": auction.title, "seller_id": auction.seller_id,
+        "shop_source": auction.shop_source, "stock_tracked": auction.shop_stock is not None,
         "seller_name": auction.seller.full_name or auction.seller.username, "listing_format": auction.listing_format,
-        "variant": auction.vault_print_variant, "quantity": item.quantity, "max_quantity": _listed_quantity(auction),
+        "variant": auction.vault_print_variant, "quantity": item.quantity, "max_quantity": item.quantity if pending else _listed_quantity(auction),
         "unit_price": item.price_snapshot, "current_price": current_price, "subtotal": item.price_snapshot * item.quantity,
-        "price_changed": current_price > item.price_snapshot, "state": state,
+        "price_changed": current_price != item.price_snapshot if auction.shop_source else current_price > item.price_snapshot, "state": state,
         "reservation_expires_at": None,
-        "image_url": (cover.list_storage_key or cover.thumbnail_storage_key or cover.storage_key) if cover else None,
+        "image_url": auction.shop_image_url or ((cover.list_storage_key or cover.thumbnail_storage_key or cover.storage_key) if cover else None),
         "external_card_id": auction.vault_external_card_id,
         "bundle_items": [{"card_name": row.card_name, "quantity": row.quantity, "external_card_id": row.external_card_id, "image_url": row.image_url} for row in auction.bundle_items],
     }
@@ -291,12 +300,46 @@ def get_cart(db: Session, user_id: int) -> dict:
     items = list(db.scalars(select(CartItem).where(CartItem.cart_id == cart.id, CartItem.status == "active").options(
         joinedload(CartItem.reservation), joinedload(CartItem.auction).joinedload(Auction.seller), joinedload(CartItem.auction).selectinload(Auction.images), joinedload(CartItem.auction).selectinload(Auction.bundle_items),
     ).order_by(CartItem.created_at, CartItem.id)).unique().all())
-    result = [_item_dict(db, item, timestamp) for item in items]
+    viewer = db.get(User, user_id)
+    pending_ids = pending_shop_item_ids(db, user_id) if viewer.role == "admin" else set()
+    result = [_item_dict(db, item, timestamp, item.id in pending_ids) for item in items if not item.auction.shop_source or viewer.role == "admin"]
+    resume_key = None
+    if pending_ids:
+        from app.models.dicemagic import DiceMagicCheckoutAttempt, DiceMagicOrder
+        attempts = db.execute(select(DiceMagicCheckoutAttempt.idempotency_key, DiceMagicOrder.cart_item_ids)
+            .join(DiceMagicOrder, DiceMagicCheckoutAttempt.shop_order_id == DiceMagicOrder.id)
+            .where(DiceMagicCheckoutAttempt.buyer_id == user_id, DiceMagicOrder.buyer_id == user_id,
+                   DiceMagicOrder.status.in_(["queued", "sending", "unknown"]))
+            .order_by(DiceMagicCheckoutAttempt.id.desc())).all()
+        active_ids = {row["id"] for row in result}
+        resume_key = next((key for key, ids in attempts if active_ids.intersection(ids)), None)
     db.commit()
-    return {"items": result, "item_count": len(result), "total": sum((row["subtotal"] for row in result), Decimal("0")), "server_time": timestamp}
+    return {"items": result, "item_count": len(result), "total": sum((row["subtotal"] for row in result), Decimal("0")), "server_time": timestamp, "checkout_resume_key": resume_key}
 
 
-def _sold_snapshot(db: Session, auction: Auction, buyer_id: int, quantity: int) -> Auction:
+def pending_shop_item_ids(db: Session, user_id: int) -> set[int]:
+    from app.models.dicemagic import DiceMagicOrder
+    return {item_id for ids in db.scalars(select(DiceMagicOrder.cart_item_ids).where(DiceMagicOrder.buyer_id == user_id, DiceMagicOrder.status.in_(["queued", "sending", "unknown"]))) for item_id in ids}
+
+
+def _sold_snapshot(db: Session, auction: Auction, buyer_id: int, quantity: int, *, shop_order_key: str | None = None) -> Auction:
+    if auction.shop_source:
+        if not shop_order_key:
+            raise HTTPException(409, "Bolti eladás csak igazolt partner-rendelésből rögzíthető.")
+        # Reuse the existing historical listing snapshot pattern. Never mutate
+        # the live shop listing or an earlier sale, and never attach Vault stock.
+        sold = Auction(seller_id=auction.seller_id, creation_key=str(uuid4()), listing_type="fixed", listing_format="single",
+            shop_source=auction.shop_source, shop_stock=0, shop_image_url=auction.shop_image_url,
+            shop_edition=auction.shop_edition, shop_variant=auction.shop_variant, shop_regular_price=auction.shop_regular_price,
+            vault_external_card_id=auction.vault_external_card_id, vault_print_variant=auction.vault_print_variant,
+            title=auction.title, description=auction.description, category=auction.category, condition=auction.condition,
+            status="sold", starting_price=0, bid_increment=1, current_price=auction.current_price,
+            buy_now_enabled=True, buy_now_price=auction.buy_now_price, starts_at=auction.starts_at, ends_at=auction.ends_at,
+            five_minute_rule_enabled=False, winner_id=buyer_id, seller_declaration_accepted_at=auction.seller_declaration_accepted_at,
+            seller_declaration_version=auction.seller_declaration_version, finalized_at=now_utc())
+        db.add(sold)
+        db.flush()
+        return sold
     total = _listed_quantity(auction)
     if auction.listing_format == "bundle" or quantity == total:
         if auction.listing_format != "bundle":
@@ -332,7 +375,12 @@ def _checkout_result(batch: CheckoutBatch) -> dict:
     return {"checkout_batch_id": batch.id, "transaction_count": len(transactions), "seller_count": batch.seller_count, "item_count": batch.item_count, "total": batch.total_amount, "transactions": transactions}
 
 
-def checkout_cart(db: Session, user: User, idempotency_key: str, item_ids: list[int] | None = None) -> dict:
+def checkout_cart(db: Session, user: User, idempotency_key: str, item_ids: list[int] | None = None, *, shop_details=None, confirm_real_order=False) -> dict:
+    from app.services.dicemagic_checkout import checkout_with_shop
+    return checkout_with_shop(db, user, idempotency_key, item_ids, shop_details, confirm_real_order, checkout_private_cart)
+
+
+def checkout_private_cart(db: Session, user: User, idempotency_key: str, item_ids: list[int] | None = None) -> dict:
     if not idempotency_key.strip():
         raise HTTPException(status_code=422, detail="Az idempotenciakulcs kötelező.")
     db.execute(text("SELECT pg_advisory_xact_lock(hashtext(:key))"), {"key": f"cart-checkout:{user.id}:{idempotency_key}"})
@@ -343,12 +391,12 @@ def checkout_cart(db: Session, user: User, idempotency_key: str, item_ids: list[
     if cart is None:
         raise HTTPException(status_code=409, detail="A kosár üres.")
     statement = select(CartItem).where(CartItem.cart_id == cart.id, CartItem.status == "active")
-    if item_ids:
+    if item_ids is not None:
         statement = statement.where(CartItem.id.in_(item_ids))
     items = list(db.scalars(statement.options(selectinload(CartItem.reservation)).order_by(CartItem.auction_id).with_for_update()).all())
     if not items:
         raise HTTPException(status_code=409, detail="Nincs véglegesíthető kosártétel.")
-    auctions = {row.id: row for row in db.scalars(select(Auction).where(Auction.id.in_([item.auction_id for item in items])).order_by(Auction.id).with_for_update()).all()}
+    auctions = {row.id: row for row in db.scalars(select(Auction).where(Auction.id.in_([item.auction_id for item in items])).order_by(Auction.id).with_for_update().execution_options(populate_existing=True)).all()}
     timestamp = now_utc()
     for item in items:
         auction = _validate_listing(auctions.get(item.auction_id), user.id)

@@ -62,6 +62,9 @@ def get_participant_conversation(db: Session, conversation_id: int, user_id: int
     ).options(*conversation_options()))
     if conversation is None:
         raise HTTPException(status_code=404, detail="Az ügyletbeszélgetés nem található.")
+    from app.models.user import User
+    if any(transaction.auction.shop_source for transaction in conversation.transactions) and db.get(User, user_id).role != "admin":
+        raise HTTPException(404, "Az ügyletbeszélgetés nem található.")
     return conversation
 
 

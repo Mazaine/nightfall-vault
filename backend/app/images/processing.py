@@ -5,7 +5,7 @@ from io import BytesIO
 from fastapi import HTTPException
 from PIL import Image, ImageOps, UnidentifiedImageError
 
-from app.images.validation import validate_image_upload
+from app.images.validation import open_supported_image, validate_image_dimensions, validate_image_upload
 from app.images.variants import IMAGE_VARIANTS
 
 
@@ -21,7 +21,8 @@ def process_image(content: bytes, declared_content_type: str | None) -> Processe
     try:
         with warnings.catch_warnings():
             warnings.simplefilter("error", Image.DecompressionBombWarning)
-            with Image.open(BytesIO(content)) as source:
+            with open_supported_image(content) as source:
+                validate_image_dimensions(source)
                 source.seek(0)
                 image = ImageOps.exif_transpose(source)
                 image.load()

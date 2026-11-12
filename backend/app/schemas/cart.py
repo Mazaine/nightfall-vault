@@ -3,6 +3,7 @@ from decimal import Decimal
 from typing import Literal
 
 from pydantic import BaseModel, Field
+from app.schemas.dicemagic import ShopCheckout
 
 
 class CartItemCreate(BaseModel):
@@ -23,6 +24,8 @@ class CartBundleItemRead(BaseModel):
 
 
 class CartItemRead(BaseModel):
+    shop_source: str | None = None
+    stock_tracked: bool = True
     id: int
     auction_id: int
     title: str
@@ -36,7 +39,7 @@ class CartItemRead(BaseModel):
     current_price: Decimal
     subtotal: Decimal
     price_changed: bool
-    state: Literal["available", "quantity_changed", "sold_out", "listing_removed"]
+    state: Literal["available", "quantity_changed", "sold_out", "listing_removed", "order_pending"]
     reservation_expires_at: datetime | None
     image_url: str | None
     external_card_id: str | None
@@ -44,6 +47,7 @@ class CartItemRead(BaseModel):
 
 
 class CartRead(BaseModel):
+    checkout_resume_key: str | None = None
     items: list[CartItemRead]
     item_count: int
     total: Decimal
@@ -51,6 +55,8 @@ class CartRead(BaseModel):
 
 
 class CheckoutCreate(BaseModel):
+    shop_details: ShopCheckout | None = None
+    confirm_real_order: bool = False
     idempotency_key: str = Field(min_length=8, max_length=80)
     item_ids: list[int] | None = None
 
@@ -63,6 +69,9 @@ class CheckoutTransactionRead(BaseModel):
 
 
 class CheckoutResult(BaseModel):
+    external_orders: list[dict] = Field(default_factory=list)
+    private_error: str | None = None
+    status: str = "completed"
     checkout_batch_id: int
     transaction_count: int
     seller_count: int

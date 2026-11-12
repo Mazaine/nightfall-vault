@@ -149,6 +149,8 @@ def get_auction_or_404(db: Session, auction_id: int) -> Auction:
 
 
 def can_view_auction(auction: Auction, user: User | None) -> bool:
+    if auction.shop_source and (user is None or user.role != "admin"):
+        return False
     from app.services.demo_visibility import can_access_demo_auctions
     if auction.demo_batch_id is not None and not can_access_demo_auctions(user):
         return False
@@ -167,6 +169,8 @@ def require_can_view_auction(auction: Auction, user: User | None) -> None:
 
 
 def require_owner_or_admin(auction: Auction, user: User) -> None:
+    if auction.shop_source:
+        raise HTTPException(status_code=409, detail="A bolti hirdetést a partner szinkronizálja.")
     if auction.seller_id != user.id and user.role != "admin":
         raise HTTPException(status_code=403, detail="A műveletet csak az aukció eladója végezheti el.")
 

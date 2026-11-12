@@ -18,6 +18,7 @@ from app.api.blocks import router as blocks_router
 from app.api.bids import router as bids_router
 from app.api.categories import router as categories_router
 from app.api.cart import router as cart_router
+from app.api.dicemagic import router as dicemagic_router
 from app.api.follow import router as follow_router
 from app.api.health import router as health_router
 from app.api.newsletter import router as newsletter_router
@@ -87,6 +88,7 @@ app = FastAPI(
     openapi_url="/openapi.json" if DEVELOPER_SURFACE_ENABLED else None,
 )
 app.mount(settings.media_url_prefix, ImmutableMediaFiles(directory=storage.root, follow_symlink=False), name="media")
+app.include_router(dicemagic_router)
 
 SECURITY_HEADERS = {
     "X-Content-Type-Options": "nosniff",

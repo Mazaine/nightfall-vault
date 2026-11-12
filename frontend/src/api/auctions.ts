@@ -39,6 +39,12 @@ export type AuctionUser = {
 };
 
 export type Auction = {
+  shop_source?: string | null;
+  shop_stock?: number | null;
+  shop_image_url?: string | null;
+  shop_edition?: string | null;
+  shop_variant?: string | null;
+  shop_regular_price?: number | null;
   id: number;
   seller_id: number;
   listing_type?: "auction" | "fixed";
@@ -48,7 +54,7 @@ export type Auction = {
   vault_external_card_id?: string | null;
   vault_print_variant?: string | null;
   vault_quantity?: number | null;
-  available_quantity?: number;
+  available_quantity?: number | null;
   vault_inventory_deducted?: boolean;
   title: string;
   description?: string;

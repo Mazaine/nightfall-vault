@@ -420,6 +420,12 @@ class BatchFixedListingCreate(BaseModel):
 
 
 class AuctionListItem(BaseModel):
+    shop_source: str | None = None
+    shop_stock: int | None = None
+    shop_image_url: str | None = None
+    shop_edition: str | None = None
+    shop_variant: str | None = None
+    shop_regular_price: int | None = None
     id: int
     seller_id: int
     listing_type: Literal["auction", "fixed"] = "auction"
@@ -429,7 +435,7 @@ class AuctionListItem(BaseModel):
     vault_external_card_id: str | None = None
     vault_print_variant: str | None = None
     vault_quantity: int | None = None
-    available_quantity: int = 0
+    available_quantity: int | None = 0
     vault_inventory_deducted: bool = False
     title: str
     external_link_label: str | None = None

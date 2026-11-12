@@ -8,6 +8,9 @@ import re
 import textwrap
 
 from PIL import Image, ImageDraw, ImageFont, ImageOps
+from fastapi import HTTPException
+
+from app.images.validation import open_supported_image, validate_image_dimensions
 
 from app.models.auction import Auction, AuctionImage
 from app.storage import storage
@@ -55,14 +58,15 @@ def _background(cover: AuctionImage | None) -> Image.Image:
     if cover:
         try:
             if storage.exists(cover.storage_key):
-                with Image.open(BytesIO(storage.read_bytes(cover.storage_key))) as source:
+                with open_supported_image(storage.read_bytes(cover.storage_key)) as source:
+                    validate_image_dimensions(source)
                     source = ImageOps.exif_transpose(source).convert("RGB")
                     fitted = ImageOps.contain(source, (720, 630), Image.Resampling.LANCZOS)
                     x = (720 - fitted.width) // 2
                     y = (630 - fitted.height) // 2
                     canvas.paste(fitted, (x, y))
                     cover_rendered = True
-        except (FileNotFoundError, OSError):
+        except (FileNotFoundError, OSError, ValueError, HTTPException, Image.DecompressionBombError):
             cover_rendered = False
     if not cover_rendered:
         draw = ImageDraw.Draw(canvas)

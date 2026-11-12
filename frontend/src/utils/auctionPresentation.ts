@@ -9,10 +9,12 @@ export function toAuctionCardItem(auction: Auction) {
   const bundleItems = auction.bundle_items ?? [];
   return {
     id: auction.id,
+    shopSource: auction.shop_source,
+    shopRegularPrice: auction.shop_regular_price,
     listingType: auction.listing_type ?? "auction",
     sellerId: auction.seller_id,
     title: auction.title,
-    type: auction.category,
+    type: auction.shop_source ? `DiceMagic · ${auction.shop_edition || "Bolti termék"} · ${auction.shop_variant || ""}` : auction.category,
     price: formatMoney(auction.listing_type === "fixed" ? auction.buy_now_price ?? auction.current_price : auction.current_price ?? auction.starting_price),
     step: formatMoney(auction.bid_increment),
     currentAmount: auction.current_price ?? auction.starting_price,
@@ -29,11 +31,11 @@ export function toAuctionCardItem(auction: Auction) {
     buyNowPrice: auction.buy_now_enabled ? auction.buy_now_price : null,
     buyNowAmount: auction.buy_now_enabled ? auction.buy_now_price : null,
     isClosed: ["ended", "sold", "unsold", "cancelled", "suspended"].includes(auction.status),
-    imageUrl: coverImage
+    imageUrl: auction.shop_image_url || (coverImage
       ? apiAssetUrl(coverImage.list_url ?? coverImage.thumbnail_url ?? coverImage.url)
-      : auction.vault_external_card_id ? hkkCardImageUrl(auction.vault_external_card_id, null) : "",
+      : auction.vault_external_card_id ? hkkCardImageUrl(auction.vault_external_card_id, null) : ""),
     listingFormat: auction.listing_format ?? "single",
-    availableQuantity: Math.max(0, auction.available_quantity ?? (auction.status === "active" ? (auction.listing_format === "bundle" ? 1 : auction.vault_quantity ?? 0) : 0)),
+    availableQuantity: Math.max(0, auction.shop_source ? Math.min(999, auction.available_quantity ?? (auction.status === "active" ? 999 : 0)) : auction.available_quantity ?? (auction.status === "active" ? (auction.listing_format === "bundle" ? 1 : auction.vault_quantity ?? 0) : 0)),
     bundleItemCount: bundleItems.length,
     bundleCopyCount: bundleItems.reduce((sum, item) => sum + item.quantity, 0),
     montageImages: !coverImage && bundleItems.length ? bundleItems.slice(0, 4).map((item) => hkkCardImageUrl(item.external_card_id, item.image_url)) : [],

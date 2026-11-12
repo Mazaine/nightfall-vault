@@ -35,12 +35,14 @@ router = APIRouter(prefix="/api/auctions", tags=["auctions"])
 AUCTION_SORTS = {"newest", "oldest", "highest_price", "lowest_price", "most_bids", "fewest_bids", "soon_ending", "buy_now_first"}
 
 
-def available_listing_quantity(auction: Auction) -> int:
+def available_listing_quantity(auction: Auction) -> int | None:
     """Purchasable quantity, distinct from the historical advertised quantity."""
     if auction.listing_type != "fixed" or auction.status != "active" or auction.deleted_at is not None:
         return 0
     if auction.listing_format == "bundle":
         return 1
+    if auction.shop_source:
+        return auction.shop_stock
     return max(int(auction.vault_quantity or 0), 0)
 
 

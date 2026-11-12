@@ -38,4 +38,5 @@ def reserve_again(item_id: int, current_user: User = Depends(require_active_user
 
 @router.post("/checkout", response_model=CheckoutResult)
 def checkout(payload: CheckoutCreate, current_user: User = Depends(require_active_user), db: Session = Depends(get_db)) -> CheckoutResult:
-    return CheckoutResult.model_validate(checkout_cart(db, current_user, payload.idempotency_key, payload.item_ids))
+    return CheckoutResult.model_validate(checkout_cart(db, current_user, payload.idempotency_key, payload.item_ids,
+        shop_details=payload.shop_details.model_dump(mode="json") if payload.shop_details else None, confirm_real_order=payload.confirm_real_order))

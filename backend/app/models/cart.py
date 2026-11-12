@@ -20,7 +20,7 @@ class Cart(Base):
 class CartItem(Base):
     __tablename__ = "cart_items"
     __table_args__ = (
-        CheckConstraint("quantity BETWEEN 1 AND 9", name="ck_cart_items_quantity"),
+        CheckConstraint("(shop_source IS NULL AND quantity BETWEEN 1 AND 9) OR (shop_source IS NOT NULL AND shop_source = 'dicemagic' AND quantity BETWEEN 1 AND 999)", name="ck_cart_items_quantity"),
         CheckConstraint("status IN ('active', 'removed', 'checked_out')", name="ck_cart_items_status"),
         CheckConstraint("price_snapshot > 0", name="ck_cart_items_price_snapshot"),
         UniqueConstraint("cart_id", "auction_id", name="uq_cart_items_cart_auction"),
@@ -32,6 +32,7 @@ class CartItem(Base):
     quantity: Mapped[int] = mapped_column(Integer, nullable=False)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="active", server_default="active")
     price_snapshot: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
+    shop_source: Mapped[str | None] = mapped_column(String(30), nullable=True)
     reservation_attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())

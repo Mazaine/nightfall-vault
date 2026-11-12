@@ -33,6 +33,6 @@ EOF
 
 export NIGHTFALL_IMAGE_TAG="$ROLLBACK_IMAGE_TAG"
 compose config --quiet
-compose up -d --no-build backend auction-scheduler frontend reverse-proxy
+compose up -d --no-build backend auction-scheduler notification-outbox frontend reverse-proxy
 "$ROOT_DIR/scripts/smoke_test_production.sh"
 log "Alkalmazás-rollback kész. Adatbázis downgrade nem futott; inkompatibilis migrációnál ellenőrzött backup restore szükséges."
