@@ -4175,3 +4175,79 @@ h3 {
     height: clamp(12rem, 52vw, 17rem);
   }
 }
+
+/* Shared marketplace-inspired sizing for HKK folders and trading cards.
+   Keep list views, card details and all interactive inventory controls intact. */
+.vault-card-grid,
+.vault-search-card-grid {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 13.75rem), 1fr));
+  align-items: stretch;
+  gap: .75rem;
+}
+.vault-card-grid.community-trade-grid {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 13.75rem), 1fr));
+  justify-content: stretch;
+}
+.vault-card-grid > .vault-card,
+.vault-search-card-grid > .vault-card {
+  height: 100%;
+  align-self: stretch;
+  grid-template-rows: auto minmax(0, 1fr);
+}
+.vault-card-grid > .vault-card > .card-image-preview,
+.vault-card-grid > .vault-card > .vault-card-placeholder,
+.vault-search-card-grid > .vault-card > .card-image-preview,
+.vault-search-card-grid > .vault-card > .vault-card-placeholder {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: clamp(14rem, 20vw, 18rem);
+  aspect-ratio: auto;
+  padding: .35rem;
+}
+.vault-card-grid > .vault-card .card-image-preview-thumbnail,
+.vault-search-card-grid > .vault-card .card-image-preview-thumbnail {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.vault-card-grid .vault-card-body,
+.vault-search-card-grid .vault-card-body {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: .5rem;
+  padding: .75rem;
+}
+.vault-card-grid .vault-card-title,
+.vault-search-card-grid .vault-card-title { min-height: 0; }
+.vault-card-grid .vault-card-title strong,
+.vault-search-card-grid .vault-card-title strong,
+.vault-card-grid .vault-card-body > strong {
+  display: -webkit-box;
+  min-height: 2.5em;
+  overflow: hidden;
+  line-height: 1.25;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+.vault-card-grid .vault-card-direct-actions,
+.vault-card-grid .vault-trade-card-actions,
+.vault-search-card-grid .vault-search-card-actions,
+.vault-card-grid .vault-card-body > .button:first-of-type {
+  margin-top: auto;
+}
+@media (max-width: 760px) {
+  .vault-card-grid > .vault-card > .card-image-preview,
+  .vault-card-grid > .vault-card > .vault-card-placeholder,
+  .vault-search-card-grid > .vault-card > .card-image-preview,
+  .vault-search-card-grid > .vault-card > .vault-card-placeholder {
+    height: clamp(12rem, 52vw, 17rem);
+  }
+}
+@media (max-width: 560px) {
+  .vault-collection-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .vault-collection-grid .vault-card-variant-quantities { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .vault-collection-grid .vault-card-direct-actions { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .vault-collection-grid .vault-card-action-icon { min-height: 2.35rem; }
+}
