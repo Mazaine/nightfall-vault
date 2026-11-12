@@ -32,12 +32,31 @@ describe("DiceMagic ordering directly from the cart", () => {
     mocks.send.mockResolvedValue({ ...order, status: "accepted", transaction_id: 4 });
     mocks.checkout.mockReset().mockResolvedValueOnce(pending).mockResolvedValue(completed);
   });
-  it("a 999-es bolti mennyiség a bolti végpontot használja", async () => {
+  it("a DiceMagic plusz/mínusz nem enged a szinkronizált készlet fölé vagy 1 alá", async () => {
+    const stockThree = { ...shop, title: "Árnyfőnix", quantity: 1, max_quantity: 3, stock_tracked: true, subtotal: "390" };
+    mocks.get.mockResolvedValue({ ...cart, items: [stockThree], item_count: 1, total: "390" });
+    mocks.add.mockResolvedValueOnce({ ...cart, items: [{ ...stockThree, quantity: 2, subtotal: "780" }], item_count: 1, total: "780" })
+      .mockResolvedValueOnce({ ...cart, items: [{ ...stockThree, quantity: 3, subtotal: "1170" }], item_count: 1, total: "1170" });
     render(<MemoryRouter><CartPage /></MemoryRouter>);
-    const quantity = await screen.findByLabelText("Bolti lap darabszáma");
-    expect(quantity).toHaveTextContent("999");
-    fireEvent.change(quantity, { target: { value: "999" } });
-    await waitFor(() => expect(mocks.add).toHaveBeenCalledWith(11, 999, true));
+    const increase = await screen.findByRole("button", { name: "Árnyfőnix darabszám növelése" });
+    expect(screen.getByText("Elérhető: 3 db")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Árnyfőnix darabszám csökkentése" })).toBeDisabled();
+    fireEvent.click(increase);
+    await waitFor(() => expect(mocks.add).toHaveBeenCalledWith(11, 2, true));
+    await waitFor(() => expect(screen.getByLabelText("Árnyfőnix kiválasztott darabszáma")).toHaveTextContent("2"));
+    fireEvent.click(increase);
+    await waitFor(() => expect(mocks.add).toHaveBeenCalledWith(11, 3, true));
+    await waitFor(() => expect(screen.getByLabelText("Árnyfőnix kiválasztott darabszáma")).toHaveTextContent("3"));
+    expect(increase).toBeDisabled();
+    expect(mocks.add).toHaveBeenCalledTimes(2);
+  });
+  it("a nem követett DiceMagic-készletet 999-nél korlátozza, a magáneladót változatlanul kezeli", async () => {
+    mocks.get.mockResolvedValue({ ...cart, items: [shop, privateItem] });
+    mocks.add.mockResolvedValue({ ...cart, items: [{ ...shop, quantity: 3 }, privateItem] });
+    render(<MemoryRouter><CartPage /></MemoryRouter>);
+    const increase = await screen.findByRole("button", { name: "Bolti lap darabszám növelése" });
+    fireEvent.click(increase);
+    await waitFor(() => expect(mocks.add).toHaveBeenCalledWith(11, 3, true));
     expect(screen.getByLabelText("Magáneladós lap darabszáma").querySelectorAll("option")).toHaveLength(3);
   });
   it("egyetlen Megrendelem művelet kezeli a vegyes kosarat, adminoldali navigáció nélkül", async () => {
