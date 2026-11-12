@@ -3745,19 +3745,19 @@ h3 {
 
 .marketplace-results-grid {
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 13.75rem), 1fr));
-  align-items: start;
+  align-items: stretch;
   gap: .75rem;
 }
 .marketplace-results-grid .auction-card {
-  height: auto;
-  align-self: start;
+  height: 100%;
+  align-self: stretch;
 }
 .marketplace-results-grid .auction-card .auction-image {
   height: clamp(9.5rem, 14vw, 11.5rem);
   aspect-ratio: auto;
 }
 .marketplace-results-grid .auction-image > .image-fallback { min-height: 0; }
-.marketplace-results-grid .auction-content { flex: none; gap: .5rem; padding: .75rem; }
+.marketplace-results-grid .auction-content { flex: 1; gap: .5rem; padding: .75rem; }
 .marketplace-results-grid .auction-card-badges { min-height: 0; }
 .marketplace-results-grid .auction-card-status-row { min-height: 0; }
 .marketplace-results-grid .seller-meta {
@@ -3892,16 +3892,16 @@ h3 {
 /* Shared compact card language: marketplace, homepage, bids, vault, trading and public folders.
    Only card collections are affected; full-size details and editing dialogs keep their layout. */
 .auction-grid:not(.marketplace-results-grid) {
-  align-items: start;
+  align-items: stretch;
   gap: .75rem;
 }
-.auction-grid:not(.marketplace-results-grid) .auction-card { height: auto; align-self: start; }
+.auction-grid:not(.marketplace-results-grid) .auction-card { height: 100%; align-self: stretch; }
 .auction-grid:not(.marketplace-results-grid) .auction-image {
   height: clamp(9.5rem, 14vw, 11.5rem);
   aspect-ratio: auto;
 }
 .auction-grid:not(.marketplace-results-grid) .auction-image > .image-fallback { min-height: 0; }
-.auction-grid:not(.marketplace-results-grid) .auction-content { flex: none; gap: .5rem; padding: .75rem; }
+.auction-grid:not(.marketplace-results-grid) .auction-content { flex: 1; gap: .5rem; padding: .75rem; }
 .auction-grid:not(.marketplace-results-grid) .auction-card-badges,
 .auction-grid:not(.marketplace-results-grid) .auction-card-status-row { min-height: 0; }
 .auction-grid:not(.marketplace-results-grid) .seller-meta {
@@ -4140,4 +4140,38 @@ h3 {
 .auction-card .auction-image.is-hkk-card > img,
 .auction-card .auction-image.is-hkk-card > .foil-card-frame img {
   object-fit: contain;
+}
+
+/* Marketplace card rhythm for all auction grids, including home carousels.
+   Keep HKK single-card images unchanged; show full booster/bundle artwork. */
+.auction-grid .auction-content {
+  display: flex;
+  flex-direction: column;
+}
+/* Details can grow, but the price and purchase actions stay at the card bottom. */
+.auction-grid .auction-card-details,
+.auction-grid .auction-card-transaction {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: .5rem;
+}
+.auction-grid .auction-card-transaction {
+  margin-top: auto;
+}
+.auction-grid .auction-card-transaction .auction-commerce-block {
+  margin-top: 0;
+}
+.auction-grid .auction-card > .auction-image:not(.is-hkk-card) {
+  height: clamp(14rem, 20vw, 18rem);
+  aspect-ratio: auto;
+  padding: .35rem;
+}
+.auction-grid .auction-card > .auction-image:not(.is-hkk-card) > img {
+  object-fit: contain;
+}
+@media (max-width: 760px) {
+  .auction-grid .auction-card > .auction-image:not(.is-hkk-card) {
+    height: clamp(12rem, 52vw, 17rem);
+  }
 }
