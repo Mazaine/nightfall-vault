@@ -3,6 +3,7 @@ import { Link } from "react-router";
 import { ApiError, apiAssetUrl } from "../api/client";
 import { addCartItem, announceCartChanged, checkoutCart, getCart, getShopOrderPermission, sendShopOrder, removeCartItem, updateCartItem, type Cart, type CartItem, type CheckoutResult } from "../api/cart";
 import { SafeImage } from "../components/SafeImage";
+import { CardImageZoom } from "../components/CardImageZoom";
 import { DiceMagicCheckout } from "../components/DiceMagicCheckout";
 import { hkkCardImageUrl } from "../utils/hkk";
 import { formatMoney } from "../utils/format";
@@ -111,7 +112,7 @@ export function CartPage() {
     {!cart.items.length ? <div className="side-panel empty-state"><h2>A kosarad üres</h2><p>A fix áras lapok és csomagok a piactérről tehetők ide.</p></div> : <>
       <p className="section-note">A kosár nem foglal készletet. Az elérhetőséget és az árat a véglegesítéskor újra ellenőrizzük.</p>
       <div className="cart-list">{cart.items.map((item) => <article className={`cart-item is-${item.state}`} key={item.id}>
-        <SafeImage src={imageFor(item)} alt={item.title} loading="lazy" />
+        <div className="cart-item-image card-image-zoom-host"><SafeImage src={imageFor(item)} alt={item.title} loading="lazy" /><CardImageZoom src={imageFor(item)} alt={item.title}/></div>
         <div className="cart-item-copy"><h2><Link to={`/auctions/${item.auction_id}`}>{item.title}</Link></h2><p>Eladó: {item.seller_name}{item.variant ? ` · ${item.variant.toUpperCase()}` : ""}</p>{item.listing_format === "bundle" ? <small>Csomag · {item.bundle_items.length} különböző lap</small> : null}</div>
         <label>Darabszám<select aria-label={`${item.title} darabszáma`} value={item.quantity} disabled={busy || item.listing_format === "bundle" || item.state === "order_pending"} onChange={(event) => void mutate(() => item.shop_source ? addCartItem(item.auction_id, Number(event.target.value), true) : updateCartItem(item.id, Number(event.target.value)))}>{Array.from({ length: Math.max(1, item.max_quantity) }, (_, index) => <option value={index + 1} key={index + 1}>{index + 1}</option>)}</select></label>
         <div className="cart-price"><span>{formatMoney(item.unit_price)} / db</span><strong>{formatMoney(item.subtotal)}</strong></div>

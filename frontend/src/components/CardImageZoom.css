@@ -1,0 +1,109 @@
+.card-image-preview,
+.auction-image,
+.card-image-zoom-host { position: relative; }
+
+.card-image-zoom-trigger {
+  position: absolute;
+  z-index: 5;
+  right: .4rem;
+  bottom: .4rem;
+  display: grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border: 1px solid rgb(255 255 255 / .45);
+  border-radius: .6rem;
+  background: rgb(8 6 15 / .88);
+  color: #fff;
+  box-shadow: 0 2px 12px rgb(0 0 0 / .35);
+  cursor: zoom-in;
+}
+.card-image-zoom-trigger:hover,
+.card-image-zoom-trigger:focus-visible { border-color: #f3d981; background: #392062; outline-offset: 2px; }
+.card-image-zoom-trigger svg { width: 1.2rem; height: 1.2rem; }
+
+.card-image-zoom-backdrop {
+  position: fixed;
+  z-index: 10000;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgb(0 0 0 / .9);
+  padding: clamp(.35rem, 2vw, 1.5rem);
+}
+.card-image-zoom-dialog {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  width: min(100%, 78rem);
+  height: min(96dvh, 65rem);
+  min-height: 0;
+  border: 1px solid rgb(192 132 252 / .45);
+  border-radius: .75rem;
+  background: #0b0911;
+  color: #fff;
+  box-shadow: 0 20px 75px rgb(0 0 0 / .8);
+  overflow: hidden;
+}
+.card-image-zoom-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .75rem;
+  padding: .65rem 1rem;
+  border-bottom: 1px solid rgb(255 255 255 / .12);
+}
+.card-image-zoom-header h2 { min-width: 0; margin: 0; font-size: clamp(1rem, 2vw, 1.35rem); text-transform: none; overflow-wrap: anywhere; }
+.card-image-zoom-close {
+  flex: none;
+  width: 2.65rem;
+  height: 2.65rem;
+  border: 1px solid rgb(255 255 255 / .3);
+  border-radius: .5rem;
+  color: #fff;
+  background: rgb(255 255 255 / .07);
+  font-size: 1.75rem;
+  cursor: pointer;
+}
+.card-image-zoom-viewport {
+  display: flex;
+  align-items: flex-start;
+  justify-content: safe center;
+  min-height: 0;
+  overflow: auto;
+  padding: .5rem;
+  overscroll-behavior: contain;
+}
+.card-image-zoom-viewport img {
+  display: block;
+  height: auto;
+  width: auto;
+  max-height: 100%;
+  max-width: 100%;
+  object-fit: contain;
+  user-select: none;
+}
+.card-image-zoom-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: .65rem;
+  border-top: 1px solid rgb(255 255 255 / .12);
+  padding: .6rem;
+}
+.card-image-zoom-controls button {
+  min-width: 2.65rem;
+  min-height: 2.65rem;
+  border: 1px solid rgb(255 255 255 / .3);
+  border-radius: .5rem;
+  background: rgb(255 255 255 / .08);
+  color: white;
+  cursor: pointer;
+  padding: .3rem .6rem;
+}
+.card-image-zoom-controls button:disabled { opacity: .4; cursor: not-allowed; }
+.card-image-zoom-controls output { min-width: 3rem; text-align: center; font-variant-numeric: tabular-nums; }
+@media (max-width: 600px) {
+  .card-image-zoom-backdrop { padding: 0; }
+  .card-image-zoom-dialog { width: 100%; height: 100dvh; border: 0; border-radius: 0; }
+  .card-image-zoom-trigger { width: 2.2rem; height: 2.2rem; right: .25rem; bottom: .25rem; }
+}

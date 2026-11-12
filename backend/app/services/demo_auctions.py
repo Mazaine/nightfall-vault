@@ -265,7 +265,8 @@ class DemoAuctionService:
         with (nullcontext() if locked else self.operation_lock()):
             preview = self.cleanup_preview(batch_key)
             batch = self.latest_batch(preview["batch_key"])
-            assert batch is not None
+            if batch is None:
+                raise HTTPException(status_code=404, detail="A demóaukció-batch időközben nem található.")
             auction_ids = list(self.db.scalars(select(Auction.id).where(Auction.demo_batch_id == batch.id)).all())
             user_ids = list(self.db.scalars(select(User.id).where(User.demo_batch_id == batch.id)).all())
             images = list(self.db.scalars(select(AuctionImage).where(AuctionImage.auction_id.in_(auction_ids))).all()) if auction_ids else []

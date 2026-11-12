@@ -4,6 +4,9 @@ import { listWatchlist, removeWatchlistItem, type WatchlistItem } from "../api/a
 import { formatAuctionStatus, formatMoney } from "../utils/format";
 import { EmptyState, ErrorState, LoadingState } from "../components/AsyncStates";
 import { useAuctionRealtime } from "../AuctionRealtimeContext";
+import { CardImageZoom } from "../components/CardImageZoom";
+import { SafeImage } from "../components/SafeImage";
+import { toAuctionCardItem } from "../utils/auctionPresentation";
 
 export function WatchlistPage() {
   const { subscribe } = useAuctionRealtime();
@@ -42,7 +45,8 @@ export function WatchlistPage() {
         <div className="my-bids-list">
           {!isLoading && !error && items.length === 0 ? <EmptyState title="Még nincs figyelt aukciód" action={<Link className="button button-primary" to="/auctions">Aukciók böngészése</Link>} /> : null}
           {items.map(({ auction }) => (
-            <article className="my-bid-row" key={auction.id}>
+            <article className="my-bid-row watchlist-card-row" key={auction.id}>
+              <div className="watchlist-card-image">{(() => { const preview = toAuctionCardItem(auction); return <><SafeImage src={preview.imageUrl} alt={auction.title} loading="lazy"/><CardImageZoom src={preview.zoomImageUrl || preview.imageUrl} alt={auction.title}/></>; })()}</div>
               <div>
                 <strong>{auction.title}</strong>
                 <span>{formatAuctionStatus(auction.status)} | {formatMoney(auction.current_price)}</span>

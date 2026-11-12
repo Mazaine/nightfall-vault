@@ -18,6 +18,9 @@ from app.models.user import User
 from app.services.dicemagic_client import client, DiceMagicError
 from app.services.security_audit import create_domain_audit_log
 
+# Deliberately non-hash sentinel: this disabled integration account cannot authenticate.
+DISABLED_INTEGRATION_PASSWORD_HASH = "!disabled-integration-account"
+
 
 def utcnow():
     return datetime.now(timezone.utc)
@@ -99,7 +102,7 @@ def sync_products(db, *, force=False):
         raise DiceMagicError("duplicate_snapshot_ids")
     seller = db.scalar(select(User).where(User.username == "dicemagic_shop"))
     if seller is None:
-        seller = User(username="dicemagic_shop", full_name="DiceMagic", email="dicemagic-integration@nightfall.invalid", password_hash="!disabled-integration-account", password_login_enabled=False, role="user", is_active=False, is_email_verified=False)
+        seller = User(username="dicemagic_shop", full_name="DiceMagic", email="dicemagic-integration@nightfall.invalid", password_hash=DISABLED_INTEGRATION_PASSWORD_HASH, password_login_enabled=False, role="user", is_active=False, is_email_verified=False)
         db.add(seller)
         db.flush()
     existing = {p.outer_id: p for p in db.scalars(select(DiceMagicProduct).order_by(DiceMagicProduct.id).with_for_update()).all()}

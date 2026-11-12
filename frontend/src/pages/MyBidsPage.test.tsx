@@ -15,7 +15,7 @@ const auction = {
 };
 
 describe("MyBidsPage", () => {
-  beforeEach(() => mocks.list.mockReset());
+  beforeEach(() => { mocks.list.mockReset(); localStorage.removeItem("nightfall-vault-my-bids-display-mode"); });
 
   it("szűrhető, személyes állapotot és közös aukciókártyát jelenít meg", async () => {
     mocks.list.mockResolvedValue({ items: [{ auction, my_highest_bid: "1600", is_leading: false, has_won: false, is_outbid: true, transaction_id: null }], total: 1, limit: 12, offset: 0, server_time: new Date().toISOString() });
@@ -23,6 +23,10 @@ describe("MyBidsPage", () => {
     expect(await screen.findByText("Túllicitáltak")).toBeInTheDocument();
     expect(screen.getByText("1800 Ft")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Licitálok" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Lista" }));
+    expect(screen.getByRole("button", { name: "Lista" })).toHaveAttribute("aria-pressed", "true");
+    expect(localStorage.getItem("nightfall-vault-my-bids-display-mode")).toBe("list");
+    expect(document.querySelector(".marketplace-results-list")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("tab", { name: "Lezárult" }));
     await waitFor(() => expect(mocks.list).toHaveBeenLastCalledWith("closed", 12, 0));
   });

@@ -13,12 +13,30 @@ const auction: Auction = { id: 12, seller_id: 1, title: "Publikus aukció", cate
 describe("AuctionsPage", () => {
   beforeEach(() => {
     mocks.listAuctions.mockReset();
+    window.localStorage.removeItem("nightfall-vault-marketplace-display-mode");
     vi.stubGlobal("matchMedia", vi.fn().mockImplementation(() => ({
       matches: false,
       media: "(max-width: 760px)",
       addEventListener: vi.fn(),
       removeEventListener: vi.fn(),
     })));
+  });
+
+  it("a Cseremappa mintájára listanézetet kínál és megjegyzi a választást", async () => {
+    mocks.listAuctions.mockResolvedValue({ items: [auction], total: 1, limit: 24, offset: 0 });
+    const { unmount } = render(<MemoryRouter><AuctionsPage /></MemoryRouter>);
+    expect(await screen.findByRole("link", { name: "Publikus aukció" })).toBeInTheDocument();
+    const switcher = screen.getByRole("group", { name: "Piactér megjelenítése" });
+    expect(switcher).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Rács" })).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(screen.getByRole("button", { name: "Lista" }));
+    expect(screen.getByRole("button", { name: "Lista" })).toHaveAttribute("aria-pressed", "true");
+    expect(document.querySelector(".marketplace-results-list")).toBeInTheDocument();
+    expect(window.localStorage.getItem("nightfall-vault-marketplace-display-mode")).toBe("list");
+    expect(screen.getByRole("button", { name: "Licitálok" })).toBeInTheDocument();
+    unmount();
+    render(<MemoryRouter><AuctionsPage /></MemoryRouter>);
+    expect(screen.getByRole("button", { name: "Lista" })).toHaveAttribute("aria-pressed", "true");
   });
 
   it("backend találatot navigálható kártyán jelenít meg", async () => {
@@ -39,6 +57,9 @@ describe("AuctionsPage", () => {
     mocks.listAuctions.mockResolvedValue({ items: [{ ...auction, images: [{ id: 1, auction_id: 12, storage_key: "legacy-original", url: "/media/original.webp", list_url: "/media/list.webp", original_filename: "card.png", content_type: "image/webp", file_size: 10, position: 0, is_cover: true, created_at: "2026-07-01T10:00:00Z" }] }], total: 1, limit: 24, offset: 0 });
     render(<MemoryRouter><AuctionsPage /></MemoryRouter>);
     expect(await screen.findByRole("img", { name: "Publikus aukció" })).toHaveAttribute("src", "http://localhost:8000/media/list.webp");
+    fireEvent.click(screen.getByRole("button", { name: "Lap nagyítása: Publikus aukció" }));
+    expect(screen.getByRole("dialog", { name: "Publikus aukció" })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Publikus aukció nagyított képe" })).toHaveAttribute("src", "http://localhost:8000/media/original.webp");
   });
 
   it("mobilon összecsukva indul, alkalmazás után címkéket mutat és a találatokhoz görget", async () => {

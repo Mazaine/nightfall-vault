@@ -3,6 +3,7 @@ import { Link, useSearchParams } from "react-router";
 import { listMyBidAuctionsPage, type MyBidAuction, type MyBidAuctionState } from "../api/auctions";
 import { useAuctionRealtime } from "../AuctionRealtimeContext";
 import { AuctionCard } from "../components/AuctionCard";
+import { CardViewSwitch } from "../components/CardViewSwitch";
 import { EmptyState, ErrorState, LoadingState } from "../components/AsyncStates";
 import { toAuctionCardItem } from "../utils/auctionPresentation";
 
@@ -31,6 +32,8 @@ export function MyBidsPage() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [displayMode, setDisplayMode] = useState<"grid" | "list">(() => window.localStorage.getItem("nightfall-vault-my-bids-display-mode") === "list" ? "list" : "grid");
+  const changeDisplayMode = (mode: "grid" | "list") => { setDisplayMode(mode); window.localStorage.setItem("nightfall-vault-my-bids-display-mode", mode); };
 
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
@@ -69,7 +72,8 @@ export function MyBidsPage() {
     {loading ? <LoadingState label="Részvételeid betöltése" /> : null}
     {!loading && error ? <ErrorState message={error} onRetry={() => void load()} /> : null}
     {!loading && !error && items.length === 0 ? <EmptyState title="Ebben a csoportban még nincs aukció" action={<Link className="button button-primary" to="/auctions">Aukciók böngészése</Link>}>A licitált és figyelt aukcióid itt jelennek meg.</EmptyState> : null}
-    {!loading && !error && items.length > 0 ? <div className="auction-grid my-bids-card-grid">{items.map((item, index) => <AuctionCard
+    {!loading && !error && items.length > 0 ? <div className="vault-view-toolbar"><span>{total} találat</span><CardViewSwitch label="Licitjeim megjelenítése" value={displayMode} onChange={changeDisplayMode} /></div> : null}
+    {!loading && !error && items.length > 0 ? <div className={displayMode === "grid" ? "auction-grid my-bids-card-grid" : "marketplace-results-list"}>{items.map((item, index) => <AuctionCard
       key={item.auction.id}
       index={index}
       detailPath={`/auctions/${item.auction.id}`}

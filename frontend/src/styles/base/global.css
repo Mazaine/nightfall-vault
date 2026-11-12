@@ -252,7 +252,7 @@ h3 {
 h1 {
   max-width: 15ch;
   margin-bottom: var(--space-4);
-  font-size: var(--font-size-display);
+  font-size: var(--font-size-page-title, clamp(2rem, 4vw, 3.4rem));
   line-height: var(--line-height-tight);
   text-transform: uppercase;
 }
@@ -358,7 +358,7 @@ h3 {
 
 .hero-copy #hero-title {
   max-width: none;
-  font-size: clamp(2.15rem, 4.25vw, 4.5rem);
+  font-size: var(--font-size-page-title, clamp(2rem, 4vw, 3.4rem));
   line-height: 0.96;
   overflow-wrap: normal;
 }
@@ -565,6 +565,25 @@ h3 {
   gap: var(--space-2);
   margin-top: auto;
   grid-template-rows: minmax(3.1rem, auto) minmax(3.45rem, auto) minmax(1.25rem, auto);
+}
+
+/* Fixed-price listings have one price row, not the three auction rows. */
+.auction-card-fixed {
+  height: auto;
+  align-self: start;
+}
+
+.auction-card-fixed .auction-content {
+  align-content: start;
+}
+
+.auction-card-fixed .auction-commerce-block {
+  margin-top: 0;
+  grid-template-rows: auto;
+}
+
+.auction-actions-slot:empty {
+  display: none;
 }
 
 .auction-price-action-row {
@@ -884,7 +903,7 @@ h3 {
   font-size: var(--font-size-body-sm);
 }
 
-.auction-content > h3 + p {
+.auction-card-details > h3 + p {
   display: -webkit-box;
   min-height: 1.25em;
   margin: 0 0 var(--space-2);
@@ -1148,7 +1167,7 @@ h3 {
 .marketplace-page { padding-top: clamp(1.25rem, 2.5vw, 2.5rem); }
 .marketplace-hero { min-height: 0; align-items: center; margin-bottom: var(--space-4); border: 1px solid var(--color-divider); border-radius: var(--radius-lg); background: linear-gradient(100deg, rgb(38 20 63 / .48), rgb(12 10 17 / .92)); padding: clamp(1rem, 2.5vw, 2rem); }
 .marketplace-hero .eyebrow { margin-bottom: .25rem; }
-.marketplace-hero h1 { margin: 0; font-size: clamp(2rem, 4vw, 3.4rem); }
+.marketplace-hero h1 { margin: 0; }
 .marketplace-hero .section-note { margin: .35rem 0 0; }
 .marketplace-tabs { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-bottom: var(--space-5); border-bottom: 1px solid var(--color-divider); }
 .marketplace-tabs a { border-bottom: 2px solid transparent; color: var(--color-text-muted); padding: .75rem 1rem; font-weight: var(--font-weight-semibold); text-decoration: none; }
@@ -1852,7 +1871,7 @@ h3 {
     padding-block: clamp(2rem, 9vw, 3.5rem);
   }
 
-  .hero-copy #hero-title { font-size: clamp(2rem, 8.4vw, 3.1rem); line-height: 1.02; }
+  .hero-copy #hero-title { font-size: var(--font-size-page-title, clamp(2rem, 4vw, 3.4rem)); line-height: 1.02; }
   .hero-lead { font-size: clamp(.95rem, 3.5vw, 1.1rem); line-height: 1.5; }
   .hero-actions { margin-top: var(--space-5); }
   .hero-actions .button { min-height: 44px; }
@@ -2386,8 +2405,6 @@ h3 {
 
 .reports-page-heading h1 {
   max-width: none;
-  font-size: clamp(2.4rem, 4vw, 3.5rem);
-  line-height: 1;
 }
 
 .reports-list {
@@ -2508,8 +2525,6 @@ h3 {
 
 .blocked-users-page-heading h1 {
   max-width: none;
-  font-size: clamp(2.25rem, 4vw, 3.5rem);
-  line-height: 1.02;
 }
 
 .blocked-users-list {
@@ -3420,7 +3435,7 @@ h3 {
   overflow: visible;
   background: transparent;
 }
-.detail-media.auction-image .auction-bundle-montage.is-detail > img {
+.detail-media.auction-image .auction-bundle-montage.is-detail > .detail-bundle-card-zoom {
   flex: 0 1 clamp(8.5rem, 22%, 13rem);
   width: clamp(8.5rem, 22%, 13rem);
   height: auto;
@@ -3439,7 +3454,7 @@ h3 {
 @media (max-width: 760px) {
   .vault-trade-offer-sides, .vault-counter-offer { grid-template-columns: 1fr; }
   .detail-media.auction-image.is-bundle-montage { min-height: 0; padding: var(--space-3); }
-  .detail-media.auction-image .auction-bundle-montage.is-detail > img {
+  .detail-media.auction-image .auction-bundle-montage.is-detail > .detail-bundle-card-zoom {
     flex-basis: calc(50% - .375rem);
     width: calc(50% - .375rem);
     max-width: 12rem;
@@ -3713,4 +3728,330 @@ h3 {
   .not-found-page h1 { font-size: clamp(2rem, 10vw, 3.25rem); }
   .not-found-actions { width: 100%; }
   .not-found-actions .button { width: 100%; }
+}
+
+
+/* Marketplace view switch follows the existing Cseremappa Rács / Lista control. */
+.marketplace-results-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin: var(--space-4) 0 var(--space-2);
+}
+.marketplace-results-count { color: var(--color-text-secondary); font-weight: var(--font-weight-semibold); }
+.auction-card-details, .auction-card-transaction { display: contents; }
+.auction-card-badges:empty, .auction-actions-slot:empty { display: none; }
+
+.marketplace-results-grid {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 13.75rem), 1fr));
+  align-items: start;
+  gap: .75rem;
+}
+.marketplace-results-grid .auction-card {
+  height: auto;
+  align-self: start;
+}
+.marketplace-results-grid .auction-card .auction-image {
+  height: clamp(9.5rem, 14vw, 11.5rem);
+  aspect-ratio: auto;
+}
+.marketplace-results-grid .auction-image > .image-fallback { min-height: 0; }
+.marketplace-results-grid .auction-content { flex: none; gap: .5rem; padding: .75rem; }
+.marketplace-results-grid .auction-card-badges { min-height: 0; }
+.marketplace-results-grid .auction-card-status-row { min-height: 0; }
+.marketplace-results-grid .seller-meta {
+  min-height: 0;
+  flex-wrap: wrap;
+  gap: .25rem;
+  padding-block: .35rem;
+}
+.marketplace-results-grid .auction-commerce-block {
+  grid-template-rows: auto;
+  gap: .35rem;
+  margin-top: .35rem;
+}
+.marketplace-results-grid .auction-fixed-price-row { grid-template-columns: minmax(0, 1fr); gap: .4rem; }
+.marketplace-results-grid .auction-fixed-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .35rem;
+}
+.marketplace-results-grid .auction-fixed-actions .button {
+  min-width: 0;
+  min-height: 2.35rem;
+  padding: .4rem .3rem;
+  font-size: .77rem;
+  white-space: normal;
+}
+.marketplace-results-grid .auction-time {
+  top: 2.7rem;
+  right: .4rem;
+  padding: .2rem .4rem;
+  font-size: .68rem;
+}
+.marketplace-results-grid .auction-condition-badge { top: .4rem; right: .4rem; }
+.marketplace-results-grid .auction-content h3 { height: auto; min-height: 2.5em; }
+.marketplace-results-grid .auction-content > h3 + p,
+.marketplace-results-grid .auction-card-details > h3 + p { margin-bottom: 0; }
+
+.marketplace-results-list {
+  display: grid;
+  gap: .6rem;
+  margin-top: var(--space-3);
+}
+.marketplace-results-list .auction-card {
+  display: grid;
+  grid-template-columns: 6.5rem minmax(0, 1fr);
+  grid-template-rows: min-content 1fr;
+  align-items: stretch;
+  height: auto;
+  min-height: 0;
+}
+.marketplace-results-list .auction-card > .auction-image {
+  grid-column: 1;
+  grid-row: 1 / 3;
+  width: 100%;
+  height: 100%;
+  min-height: 10rem;
+  aspect-ratio: auto;
+}
+.marketplace-results-list .auction-card > .auction-image .image-fallback { min-height: 0; }
+.marketplace-results-list .auction-condition-badge { top: .4rem; left: .4rem; right: auto; }
+.marketplace-results-list .auction-card > .auction-time {
+  position: static;
+  grid-column: 2;
+  grid-row: 1;
+  justify-self: end;
+  margin: .4rem .6rem 0;
+  padding: .15rem .45rem;
+  font-size: .7rem;
+}
+.marketplace-results-list .auction-card-fixed > .auction-time { display: none; }
+.marketplace-results-list .auction-content {
+  grid-column: 2;
+  grid-row: 2;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(14rem, 22rem);
+  gap: .75rem;
+  align-items: center;
+  padding: .65rem .8rem;
+}
+.marketplace-results-list .auction-card-details,
+.marketplace-results-list .auction-card-transaction {
+  display: grid;
+  min-width: 0;
+  align-content: center;
+  gap: .3rem;
+}
+.marketplace-results-list .auction-card-badges { min-height: 0; }
+.marketplace-results-list .auction-card-details h3 { height: auto; min-height: 0; margin: 0; }
+.marketplace-results-list .auction-card-details > h3 + p { margin: 0; }
+.marketplace-results-list .auction-card-status-row { min-height: 0; }
+.marketplace-results-list .seller-meta {
+  min-height: 0;
+  flex-wrap: wrap;
+  gap: .35rem;
+  border-bottom: 0;
+  padding: .35rem 0 0;
+}
+.marketplace-results-list .auction-commerce-block {
+  grid-template-rows: auto;
+  gap: .35rem;
+  margin-top: 0;
+}
+.marketplace-results-list .auction-price-action-row { gap: .5rem; }
+.marketplace-results-list .auction-fixed-actions { display: flex; flex-wrap: wrap; gap: .35rem; }
+.marketplace-results-list .auction-fixed-actions .button {
+  min-width: 0;
+  min-height: 2.25rem;
+  padding: .3rem .55rem;
+  font-size: .8rem;
+}
+.marketplace-results-list .auction-card .auction-actions { margin-top: 0; }
+
+@media (max-width: 1100px) {
+  .marketplace-results-list .auction-content { grid-template-columns: minmax(0, 1fr); }
+  .marketplace-results-list .auction-card-transaction { margin-top: .35rem; }
+}
+@media (max-width: 560px) {
+  .marketplace-results-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .5rem; }
+  .marketplace-results-grid .auction-content { padding: .5rem; }
+  .marketplace-results-grid .auction-fixed-price-row { grid-template-columns: minmax(0, 1fr); }
+  .marketplace-results-grid .auction-fixed-actions { grid-template-columns: minmax(0, 1fr); }
+  .marketplace-results-grid .auction-card .auction-image { height: 9.5rem; }
+  .marketplace-results-grid .auction-price-action-row:not(.auction-fixed-price-row) { grid-template-columns: minmax(0, 1fr); }
+  .marketplace-results-list .auction-card { grid-template-columns: 4.75rem minmax(0, 1fr); }
+  .marketplace-results-list .auction-card > .auction-image { min-height: 8rem; }
+  .marketplace-results-list .auction-content { padding: .5rem; }
+  .marketplace-results-list .auction-fixed-price-row { grid-template-columns: minmax(0, 1fr); }
+  .marketplace-results-list .auction-fixed-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .marketplace-results-list .seller-rating-line { white-space: normal; }
+}
+
+/* Shared compact card language: marketplace, homepage, bids, vault, trading and public folders.
+   Only card collections are affected; full-size details and editing dialogs keep their layout. */
+.auction-grid:not(.marketplace-results-grid) {
+  align-items: start;
+  gap: .75rem;
+}
+.auction-grid:not(.marketplace-results-grid) .auction-card { height: auto; align-self: start; }
+.auction-grid:not(.marketplace-results-grid) .auction-image {
+  height: clamp(9.5rem, 14vw, 11.5rem);
+  aspect-ratio: auto;
+}
+.auction-grid:not(.marketplace-results-grid) .auction-image > .image-fallback { min-height: 0; }
+.auction-grid:not(.marketplace-results-grid) .auction-content { flex: none; gap: .5rem; padding: .75rem; }
+.auction-grid:not(.marketplace-results-grid) .auction-card-badges,
+.auction-grid:not(.marketplace-results-grid) .auction-card-status-row { min-height: 0; }
+.auction-grid:not(.marketplace-results-grid) .seller-meta {
+  min-height: 0;
+  flex-wrap: wrap;
+  gap: .25rem;
+  padding-block: .35rem;
+}
+.auction-grid:not(.marketplace-results-grid) .auction-commerce-block {
+  margin-top: .35rem;
+  grid-template-rows: auto;
+  gap: .35rem;
+}
+.auction-grid:not(.marketplace-results-grid) .auction-fixed-price-row {
+  grid-template-columns: minmax(0, 1fr);
+  gap: .4rem;
+}
+.auction-grid:not(.marketplace-results-grid) .auction-fixed-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .35rem;
+}
+.auction-grid:not(.marketplace-results-grid) .auction-fixed-actions .button {
+  min-width: 0;
+  min-height: 2.35rem;
+  padding: .4rem .3rem;
+  font-size: .77rem;
+  white-space: normal;
+}
+.auction-grid:not(.marketplace-results-grid) .auction-content h3 { height: auto; min-height: 2.5em; }
+.auction-grid:not(.marketplace-results-grid) .auction-time {
+  top: 2.7rem;
+  right: .4rem;
+  padding: .2rem .4rem;
+  font-size: .68rem;
+}
+.auction-grid:not(.marketplace-results-grid) .auction-condition-badge { top: .4rem; right: .4rem; }
+
+/* Vault / Cseremappa cards use the same small preview area as the marketplace.
+   The magnifier opens the uncropped full image when text needs reading. */
+.vault-card-grid,
+.vault-search-card-grid,
+.vault-collection-grid {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 13.5rem), 1fr));
+  align-items: start;
+  gap: .75rem;
+}
+.vault-card-grid > .vault-card,
+.vault-search-card-grid > .vault-card,
+.vault-collection-grid > .vault-card { align-self: start; grid-template-rows: auto auto; }
+.vault-card > .card-image-preview,
+.vault-card > .vault-card-placeholder {
+  height: clamp(9.5rem, 14vw, 11.5rem);
+  aspect-ratio: auto;
+}
+.vault-card .card-image-preview-thumbnail { object-fit: contain; }
+.vault-card .vault-card-body { grid-template-rows: auto; gap: .45rem; padding: .65rem; }
+.vault-card .vault-card-title { min-height: 0; }
+.vault-card .vault-card-title strong { min-height: 0; }
+.community-trade-grid .vault-card-body { grid-template-rows: auto; }
+.vault-card-grid.community-trade-grid {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 13.5rem), 1fr));
+  justify-content: start;
+}
+
+/* Collection list keeps quantity selectors and actions inside each row. */
+.vault-collection-list { display: grid; grid-template-columns: minmax(0, 1fr); gap: .6rem; }
+.vault-collection-list .vault-card { display: grid; grid-template-columns: 6rem minmax(0, 1fr); grid-template-rows: auto; align-items: start; }
+.vault-collection-list .vault-card > .card-image-preview,
+.vault-collection-list .vault-card > .vault-card-placeholder {
+  grid-column: 1;
+  grid-row: 1;
+  width: 6rem;
+  height: 8.4rem;
+  aspect-ratio: 5 / 7;
+}
+.vault-collection-list .vault-card > .vault-card-body { grid-column: 2; grid-row: 1; min-width: 0; }
+.vault-collection-list .vault-card-properties { gap: .35rem; }
+.vault-collection-list .vault-card-variant-quantities { max-width: 24rem; }
+.vault-collection-list .vault-card-direct-actions { max-width: 18rem; }
+
+@media (max-width: 760px) {
+  .vault-card-grid,
+  .vault-search-card-grid,
+  .vault-collection-grid { grid-template-columns: repeat(auto-fill, minmax(min(100%, 12.5rem), 1fr)); }
+  .auction-grid:not(.marketplace-results-grid) .auction-content { padding: .6rem; }
+  .auction-grid:not(.marketplace-results-grid) .auction-price-action-row { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 560px) {
+  .vault-card-grid.community-trade-grid,
+  .vault-trade-cards.vault-card-grid,
+  .vault-card-grid:not(.vault-collection-grid) { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .5rem; }
+  .vault-collection-grid, .vault-search-card-grid { grid-template-columns: minmax(0, 1fr); }
+  .vault-collection-list { grid-template-columns: minmax(0, 1fr); }
+  .vault-collection-list .vault-card { grid-template-columns: 4.75rem minmax(0, 1fr); }
+  .vault-collection-list .vault-card > .card-image-preview,
+  .vault-collection-list .vault-card > .vault-card-placeholder { width: 4.75rem; height: 6.65rem; }
+  .vault-collection-list .vault-card-variant-quantities { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .auction-grid:not(.marketplace-results-grid) .auction-fixed-actions { grid-template-columns: minmax(0, 1fr); }
+}
+
+.vault-view-toolbar { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--space-2); margin: var(--space-3) 0; }
+.vault-view-toolbar > span { color: var(--color-text-muted); font-weight: var(--font-weight-semibold); }
+.watchlist-card-row { display: grid; grid-template-columns: 5.25rem minmax(0, 1fr) auto; align-items: center; }
+.watchlist-card-image { position: relative; width: 5.25rem; height: 7.35rem; overflow: hidden; border-radius: var(--radius-sm); }
+.watchlist-card-image > img, .watchlist-card-image > .image-fallback { width: 100%; height: 100%; object-fit: contain; min-height: 0; }
+@media (max-width: 650px) { .watchlist-card-row { grid-template-columns: 4.5rem minmax(0, 1fr); } .watchlist-card-image { width: 4.5rem; height: 6.3rem; } .watchlist-card-row > .row-actions { grid-column: 1 / -1; } }
+
+.account-bid-preview-item { position: relative; display: block; }
+.account-bid-preview-item > .card-image-zoom-trigger { left: .5rem; right: auto; bottom: .5rem; }
+.owner-image-thumb { position: relative; grid-row: span 2; width: 4rem; height: 4rem; }
+.owner-image-thumb > img, .owner-image-thumb > .image-fallback { width: 100%; height: 100%; min-height: 0; object-fit: contain; }
+.owner-image-thumb > .card-image-zoom-trigger { width: 2rem; height: 2rem; bottom: 0; right: 0; }
+.detail-bundle-card-zoom > img { display: block; width: 100%; height: 100%; object-fit: contain; }
+.detail-bundle-card-zoom { position: relative; overflow: hidden; }
+
+.account-own-auction-list { width: 100%; }
+.account-own-auction-list .own-auction-card { display: grid; grid-template-columns: minmax(0, 1fr); align-content: start; gap: .5rem; min-width: 0; width: 100%; }
+.account-own-auction-list .own-auction-card > .auction-card { width: 100%; }
+.account-own-auction-list .owner-actions { justify-content: flex-start; }
+.account-own-auction-list .own-auction-card.is-editing { max-width: none; }
+
+/* Match marketplace card width on all ordinary auction grids.
+   Home carousels deliberately retain their fixed per-page item counts. */
+.auction-grid:not(.marketplace-results-grid):not(.home-auction-grid) {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 13.75rem), 1fr));
+}
+@media (max-width: 560px) {
+  .auction-grid:not(.marketplace-results-grid):not(.home-auction-grid) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* Compact inventory selection and matching cards retain space for editing controls. */
+.vault-bulk-grid,
+.vault-match-grid {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 13.5rem), 1fr));
+  align-items: start;
+  gap: .75rem;
+}
+.vault-bulk-card,
+.vault-match-card { align-self: start; gap: .5rem; }
+.vault-bulk-card > .card-image-preview {
+  width: 100%;
+  height: clamp(9.5rem, 14vw, 11.5rem);
+  aspect-ratio: auto;
+}
+.vault-bulk-card .card-image-preview-thumbnail { object-fit: contain; }
+.vault-match-card .vault-match-card-image { width: 100%; max-width: 10rem; aspect-ratio: 5 / 7; }
+@media (max-width: 560px) {
+  .vault-bulk-grid { grid-template-columns: minmax(0, 1fr); }
+  .vault-match-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }

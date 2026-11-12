@@ -3,6 +3,8 @@ import { Link } from "react-router";
 import { activateAuction, cancelAuction, createAuction, deleteAuctionImage, getAuction, listMyAuctions, listMyBidAuctions, setAuctionCoverImage, updateAuction, uploadAuctionImage, type Auction, type AuctionCondition, type HatalomEra, type MyBidAuction } from "../api/auctions";
 import { ApiError, apiAssetUrl } from "../api/client";
 import { AuctionCard } from "../components/AuctionCard";
+import { CardViewSwitch } from "../components/CardViewSwitch";
+import { CardImageZoom } from "../components/CardImageZoom";
 import { SafeImage } from "../components/SafeImage";
 import { FileImagePreview } from "../components/FileImagePreview";
 import { EmptyState, ErrorState, LoadingState } from "../components/AsyncStates";
@@ -97,6 +99,7 @@ function toCardAuction(auction: Auction) {
     buyNowPrice: auction.buy_now_enabled ? auction.buy_now_price : null,
     isClosed: ["ended", "sold", "unsold", "cancelled", "suspended"].includes(auction.status),
     imageUrl: coverImage ? apiAssetUrl(coverImage.list_url ?? coverImage.thumbnail_url ?? coverImage.url) : undefined,
+    zoomImageUrl: coverImage ? apiAssetUrl(coverImage.detail_url ?? coverImage.url) : undefined,
     statusLabel: formatAuctionStatus(auction.status),
     bidCount: auction.bid_count ?? 0,
   };
@@ -213,6 +216,8 @@ export function AccountPage({ section }: { section: "bids" | "auctions" | "creat
   const { subscribe: subscribeNotifications, showToast } = useNotifications();
   const { subscribe: subscribeAuctionUpdates } = useAuctionRealtime();
   const [myAuctions, setMyAuctions] = useState<Auction[]>([]);
+  const [ownerDisplayMode, setOwnerDisplayMode] = useState<"grid" | "list">(() => localStorage.getItem("nightfall-vault-owner-display-mode") === "list" ? "list" : "grid");
+  const changeOwnerDisplayMode = (mode: "grid" | "list") => { setOwnerDisplayMode(mode); localStorage.setItem("nightfall-vault-owner-display-mode", mode); };
   const [myBidAuctions, setMyBidAuctions] = useState<MyBidAuction[]>([]);
   const [isLoadingMyAuctions, setIsLoadingMyAuctions] = useState(true);
   const [isLoadingMyBids, setIsLoadingMyBids] = useState(true);
@@ -703,7 +708,7 @@ export function AccountPage({ section }: { section: "bids" | "auctions" | "creat
           {isLoadingMyBids ? <LoadingState label="Licitált aukciók betöltése" /> : null}
           {myBidsError ? <ErrorState message={myBidsError} onRetry={() => void refreshMyBids()} /> : null}
           {!isLoadingMyBids && !myBidsError && myBidAuctions.length === 0 ? <EmptyState title="Még nincs licited" action={<Link className="button button-primary" to="/auctions">Aukciók böngészése</Link>} /> : null}
-          {!isLoadingMyBids && !myBidsError && myBidAuctions.length > 0 ? <div className="bid-status-sections">{bidGroups.map((group, groupIndex) => <section className="side-panel bid-status-group" aria-labelledby={`bid-group-${groupIndex}`} key={group.title}><h3 id={`bid-group-${groupIndex}`}>{group.title} <span>({group.items.length})</span></h3>{group.items.length === 0 ? <p className="empty-state">Ebben a csoportban nincs aukció.</p> : <div className="my-bids-list">{group.items.map((item) => { const cover = item.auction.images.find((image) => image.is_cover) ?? item.auction.images[0]; return <Link className="my-bid-row account-bid-row" to={`/auctions/${item.auction.id}`} key={item.auction.id}>{cover ? <SafeImage src={apiAssetUrl(cover.thumbnail_url ?? cover.list_url ?? cover.url)} alt="" loading="lazy" width={320} height={320} fallbackClassName="bid-image-placeholder" /> : <span className="bid-image-placeholder" aria-hidden="true" />}<span className="bid-row-copy"><strong>{item.auction.title}</strong><span>Aktuális licit: {formatMoney(item.auction.current_price)}</span><span>Saját legmagasabb licit: {formatMoney(item.my_highest_bid)}</span><span>{item.auction.bid_count ?? 0} licit · zárás: {formatRemainingTime(item.auction.ends_at, item.auction.status)}</span><em>{item.has_won ? "Megnyerted" : item.is_leading ? "Te vezetsz" : item.is_outbid ? "Rád licitáltak" : "Figyelés alatt"}</em></span></Link>; })}</div>}</section>)}</div> : null}
+          {!isLoadingMyBids && !myBidsError && myBidAuctions.length > 0 ? <div className="bid-status-sections">{bidGroups.map((group, groupIndex) => <section className="side-panel bid-status-group" aria-labelledby={`bid-group-${groupIndex}`} key={group.title}><h3 id={`bid-group-${groupIndex}`}>{group.title} <span>({group.items.length})</span></h3>{group.items.length === 0 ? <p className="empty-state">Ebben a csoportban nincs aukció.</p> : <div className="my-bids-list">{group.items.map((item) => { const cover = item.auction.images.find((image) => image.is_cover) ?? item.auction.images[0]; return <div className="account-bid-preview-item" key={item.auction.id}><Link className="my-bid-row account-bid-row" to={`/auctions/${item.auction.id}`}>{cover ? <SafeImage src={apiAssetUrl(cover.thumbnail_url ?? cover.list_url ?? cover.url)} alt="" loading="lazy" width={320} height={320} fallbackClassName="bid-image-placeholder" /> : <span className="bid-image-placeholder" aria-hidden="true" />}<span className="bid-row-copy"><strong>{item.auction.title}</strong><span>Aktuális licit: {formatMoney(item.auction.current_price)}</span><span>Saját legmagasabb licit: {formatMoney(item.my_highest_bid)}</span><span>{item.auction.bid_count ?? 0} licit · zárás: {formatRemainingTime(item.auction.ends_at, item.auction.status)}</span><em>{item.has_won ? "Megnyerted" : item.is_leading ? "Te vezetsz" : item.is_outbid ? "Rád licitáltak" : "Figyelés alatt"}</em></span></Link>{cover ? <CardImageZoom src={apiAssetUrl(cover.detail_url ?? cover.url)} alt={item.auction.title} /> : null}</div>; })}</div>}</section>)}</div> : null}
         </div>
       </section> : null}
 
@@ -722,13 +727,14 @@ export function AccountPage({ section }: { section: "bids" | "auctions" | "creat
           {isLoadingMyAuctions ? <LoadingState label="Saját aukciók betöltése" /> : null}
           {myAuctionsError ? <ErrorState message={myAuctionsError} onRetry={() => void refreshMyAuctions()} /> : null}
           {!isLoadingMyAuctions && !myAuctionsError && myAuctions.length === 0 ? <EmptyState title="Még nincs saját aukciód" action={<Link className="button button-primary" to="/auctions/create">Első aukció létrehozása</Link>} /> : null}
+          {!isLoadingMyAuctions && !myAuctionsError && myAuctions.length > 0 ? <div className="vault-view-toolbar"><span>{myAuctions.length} saját hirdetés</span><CardViewSwitch label="Saját hirdetések megjelenítése" value={ownerDisplayMode} onChange={changeOwnerDisplayMode}/></div> : null}
           {!isLoadingMyAuctions && !myAuctionsError && myAuctions.length > 0 ? (
             <div className="auction-status-sections">
               {auctionGroups.map((group, groupIndex) => (
                 <section aria-labelledby={`auction-group-${groupIndex}`} key={group.title}>
                   <h3 id={`auction-group-${groupIndex}`}>{group.title} <span>({group.items.length})</span></h3>
                   {group.items.length === 0 ? <p className="side-panel empty-state">Ebben a csoportban nincs aukció.</p> : (
-                    <div className="auction-grid page-grid">
+                    <div className={ownerDisplayMode === "grid" ? "auction-grid page-grid" : "marketplace-results-list account-own-auction-list"}>
                       {group.items.map((auction, index) => {
                         const isEditing = editingAuctionId === auction.id;
                         const isDraft = auction.status === "draft";
@@ -827,7 +833,7 @@ export function AccountPage({ section }: { section: "bids" | "auctions" | "creat
                                   <div className="owner-image-manager" aria-label={`${auction.title} képeinek kezelése`}>
                                     {auction.images.map((image) => (
                                       <div className="owner-image-row" key={image.id}>
-                                        <SafeImage src={apiAssetUrl(image.thumbnail_url ?? image.list_url ?? image.url)} alt="" width={320} height={320} />
+                                        <div className="owner-image-thumb card-image-zoom-host"><SafeImage src={apiAssetUrl(image.thumbnail_url ?? image.list_url ?? image.url)} alt={auction.title} width={320} height={320} /><CardImageZoom src={apiAssetUrl(image.detail_url ?? image.url)} alt={auction.title} /></div>
                                         {image.is_cover ? <span className="status-badge">Borítókép</span> : <button className="button button-secondary" type="button" disabled={storedImageActionId !== null} onClick={() => void handleSetCoverImage(auction.id, image.id)}>{storedImageActionId === image.id ? "Mentés…" : "Legyen borítókép"}</button>}
                                         <button className="button button-danger" type="button" disabled={storedImageActionId !== null} onClick={() => void handleDeleteStoredImage(auction.id, image.id)}>{storedImageActionId === image.id ? "Feldolgozás…" : "Kép törlése"}</button>
                                       </div>

@@ -11,6 +11,7 @@ import { useAuctionRealtime } from "../AuctionRealtimeContext";
 import { AuctionCountdown } from "../components/AuctionCountdown";
 import { ReportDialog } from "../components/ReportDialog";
 import { SafeImage } from "../components/SafeImage";
+import { CardImageZoom } from "../components/CardImageZoom";
 import { ChatTransactionPanel } from "../components/ChatTransactionPanel";
 import { AuctionCancelDialog, BidConfirmationDialog, BidWithdrawalDialog } from "../components/BidDialogs";
 import { addWatchlistItem, auctionStreamUrl, cancelAuction, createAuctionMessage, createAuctionReview, getAuction, getAuctionPresence, listAuctionBids, listAuctionMessages, listRelatedAuctions, listSellerOtherAuctions, markAuctionMessagesRead, placeAuctionBid, listAuctionReviews, requestAuctionPhoto, sendTyping, withdrawAuctionBid, type Auction, type AuctionBid, type AuctionMessage, type AuctionRealtimeSnapshot, type AuctionReview, type BidWithdrawalReason, type NotificationItem } from "../api/auctions";
@@ -471,12 +472,13 @@ export function AuctionDetailPage() {
     <section className="container page-shell detail-layout">
       <div className="auction-gallery">
         <div className={`detail-media auction-image${bundleMontage.length ? " is-bundle-montage" : ""}`}>
-          {bundleMontage.length ? <div className="auction-bundle-montage is-detail" aria-label="A csomag automatikus borítója">{bundleMontage.map((item) => <SafeImage src={item.src} alt={item.name} width={600} height={840} key={item.id}/>) }{bundleItems.length > 4 ? <strong>+{bundleItems.length - 4} további lap</strong> : null}</div> : <SafeImage
+          {bundleMontage.length ? <div className="auction-bundle-montage is-detail" aria-label="A csomag automatikus borítója">{bundleMontage.map((item) => <div className="detail-bundle-card-zoom card-image-zoom-host" key={item.id}><SafeImage src={item.src} alt={item.name} width={600} height={840}/><CardImageZoom src={item.src} alt={item.name}/></div>) }{bundleItems.length > 4 ? <strong>+{bundleItems.length - 4} további lap</strong> : null}</div> : <SafeImage
             src={selectedImage ? apiAssetUrl(selectedImage.detail_url ?? selectedImage.url) : referenceImageUrl}
             alt={selectedImage ? `${auction.title} – ${selectedImageIndex + 1}. kép` : auction.title}
             width={1200}
             height={1200}
           />}
+          {!bundleMontage.length ? <CardImageZoom src={selectedImage ? apiAssetUrl(selectedImage.detail_url ?? selectedImage.url) : referenceImageUrl} alt={auction.title} /> : null}
           {referenceImageUrl ? <span className="auction-reference-image-badge">HKK referenciakép</span> : null}
           {galleryImages.length > 1 ? (
             <>

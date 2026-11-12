@@ -8,6 +8,7 @@ import { disableBidConfirmation, isBidConfirmationDisabled } from "../utils/bidC
 import { AuctionCountdown } from "./AuctionCountdown";
 import { BidConfirmationDialog } from "./BidDialogs";
 import { SafeImage } from "./SafeImage";
+import { CardImageZoom } from "./CardImageZoom";
 import { formatCardCondition, getCardCondition, type ReadableCardCondition } from "../data/cardConditions";
 import { addCartItem, announceCartChanged, checkoutCart } from "../api/cart";
 import { FixedPurchaseDialog } from "./FixedPurchaseDialog";
@@ -57,6 +58,7 @@ type AuctionCardProps = {
     userIsOutbid?: boolean;
     sellerProfilePath?: string;
     imageUrl?: string;
+    zoomImageUrl?: string;
     statusLabel?: string;
     bidCount?: number;
     canBid?: boolean;
@@ -104,6 +106,8 @@ export function AuctionCard({
   const [availableQuantity, setAvailableQuantity] = useState(Math.max(1, item.availableQuantity ?? 1));
   const [isWatched, setIsWatched] = useState(Boolean(item.isWatched));
   const [isWatchPending, setIsWatchPending] = useState(false);
+  const [imageFailed, setImageFailed] = useState(false);
+  useEffect(() => setImageFailed(false), [item.imageUrl, item.montageImages]);
   const parsedSellerRating = typeof item.sellerRating === "number"
     ? item.sellerRating
     : Number.parseFloat(String(item.sellerRating ?? "").replace(",", "."));
@@ -268,14 +272,15 @@ export function AuctionCard({
   return (
     <article
       aria-label={`${item.title} aukció, állapot: ${formatCardCondition(item.condition)}${personalStatus ? `, ${personalStatus === "leading" ? "te vezetsz" : personalStatus === "outbid" ? "rád licitáltak" : personalStatus === "watched" ? "figyelt aukció" : "kiszálltál"}` : ""}`}
-      className={`auction-card auction-card-${index + 1}${isLocallyClosed ? " auction-card-closed" : ""}${item.isFeatured ? " auction-card-featured" : ""}${personalStatus ? ` auction-card-personal-${personalStatus}` : ""}`}
+      className={`auction-card auction-card-${index + 1}${isFixedPrice ? " auction-card-fixed" : ""}${isLocallyClosed ? " auction-card-closed" : ""}${item.isFeatured ? " auction-card-featured" : ""}${personalStatus ? ` auction-card-personal-${personalStatus}` : ""}`}
       role="link"
       tabIndex={0}
       onClick={(event) => { if (!(event.target as HTMLElement).closest("a,button,input,select,textarea")) navigate(detailPath); }}
       onKeyDown={(event) => { if ((event.key === "Enter" || event.key === " ") && event.target === event.currentTarget) { event.preventDefault(); navigate(detailPath); } }}
     >
       <div className={`auction-image${(item.shopSource || item.type === "Hatalom Kártyái Kártyajáték") && item.listingFormat === "single" ? " is-hkk-card" : ""}`}>
-        {item.montageImages?.length ? <div className="auction-bundle-montage" aria-label={`${item.title} csomag borítója`}>{item.montageImages.map((src) => <SafeImage src={src} alt="" loading="lazy" decoding="async" width={350} height={490} key={src}/>) }{(item.bundleItemCount ?? 0) > 4 ? <strong>+{(item.bundleItemCount ?? 0) - 4} további lap</strong> : null}</div> : <SafeImage src={item.imageUrl} alt={item.title} loading="lazy" decoding="async" width={700} height={700} />}
+        {item.montageImages?.length ? <div className="auction-bundle-montage" aria-label={`${item.title} csomag borítója`}>{item.montageImages.map((src) => <SafeImage src={src} alt="" loading="lazy" decoding="async" width={350} height={490} key={src}/>) }{(item.bundleItemCount ?? 0) > 4 ? <strong>+{(item.bundleItemCount ?? 0) - 4} további lap</strong> : null}</div> : <SafeImage src={item.imageUrl} alt={item.title} loading="lazy" decoding="async" width={700} height={700} onError={() => setImageFailed(true)} />}
+        {!imageFailed ? <CardImageZoom src={item.montageImages?.[0] ?? item.zoomImageUrl ?? item.imageUrl} alt={item.title} /> : null}
       </div>
       <span className={`auction-condition-badge condition-${cardCondition.value.toLowerCase()}`} title={`${cardCondition.value} – ${cardCondition.nameHu} (${cardCondition.nameEn})`}>{cardCondition.value}</span>
       {showTimer && isFixedPrice
@@ -287,6 +292,7 @@ export function AuctionCard({
       {outcomeLabel ? <div className={`auction-outcome-badge is-${item.outcomeStatus}`}>{outcomeLabel}</div> : personalStatus ? <div className={`auction-personal-badge is-${personalStatus}`}>{personalStatus === "leading" ? "Te vezetsz" : personalStatus === "outbid" ? "Túllicitáltak" : personalStatus === "watched" ? "Figyelőlistán" : "Kiszálltál"}</div> : null}
 
       <div className="auction-content">
+        <div className="auction-card-details">
         {item.shopSource && item.shopRegularPrice && Number(item.currentAmount) < item.shopRegularPrice ? <p><del>{formatMoney(item.shopRegularPrice)}</del> · Akció</p> : null}
         <div className="auction-card-badges" aria-hidden={!item.isFeatured && !item.isDemo}>
           {item.listingFormat === "bundle" ? <span className="status-badge">CSOMAG · {item.bundleItemCount} lap / {item.bundleCopyCount} példány</span> : null}
@@ -325,6 +331,8 @@ export function AuctionCard({
             </>}
           </span>
         </div>
+        </div>
+        <div className="auction-card-transaction">
         <div className="auction-commerce-block">
           {isFixedPrice ? <div className="auction-price-action-row auction-fixed-price-row">
             <div className="auction-price-copy"><span>Fix ár</span><strong>{item.buyNowPrice ? formatCardMoney(item.buyNowPrice) : displayPrice}</strong></div>
@@ -358,6 +366,7 @@ export function AuctionCard({
         </div>
         <div className="auction-actions-slot">{showOpenAction ? <div className="auction-actions"><Link className="button button-secondary" to={detailPath}>Aukció megnyitása</Link></div> : null}</div>
         {actionMessage ? <p className="form-message auction-action-message" role="status" aria-live="polite">{actionMessage}</p> : null}
+        </div>
       </div>
       {pendingBid ? <BidConfirmationDialog amountLabel={formatMoney(pendingBid.amount)} isBuyNow={pendingBid.isBuyNow} busy={isActionPending} onClose={() => { if (!isActionPending) setPendingBid(null); }} onConfirm={(disableFuture) => void confirmPendingBid(disableFuture)} /> : null}
       {pendingPurchase && item.buyNowAmount ? <FixedPurchaseDialog title={item.title} unitPrice={item.buyNowAmount} quantity={purchaseQuantity} maxQuantity={item.listingFormat === "bundle" ? 1 : availableQuantity} busy={isActionPending} onQuantityChange={setPurchaseQuantity} onClose={() => { if (!isActionPending) setPendingPurchase(false); }} onConfirm={() => void buyFixedPrice()}/> : null}
