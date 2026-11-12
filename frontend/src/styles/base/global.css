@@ -3888,3 +3888,117 @@ h3 {
   .marketplace-results-list .auction-fixed-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .marketplace-results-list .seller-rating-line { white-space: normal; }
 }
+
+/* Shared compact card language: marketplace, homepage, bids, vault, trading and public folders.
+   Only card collections are affected; full-size details and editing dialogs keep their layout. */
+.auction-grid:not(.marketplace-results-grid) {
+  align-items: start;
+  gap: .75rem;
+}
+.auction-grid:not(.marketplace-results-grid) .auction-card { height: auto; align-self: start; }
+.auction-grid:not(.marketplace-results-grid) .auction-image {
+  height: clamp(9.5rem, 14vw, 11.5rem);
+  aspect-ratio: auto;
+}
+.auction-grid:not(.marketplace-results-grid) .auction-image > .image-fallback { min-height: 0; }
+.auction-grid:not(.marketplace-results-grid) .auction-content { flex: none; gap: .5rem; padding: .75rem; }
+.auction-grid:not(.marketplace-results-grid) .auction-card-badges,
+.auction-grid:not(.marketplace-results-grid) .auction-card-status-row { min-height: 0; }
+.auction-grid:not(.marketplace-results-grid) .seller-meta {
+  min-height: 0;
+  flex-wrap: wrap;
+  gap: .25rem;
+  padding-block: .35rem;
+}
+.auction-grid:not(.marketplace-results-grid) .auction-commerce-block {
+  margin-top: .35rem;
+  grid-template-rows: auto;
+  gap: .35rem;
+}
+.auction-grid:not(.marketplace-results-grid) .auction-fixed-price-row {
+  grid-template-columns: minmax(0, 1fr);
+  gap: .4rem;
+}
+.auction-grid:not(.marketplace-results-grid) .auction-fixed-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .35rem;
+}
+.auction-grid:not(.marketplace-results-grid) .auction-fixed-actions .button {
+  min-width: 0;
+  min-height: 2.35rem;
+  padding: .4rem .3rem;
+  font-size: .77rem;
+  white-space: normal;
+}
+.auction-grid:not(.marketplace-results-grid) .auction-content h3 { height: auto; min-height: 2.5em; }
+.auction-grid:not(.marketplace-results-grid) .auction-time {
+  top: 2.7rem;
+  right: .4rem;
+  padding: .2rem .4rem;
+  font-size: .68rem;
+}
+.auction-grid:not(.marketplace-results-grid) .auction-condition-badge { top: .4rem; right: .4rem; }
+
+/* Vault / Cseremappa cards use the same small preview area as the marketplace.
+   The magnifier opens the uncropped full image when text needs reading. */
+.vault-card-grid,
+.vault-search-card-grid,
+.vault-collection-grid {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 13.5rem), 1fr));
+  align-items: start;
+  gap: .75rem;
+}
+.vault-card-grid > .vault-card,
+.vault-search-card-grid > .vault-card,
+.vault-collection-grid > .vault-card { align-self: start; grid-template-rows: auto auto; }
+.vault-card > .card-image-preview,
+.vault-card > .vault-card-placeholder {
+  height: clamp(9.5rem, 14vw, 11.5rem);
+  aspect-ratio: auto;
+}
+.vault-card .card-image-preview-thumbnail { object-fit: contain; }
+.vault-card .vault-card-body { grid-template-rows: auto; gap: .45rem; padding: .65rem; }
+.vault-card .vault-card-title { min-height: 0; }
+.vault-card .vault-card-title strong { min-height: 0; }
+.community-trade-grid .vault-card-body { grid-template-rows: auto; }
+.vault-card-grid.community-trade-grid {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 13.5rem), 1fr));
+  justify-content: start;
+}
+
+/* Collection list keeps quantity selectors and actions inside each row. */
+.vault-collection-list { display: grid; grid-template-columns: minmax(0, 1fr); gap: .6rem; }
+.vault-collection-list .vault-card { display: grid; grid-template-columns: 6rem minmax(0, 1fr); grid-template-rows: auto; align-items: start; }
+.vault-collection-list .vault-card > .card-image-preview,
+.vault-collection-list .vault-card > .vault-card-placeholder {
+  grid-column: 1;
+  grid-row: 1;
+  width: 6rem;
+  height: 8.4rem;
+  aspect-ratio: 5 / 7;
+}
+.vault-collection-list .vault-card > .vault-card-body { grid-column: 2; grid-row: 1; min-width: 0; }
+.vault-collection-list .vault-card-properties { gap: .35rem; }
+.vault-collection-list .vault-card-variant-quantities { max-width: 24rem; }
+.vault-collection-list .vault-card-direct-actions { max-width: 18rem; }
+
+@media (max-width: 760px) {
+  .vault-card-grid,
+  .vault-search-card-grid,
+  .vault-collection-grid { grid-template-columns: repeat(auto-fill, minmax(min(100%, 12.5rem), 1fr)); }
+  .auction-grid:not(.marketplace-results-grid) .auction-content { padding: .6rem; }
+  .auction-grid:not(.marketplace-results-grid) .auction-price-action-row { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 560px) {
+  .vault-card-grid.community-trade-grid,
+  .vault-trade-cards.vault-card-grid,
+  .vault-card-grid:not(.vault-collection-grid) { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .5rem; }
+  .vault-collection-grid, .vault-search-card-grid { grid-template-columns: minmax(0, 1fr); }
+  .vault-collection-list { grid-template-columns: minmax(0, 1fr); }
+  .vault-collection-list .vault-card { grid-template-columns: 4.75rem minmax(0, 1fr); }
+  .vault-collection-list .vault-card > .card-image-preview,
+  .vault-collection-list .vault-card > .vault-card-placeholder { width: 4.75rem; height: 6.65rem; }
+  .vault-collection-list .vault-card-variant-quantities { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .auction-grid:not(.marketplace-results-grid) .auction-fixed-actions { grid-template-columns: minmax(0, 1fr); }
+}
