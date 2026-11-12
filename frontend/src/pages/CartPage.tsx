@@ -8,7 +8,12 @@ import { DiceMagicCheckout } from "../components/DiceMagicCheckout";
 import { hkkCardImageUrl } from "../utils/hkk";
 import { formatMoney } from "../utils/format";
 
-function imageFor(item: CartItem) { return item.external_card_id ? hkkCardImageUrl(item.external_card_id, null) : apiAssetUrl(item.image_url); }
+function imageFor(item: CartItem) {
+  // Respect owner-uploaded photos and synchronized partner images.
+  if (item.image_url) return apiAssetUrl(item.image_url);
+  const printVariant = item.variant === "foil" || item.variant === "fa" || item.variant === "gfa" ? item.variant : "normal";
+  return item.external_card_id ? hkkCardImageUrl(item.external_card_id, null, printVariant) : apiAssetUrl(null);
+}
 
 const cartStateCopy = {
   order_pending: ["Bolti rendelés folyamatban", "A rendelést itt, a kosárban követheted és folytathatod."],

@@ -439,7 +439,9 @@ export function AuctionDetailPage() {
   const availableQuantity = Math.max(0, auction.shop_source ? Math.min(999, auction.available_quantity ?? (auction.status === "active" ? 999 : 0)) : auction.available_quantity ?? (auction.status === "active" ? (auction.listing_format === "bundle" ? 1 : auction.vault_quantity ?? 0) : 0));
 
   const galleryImages = [...auction.images].sort((left, right) => left.position - right.position);
-  const referenceImageUrl = auction.shop_image_url || (!galleryImages.length && auction.vault_external_card_id ? hkkCardImageUrl(auction.vault_external_card_id, null) : "");
+  const printVariant = auction.vault_print_variant === "foil" || auction.vault_print_variant === "fa" || auction.vault_print_variant === "gfa"
+    ? auction.vault_print_variant : "normal";
+  const referenceImageUrl = auction.shop_image_url || (!galleryImages.length && auction.vault_external_card_id ? hkkCardImageUrl(auction.vault_external_card_id, null, printVariant) : "");
   const bundleItems = auction.bundle_items ?? [];
   const bundleMontage = !galleryImages.length && bundleItems.length ? bundleItems.slice(0, 4).map((item) => ({
     id: item.id,

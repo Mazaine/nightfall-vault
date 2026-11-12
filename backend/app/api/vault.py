@@ -1,6 +1,8 @@
 from datetime import date, timedelta
+from urllib.parse import urlsplit
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, Response, status
+from fastapi.responses import RedirectResponse
 from sqlalchemy import delete, func, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -1621,8 +1623,31 @@ def hkk_search(q: str | None = Query(default=None, max_length=120), limit: int =
 
 
 @router.get("/hkk/images/{card_id}", include_in_schema=False)
-def hkk_card_image(card_id: int = Path(gt=0), variant: str = Query(default="normal", pattern=r"^(normal|fa|gfa)$"), db: Session = Depends(get_db)) -> Response:
-    if variant != "normal":
+def hkk_card_image(card_id: int = Path(gt=0), variant: str = Query(default="normal", pattern=r"^(normal|foil|fa|gfa)$"), db: Session = Depends(get_db)) -> Response:
+    if variant == "foil":
+        # The official HKK image endpoint uses the normal artwork for foil.
+        # Reuse an exact-card-id foil photo from the already-synced partner
+        # catalog when present, without changing seller-owned uploads.
+        candidate = db.scalar(
+            select(Auction.shop_image_url).where(
+                Auction.shop_source == "dicemagic",
+                Auction.vault_external_card_id == str(card_id),
+                Auction.vault_print_variant == "foil",
+                Auction.shop_image_url.is_not(None),
+            ).order_by(Auction.id.desc()).limit(1)
+        )
+        if candidate:
+            parsed = urlsplit(candidate)
+            if parsed.scheme == "https" and parsed.hostname in {
+                "dicemagic.hu", "www.dicemagic.hu", "lapkereso.hkk.hu",
+                "www.beholder.hu", "beholder.hu",
+            } and not parsed.username and not parsed.password:
+                return RedirectResponse(candidate, status_code=307, headers={
+                    "Cache-Control": "public, max-age=3600",
+                })
+        # No verified foil photograph available: use the official normal image,
+        # never apply a fake foil effect or serve a different card's picture.
+    elif variant != "normal":
         statuses, images, _ = variant_metadata(db, str(card_id))
         if statuses.get(variant) != "exists" or variant not in images:
             raise HTTPException(status_code=404, detail="Ehhez a lapváltozathoz nincs igazolt hivatalos kép.")

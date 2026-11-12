@@ -28,7 +28,7 @@ export function formatHkkRarity(value: string | null | undefined): string | null
   return label ? `${value} – ${label}` : value;
 }
 
-export function hkkCardImageUrl(externalCardId: string, fallback: string | null | undefined, variant: "normal" | "fa" | "gfa" = "normal"): string {
+export function hkkCardImageUrl(externalCardId: string, fallback: string | null | undefined, variant: "normal" | "foil" | "fa" | "gfa" = "normal"): string {
   const normalizedId = externalCardId.trim();
   if (/^[1-9][0-9]*$/.test(normalizedId)) {
     const search = variant === "normal" ? "" : `?variant=${variant}`;
