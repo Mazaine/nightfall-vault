@@ -79,7 +79,7 @@ describe("DiceMagic ordering directly from the cart", () => {
     mocks.get.mockResolvedValue({ ...cart, items: [{ ...shop, state: "order_pending" }], checkout_resume_key: "stable-fixture-key" });
     mocks.checkout.mockReset().mockResolvedValue(pending);
     render(<MemoryRouter><CartPage /></MemoryRouter>);
-    expect(await screen.findByLabelText("Bolti lap darabszáma")).toBeDisabled();
+    expect(await screen.findByRole("button", { name: "Bolti lap darabszám növelése" })).toBeDisabled();
     fireEvent.click(screen.getByRole("button", { name: "Rendelés folytatása" }));
     await waitFor(() => expect(mocks.checkout).toHaveBeenCalledWith("stable-fixture-key", [1], undefined, true));
     expect(await screen.findByRole("dialog")).toBeInTheDocument();
