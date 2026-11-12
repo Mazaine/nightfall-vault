@@ -22,6 +22,13 @@ describe("CardImagePreview", () => {
     expect(screen.queryByRole("img", { name: "Tesztlap nagyított képe" })).not.toBeInTheDocument();
   });
 
+  it("nagyító ikonnal nyitható a teljes kép akkor is, ha a hoveres előnézet ki van kapcsolva", () => {
+    render(<CardImagePreview preview={false} card={{ external_card_id: "123", card_name: "Tesztlap", image_url: "https://example.invalid/card.jpg" }} />);
+    fireEvent.click(screen.getByRole("button", { name: "Lap nagyítása: Tesztlap" }));
+    expect(screen.getByRole("dialog", { name: "Tesztlap" })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Tesztlap nagyított képe" })).toBeInTheDocument();
+  });
+
   it("preview nélkül a bélyegkép hoverre sem nyit nagyítást", () => {
     vi.useFakeTimers();
     render(<CardImagePreview preview={false} card={{ external_card_id: "123", card_name: "Tesztlap", image_url: "https://example.invalid/card.jpg" }} />);
