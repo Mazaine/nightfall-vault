@@ -6,7 +6,7 @@ import { expressTradeInterest, getCommunityTradeFilterOptions, listCommunityTrad
 import { CardImagePreview } from "../components/CardImagePreview";
 import { CardViewSwitch } from "../components/CardViewSwitch";
 import { MultiValueFilter } from "../components/MultiValueFilter";
-import { formatHkkRarityLabel } from "../utils/hkk";
+import { formatHkkRarity, formatHkkRarityLabel } from "../utils/hkk";
 
 type BrowserFilters = Required<Pick<CommunityTradeFilters, "query" | "editions" | "rarities" | "colors" | "cardTypes" | "variants" | "minQuantity" | "sort" | "view" | "onlyWanted" | "mutualMatch">> & { ownerId?: number };
 type SavedSearch = { id: string; name: string; filters: BrowserFilters };
