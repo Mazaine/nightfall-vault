@@ -568,7 +568,7 @@ def test_home_overview_counts_order_and_private_watch_aggregation() -> None:
     assert [item["id"] for item in data["soon_ending"]] == ids[:3]
     assert [item["id"] for item in data["new_auctions"]] == ids[:3]
     assert next(item for item in data["featured"] if item["id"] == ids[0])["bid_count"] == 2
-    assert len(statements) <= 18  # bounded independent of the number of cards
+    assert len(statements) <= 19  # One bounded random-stock query, independent of card count
     detail = client.get(f"/api/auctions/{ids[0]}")
     assert detail.status_code == 200
     assert detail.json()["watch_count"] == 1

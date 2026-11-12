@@ -96,6 +96,14 @@ describe("AuctionCard", () => {
     expect(screen.queryByRole("button", { name: "Licitálok" })).not.toBeInTheDocument();
   });
 
+  it("a mobilrács ikonfigyelése teljes hozzáférhető névvel működik", () => {
+    const view = render(<MemoryRouter><AuctionCard item={{ ...item, listingType: "fixed", statusLabel: "Aktív" }} index={0} detailPath="/auctions/7" /></MemoryRouter>);
+    const button = screen.getByRole("button", { name: "Figyelőlistára" });
+    expect(button).toHaveAttribute("title", "Figyelőlistára teszem");
+    expect(button.querySelector(".auction-watchlist-label")).toHaveTextContent("Figyelőlistára");
+    expect(view.container.querySelector(".auction-status-prefix")).toHaveTextContent("Állapot:");
+  });
+
   it("fix áras hirdetésnél közvetlen és kosaras vásárlást is kínál", async () => {
     render(<MemoryRouter><AuctionCard item={{ ...item, listingType: "fixed", availableQuantity: 3 }} index={0} detailPath="/auctions/7" /></MemoryRouter>);
     expect(screen.getByText("Fix ár")).toBeInTheDocument();

@@ -306,11 +306,11 @@ export function AuctionCard({
         </h3>
         <p>{item.type}</p>
         <div className="auction-card-status-row">
-          {item.statusLabel ? <span className="status-badge">Állapot: {item.statusLabel}</span> : null}
+          {item.statusLabel ? <span className="status-badge"><span className="auction-status-prefix">Állapot: </span>{item.statusLabel}</span> : null}
           {!isLocallyClosed && user?.id !== item.sellerId ? (
-            <button className={`auction-watchlist-toggle${isWatched ? " is-active" : ""}`} type="button" aria-pressed={isWatched} disabled={isWatchPending} onClick={() => void toggleWatchlist()}>
+            <button className={`auction-watchlist-toggle${isWatched ? " is-active" : ""}`} type="button" aria-label={isWatchPending ? "Mentés…" : isWatched ? "Figyelem" : "Figyelőlistára"} title={isWatched ? "Figyelés kikapcsolása" : "Figyelőlistára teszem"} aria-pressed={isWatched} disabled={isWatchPending} onClick={() => void toggleWatchlist()}>
               <span aria-hidden="true">{isWatched ? "★" : "☆"}</span>
-              {isWatchPending ? "Mentés…" : isWatched ? "Figyelem" : "Figyelőlistára"}
+              <span className="auction-watchlist-label">{isWatchPending ? "Mentés…" : isWatched ? "Figyelem" : "Figyelőlistára"}</span>
             </button>
           ) : null}
         </div>
