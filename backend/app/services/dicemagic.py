@@ -9,8 +9,9 @@ from decimal import Decimal
 from uuid import uuid4
 from urllib.parse import urlsplit
 from fastapi import HTTPException
-from sqlalchemy import select, text
+from sqlalchemy import func, select, text
 from app.core.config import settings
+from app.services.dicemagic_access import can_buy_dicemagic
 from app.models.auction import Auction
 from app.models.cart import Cart, CartItem
 from app.models.dicemagic import DiceMagicState, DiceMagicProduct, DiceMagicOrder, DiceMagicSyncLog, DiceMagicOrderHold
@@ -102,14 +103,20 @@ def sync_products(db, *, force=False):
         raise DiceMagicError("duplicate_snapshot_ids")
     seller = db.scalar(select(User).where(User.username == "dicemagic_shop"))
     if seller is None:
-        seller = User(username="dicemagic_shop", full_name="DiceMagic", email="dicemagic-integration@nightfall.invalid", password_hash=DISABLED_INTEGRATION_PASSWORD_HASH, password_login_enabled=False, role="user", is_active=False, is_email_verified=False)
+        seller = User(username="dicemagic_shop", full_name="DiceMagic", email="dicemagic-integration@nightfall.invalid", password_hash=DISABLED_INTEGRATION_PASSWORD_HASH, password_login_enabled=False, role="user", is_active=False, is_email_verified=False, vip_lifetime=True)
         db.add(seller)
         db.flush()
+    elif seller.email != "dicemagic-integration@nightfall.invalid" or seller.password_login_enabled or seller.is_active:
+        raise DiceMagicError("dicemagic_integration_identity_conflict", 409)
+    seller.vip_lifetime = True
     existing = {p.outer_id: p for p in db.scalars(select(DiceMagicProduct).order_by(DiceMagicProduct.id).with_for_update()).all()}
     if any(p.snapshot_generated_at and generated_at < p.snapshot_generated_at for p in existing.values()):
         raise DiceMagicError("older_snapshot_rejected")
     summary = {"new": 0, "updated": 0, "inactive": 0, "cards": 0, "boosters": 0, "active": 0, "out_of_stock": 0}
     for raw, (stock, price, regular, variant) in zip(items, normalized):
+        # The partner's structured product type is authoritative.
+        # Each booster/display is one sealed sellable unit, not individual cards.
+        listing_format = "bundle" if raw["type"] == "booster" else "single"
         product = existing.pop(raw["outer_id"], None)
         if product is None:
             auction = Auction(seller_id=seller.id, creation_key=str(uuid4()), listing_type="fixed", listing_format="single", title=raw["name"][:180], description="DiceMagic bolti termék. Átutalás és átvétel egyeztetése a bolttal.", category="Hatalom Kártyái Kártyajáték", condition="NM", status="active", starting_price=0, bid_increment=1, current_price=price or 1, buy_now_enabled=True, buy_now_price=price or 1, starts_at=utcnow(), ends_at=utcnow()+timedelta(days=36500), seller_declaration_accepted_at=utcnow(), seller_declaration_version="dicemagic-v1", shop_source="dicemagic")
@@ -124,6 +131,7 @@ def sync_products(db, *, force=False):
         active = bool(price and raw["in_stock"] and stock != 0)
         product.snapshot, product.stock, product.active, product.synced_at = raw, stock, active, utcnow()
         product.snapshot_generated_at = generated_at
+        auction.listing_format = listing_format
         auction.title = raw["name"][:180]
         auction.shop_edition = raw.get("edition")
         auction.shop_variant = raw.get("graphic_type")
@@ -177,7 +185,7 @@ def order_read(order):
 
 def prepare_order(db, user, key, items, details):
     from app.schemas.dicemagic import ShopCheckout
-    if user.role != "admin":
+    if not can_buy_dicemagic(user):
         raise HTTPException(404, "A bolti termék nem található.")
     db.execute(text("SELECT pg_advisory_xact_lock(hashtext(:key))"), {"key": "dicemagic:"+str(user.id)+":"+key})
     existing = db.scalar(select(DiceMagicOrder).where(DiceMagicOrder.buyer_id == user.id, DiceMagicOrder.idempotency_key == key))
@@ -188,8 +196,22 @@ def prepare_order(db, user, key, items, details):
     if not settings.dicemagic_enabled:
         raise HTTPException(409, "A DiceMagic-integráció nincs engedélyezve.")
     details = ShopCheckout.model_validate(details)
+    if user.role != "admin" and details.test_order:
+        raise HTTPException(422, "Tesztrendelést csak adminisztrátor adhat fel.")
     if not 1 <= len(items) <= 100:
         raise HTTPException(422, "Legfeljebb 100 bolti tétel rendelhető.")
+    if user.role != "admin":
+        # Stop public unsubmitted checkouts from blocking arbitrary inventory.
+        if not settings.dicemagic_real_order_enabled or not state(db).orders_enabled:
+            raise HTTPException(409, "A bolti rendelésküldés jelenleg nem elérhető.")
+        if len(items) > 30:
+            raise HTTPException(422, "Egyszerre legfeljebb 30 különböző bolti tétel rendelhető.")
+        pending = int(db.scalar(select(func.count(DiceMagicOrder.id)).where(
+            DiceMagicOrder.buyer_id == user.id,
+            DiceMagicOrder.status.in_(("queued", "sending", "unknown")),
+        )) or 0)
+        if pending:
+            raise HTTPException(409, "Előbb a már folyamatban lévő bolti rendelésedet fejezd be.")
     lines, holds = [], []
     for item in sorted(items, key=lambda row: row.auction_id):
         if not 1 <= item.quantity <= 999:
@@ -220,12 +242,25 @@ def prepare_order(db, user, key, items, details):
     return order
 
 
-def send_order(db, order_id, user):
-    buyer_id = user.id
-    statement = select(DiceMagicOrder).where(DiceMagicOrder.id == order_id, DiceMagicOrder.buyer_id == buyer_id).with_for_update().execution_options(populate_existing=True)
-    order = db.scalar(statement)
-    if user.role != "admin" or order is None:
+def send_order(db, order_id, user, *, admin_override=False):
+    if not can_buy_dicemagic(user):
         raise HTTPException(404, "A rendelés nem található.")
+    if admin_override and user.role != "admin":
+        raise HTTPException(403, "A rendeléshez adminisztrátori jogosultság szükséges.")
+    # Staff can send/retry a customer's prepared order, but a normal buyer may
+    # only send their own. Keep the original buyer for all transactions.
+    statement = select(DiceMagicOrder).where(DiceMagicOrder.id == order_id)
+    if not admin_override:
+        statement = statement.where(DiceMagicOrder.buyer_id == user.id)
+    statement = statement.with_for_update().execution_options(populate_existing=True)
+    order = db.scalar(statement)
+    if order is None:
+        raise HTTPException(404, "A rendelés nem található.")
+    if admin_override and order.buyer_id != user.id:
+        buyer = db.get(User, order.buyer_id)
+        if buyer is None or buyer.role == "admin":
+            raise HTTPException(404, "A rendelés nem található.")
+    buyer_id = order.buyer_id
     if order.status == "accepted":
         from app.services.dicemagic_transactions import link_accepted_order
         link_accepted_order(db, order)
@@ -274,8 +309,8 @@ def send_order(db, order_id, user):
                                            DiceMagicOrderHold.resolved_at.is_not(None)).limit(1)) is not None
     if order.status in {"accepted", "cancelled"} or reconciled_rejection:
         if accepted_response and order.status != "accepted":
-            create_domain_audit_log(db, action="dicemagic_late_acceptance_review", user_id=buyer_id,
-                metadata={"order_id": order.id, "attempt": attempt, "status": order.status,
+            create_domain_audit_log(db, action="dicemagic_late_acceptance_review", user_id=user.id,
+                metadata={"order_id": order.id, "buyer_id": buyer_id, "attempt": attempt, "status": order.status,
                           "shop_order_id": accepted_response["shop_order_id"]})
     elif accepted_response and order.status in {"sending", "unknown", "rejected"}:
         # A verified success for the same immutable external ID is authoritative,
@@ -289,7 +324,7 @@ def send_order(db, order_id, user):
             item = db.get(CartItem, item_id)
             if item:
                 item.status = "checked_out"
-        create_domain_audit_log(db, action="dicemagic_order_accepted", user_id=buyer_id, metadata={"order_id": order.id, "attempt": attempt})
+        create_domain_audit_log(db, action="dicemagic_order_accepted", user_id=user.id, metadata={"order_id": order.id, "buyer_id": buyer_id, "attempt": attempt})
     elif order.status == "sending" and order.attempts == attempt:
         # Only the currently leased generation may record a negative outcome.
         order.status, order.error = outcome, error

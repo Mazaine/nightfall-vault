@@ -21,6 +21,7 @@ def membership_status(db: Session, user: User) -> VipStatusRead:
     return VipStatusRead(
         is_vip=vip,
         vip_expires_at=user.vip_expires_at,
+        vip_lifetime=user.vip_lifetime,
         active_auction_limit=None if vip else NORMAL_ACTIVE_AUCTION_LIMIT,
         active_auction_count=active_auction_count(db, user.id),
         featured_auctions=vip,

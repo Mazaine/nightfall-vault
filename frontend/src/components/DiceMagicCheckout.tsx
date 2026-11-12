@@ -39,8 +39,8 @@ export function DiceMagicCheckout({ items, onDetails, onInvalidate, disabled = f
         <label>Település<input name="city" required maxLength={100} /></label>
         <label>Utca, házszám<input name="street" required maxLength={200} /></label>
         <label>Megjegyzés<textarea name="note" maxLength={900} /></label>
-        <label><input type="checkbox" checked={test} onChange={e => setTest(e.target.checked)} /> Tesztrendelés</label>
-        {test && <p role="note">Ez a tesztrendelés is valódi rendelést hoz létre a DiceMagic webshopban. A törlését és a készlet visszaállítását külön kell egyeztetni.</p>}
+        {!orderFromCart && <label><input type="checkbox" checked={test} onChange={e => setTest(e.target.checked)} /> Tesztrendelés</label>}
+        {!orderFromCart && test && <p role="note">Ez a tesztrendelés is valódi rendelést hoz létre a DiceMagic webshopban. A törlését és a készlet visszaállítását külön kell egyeztetni.</p>}
         <label><input type="checkbox" required /> {orderFromCart ? "Jóváhagyom az adataim továbbítását és a valódi DiceMagic-rendelés elküldését." : "Jóváhagyom a szükséges adatok DiceMagic részére továbbítását és a valódi rendelés előkészítését."}</label>
         <p>A rendeléshez megadott név-, cím-, elérhetőségi és megjegyzésadatokat a DiceMagicnek továbbítjuk. A lezárás és az egyeztetések után 90 napos megőrzési szabály vonatkozik rájuk; nyitott ügyet ez nem érint. <Link to="/privacy" target="_blank" rel="noopener noreferrer">Adatkezelési részletek</Link></p>
         {!orderFromCart && <button className="button button-secondary" disabled={busy || disabled}>{onDetails ? "Bolti adatok ellenőrzése" : "Bolti rendelés előkészítése"}</button>}

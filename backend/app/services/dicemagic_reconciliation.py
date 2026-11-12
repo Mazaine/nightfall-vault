@@ -5,6 +5,7 @@ from datetime import timedelta
 from fastapi import HTTPException
 from sqlalchemy import select
 from app.models.auction import Auction
+from app.models.user import User
 from app.models.dicemagic import DiceMagicOrder, DiceMagicOrderHold, DiceMagicProduct
 from app.services.dicemagic import utcnow
 from app.services.security_audit import create_domain_audit_log
@@ -16,9 +17,16 @@ def snapshot_token(product):
 
 
 def participant_order(db, order_id, user, *, lock=False):
-    query = select(DiceMagicOrder).where(DiceMagicOrder.id == order_id, DiceMagicOrder.buyer_id == user.id)
+    # Reconciliation is an admin operation across *all* partner buyers.
+    # It must not depend on which account originally placed the order.
+    if user.role != "admin":
+        raise HTTPException(404, "A bolti rendelés nem található.")
+    query = select(DiceMagicOrder).where(DiceMagicOrder.id == order_id)
     order = db.scalar(query.with_for_update() if lock else query)
-    if user.role != "admin" or order is None:
+    if order is None:
+        raise HTTPException(404, "A bolti rendelés nem található.")
+    buyer = db.get(User, order.buyer_id)
+    if order.buyer_id != user.id and (buyer is None or buyer.role == "admin"):
         raise HTTPException(404, "A bolti rendelés nem található.")
     return order
 

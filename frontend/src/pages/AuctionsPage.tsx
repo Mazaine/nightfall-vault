@@ -12,6 +12,7 @@ import { CARD_CONDITIONS } from "../data/cardConditions";
 
 const CATEGORY_OPTIONS = ["Hatalom Kártyái Kártyajáték", "Pokemon", "One Piece", "Star Wars TCG", "Yu-gi-oh", "Magic the Gathering", "Egyéb"];
 const SORT_OPTIONS = [
+  ["balanced", "Ajánlott · minden eladótól"],
   ["newest", "Legújabb"],
   ["oldest", "Legrégebbi"],
   ["highest_price", "Legmagasabb ár"],
@@ -63,7 +64,7 @@ const INITIAL_FILTERS: FilterState = {
   buy_now: "",
   soon_ending: false,
   new_only: false,
-  sort: "newest",
+  sort: "balanced",
 };
 
 function filtersForTab(filters: FilterState, tab: MarketTab): FilterState {
@@ -74,7 +75,7 @@ function filtersForTab(filters: FilterState, tab: MarketTab): FilterState {
     buy_now: "",
     soon_ending: false,
     new_only: false,
-    sort: ["most_bids", "fewest_bids", "soon_ending", "buy_now_first"].includes(filters.sort) ? "newest" : filters.sort,
+    sort: ["most_bids", "fewest_bids", "soon_ending", "buy_now_first"].includes(filters.sort) ? "balanced" : filters.sort,
     ...(tab === "cards" ? { title: "", description: "" } : {}),
   };
 }

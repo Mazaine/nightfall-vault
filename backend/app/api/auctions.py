@@ -32,7 +32,7 @@ from app.storage.paths import media_url
 router = APIRouter(prefix="/api/auctions", tags=["auctions"])
 
 
-AUCTION_SORTS = {"newest", "oldest", "highest_price", "lowest_price", "most_bids", "fewest_bids", "soon_ending", "buy_now_first"}
+AUCTION_SORTS = {"balanced", "newest", "oldest", "highest_price", "lowest_price", "most_bids", "fewest_bids", "soon_ending", "buy_now_first"}
 
 
 def available_listing_quantity(auction: Auction) -> int | None:
@@ -74,7 +74,7 @@ def auction_list_item(
         "bid_count": count,
         "seller_average_rating": seller_average_rating,
         "seller_review_count": seller_review_count or 0,
-        "is_featured": bool(auction.seller and is_vip(auction.seller)),
+        "is_featured": bool(auction.listing_type == "auction" and auction.seller and is_vip(auction.seller)),
         "viewer_is_leading": viewer_is_leading,
         "viewer_top_bid_id": auction.highest_bid_id if viewer_is_leading else None,
         "viewer_can_withdraw": withdrawal["can_withdraw"],
@@ -164,13 +164,20 @@ def _apply_auction_sort(query, sort: str):
         return query.order_by(status_last, featured_first, Auction.ends_at.asc(), Auction.id.asc())
     if sort == "buy_now_first":
         return query.order_by(status_last, featured_first, Auction.buy_now_enabled.desc(), Auction.created_at.desc(), Auction.id.desc())
+    if sort == "balanced":
+        # Default marketplace: each seller gets one slot per pass.
+        seller_round = func.row_number().over(
+            partition_by=(Auction.status, Auction.seller_id),
+            order_by=(Auction.created_at.desc(), Auction.id.desc()),
+        )
+        return query.order_by(status_last, seller_round, featured_first, Auction.created_at.desc(), Auction.id.desc())
     return query.order_by(status_last, featured_first, Auction.created_at.desc(), Auction.id.desc())
 
 
 def auction_response(auction: Auction, user: User | None = None, db: Session | None = None) -> AuctionResponse:
     seller_average_rating, seller_review_count = seller_rating_summary(db, auction.seller_id) if db is not None else (None, 0)
     watch_count = db.scalar(select(func.count(WatchlistItem.id)).where(WatchlistItem.auction_id == auction.id)) if db is not None else 0
-    response = AuctionResponse.model_validate(auction).model_copy(update={"available_quantity": available_listing_quantity(auction), "seller_average_rating": seller_average_rating, "seller_review_count": seller_review_count, "is_featured": bool(auction.seller and is_vip(auction.seller)), "watch_count": int(watch_count or 0)})
+    response = AuctionResponse.model_validate(auction).model_copy(update={"available_quantity": available_listing_quantity(auction), "seller_average_rating": seller_average_rating, "seller_review_count": seller_review_count, "is_featured": bool(auction.listing_type == "auction" and auction.seller and is_vip(auction.seller)), "watch_count": int(watch_count or 0)})
     if user is not None:
         viewer_is_leading = bool(auction.highest_bid is not None and auction.highest_bid.bidder_id == user.id)
         withdrawal = bid_withdrawal_state(auction.highest_bid, auction, user, db=db) if viewer_is_leading and auction.highest_bid is not None else {"can_withdraw": False, "withdrawal_block_reason": None}
@@ -228,7 +235,7 @@ def list_public_auctions(
     buy_now: bool | None = None,
     soon_ending: bool = False,
     new_only: bool = False,
-    sort: str = Query(default="newest"),
+    sort: str = Query(default="balanced"),
     limit: int = Query(default=24, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
     current_user: User | None = Depends(get_optional_current_user),
@@ -366,7 +373,7 @@ def home_auction_overview(
 
     featured_base = select(Auction.id).join(User, User.id == Auction.seller_id).where(
         Auction.status.in_(("active", "scheduled")), Auction.listing_type == "auction", Auction.deleted_at.is_(None), Auction.ends_at > now, visible,
-        or_(User.role == "admin", User.vip_expires_at > now),
+        or_(User.role == "admin", User.vip_lifetime.is_(True), User.vip_expires_at > now),
     )
     featured_total = int(db.scalar(select(func.count()).select_from(featured_base.subquery())) or 0)
     featured_ids: list[int] = []
@@ -387,18 +394,28 @@ def home_auction_overview(
             and_(Auction.shop_source.is_(None), Auction.vault_quantity > 0),
             and_(Auction.shop_source.is_not(None), Auction.shop_stock > 0),
         )
+        # Sample randomly within each seller, then alternate sellers.
+        sample = select(
+            Auction.id.label("id"),
+            func.row_number().over(
+                partition_by=Auction.seller_id, order_by=func.random()
+            ).label("seller_round"),
+            func.random().label("tie"),
+        ).where(
+            Auction.status == "active",
+            Auction.listing_type == "fixed",
+            Auction.listing_format == "single",
+            Auction.category == "Hatalom Kártyái Kártyajáték",
+            Auction.deleted_at.is_(None),
+            Auction.starts_at <= now,
+            Auction.ends_at > now,
+            available_stock,
+            visible,
+        ).subquery()
         random_ids = list(db.scalars(
-            select(Auction.id).where(
-                Auction.status == "active",
-                Auction.listing_type == "fixed",
-                Auction.listing_format == "single",
-                Auction.category == "Hatalom Kártyái Kártyajáték",
-                Auction.deleted_at.is_(None),
-                Auction.starts_at <= now,
-                Auction.ends_at > now,
-                available_stock,
-                visible,
-            ).order_by(func.random()).limit(8)
+            select(sample.c.id).order_by(
+                sample.c.seller_round, sample.c.tie, sample.c.id
+            ).limit(8)
         ).all())
     all_ids = set(featured_ids + soon_ids + new_ids + random_ids)
     if not all_ids:

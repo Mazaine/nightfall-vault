@@ -15,6 +15,7 @@ from app.models.user import User
 @pytest.fixture(autouse=True)
 def mock_configuration(monkeypatch):
     monkeypatch.setattr(settings, "dicemagic_enabled", True)
+    monkeypatch.setattr(settings, "dicemagic_visibility", "admin_only")
     monkeypatch.setattr(settings, "dicemagic_client_id", "fixture-client")
     monkeypatch.setattr(settings, "dicemagic_client_secret", "fixture-secret")
     # A non-mocked HTTP path is an immediate test failure.
@@ -111,6 +112,8 @@ def test_import_visibility_shared_cart_durable_order_and_stale_stock(monkeypatch
             db.commit()
             summary = sync_products(db)
             assert summary["new"] == 2 and summary["boosters"] == 1
+            booster = db.scalar(select(DiceMagicProduct).where(DiceMagicProduct.outer_id == "booster-fixture"))
+            assert db.get(Auction, booster.auction_id).listing_format == "bundle"
             product = db.scalar(select(DiceMagicProduct).where(DiceMagicProduct.outer_id == "fixture-1"))
             auction_id = product.auction_id
             state(db).orders_enabled = True
@@ -122,6 +125,14 @@ def test_import_visibility_shared_cart_durable_order_and_stale_stock(monkeypatch
             public = api.get("/api/auctions", params={"listing_type": "fixed"}, headers=headers).json()
             assert all(row["id"] != auction_id for row in (public if isinstance(public, list) else public["items"]))
         assert api.get(f"/api/auctions/{auction_id}", headers=admin_headers).status_code == 200
+        bundles = api.get("/api/auctions", params={
+            "listing_type": "fixed", "listing_format": "bundle",
+        }, headers=admin_headers).json()["items"]
+        assert any(row["listing_format"] == "bundle" and row["shop_source"] == "dicemagic" for row in bundles)
+        singles = api.get("/api/auctions", params={
+            "listing_type": "fixed", "listing_format": "single",
+        }, headers=admin_headers).json()["items"]
+        assert all(row["listing_format"] == "single" for row in singles)
         assert api.post("/api/admin/integrations/dicemagic/cart", headers=user_headers, json={"auction_id": auction_id, "quantity": 1}).status_code == 403
         added = api.post("/api/admin/integrations/dicemagic/cart", headers=admin_headers, json={"auction_id": auction_id, "quantity": 2})
         assert added.status_code == 200, added.text
@@ -178,3 +189,150 @@ def cleanup_dicemagic_tests():
         db.execute(delete(DiceMagicProduct)); db.execute(delete(AuctionMessage).where(AuctionMessage.auction_id.in_(auctions)))
         db.execute(delete(Auction).where(Auction.id.in_(auctions))); db.execute(delete(User).where(User.id.in_(ids)))
         db.execute(delete(DiceMagicSyncLog)); db.execute(delete(DiceMagicState)); db.commit()
+
+
+def test_public_partner_listing_checkout_and_lifetime_vip(monkeypatch):
+    """Public checkout uses buyer ownership, consent and one durable external order."""
+    from uuid import uuid4
+    from sqlalchemy import select
+    from fastapi.testclient import TestClient
+    from app.db.session import SessionLocal
+    from app.main import app
+    from app.core.security import create_access_token
+    from app.models.dicemagic import DiceMagicProduct
+    from app.services.dicemagic import client as partner, sync_products, state, utcnow
+    from app.services.membership import is_vip
+    from test_dicemagic import cleanup_dicemagic_tests
+
+    sent = []
+
+    def partner_send(method, path, **kwargs):
+        assert method == "POST" and path == "orders"
+        data = kwargs["json"]
+        sent.append(data["external_order_id"])
+        return httpx.Response(201, json={
+            "accepted": True, "external_order_id": data["external_order_id"],
+            "shop_order_id": "DM-public-fixture", "items_total_huf": data["items_total_huf"],
+        })
+
+    monkeypatch.setattr(partner, "authorized", partner_send)
+    monkeypatch.setattr(partner, "products", lambda: {
+        "type": "all", "count": 1, "generated_at": utcnow().isoformat(),
+        "items": [item()],
+    })
+    monkeypatch.setattr(settings, "dicemagic_real_order_enabled", True)
+    suffix = uuid4().hex[:12]
+    cleanup_dicemagic_tests()
+    api = TestClient(app)
+    try:
+        with SessionLocal() as db:
+            users = []
+            for index in range(2):
+                buyer = User(
+                    username=f"dm-fixture-public-{index}-{suffix}",
+                    full_name="Public Buyer",
+                    email=f"dm-fixture-public-{index}-{suffix}@example.com",
+                    password_hash="!", role="user", is_active=True,
+                    is_email_verified=True,
+                )
+                db.add(buyer)
+                db.flush()
+                users.append(buyer.id)
+            admin = User(
+                username=f"dm-fixture-admin-{suffix}", full_name="Partner Admin",
+                email=f"dm-fixture-admin-{suffix}@example.com", password_hash="!",
+                role="admin", is_active=True, is_email_verified=True,
+            )
+            db.add(admin)
+            db.flush()
+            admin_id = admin.id
+            db.commit()
+            sync_products(db)
+            product = db.scalar(select(DiceMagicProduct).where(DiceMagicProduct.outer_id == "fixture-1"))
+            auction_id = product.auction_id
+            seller = db.get(Auction, auction_id).seller
+            assert seller.vip_lifetime is True and is_vip(seller)
+            assert seller.vip_expires_at is None
+            state(db).orders_enabled = True
+            db.commit()
+        buyer_headers = {"Authorization": "Bearer " + create_access_token(subject=users[0])}
+        other_headers = {"Authorization": "Bearer " + create_access_token(subject=users[1])}
+        admin_headers = {"Authorization": "Bearer " + create_access_token(subject=admin_id)}
+        assert api.get(f"/api/auctions/{auction_id}").status_code == 404
+        assert api.get("/api/users/dicemagic_shop").status_code == 404
+        assert api.post("/api/shop/dicemagic/cart", headers=buyer_headers,
+                        json={"auction_id": auction_id, "quantity": 1}).status_code == 404
+
+        monkeypatch.setattr(settings, "dicemagic_visibility", "public")
+        assert api.get(f"/api/auctions/{auction_id}").status_code == 200
+        assert api.get("/api/users/dicemagic_shop").status_code == 200
+        assert any(row["id"] == auction_id for row in api.get("/api/auctions", params={"listing_type": "fixed"}).json()["items"])
+        assert api.get("/api/shop/dicemagic/status", headers=buyer_headers).json()["enabled"] is True
+        assert api.post("/api/admin/integrations/dicemagic/cart", headers=buyer_headers,
+                        json={"auction_id": auction_id, "quantity": 1}).status_code == 403
+
+        added = api.post("/api/shop/dicemagic/cart", headers=buyer_headers, json={
+            "auction_id": auction_id, "quantity": 2,
+        })
+        assert added.status_code == 200, added.text
+        entry = added.json()["items"][0]
+        assert entry["shop_source"] == "dicemagic"
+        assert entry["quantity"] == 2
+        assert api.get("/api/cart", headers=buyer_headers).json()["item_count"] == 1
+        assert api.get("/api/cart", headers=other_headers).json()["item_count"] == 0
+
+        address = {"postal_code": "1111", "city": "Fixture", "street_address": "Fixture 1"}
+        details = {
+            "buyer": {"full_name": "Public Buyer", "email": "public@example.com"},
+            "delivery": {"method": "pickup", "recipient_name": "Public Buyer"},
+            "billing": {"name": "Public Buyer", "address": address},
+            "confirm_real_order": True, "consent_data_transfer": True,
+        }
+        idem = "pub-" + suffix
+        test_order = api.post("/api/cart/checkout", headers=buyer_headers, json={
+            "idempotency_key": idem, "item_ids": [entry["id"]],
+            "shop_details": {**details, "test_order": True}, "confirm_real_order": True,
+        })
+        assert test_order.status_code == 422
+        prepared = api.post("/api/cart/checkout", headers=buyer_headers, json={
+            "idempotency_key": idem, "item_ids": [entry["id"]],
+            "shop_details": details, "confirm_real_order": True,
+        })
+        assert prepared.status_code == 200, prepared.text
+        order_id = prepared.json()["external_orders"][0]["id"]
+        assert not sent
+        assert api.post(f"/api/shop/dicemagic/orders/{order_id}/send",
+                        headers=other_headers, json={"confirm_real_order": True}).status_code == 404
+        assert api.post(f"/api/shop/dicemagic/orders/{order_id}/send",
+                        headers=buyer_headers, json={"confirm_real_order": False}).status_code == 422
+        # Staff can safely submit a buyer-owned order under its original buyer ID.
+        delivered = api.post(f"/api/admin/integrations/dicemagic/orders/{order_id}/send",
+                             headers=admin_headers, json={"confirm_real_order": True})
+        assert delivered.status_code == 200, delivered.text
+        assert delivered.json()["status"] == "accepted"
+        # Buyer endpoint keeps ownership and idempotent accepted-order reads.
+        buyer_delivered = api.post(f"/api/shop/dicemagic/orders/{order_id}/send",
+                                   headers=buyer_headers, json={"confirm_real_order": True})
+        assert buyer_delivered.status_code == 200, buyer_delivered.text
+        assert buyer_delivered.json()["status"] == "accepted"
+        again = api.post(f"/api/shop/dicemagic/orders/{order_id}/send",
+                         headers=buyer_headers, json={"confirm_real_order": True})
+        assert again.status_code == 200 and len(sent) == 1
+        assert api.get("/api/cart", headers=buyer_headers).json()["item_count"] == 0
+        # Staff must be able to see and reconcile external orders created by
+        # normal buyers; customers still cannot reach the admin endpoints.
+        admin_orders = api.get("/api/admin/integrations/dicemagic/orders", headers=admin_headers)
+        assert admin_orders.status_code == 200
+        assert any(order["id"] == order_id and order["buyer_id"] == users[0] for order in admin_orders.json())
+        reconciliations = api.get(
+            f"/api/admin/integrations/dicemagic/orders/{order_id}/reconciliation",
+            headers=admin_headers,
+        )
+        assert reconciliations.status_code == 200, reconciliations.text
+        assert reconciliations.json()["holds"]
+        assert api.get(
+            f"/api/admin/integrations/dicemagic/orders/{order_id}/reconciliation",
+            headers=buyer_headers,
+        ).status_code == 403
+    finally:
+        cleanup_dicemagic_tests()

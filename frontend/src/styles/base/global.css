@@ -4092,3 +4092,31 @@ h3 {
   .marketplace-results-grid .auction-price-copy strong { overflow-wrap: anywhere; }
   .marketplace-results-grid .auction-card-fixed > .auction-time { display: none; }
 }
+
+/* Give HKK artwork more vertical room instead of stretching or cropping it.
+   Applies to the image stage, not the card's width or the body typography. */
+.marketplace-results-grid .auction-card .auction-image.is-hkk-card,
+.auction-grid:not(.marketplace-results-grid) .auction-image.is-hkk-card {
+  height: clamp(14rem, 20vw, 18rem);
+  aspect-ratio: auto;
+  padding: .35rem;
+}
+.auction-card .auction-image.is-hkk-card img,
+.auction-card .auction-image.is-hkk-card .foil-card-frame img {
+  object-fit: contain;
+}
+.detail-media.auction-image:not(.is-bundle-montage) {
+  height: clamp(33rem, 72vh, 45rem);
+}
+.detail-media.auction-image:not(.is-bundle-montage) > img {
+  object-fit: contain;
+}
+@media (max-width: 760px) {
+  .marketplace-results-grid .auction-card .auction-image.is-hkk-card,
+  .auction-grid:not(.marketplace-results-grid) .auction-image.is-hkk-card {
+    height: clamp(12rem, 52vw, 17rem);
+  }
+  .detail-media.auction-image:not(.is-bundle-montage) {
+    height: clamp(25rem, 66dvh, 37rem);
+  }
+}

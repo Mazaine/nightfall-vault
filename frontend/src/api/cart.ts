@@ -16,10 +16,10 @@ export type CheckoutResult = { checkout_batch_id: number; transaction_count: num
 export const CART_CHANGED_EVENT = "nightfall-cart-changed";
 export function announceCartChanged(count?: number) { window.dispatchEvent(new CustomEvent(CART_CHANGED_EVENT, { detail: count })); }
 export function getCart() { return apiRequest<Cart>("/api/cart"); }
-export function addCartItem(auctionId: number, quantity = 1, shop = false, acceptPrice = false) { return apiRequest<Cart>(shop ? "/api/admin/integrations/dicemagic/cart" : "/api/cart/items", { method: "POST", body: JSON.stringify({ auction_id: auctionId, quantity, ...(shop ? { accept_price: acceptPrice } : {}) }) }); }
+export function addCartItem(auctionId: number, quantity = 1, shop = false, acceptPrice = false) { return apiRequest<Cart>(shop ? "/api/shop/dicemagic/cart" : "/api/cart/items", { method: "POST", body: JSON.stringify({ auction_id: auctionId, quantity, ...(shop ? { accept_price: acceptPrice } : {}) }) }); }
 export function updateCartItem(itemId: number, quantity: number, acceptPrice = false) { return apiRequest<Cart>(`/api/cart/items/${itemId}`, { method: "PATCH", body: JSON.stringify({ quantity, accept_price: acceptPrice }) }); }
 export function removeCartItem(itemId: number) { return apiRequest<Cart>(`/api/cart/items/${itemId}`, { method: "DELETE" }); }
 export function renewCartItem(itemId: number) { return apiRequest<Cart>(`/api/cart/items/${itemId}/reserve`, { method: "POST" }); }
 export function checkoutCart(idempotencyKey: string, itemIds?: number[], shopDetails?: Record<string, unknown>, confirmRealOrder = false) { return apiRequest<CheckoutResult>("/api/cart/checkout", { method: "POST", body: JSON.stringify({ idempotency_key: idempotencyKey, item_ids: itemIds, shop_details: shopDetails, confirm_real_order: confirmRealOrder }) }); }
-export function getShopOrderPermission() { return apiRequest<{ enabled: boolean; orders_enabled: boolean; order_environment_enabled: boolean }>("/api/admin/integrations/dicemagic"); }
-export function sendShopOrder(orderId: number) { return apiRequest<ShopOrder>(`/api/admin/integrations/dicemagic/orders/${orderId}/send`, { method: "POST", body: JSON.stringify({ confirm_real_order: true }) }); }
+export function getShopOrderPermission() { return apiRequest<{ enabled: boolean; orders_enabled: boolean; order_environment_enabled: boolean }>("/api/shop/dicemagic/status"); }
+export function sendShopOrder(orderId: number) { return apiRequest<ShopOrder>(`/api/shop/dicemagic/orders/${orderId}/send`, { method: "POST", body: JSON.stringify({ confirm_real_order: true }) }); }

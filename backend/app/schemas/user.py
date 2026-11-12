@@ -57,6 +57,7 @@ class UserPublic(BaseModel):
     is_active: bool
     is_email_verified: bool
     vip_expires_at: datetime | None = None
+    vip_lifetime: bool = False
     created_at: datetime
     updated_at: datetime
     total_bids: int = 0
@@ -74,7 +75,7 @@ class UserPublic(BaseModel):
     @computed_field
     @property
     def is_vip(self) -> bool:
-        if self.role == "admin":
+        if self.role == "admin" or self.vip_lifetime:
             return True
         if self.vip_expires_at is None:
             return False
@@ -89,13 +90,14 @@ class UserMeRead(BaseModel):
     full_name: str
     role: Literal["user", "tester", "admin"]
     vip_expires_at: datetime | None = None
+    vip_lifetime: bool = False
 
     model_config = ConfigDict(from_attributes=True)
 
     @computed_field
     @property
     def is_vip(self) -> bool:
-        if self.role == "admin":
+        if self.role == "admin" or self.vip_lifetime:
             return True
         if self.vip_expires_at is None:
             return False

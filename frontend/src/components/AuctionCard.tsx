@@ -296,7 +296,7 @@ export function AuctionCard({
         <div className="auction-card-details">
         {item.shopSource && item.shopRegularPrice && Number(item.currentAmount) < item.shopRegularPrice ? <p><del>{formatMoney(item.shopRegularPrice)}</del> · Akció</p> : null}
         <div className="auction-card-badges" aria-hidden={!item.isFeatured && !item.isDemo}>
-          {item.listingFormat === "bundle" ? <span className="status-badge">CSOMAG · {item.bundleItemCount} lap / {item.bundleCopyCount} példány</span> : null}
+          {item.listingFormat === "bundle" ? <span className="status-badge">{item.shopSource ? "BONTATLAN TERMÉK" : `CSOMAG · ${item.bundleItemCount} lap / ${item.bundleCopyCount} példány`}</span> : null}
           {item.isFeatured ? <span className="vip-featured-badge">VIP KIEMELT</span> : null}
           {item.isDemo ? <span className="demo-auction-badge">TESZT AUKCIÓ</span> : null}
         </div>
@@ -370,7 +370,7 @@ export function AuctionCard({
         </div>
       </div>
       {pendingBid ? <BidConfirmationDialog amountLabel={formatMoney(pendingBid.amount)} isBuyNow={pendingBid.isBuyNow} busy={isActionPending} onClose={() => { if (!isActionPending) setPendingBid(null); }} onConfirm={(disableFuture) => void confirmPendingBid(disableFuture)} /> : null}
-      {pendingPurchase && item.buyNowAmount ? <FixedPurchaseDialog title={item.title} unitPrice={item.buyNowAmount} quantity={purchaseQuantity} maxQuantity={item.listingFormat === "bundle" ? 1 : availableQuantity} busy={isActionPending} onQuantityChange={setPurchaseQuantity} onClose={() => { if (!isActionPending) setPendingPurchase(false); }} onConfirm={() => void buyFixedPrice()}/> : null}
+      {pendingPurchase && item.buyNowAmount ? <FixedPurchaseDialog title={item.title} unitPrice={item.buyNowAmount} quantity={purchaseQuantity} maxQuantity={item.listingFormat === "bundle" && !item.shopSource ? 1 : availableQuantity} busy={isActionPending} onQuantityChange={setPurchaseQuantity} onClose={() => { if (!isActionPending) setPendingPurchase(false); }} onConfirm={() => void buyFixedPrice()}/> : null}
     </article>
   );
 }

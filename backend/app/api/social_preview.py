@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session, selectinload
 from app.core.config import settings
 from app.db.session import get_db
 from app.models.auction import Auction, Bid
+from app.services.demo_visibility import auction_visibility_clause
 from app.services.auction_share_image import (
     SHARE_IMAGE_SIZE,
     SHARE_VERSION_PATTERN,
@@ -60,7 +61,7 @@ def _public_auction(auction_id: int, db: Session) -> Auction:
         Auction.deleted_at.is_(None),
         Auction.status.notin_({"draft", "cancelled", "suspended"}),
         Auction.demo_batch_id.is_(None),
-        Auction.shop_source.is_(None),
+        auction_visibility_clause(None),
     ).options(selectinload(Auction.images)))
     if auction is None:
         raise HTTPException(status_code=404, detail="Az aukció nem található.")

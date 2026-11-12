@@ -515,7 +515,9 @@ export function AuctionDetailPage() {
         <p className="eyebrow">{auction.category} · {formatAuctionStatus(auction.status)}</p>
         {auction.is_demo ? <span className="demo-auction-badge">TESZT AUKCIÓ</span> : null}
         <h1>{auction.title}</h1>
-        {auction.listing_format === "bundle" ? <section className="auction-bundle-contents"><span className="status-badge">Csomag</span><h2>A csomag tartalma</h2><ul>{bundleItems.map((item) => <li key={item.id}><strong>{item.card_name}</strong><span>#{item.external_card_id} · {item.print_variant.toUpperCase()} · {item.quantity} db</span></li>)}</ul></section> : null}
+        {auction.listing_format === "bundle" ? auction.shop_source
+          ? <section className="auction-bundle-contents"><span className="status-badge">Bontatlan termék</span><h2>Gyári csomag</h2><p>A termék bontatlan egységként vásárolható meg. A benne található lapok összetételét a szinkronadatok nem részletezik.</p></section>
+          : <section className="auction-bundle-contents"><span className="status-badge">Csomag</span><h2>A csomag tartalma</h2><ul>{bundleItems.map((item) => <li key={item.id}><strong>{item.card_name}</strong><span>#{item.external_card_id} · {item.print_variant.toUpperCase()} · {item.quantity} db</span></li>)}</ul></section> : null}
         <p className="hero-lead">{auction.description}</p>
         {auction.external_link_label && auction.external_link_url && /^https?:\/\//i.test(auction.external_link_url) ? (
           <p className="auction-external-link"><a className="text-link" href={auction.external_link_url} target="_blank" rel="noopener noreferrer nofollow">{auction.external_link_label}</a></p>

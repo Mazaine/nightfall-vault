@@ -2,6 +2,7 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import field_validator
 from urllib.parse import urlsplit
+from typing import Literal
 
 
 class Settings(BaseSettings):
@@ -10,7 +11,7 @@ class Settings(BaseSettings):
     dicemagic_client_secret: str = ""
     dicemagic_sync_enabled: bool = False
     dicemagic_sync_interval_seconds: int = Field(default=300, ge=300)
-    dicemagic_visibility: str = "admin_only"
+    dicemagic_visibility: Literal["admin_only", "public"] = "admin_only"
     dicemagic_real_order_enabled: bool = False
     dicemagic_order_retention_days: int | None = Field(default=None, ge=1, le=36500)
     dicemagic_retention_policy_approved: bool = False

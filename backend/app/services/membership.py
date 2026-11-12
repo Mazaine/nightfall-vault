@@ -28,7 +28,7 @@ def utc_now() -> datetime:
 
 def is_vip(user: User, now: datetime | None = None) -> bool:
     current = now or utc_now()
-    return user.role == "admin" or (user.vip_expires_at is not None and user.vip_expires_at > current)
+    return user.role == "admin" or user.vip_lifetime or (user.vip_expires_at is not None and user.vip_expires_at > current)
 
 
 def featured_auction_order():
@@ -39,7 +39,8 @@ def featured_auction_order():
         .select_from(seller)
         .where(
             seller.id == Auction.seller_id,
-            or_(seller.role == "admin", seller.vip_expires_at > func.now()),
+            Auction.listing_type == "auction",
+            or_(seller.role == "admin", seller.vip_lifetime.is_(True), seller.vip_expires_at > func.now()),
         )
     )
     return case((has_featured_seller, 1), else_=0).desc()
