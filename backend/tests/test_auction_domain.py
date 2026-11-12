@@ -715,3 +715,55 @@ def test_photo_request_is_idempotent_rejects_owner_and_notifies_after_upload() -
     assert deleted.status_code == 200
     assert client.get(f"/api/auctions/{auction_id}").json()["images"] == []
     cleanup_test_data()
+
+
+def test_marketplace_default_rotates_sellers_without_reordering_price_sort() -> None:
+    cleanup_test_data()
+    seller_big = create_test_user("seller-big-fair@auction-test.local")
+    seller_small = create_test_user("seller-small-fair@auction-test.local")
+    now = datetime.now(timezone.utc)
+    created_ids = {}
+    try:
+        for seller, prefix, count in [(seller_big, "Big", 9), (seller_small, "Small", 2)]:
+            ids = []
+            for index in range(count):
+                response = client.post("/api/auctions", json=auction_payload(
+                    title=f"{prefix} fair {index}",
+                    category="Hatalom Kártyái Kártyajáték",
+                ), headers=auth_headers(seller))
+                assert response.status_code == 201, response.text
+                ids.append(response.json()["id"])
+            created_ids[prefix] = ids
+        with SessionLocal() as db:
+            for name, ids in created_ids.items():
+                for position, auction_id in enumerate(ids):
+                    auction = db.get(Auction, auction_id)
+                    auction.status = "active"
+                    auction.listing_type = "fixed"
+                    auction.listing_format = "single"
+                    auction.vault_quantity = 1
+                    auction.current_price = 100 + position + (1000 if name == "Small" else 0)
+                    auction.starts_at = now - timedelta(minutes=10)
+                    auction.ends_at = now + timedelta(days=30)
+                    auction.created_at = now - timedelta(minutes=position + (100 if name == "Small" else 0))
+            db.commit()
+
+        response = client.get("/api/auctions", params={"sort": "newest", "listing_type": "fixed", "limit": 5})
+        assert response.status_code == 200, response.text
+        ids = [row["id"] for row in response.json()["items"]]
+        assert len(ids) == 5
+        assert ids[0] in created_ids["Big"]
+        assert ids[1] in created_ids["Small"]
+        assert ids[2] in created_ids["Big"]
+        assert ids[3] in created_ids["Small"]
+
+        prices = client.get("/api/auctions", params={"sort": "lowest_price", "listing_type": "fixed"}).json()["items"]
+        values = [float(row["current_price"]) for row in prices]
+        assert values == sorted(values)
+
+        random_cards = client.get("/api/auctions/home").json()["random_cards"]
+        first_two = [row["seller_id"] for row in random_cards[:2]]
+        assert set(first_two) == {seller_big.id, seller_small.id}
+        assert len(random_cards) == 8
+    finally:
+        cleanup_test_data()
