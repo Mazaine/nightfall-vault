@@ -60,3 +60,11 @@ Nem admin vásárló sem az admin végpontokon, sem a nyilvános checkout
 folyamatban nem adhat le `test_order=true` kérést; a backend 422-t ad.
 Az admin megerősített tesztrendelése a partnernél valódi megrendelés,
 ezért partneri egyeztetés nélkül nem indítható.
+
+## Admin rendelésfelügyelet és készletblokkok
+A publikus vevői rendelések **az admin rendeléslistában is láthatók**
+(`buyer_id` mezővel), és az admin képes a vevőtől függetlenül
+elvégezni a szabályozott készlet-egyeztetést. A vevő az admin
+listákat/egyeztetést nem érheti el, a vevői küldési végpont továbbra
+is a saját `buyer_id` alapján engedélyez. A jóváhagyott adatmegőrzési
+folyamat is kezeli az összes lezárt vásárlói rendelést.

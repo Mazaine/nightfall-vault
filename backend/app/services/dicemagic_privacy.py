@@ -42,7 +42,7 @@ def eligible(db, order, now):
 def preview(db, user):
     if user.role != "admin":
         raise HTTPException(403, "Adminisztrátori jogosultság szükséges.")
-    orders = db.scalars(select(DiceMagicOrder).where(DiceMagicOrder.buyer_id == user.id, DiceMagicOrder.status.in_(["accepted", "cancelled", "rejected"])).order_by(DiceMagicOrder.id)).all()
+    orders = db.scalars(select(DiceMagicOrder).where(DiceMagicOrder.status.in_(["accepted", "cancelled", "rejected"])).order_by(DiceMagicOrder.id)).all()
     now = utcnow()
     return {"policy_approved": settings.dicemagic_retention_policy_approved,
             "retention_days": settings.dicemagic_order_retention_days,
@@ -54,7 +54,7 @@ def anonymize(db, user, expected, confirmed):
         raise HTTPException(403, "Adminisztrátori jogosultság szükséges.")
     if not confirmed or not settings.dicemagic_retention_policy_approved or not settings.dicemagic_order_retention_days:
         raise HTTPException(409, "Jóváhagyott adatmegőrzési szabályzat és külön megerősítés szükséges.")
-    orders = list(db.scalars(select(DiceMagicOrder).where(DiceMagicOrder.buyer_id == user.id, DiceMagicOrder.id.in_(expected)).order_by(DiceMagicOrder.id).with_for_update().execution_options(populate_existing=True)))
+    orders = list(db.scalars(select(DiceMagicOrder).where(DiceMagicOrder.id.in_(expected)).order_by(DiceMagicOrder.id).with_for_update().execution_options(populate_existing=True)))
     now = utcnow()
     if len(orders) != len(expected) or any(not eligible(db, order, now) or not hmac.compare_digest(fingerprint(order), expected[order.id]) for order in orders):
         raise HTTPException(409, "A rendelés vagy az előnézet megváltozott. Készíts új előnézetet.")

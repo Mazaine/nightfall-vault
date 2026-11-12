@@ -88,7 +88,9 @@ def logs(db: Session = Depends(get_db)):
 
 @router.get("/orders")
 def orders(user=Depends(require_admin), db: Session = Depends(get_db)):
-    return [order_read(row) for row in db.scalars(select(DiceMagicOrder).where(DiceMagicOrder.buyer_id == user.id).order_by(DiceMagicOrder.id.desc()).limit(100))]
+    return [{**order_read(row), "buyer_id": row.buyer_id} for row in db.scalars(
+        select(DiceMagicOrder).order_by(DiceMagicOrder.id.desc()).limit(100)
+    )]
 
 
 class Prepare(BaseModel):

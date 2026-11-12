@@ -238,6 +238,14 @@ def test_public_partner_listing_checkout_and_lifetime_vip(monkeypatch):
                 db.add(buyer)
                 db.flush()
                 users.append(buyer.id)
+            admin = User(
+                username=f"dm-fixture-admin-{suffix}", full_name="Partner Admin",
+                email=f"dm-fixture-admin-{suffix}@example.com", password_hash="!",
+                role="admin", is_active=True, is_email_verified=True,
+            )
+            db.add(admin)
+            db.flush()
+            admin_id = admin.id
             db.commit()
             sync_products(db)
             product = db.scalar(select(DiceMagicProduct).where(DiceMagicProduct.outer_id == "fixture-1"))
@@ -249,6 +257,7 @@ def test_public_partner_listing_checkout_and_lifetime_vip(monkeypatch):
             db.commit()
         buyer_headers = {"Authorization": "Bearer " + create_access_token(subject=users[0])}
         other_headers = {"Authorization": "Bearer " + create_access_token(subject=users[1])}
+        admin_headers = {"Authorization": "Bearer " + create_access_token(subject=admin_id)}
         assert api.get(f"/api/auctions/{auction_id}").status_code == 404
         assert api.get("/api/users/dicemagic_shop").status_code == 404
         assert api.post("/api/shop/dicemagic/cart", headers=buyer_headers,
@@ -304,5 +313,20 @@ def test_public_partner_listing_checkout_and_lifetime_vip(monkeypatch):
                          headers=buyer_headers, json={"confirm_real_order": True})
         assert again.status_code == 200 and len(sent) == 1
         assert api.get("/api/cart", headers=buyer_headers).json()["item_count"] == 0
+        # Staff must be able to see and reconcile external orders created by
+        # normal buyers; customers still cannot reach the admin endpoints.
+        admin_orders = api.get("/api/admin/integrations/dicemagic/orders", headers=admin_headers)
+        assert admin_orders.status_code == 200
+        assert any(order["id"] == order_id and order["buyer_id"] == users[0] for order in admin_orders.json())
+        reconciliations = api.get(
+            f"/api/admin/integrations/dicemagic/orders/{order_id}/reconciliation",
+            headers=admin_headers,
+        )
+        assert reconciliations.status_code == 200, reconciliations.text
+        assert reconciliations.json()["holds"]
+        assert api.get(
+            f"/api/admin/integrations/dicemagic/orders/{order_id}/reconciliation",
+            headers=buyer_headers,
+        ).status_code == 403
     finally:
         cleanup_dicemagic_tests()
