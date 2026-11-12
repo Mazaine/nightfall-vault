@@ -4,13 +4,15 @@ import type { Auction } from "../../api/auctions";
 import { AuctionCard } from "../../components/AuctionCard";
 import { toAuctionCardItem } from "../../utils/auctionPresentation";
 
-const DESKTOP_PAGE_SIZE = 4;
-const TABLET_PAGE_SIZE = 2;
+const DESKTOP_PAGE_SIZE = 5;
+const TABLET_PAGE_SIZE = 3;
+const SMALL_TABLET_PAGE_SIZE = 2;
 const MOBILE_PAGE_SIZE = 1;
 
 function getPageSize() {
   if (typeof window === "undefined" || !window.matchMedia) return DESKTOP_PAGE_SIZE;
-  if (window.matchMedia("(max-width: 760px)").matches) return MOBILE_PAGE_SIZE;
+  if (window.matchMedia("(max-width: 560px)").matches) return MOBILE_PAGE_SIZE;
+  if (window.matchMedia("(max-width: 900px)").matches) return SMALL_TABLET_PAGE_SIZE;
   if (window.matchMedia("(max-width: 1100px)").matches) return TABLET_PAGE_SIZE;
   return DESKTOP_PAGE_SIZE;
 }
@@ -37,18 +39,17 @@ export function HomeAuctionCarousel({ title, auctions, sectionClassName, isLoadi
   const manualPauseUntil = useRef(0);
 
   useEffect(() => {
-    const mobileQuery = window.matchMedia("(max-width: 760px)");
+    const mobileQuery = window.matchMedia("(max-width: 560px)");
+    const smallTabletQuery = window.matchMedia("(max-width: 900px)");
     const tabletQuery = window.matchMedia("(max-width: 1100px)");
     const updatePageSize = () => {
-      setPageSize(mobileQuery.matches ? MOBILE_PAGE_SIZE : tabletQuery.matches ? TABLET_PAGE_SIZE : DESKTOP_PAGE_SIZE);
+      setPageSize(mobileQuery.matches ? MOBILE_PAGE_SIZE : smallTabletQuery.matches ? SMALL_TABLET_PAGE_SIZE : tabletQuery.matches ? TABLET_PAGE_SIZE : DESKTOP_PAGE_SIZE);
       setPageIndex(0);
     };
     updatePageSize();
-    mobileQuery.addEventListener("change", updatePageSize);
-    tabletQuery.addEventListener("change", updatePageSize);
+    [mobileQuery, smallTabletQuery, tabletQuery].forEach((query) => query.addEventListener("change", updatePageSize));
     return () => {
-      mobileQuery.removeEventListener("change", updatePageSize);
-      tabletQuery.removeEventListener("change", updatePageSize);
+      [mobileQuery, smallTabletQuery, tabletQuery].forEach((query) => query.removeEventListener("change", updatePageSize));
     };
   }, []);
 
