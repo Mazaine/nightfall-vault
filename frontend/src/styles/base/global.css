@@ -4034,3 +4034,24 @@ h3 {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+/* Compact inventory selection and matching cards retain space for editing controls. */
+.vault-bulk-grid,
+.vault-match-grid {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 13.5rem), 1fr));
+  align-items: start;
+  gap: .75rem;
+}
+.vault-bulk-card,
+.vault-match-card { align-self: start; gap: .5rem; }
+.vault-bulk-card > .card-image-preview {
+  width: 100%;
+  height: clamp(9.5rem, 14vw, 11.5rem);
+  aspect-ratio: auto;
+}
+.vault-bulk-card .card-image-preview-thumbnail { object-fit: contain; }
+.vault-match-card .vault-match-card-image { width: 100%; max-width: 10rem; aspect-ratio: 5 / 7; }
+@media (max-width: 560px) {
+  .vault-bulk-grid { grid-template-columns: minmax(0, 1fr); }
+  .vault-match-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
