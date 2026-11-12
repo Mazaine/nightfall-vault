@@ -240,11 +240,11 @@ describe("VirtualVaultPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Keresés" }));
     expect(await screen.findByRole("combobox", { name: "Orkling Normál példányszáma" })).toBeInTheDocument();
     expect(screen.queryByText("Normál ?")).not.toBeInTheDocument();
-    const unverified = screen.getByText("Más változat hozzáadása · még nem hitelesített").closest("details")!;
+    const unverified = screen.getByText("+ Változat").closest("details")!;
     const foil = screen.getByRole("combobox", { name: "Orkling Foil példányszáma" });
     expect(unverified).not.toHaveAttribute("open");
     expect(foil).not.toBeVisible();
-    fireEvent.click(within(unverified).getByText("Más változat hozzáadása · még nem hitelesített"));
+    fireEvent.click(within(unverified).getByText("+ Változat"));
     expect(foil).toBeVisible();
   });
 
