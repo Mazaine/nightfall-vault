@@ -483,7 +483,7 @@ export function AuctionDetailPage() {
             width={1200}
             height={1200}
           />}
-          {!bundleMontage.length ? <CardImageZoom src={selectedImage ? apiAssetUrl(selectedImage.detail_url ?? selectedImage.url) : referenceImageUrl} alt={auction.title} /> : null}
+          {!bundleMontage.length ? <CardImageZoom src={selectedImage ? apiAssetUrl(selectedImage.detail_url ?? selectedImage.url) : referenceImageUrl} alt={auction.title} foil={foilFrame} /> : null}
           {referenceImageUrl ? <span className="auction-reference-image-badge">HKK referenciakép</span> : null}
           {galleryImages.length > 1 ? (
             <>
