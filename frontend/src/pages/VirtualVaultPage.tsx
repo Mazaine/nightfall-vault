@@ -5,7 +5,7 @@ import type { HkkCard, PublicTradeCard, TradeCardSeeker, VaultCard, VaultCardLoa
 import { CardImagePreview } from "../components/CardImagePreview";
 import { CardViewSwitch } from "../components/CardViewSwitch";
 import { MultiValueFilter, normalizeFilterText } from "../components/MultiValueFilter";
-import { formatHkkRarity, preferredHkkImageVariant } from "../utils/hkk";
+import { formatHkkRarity, formatHkkRarityLabel, preferredHkkImageVariant } from "../utils/hkk";
 import { ListingComposer } from "../components/ListingComposer";
 import { VaultBulkListingComposer } from "../components/VaultBulkListingComposer";
 import { useNotifications } from "../NotificationContext";
@@ -99,7 +99,7 @@ function localIsoDate() {
 
 function CardMeta({ card }: { card: Partial<Pick<VaultCard, "edition" | "card_type" | "subtype" | "color" | "rarity">> }) {
   const details = [card.edition, card.card_type, card.subtype, card.color, formatHkkRarity(card.rarity ?? null)].filter(Boolean).join(" · ");
-  const summary = [card.edition, formatHkkRarity(card.rarity ?? null)].filter(Boolean).join(" · ");
+  const summary = [card.edition, formatHkkRarityLabel(card.rarity ?? null)].filter(Boolean).join(" · ");
   return <small title={details}>{summary || "HKK-lap"}</small>;
 }
 
