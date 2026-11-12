@@ -3,6 +3,7 @@ import { Link } from "react-router";
 import { activateAuction, cancelAuction, createAuction, deleteAuctionImage, getAuction, listMyAuctions, listMyBidAuctions, setAuctionCoverImage, updateAuction, uploadAuctionImage, type Auction, type AuctionCondition, type HatalomEra, type MyBidAuction } from "../api/auctions";
 import { ApiError, apiAssetUrl } from "../api/client";
 import { AuctionCard } from "../components/AuctionCard";
+import { CardViewSwitch } from "../components/CardViewSwitch";
 import { CardImageZoom } from "../components/CardImageZoom";
 import { SafeImage } from "../components/SafeImage";
 import { FileImagePreview } from "../components/FileImagePreview";
@@ -215,6 +216,8 @@ export function AccountPage({ section }: { section: "bids" | "auctions" | "creat
   const { subscribe: subscribeNotifications, showToast } = useNotifications();
   const { subscribe: subscribeAuctionUpdates } = useAuctionRealtime();
   const [myAuctions, setMyAuctions] = useState<Auction[]>([]);
+  const [ownerDisplayMode, setOwnerDisplayMode] = useState<"grid" | "list">(() => localStorage.getItem("nightfall-vault-owner-display-mode") === "list" ? "list" : "grid");
+  const changeOwnerDisplayMode = (mode: "grid" | "list") => { setOwnerDisplayMode(mode); localStorage.setItem("nightfall-vault-owner-display-mode", mode); };
   const [myBidAuctions, setMyBidAuctions] = useState<MyBidAuction[]>([]);
   const [isLoadingMyAuctions, setIsLoadingMyAuctions] = useState(true);
   const [isLoadingMyBids, setIsLoadingMyBids] = useState(true);
@@ -724,13 +727,14 @@ export function AccountPage({ section }: { section: "bids" | "auctions" | "creat
           {isLoadingMyAuctions ? <LoadingState label="Saját aukciók betöltése" /> : null}
           {myAuctionsError ? <ErrorState message={myAuctionsError} onRetry={() => void refreshMyAuctions()} /> : null}
           {!isLoadingMyAuctions && !myAuctionsError && myAuctions.length === 0 ? <EmptyState title="Még nincs saját aukciód" action={<Link className="button button-primary" to="/auctions/create">Első aukció létrehozása</Link>} /> : null}
+          {!isLoadingMyAuctions && !myAuctionsError && myAuctions.length > 0 ? <div className="vault-view-toolbar"><span>{myAuctions.length} saját hirdetés</span><CardViewSwitch label="Saját hirdetések megjelenítése" value={ownerDisplayMode} onChange={changeOwnerDisplayMode}/></div> : null}
           {!isLoadingMyAuctions && !myAuctionsError && myAuctions.length > 0 ? (
             <div className="auction-status-sections">
               {auctionGroups.map((group, groupIndex) => (
                 <section aria-labelledby={`auction-group-${groupIndex}`} key={group.title}>
                   <h3 id={`auction-group-${groupIndex}`}>{group.title} <span>({group.items.length})</span></h3>
                   {group.items.length === 0 ? <p className="side-panel empty-state">Ebben a csoportban nincs aukció.</p> : (
-                    <div className="auction-grid page-grid">
+                    <div className={ownerDisplayMode === "grid" ? "auction-grid page-grid" : "marketplace-results-list account-own-auction-list"}>
                       {group.items.map((auction, index) => {
                         const isEditing = editingAuctionId === auction.id;
                         const isDraft = auction.status === "draft";
