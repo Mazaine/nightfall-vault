@@ -191,6 +191,66 @@ def cleanup_dicemagic_tests():
         db.execute(delete(DiceMagicSyncLog)); db.execute(delete(DiceMagicState)); db.commit()
 
 
+
+def test_public_dicemagic_rarity_controls_home_and_default_marketplace_order(monkeypatch):
+    """Common/uncommon partner cards are discoverable, but never recommended on home."""
+    from sqlalchemy import select
+    from fastapi.testclient import TestClient
+    from app.db.session import SessionLocal
+    from app.main import app
+    from app.models.dicemagic import DiceMagicProduct
+    from app.services.dicemagic import client as partner, sync_products, utcnow
+
+    partner_items = [
+        {**item(), "outer_id": f"rarity-{rarity or 'missing'}", "product_id": f"product-{index}",
+         "variant_id": f"variant-{index}", "name": f"Rarity fixture {index}",
+         "rarity": rarity, "price": str(price)}
+        for index, (rarity, price) in enumerate([
+            ("common", 100), ("uncommon", 200), ("rare", 300),
+            ("ultraRare", 400), (None, 500),
+        ])
+    ]
+    monkeypatch.setattr(partner, "products", lambda: {
+        "type": "all", "count": len(partner_items),
+        "generated_at": utcnow().isoformat(), "items": partner_items,
+    })
+    monkeypatch.setattr(settings, "dicemagic_visibility", "public")
+    cleanup_dicemagic_tests()
+    api = TestClient(app)
+    try:
+        with SessionLocal() as db:
+            sync_products(db)
+            products = db.scalars(select(DiceMagicProduct)).all()
+            ids = {row.snapshot["rarity"]: row.auction_id for row in products}
+
+        home_response = api.get("/api/auctions/home")
+        assert home_response.status_code == 200, home_response.text
+        home_ids = {row["id"] for row in home_response.json()["random_cards"]}
+        assert {ids["common"], ids["uncommon"]}.isdisjoint(home_ids)
+        assert {ids["rare"], ids["ultraRare"], ids[None]}.issubset(home_ids)
+
+        listing = api.get("/api/auctions", params={
+            "listing_type": "fixed", "listing_format": "single",
+            "seller": "DiceMagic", "sort": "balanced", "limit": 3,
+        })
+        assert listing.status_code == 200, listing.text
+        assert listing.json()["total"] == 5
+        assert {row["id"] for row in listing.json()["items"]} == {ids["rare"], ids["ultraRare"], ids[None]}
+        second = api.get("/api/auctions", params={
+            "listing_type": "fixed", "listing_format": "single",
+            "seller": "DiceMagic", "sort": "balanced", "limit": 3, "offset": 3,
+        })
+        assert {row["id"] for row in second.json()["items"]} == {ids["common"], ids["uncommon"]}
+
+        # A user-selected explicit price order is still authoritative.
+        price_sort = api.get("/api/auctions", params={
+            "listing_type": "fixed", "seller": "DiceMagic", "sort": "lowest_price",
+        })
+        assert [row["id"] for row in price_sort.json()["items"]][:2] == [ids["common"], ids["uncommon"]]
+    finally:
+        cleanup_dicemagic_tests()
+
+
 def test_public_partner_listing_checkout_and_lifetime_vip(monkeypatch):
     """Public checkout uses buyer ownership, consent and one durable external order."""
     from uuid import uuid4
