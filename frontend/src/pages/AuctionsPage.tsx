@@ -9,6 +9,7 @@ import { EmptyState, ErrorState, LoadingState } from "../components/AsyncStates"
 import { toAuctionCardItem } from "../utils/auctionPresentation";
 import { useAuctionRealtime } from "../AuctionRealtimeContext";
 import { CARD_CONDITIONS } from "../data/cardConditions";
+import "./home/HomeShowcase.css";
 
 const CATEGORY_OPTIONS = ["Hatalom Kártyái Kártyajáték", "Pokemon", "One Piece", "Star Wars TCG", "Yu-gi-oh", "Magic the Gathering", "Egyéb"];
 const SORT_OPTIONS = [
@@ -528,8 +529,16 @@ export function AuctionsPage() {
       {error ? <ErrorState message={error} onRetry={() => void load()} /> : null}
       {!isLoading && !error && auctions.length === 0 ? <EmptyState title={`Nincs a szűrésnek megfelelő ${marketTab === "auctions" ? "aukció" : marketTab === "cards" ? "lap" : "csomag, booster vagy kiegészítő"}.`} action={<button className="button button-secondary" type="button" onClick={resetFilters}>Szűrők törlése</button>} /> : null}
 
-      <div className={displayMode === "grid" ? "auction-grid page-grid marketplace-results-grid" : "marketplace-results-list"} aria-busy={isLoading}>
-        {auctions.map((auction, index) => <AuctionCard item={toAuctionCardItem(auction)} index={index} detailPath={`/auctions/${auction.id}`} key={auction.id} />)}
+      <div className={marketTab === "auctions"
+        ? `nv-bids-grid marketplace-live-grid ${displayMode === "list" ? "is-list" : ""} ${auctions.length % 2 ? "nv-bids-grid-odd" : ""}`.trim()
+        : displayMode === "grid" ? "auction-grid page-grid marketplace-results-grid" : "marketplace-results-list"} aria-busy={isLoading}>
+        {auctions.map((auction, index) => <AuctionCard
+          item={toAuctionCardItem(auction)}
+          index={index}
+          detailPath={`/auctions/${auction.id}`}
+          variant={marketTab === "auctions" ? "live" : "standard"}
+          key={auction.id}
+        />)}
       </div>
 
       </div>
