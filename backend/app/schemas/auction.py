@@ -543,6 +543,9 @@ class HomeAuctionOverview(BaseModel):
     soon_ending: list[AuctionListItem]
     new_auctions: list[AuctionListItem]
     random_cards: list[AuctionListItem] = Field(default_factory=list)
+    random_boosters: list[AuctionListItem] = Field(default_factory=list)
+    cards_total: int = 0
+    boosters_total: int = 0
 
 
 class AuctionStatusResponse(BaseModel):
