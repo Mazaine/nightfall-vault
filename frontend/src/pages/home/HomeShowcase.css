@@ -30,13 +30,14 @@
 .nv-no-image { color:var(--color-text-muted); font-size:.8rem; text-align:center; }
 
 /* Live auction panels. Numbers always come from the production API. */
-.nv-bids-section { padding-top:var(--space-6); padding-bottom:var(--space-6); }
+.nv-bids-section { width: min(100% - 2rem, var(--container-page)); max-width: 100%; margin-inline: auto; padding-top:var(--space-6); padding-bottom:var(--space-6); }
 .nv-section-heading { display:flex; align-items:center; flex-direction:row; justify-content:space-between; gap:1rem; margin-bottom:1rem; }
 .nv-section-heading h2 { margin:0; font-family:var(--font-family-display); font-size:clamp(1.35rem,2.15vw,2rem); font-weight:500; }
 .nv-section-heading h2 small { font:500 .5em/1 var(--font-family-body,system-ui); color:var(--color-text-muted); letter-spacing:0; margin-left:.5rem; white-space:nowrap; }
 .nv-live-pill { display:inline-flex; vertical-align:middle; align-items:center; padding:.32rem .48rem; margin-right:.3rem; border-radius:99px; border:1px solid #ef444466; color:#fda4af; background:#ef444425; font:800 .65rem/1 var(--font-family-body,system-ui); letter-spacing:.08em; }
-.nv-bids-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:.8rem; }
-.nv-bid-card { display:grid; grid-template-columns:minmax(6rem,8.5rem) minmax(0,1fr); gap:.85rem; min-width:0; padding:.85rem; border:1px solid #a571bc44; border-radius:16px; color:var(--color-text-primary); background:linear-gradient(140deg,#14101d,#090810); box-shadow:0 14px 32px rgba(0,0,0,.25); }
+.nv-bids-grid { display:grid; width:100%; grid-template-columns:repeat(2,minmax(0,1fr)); gap:.8rem; }
+.nv-bids-grid-odd > .nv-bid-card:last-child { grid-column:1 / -1; }
+.nv-bid-card { width:100%; display:grid; grid-template-columns:minmax(6rem,8.5rem) minmax(0,1fr); gap:.85rem; min-width:0; padding:.85rem; border:1px solid #a571bc44; border-radius:16px; color:var(--color-text-primary); background:linear-gradient(140deg,#14101d,#090810); box-shadow:0 14px 32px rgba(0,0,0,.25); }
 .nv-bid-card:has(.nv-clock.is-urgent) { border-color:rgba(239,68,68,.6); }
 .nv-bid-card:has(.nv-clock.is-soon) { border-color:rgba(245,158,11,.5); }
 .nv-bid-image { display:grid; place-items:center; align-self:stretch; background:radial-gradient(ellipse at 50% 40%,#8b5cf63d,transparent 75%); border-radius:10px; min-width:0; }
