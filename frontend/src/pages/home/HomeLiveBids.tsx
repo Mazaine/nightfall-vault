@@ -13,7 +13,7 @@ export function HomeLiveBids({ auctions }: { auctions: Auction[] }) {
       <h2><span className="nv-live-pill">● ÉLŐ</span> LICITEK HAMAROSAN ZÁRULNAK</h2>
       <Link className="text-link" to="/marketplace?tab=auctions">Összes aukció</Link>
     </div>
-    <div className="nv-bids-grid">
+    <div className={`nv-bids-grid ${active.length % 2 !== 0 ? "nv-bids-grid-odd" : ""}`.trim()}>
       {active.map(auction => {
         const card = toAuctionCardItem(auction);
         const minNext = Number(auction.current_price) + Number(auction.bid_increment);
