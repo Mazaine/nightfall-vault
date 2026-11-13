@@ -770,7 +770,7 @@ def test_marketplace_default_rotates_sellers_without_reordering_price_sort() -> 
         random_cards = client.get("/api/auctions/home").json()["random_cards"]
         first_two = [row["seller_id"] for row in random_cards[:2]]
         assert set(first_two) == {seller_big.id, seller_small.id}
-        assert len(random_cards) == 8
+        assert len(random_cards) == 10
     finally:
         cleanup_test_data()
 
