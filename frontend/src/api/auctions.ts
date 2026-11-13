@@ -326,6 +326,9 @@ export type HomeAuctionOverview = {
   soon_ending: Auction[];
   new_auctions: Auction[];
   random_cards?: Auction[];
+  random_boosters?: Auction[];
+  cards_total?: number;
+  boosters_total?: number;
 };
 
 export function getHomeAuctionOverview(includeRandom = true) {
