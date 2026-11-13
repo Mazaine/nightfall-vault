@@ -113,7 +113,8 @@ def test_import_visibility_shared_cart_durable_order_and_stale_stock(monkeypatch
             summary = sync_products(db)
             assert summary["new"] == 2 and summary["boosters"] == 1
             booster = db.scalar(select(DiceMagicProduct).where(DiceMagicProduct.outer_id == "booster-fixture"))
-            assert db.get(Auction, booster.auction_id).listing_format == "bundle"
+            booster_auction_id = booster.auction_id
+            assert db.get(Auction, booster_auction_id).listing_format == "bundle"
             product = db.scalar(select(DiceMagicProduct).where(DiceMagicProduct.outer_id == "fixture-1"))
             auction_id = product.auction_id
             state(db).orders_enabled = True
@@ -132,7 +133,7 @@ def test_import_visibility_shared_cart_durable_order_and_stale_stock(monkeypatch
         # Booster quantities may be untracked (None): in_stock products still appear on home.
         homepage = api.get("/api/auctions/home", headers=admin_headers)
         assert homepage.status_code == 200, homepage.text
-        assert any(row["id"] == booster.auction_id for row in homepage.json()["random_boosters"])
+        assert any(row["id"] == booster_auction_id for row in homepage.json()["random_boosters"])
         assert homepage.json()["boosters_total"] >= 1
         singles = api.get("/api/auctions", params={
             "listing_type": "fixed", "listing_format": "single",
