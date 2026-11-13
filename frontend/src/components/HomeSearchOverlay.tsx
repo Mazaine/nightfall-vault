@@ -28,7 +28,7 @@ export function HomeSearchOverlay({ open, onClose }: { open: boolean; onClose: (
     let cancelled = false;
     setLoading(true);
     const timeout = window.setTimeout(() => {
-      void listAuctions({ q: query.trim(), status: "active", listing_type: "fixed", sort: "balanced", limit: 6 }).then(page => {
+      void listAuctions({ q: query.trim(), status: "active", listing_type: "fixed", listing_format: "single", sort: "balanced", limit: 6 }).then(page => {
         if (!cancelled) { setResults(page.items); setTotal(page.total); }
       }).catch(() => {
         if (!cancelled) { setResults([]); setTotal(0); }
