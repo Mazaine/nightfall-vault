@@ -63,7 +63,7 @@ export function HomeSearchOverlay({ open, onClose }: { open: boolean; onClose: (
           </Link>;
         })}
         {results.length === 0 && <p className="nv-search-hint">Nincs megfelelő aktív találat.</p>}
-        {total > results.length && <button className="nv-search-all" type="button" onClick={submit}>Összes {total.toLocaleString("hu-HU")} találat a piactéren →</button>}
+        {total > results.length && <button className="nv-search-all" type="button" onClick={() => { onClose(); navigate(`/marketplace?tab=cards&q=${encodeURIComponent(query.trim())}`); }}>Összes {total.toLocaleString("hu-HU")} találat a piactéren →</button>}
       </div>}
     </div>
   </div>;
