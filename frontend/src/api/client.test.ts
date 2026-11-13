@@ -4,6 +4,41 @@ import { apiRequest } from "./client";
 describe("apiRequest magyar hibaállapotok", () => {
   afterEach(() => vi.unstubAllGlobals());
 
+  it("kijelentkezett látogató 401-es /auth/me válasza nem hoz létre fejléc feletti hibasávot", async () => {
+    window.localStorage.removeItem("nightfall_auth_token");
+    window.localStorage.removeItem("webshop_template_auth_token");
+    const onExpired = vi.fn();
+    window.addEventListener("nightfall-session-expired", onExpired);
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ detail: "Not authenticated" }), {
+      status: 401, headers: { "Content-Type": "application/json" },
+    })));
+    try {
+      await expect(apiRequest("/api/auth/me")).rejects.toMatchObject({
+        status: 401, message: "A munkameneted lejárt. Jelentkezz be újra.",
+      });
+      expect(onExpired).not.toHaveBeenCalled();
+    } finally {
+      window.removeEventListener("nightfall-session-expired", onExpired);
+    }
+  });
+
+  it("lejárt bejelentkezés esetén megőrzi az értesítést, de nem írja ki az angol backend hibaüzenetet", async () => {
+    window.localStorage.setItem("nightfall_auth_token", "expired-test-token");
+    const onExpired = vi.fn();
+    window.addEventListener("nightfall-session-expired", onExpired);
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ detail: "Not authenticated" }), {
+      status: 401, headers: { "Content-Type": "application/json" },
+    })));
+    try {
+      await expect(apiRequest("/api/auth/me")).rejects.toMatchObject({ status: 401 });
+      expect(onExpired).toHaveBeenCalledTimes(1);
+      expect(onExpired.mock.calls[0][0].detail.message).toBe("A munkameneted lejárt. Jelentkezz be újra.");
+    } finally {
+      window.localStorage.removeItem("nightfall_auth_token");
+      window.removeEventListener("nightfall-session-expired", onExpired);
+    }
+  });
+
   it("magyar, felhasználóbarát üzenetet ad hálózati hiba esetén", async () => {
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("Failed to fetch")));
 
