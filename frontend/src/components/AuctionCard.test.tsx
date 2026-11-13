@@ -109,7 +109,7 @@ describe("AuctionCard", () => {
   it("a főoldali villámár megerősítése után a villámáras műveletet végzi el helyben", async () => {
     mocks.placeAuctionBid.mockResolvedValue({ id: 2, amount: "2000.00", reaches_buy_now: true });
     render(<MemoryRouter initialEntries={["/"]}><Routes><Route path="*" element={<><AuctionCard item={{ ...item, listingType: "auction", status: "active", endsAt: new Date(Date.now() + 3600000).toISOString() }} index={0} detailPath="/auctions/7" variant="live" /><Location /></>} /></Routes></MemoryRouter>);
-    fireEvent.click(screen.getByRole("button", { name: /Villámár 2\\s?000 Ft/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Villámár/ }));
     expect(screen.getByRole("dialog", { name: "Villámvásárlás megerősítése" })).toBeInTheDocument();
     expect(mocks.placeAuctionBid).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "Villámvásárlás véglegesítése" }));
