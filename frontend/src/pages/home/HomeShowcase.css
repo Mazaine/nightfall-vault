@@ -150,3 +150,27 @@ button.nv-search-trigger:hover { background:#ffffff12; }
   .nv-vip-card { transition:none; }
   .auction-grid.home-sealed-rail { scroll-behavior:auto; }
 }
+
+
+/* One shared auction panel design for the homepage and the marketplace. */
+.nv-bid-image { position:relative; overflow:hidden; min-height:12.5rem; }
+.nv-bid-cover { display:grid; place-items:center; width:100%; height:100%; min-width:0; color:inherit; text-decoration:none; }
+.nv-bid-cover img { display:block; width:100%; height:100%; max-height:16rem; aspect-ratio:5/7; object-fit:contain; }
+.nv-bid-image .card-image-zoom-trigger { position:absolute; right:.3rem; bottom:.3rem; z-index:2; }
+.nv-bid-header { display:flex; align-items:flex-start; justify-content:space-between; gap:.4rem; min-width:0; }
+.nv-bid-header .nv-bid-title { min-width:0; }
+.nv-bid-header .auction-watchlist-toggle { position:static; flex-shrink:0; align-self:center; padding:.2rem .45rem; min-width:2rem; min-height:2rem; }
+.nv-bid-tags { display:flex; flex-wrap:wrap; gap:.35rem; align-items:center; }
+.nv-bid-actions button.nv-bid-buynow { appearance:none; padding:.25rem .15rem; border:0; background:transparent; cursor:pointer; font-family:inherit; font-weight:650; text-align:left; }
+.nv-bid-actions button.nv-bid-buynow:disabled { opacity:.45; cursor:not-allowed; }
+.nv-bid-actions button.nv-bid-buynow:not(:disabled):hover { text-decoration:underline; }
+.marketplace-live-grid { width:100%; margin-top:.9rem; align-items:stretch; }
+.marketplace-live-grid.is-list { grid-template-columns:minmax(0,1fr); }
+.marketplace-live-grid .nv-bid-card { min-width:0; }
+.marketplace-live-grid .nv-bid-actions { gap:.4rem .75rem; }
+@media(max-width:660px) {
+  .nv-bid-image { min-height:9rem; }
+  .nv-bid-cover img { max-height:12rem; }
+  .nv-vip-card { min-height:23rem; }
+  .nv-vip-placeholder-content strong { font-size:.86rem; }
+}
