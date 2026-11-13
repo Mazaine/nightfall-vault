@@ -25,7 +25,10 @@ describe("Újratervezett főoldal", () => {
   it("VIP nélkül három valódi hirdetés nélküli helyet mutat, a mintával egyezően", () => {
     render(<MemoryRouter><HomeVipShowcase auctions={[]} /></MemoryRouter>);
     expect(screen.getAllByText("Itt lehetne a te hirdetésed")).toHaveLength(3);
-    expect(screen.getAllByRole("link", { name: "VIP kiemelés lehetősége" })).toHaveLength(3);
+    const placeholders = screen.getAllByRole("link", { name: "Aukció létrehozása" });
+    expect(placeholders).toHaveLength(3);
+    placeholders.forEach(link => expect(link).toHaveAttribute("href", "/auctions/create"));
+    expect(screen.getAllByText("Aukció indítása →")).toHaveLength(3);
     expect(screen.queryByText(/Tesztlap/)).not.toBeInTheDocument();
   });
 

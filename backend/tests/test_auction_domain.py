@@ -576,6 +576,40 @@ def test_home_overview_counts_order_and_private_watch_aggregation() -> None:
     cleanup_test_data()
 
 
+def test_home_shows_nearest_active_auctions_beyond_24_hours() -> None:
+    """Active auctions remain on home even if all expire after the next day."""
+    cleanup_test_data()
+    seller = create_test_user("seller-home-long-auctions@auction-test.local", role="admin")
+    now = datetime.now(timezone.utc)
+    ids = []
+    # Insert the later-expiring one first to verify deadline ordering.
+    for index, remaining_days in enumerate((5, 3)):
+        response = client.post(
+            "/api/auctions",
+            json=auction_payload(title=f"Later closing {index}"),
+            headers=auth_headers(seller),
+        )
+        assert response.status_code == 201, response.text
+        auction_id = response.json()["id"]
+        ids.append(auction_id)
+        with SessionLocal() as db:
+            auction = db.get(Auction, auction_id)
+            auction.status = "active"
+            auction.starts_at = now - timedelta(hours=2)
+            auction.ends_at = now + timedelta(days=remaining_days)
+            db.commit()
+
+    response = client.get("/api/auctions/home")
+    assert response.status_code == 200, response.text
+    assert response.json()["active_count"] == 2
+    assert [item["id"] for item in response.json()["soon_ending"]] == [ids[1], ids[0]]
+
+    background = client.get("/api/auctions/home?include_random=false")
+    assert background.status_code == 200, background.text
+    assert [item["id"] for item in background.json()["soon_ending"]] == [ids[1], ids[0]]
+    cleanup_test_data()
+
+
 def test_home_random_cards_only_include_available_visible_hkk_stock() -> None:
     cleanup_test_data()
     seller = create_test_user("seller-random-home@auction-test.local", role="admin")
