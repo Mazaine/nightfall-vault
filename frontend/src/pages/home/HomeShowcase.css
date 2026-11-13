@@ -6,11 +6,13 @@
 .nv-home-hero .hero-copy { min-width: 0; padding-top: 1rem; }
 .nv-home-hero #hero-title { font-size: clamp(2.4rem,3.4vw,4.1rem); line-height: .96; }
 .nv-home-hero .hero-lead { max-width: 32rem; }
-.nv-home-hero .home-hero-search { width: 100%; }
+.nv-home-hero .hero-actions { margin-top: 1.4rem; }
+.nv-home-hero .hero-actions .button:first-child { color:#fff; border-color:#9a62e0; background:linear-gradient(110deg,#7739c0,#6532b6); box-shadow:0 4px 17px #7234d45e; }
+.nv-home-hero .hero-actions .button:first-child:hover { background:linear-gradient(110deg,#9157da,#733cba); }
 .nv-hero-vip { min-width: 0; }
-.nv-vip-wrap { min-width: 0; }
+.nv-vip-wrap { min-width:0; width:100%; }
 .nv-vip-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: .65rem; touch-action: pan-y; }
-.nv-vip-card { position: relative; display: flex; flex-direction: column; min-width: 0; min-height: 17.5rem; gap: .35rem; padding: .48rem; border: 1px solid rgba(229,191,98,.5); border-radius: 16px; background: linear-gradient(145deg,rgba(18,13,30,.96),rgba(7,6,12,.97)); color: #f7f0e2; text-decoration: none; box-shadow: 0 16px 36px rgba(0,0,0,.45), inset 0 0 0 1px rgba(229,191,98,.07); transition: border-color .2s, transform .2s, box-shadow .2s; }
+.nv-vip-card { position: relative; display: flex; flex-direction: column; min-width: 0; min-height: 24rem; gap: .35rem; padding: .48rem; border: 1px solid rgba(229,191,98,.5); border-radius: 16px; background: linear-gradient(145deg,rgba(18,13,30,.96),rgba(7,6,12,.97)); color: #f7f0e2; text-decoration: none; box-shadow: 0 16px 36px rgba(0,0,0,.45), inset 0 0 0 1px rgba(229,191,98,.07); transition: border-color .2s, transform .2s, box-shadow .2s; }
 .nv-vip-card:hover,.nv-vip-card:focus-visible { transform: translateY(-4px); border-color:#f1d58a; box-shadow:0 18px 38px rgba(120,78,26,.25); }
 .nv-vip-label { position: relative; z-index: 2; align-self: flex-start; padding: .23rem .5rem; border-radius: 99px; color:#251908; background:linear-gradient(100deg,#f5dd9d,#b78b38); font-size:.61rem; font-weight:800; letter-spacing:.07em; }
 .nv-vip-card > .nv-vip-label { position:absolute; top:.8rem; left:.8rem; }
@@ -19,7 +21,14 @@
 .nv-vip-title { display:block; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; font-size:.79rem; }
 .nv-vip-price { font-size:.75rem; color:#f1d58a; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .nv-vip-price small { color:#a89daf; font-size:.68rem; }
-.nv-vip-timer { position:absolute; left:50%; bottom:.35rem; transform:translateX(-50%); background:rgba(5,5,10,.9); padding:.18rem .3rem; border:1px solid #aa86cf; border-radius:99px; }
+.nv-vip-card.nv-vip-placeholder { justify-content:center; align-items:center; border:1px dashed rgba(188,154,109,.64); background:linear-gradient(160deg,rgba(19,15,29,.74),rgba(10,9,18,.83)); box-shadow:inset 0 0 25px rgba(130,95,163,.035); text-align:center; }
+.nv-vip-placeholder:hover,.nv-vip-placeholder:focus-visible { border-color:#f1d58a; background:linear-gradient(160deg,rgba(35,25,50,.9),rgba(13,11,25,.92)); }
+.nv-vip-placeholder-content { display:flex; flex-direction:column; align-items:center; gap:.85rem; max-width:95%; padding:.65rem; }
+.nv-vip-plus { display:grid; place-items:center; width:2.6rem; height:2.6rem; border:1px solid #c49b5b; border-radius:50%; color:#e9bd67; font-size:1.6rem; line-height:1; font-weight:300; }
+.nv-vip-placeholder-content strong { color:#fff3df; font-size:clamp(.73rem,.9vw,.95rem); font-weight:650; line-height:1.3; }
+.nv-vip-placeholder-action { color:#e4bd55; font-size:.8rem; font-weight:700; }
+.nv-clock-compact { color:#f8f0e9; white-space:nowrap; font-size:.72rem; font-weight:650; font-variant-numeric:tabular-nums; }
+.nv-vip-timer { position:absolute; left:50%; bottom:.35rem; transform:translateX(-50%); white-space:nowrap; background:rgba(19,16,30,.91); padding:.25rem .55rem; border:1px solid #aa86cf; border-radius:99px; box-shadow:0 2px 12px #0007; }
 .nv-vip-pages { display:flex; gap:.4rem; justify-content:center; align-items:center; margin-top:.65rem; }
 .nv-vip-pages button { cursor:pointer; border:0; width:.48rem; height:.48rem; padding:0; border-radius:99px; background:#62586e; color:#e8d7fd; }
 .nv-vip-pages button:first-child,.nv-vip-pages button:last-child { width:1.6rem; height:1.6rem; background:transparent; font-size:1.4rem; }
@@ -30,7 +39,7 @@
 .nv-no-image { color:var(--color-text-muted); font-size:.8rem; text-align:center; }
 
 /* Live auction panels. Numbers always come from the production API. */
-.nv-bids-section { width: min(100% - 2rem, var(--container-page)); max-width: 100%; margin-inline: auto; padding-top:var(--space-6); padding-bottom:var(--space-6); }
+.nv-bids-section { width: min(100% - 2rem, var(--container-page)); max-width: 100%; margin-inline: auto; padding-top:1rem; padding-bottom:var(--space-6); }
 .nv-section-heading { display:flex; align-items:center; flex-direction:row; justify-content:space-between; gap:1rem; margin-bottom:1rem; }
 .nv-section-heading h2 { margin:0; font-family:var(--font-family-display); font-size:clamp(1.35rem,2.15vw,2rem); font-weight:500; }
 .nv-section-heading h2 small { font:500 .5em/1 var(--font-family-body,system-ui); color:var(--color-text-muted); letter-spacing:0; margin-left:.5rem; white-space:nowrap; }
@@ -140,4 +149,28 @@ button.nv-search-trigger:hover { background:#ffffff12; }
 @media(prefers-reduced-motion:reduce) {
   .nv-vip-card { transition:none; }
   .auction-grid.home-sealed-rail { scroll-behavior:auto; }
+}
+
+
+/* One shared auction panel design for the homepage and the marketplace. */
+.nv-bid-image { position:relative; overflow:hidden; min-height:12.5rem; }
+.nv-bid-cover { display:grid; place-items:center; width:100%; height:100%; min-width:0; color:inherit; text-decoration:none; }
+.nv-bid-cover img { display:block; width:100%; height:100%; max-height:16rem; aspect-ratio:5/7; object-fit:contain; }
+.nv-bid-image .card-image-zoom-trigger { position:absolute; right:.3rem; bottom:.3rem; z-index:2; }
+.nv-bid-header { display:flex; align-items:flex-start; justify-content:space-between; gap:.4rem; min-width:0; }
+.nv-bid-header .nv-bid-title { min-width:0; }
+.nv-bid-header .auction-watchlist-toggle { position:static; flex-shrink:0; align-self:center; padding:.2rem .45rem; min-width:2rem; min-height:2rem; }
+.nv-bid-tags { display:flex; flex-wrap:wrap; gap:.35rem; align-items:center; }
+.nv-bid-actions button.nv-bid-buynow { appearance:none; padding:.25rem .15rem; border:0; background:transparent; cursor:pointer; font-family:inherit; font-weight:650; text-align:left; }
+.nv-bid-actions button.nv-bid-buynow:disabled { opacity:.45; cursor:not-allowed; }
+.nv-bid-actions button.nv-bid-buynow:not(:disabled):hover { text-decoration:underline; }
+.marketplace-live-grid { width:100%; margin-top:.9rem; align-items:stretch; }
+.marketplace-live-grid.is-list { grid-template-columns:minmax(0,1fr); }
+.marketplace-live-grid .nv-bid-card { min-width:0; }
+.marketplace-live-grid .nv-bid-actions { gap:.4rem .75rem; }
+@media(max-width:660px) {
+  .nv-bid-image { min-height:9rem; }
+  .nv-bid-cover img { max-height:12rem; }
+  .nv-vip-card { min-height:23rem; }
+  .nv-vip-placeholder-content strong { font-size:.86rem; }
 }
