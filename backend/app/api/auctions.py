@@ -425,7 +425,7 @@ def home_auction_overview(
         Auction.listing_type == "fixed",
         Auction.listing_format == "bundle",
         Auction.shop_source == "dicemagic",  # sync maps only type=booster to partner bundles
-        Auction.shop_stock > 0,
+        or_(Auction.shop_stock > 0, Auction.shop_stock.is_(None)),  # unknown quantity can be in_stock
         Auction.deleted_at.is_(None),
         Auction.starts_at <= now,
         Auction.ends_at > now,
