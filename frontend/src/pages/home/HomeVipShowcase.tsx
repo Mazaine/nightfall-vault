@@ -45,16 +45,10 @@ export function HomeVipShowcase({ auctions }: { auctions: Auction[] }) {
     return () => window.clearInterval(timer);
   }, [pages, paused, reducedMotion, isHidden]);
 
-  if (auctions.length === 0) {
-    return <div className="nv-vip-empty">
-      <span className="nv-vip-label">VIP KIEMELT</span>
-      <h2>Kiemelt hely a legkülönlegesebb aukcióknak</h2>
-      <p>A VIP-aukciók itt kapnak különleges megjelenést. Jelenleg nincs aktív kiemelt ajánlat.</p>
-      <Link className="button button-secondary" to="/account/vip">VIP lehetőségek</Link>
-    </div>;
-  }
-
+  // Keep three equal showcase positions on desktop, even when VIP inventory is low.
+  // Vacant positions are invitations, not fabricated auctions.
   const current = auctions.slice(page * pageSize, (page + 1) * pageSize);
+  const vacantSlots = Math.max(0, pageSize - current.length);
   const swipeEnd = (e: TouchEvent<HTMLDivElement>) => {
     if (touchStart === null) return;
     const diff = e.changedTouches[0].clientX - touchStart;
@@ -72,9 +66,21 @@ export function HomeVipShowcase({ auctions }: { auctions: Auction[] }) {
             {auction.status === "active" && <div className="nv-vip-timer"><HomeCountdown endsAt={auction.ends_at} status={auction.status} compact /></div>}
           </div>
           <strong className="nv-vip-title">{auction.title}</strong>
-          <div className="nv-vip-price"><b>{formatMoney(auction.current_price)}</b><small> · {auction.bid_count ?? 0} licit</small></div>
+          <div className="nv-vip-price"><b>{formatMoney(auction.current_price)}</b><small> · {auction.bid_count ? `${auction.bid_count} licit` : "kikiáltási ár"}</small></div>
         </Link>;
       })}
+      {Array.from({ length: vacantSlots }, (_, index) => <Link
+        className="nv-vip-card nv-vip-placeholder"
+        to="/account/vip"
+        aria-label="VIP kiemelés lehetősége"
+        key={`vacant-${page}-${index}`}
+      >
+        <span className="nv-vip-placeholder-content">
+          <span className="nv-vip-plus" aria-hidden="true">+</span>
+          <strong>Itt lehetne a te hirdetésed</strong>
+          <span className="nv-vip-placeholder-action">VIP kiemelés →</span>
+        </span>
+      </Link>)}
     </div>
     {pages > 1 && <nav className="nv-vip-pages" aria-label="VIP aukciók lapozása">
       <button type="button" aria-label="Előző VIP-oldal" onClick={() => setPage(value => (value + pages - 1) % pages)}>‹</button>
