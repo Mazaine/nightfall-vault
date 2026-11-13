@@ -52,8 +52,9 @@ describe("Újratervezett főoldal", () => {
     expect(screen.getByText("Tesztlap 9")).toBeInTheDocument();
     expect(screen.getByText("3 licit")).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Hamarosan záruló aukciók" }).querySelector(".nv-bids-grid")).toHaveClass("nv-bids-grid-odd");
-    expect(screen.getByText(/Licitálok · min. 1\s?600 Ft/)).toHaveAttribute("href", "/auctions/9");
-    expect(screen.getByText(/Villámár 2\s?200 Ft/)).toHaveAttribute("href", "/auctions/9");
+    expect(screen.getByRole("button", { name: /Licitálok · min/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Villámár/ })).toBeInTheDocument();
+    expect(screen.getByTestId("shared-live-auction")).toHaveAttribute("data-detail", "/auctions/9");
   });
 
   it("két aktív licit esetén a teljes szélességű kétoszlopos panelrácsot használja", () => {
