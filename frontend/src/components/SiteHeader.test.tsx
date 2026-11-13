@@ -34,6 +34,14 @@ describe("SiteHeader", () => {
     state.auth.logout.mockClear();
   });
 
+  it("a fejléc keresője megnyitható és Esc billentyűvel bezárható", () => {
+    render(<MemoryRouter><SiteHeader /></MemoryRouter>);
+    fireEvent.click(screen.getByRole("button", { name: "Gyorskereső megnyitása" }));
+    expect(screen.getByRole("dialog", { name: "Gyorskereső" })).toBeInTheDocument();
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(screen.queryByRole("dialog", { name: "Gyorskereső" })).not.toBeInTheDocument();
+  });
+
   it("a kijelentkezett navigációt jeleníti meg", () => {
     render(<MemoryRouter><SiteHeader /></MemoryRouter>);
     expect(screen.getAllByRole("link", { name: "Belépés" })).toHaveLength(2);
