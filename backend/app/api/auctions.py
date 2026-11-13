@@ -401,7 +401,11 @@ def home_auction_overview(
         featured_ids = list(db.scalars(ordered.offset(start).limit(24)).all())
         if len(featured_ids) < min(24, featured_total):
             featured_ids.extend(db.scalars(ordered.limit(min(24, featured_total) - len(featured_ids))).all())
-    soon_ids = list(db.scalars(select(Auction.id).where(active, Auction.ends_at <= now + timedelta(hours=24)).order_by(Auction.ends_at.asc(), Auction.id.asc()).limit(4)).all())
+    # The homepage shows the four earliest-closing active auctions even if none
+    # expire within 24 hours; otherwise the section disappears entirely.
+    soon_ids = list(db.scalars(
+        select(Auction.id).where(active).order_by(Auction.ends_at.asc(), Auction.id.asc()).limit(4)
+    ).all())
     new_ids = list(db.scalars(select(Auction.id).where(active).order_by(Auction.starts_at.desc(), Auction.id.desc()).limit(4)).all())
     random_ids: list[int] = []
     booster_ids: list[int] = []
