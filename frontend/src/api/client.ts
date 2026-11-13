@@ -80,7 +80,7 @@ function normalizeFieldErrors(value: unknown): Record<string, string> {
 
 function normalizeApiErrorMessage(value: unknown, status: number) {
   const message = typeof value === "string" ? value.trim() : "";
-  const technicalMessage = /failed to fetch|networkerror|load failed|internal server error|unprocessable entity|validation error|unauthorized|forbidden|not found|traceback|exception|sql|cannot read propert|\bundefined\b|\bnull\b/i;
+  const technicalMessage = /failed to fetch|networkerror|load failed|internal server error|unprocessable entity|validation error|unauthorized|forbidden|not found|not authenticated|traceback|exception|sql|cannot read propert|\bundefined\b|\bnull\b/i;
 
   if (message && !technicalMessage.test(message)) return message;
   if (status === 401) return "A munkameneted lejárt. Jelentkezz be újra.";
@@ -132,7 +132,7 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
       : errorBody?.detail?.message ?? errorBody?.message ?? null;
     const message = normalizeApiErrorMessage(rawMessage, response.status);
     const fieldErrors = normalizeFieldErrors(errorBody?.detail?.errors ?? errorBody?.errors);
-    if (response.status === 401 && options.authenticated !== false) {
+    if (response.status === 401 && options.authenticated !== false && Boolean(token)) {
       window.dispatchEvent(new CustomEvent(SESSION_EXPIRED_EVENT, { detail: { message } }));
     }
     throw new ApiError(message, response.status, fieldErrors);
