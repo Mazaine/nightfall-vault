@@ -7,6 +7,7 @@ import { HomeDashboard } from "./home/HomeDashboard";
 import { HomeLiveBids } from "./home/HomeLiveBids";
 import { HomeCardGrid, HomeSealedProducts } from "./home/HomeProductSections";
 import "./home/HomeLanding.css";
+import "./home/HomeShowcase.css";
 
 function updateSnapshot(overview: HomeAuctionOverview, snapshot: AuctionRealtimeSnapshot): HomeAuctionOverview {
   const update = (items: HomeAuctionOverview["featured"]) => items.map((auction) => auction.id === snapshot.auction_id ? { ...auction, status: snapshot.status, current_price: snapshot.current_price, highest_bid_id: snapshot.highest_bid_id, winner_id: snapshot.winner_id, ends_at: snapshot.ends_at, bid_count: snapshot.bid_count } : auction);
