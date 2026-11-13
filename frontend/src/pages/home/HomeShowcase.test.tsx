@@ -30,7 +30,7 @@ describe("Újratervezett főoldal", () => {
   });
 
   it("egy valódi VIP mellett két szabad kiemelési hely marad", () => {
-    render(<MemoryRouter><HomeVipShowcase auctions={[listing(5, "auction")]} /></MemoryRouter>);
+    render(<MemoryRouter><HomeVipShowcase auctions={[{ ...listing(5, "auction"), bid_count: 0 }]} /></MemoryRouter>);
     expect(screen.getByText("Tesztlap 5")).toBeInTheDocument();
     expect(screen.getAllByText("Itt lehetne a te hirdetésed")).toHaveLength(2);
     expect(screen.getByText(/kikiáltási ár/)).toBeInTheDocument();
