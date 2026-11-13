@@ -7,7 +7,15 @@ import { HomeLiveBids } from "./HomeLiveBids";
 import { HomeCardGrid, HomeSealedProducts } from "./HomeProductSections";
 
 vi.mock("../../AuthContext", () => ({ useAuth: () => ({ isAuthenticated: false, user: null }) }));
-vi.mock("../../components/AuctionCard", () => ({ AuctionCard: ({ item }: { item: { title: string } }) => <article className="auction-card">{item.title}</article> }));
+vi.mock("../../components/AuctionCard", () => ({
+  AuctionCard: ({ item, variant, detailPath }: { item: { title: string; bidCount?: number; price: string; buyNowPrice?: string | null }; variant?: string; detailPath: string }) => variant === "live"
+    ? <article className="nv-bid-card" data-testid="shared-live-auction" data-detail={detailPath}>
+        <span>{item.title}</span><span>{item.bidCount} licit</span>
+        <button type="button">Licitálok · min. 1 600 Ft</button>
+        {item.buyNowPrice && <button type="button">⚡ Villámár {item.buyNowPrice}</button>}
+      </article>
+    : <article className="auction-card">{item.title}</article>,
+}));
 
 function listing(id: number, type: "auction" | "fixed" = "fixed"): Auction {
   return {
