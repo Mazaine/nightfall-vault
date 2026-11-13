@@ -71,14 +71,14 @@ export function HomeVipShowcase({ auctions }: { auctions: Auction[] }) {
       })}
       {Array.from({ length: vacantSlots }, (_, index) => <Link
         className="nv-vip-card nv-vip-placeholder"
-        to="/account/vip"
-        aria-label="VIP kiemelés lehetősége"
+        to="/auctions/create"
+        aria-label="Aukció létrehozása"
         key={`vacant-${page}-${index}`}
       >
         <span className="nv-vip-placeholder-content">
           <span className="nv-vip-plus" aria-hidden="true">+</span>
           <strong>Itt lehetne a te hirdetésed</strong>
-          <span className="nv-vip-placeholder-action">VIP kiemelés →</span>
+          <span className="nv-vip-placeholder-action">Aukció indítása →</span>
         </span>
       </Link>)}
     </div>
