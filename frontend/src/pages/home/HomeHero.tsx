@@ -1,7 +1,9 @@
 import { useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router";
+import type { Auction } from "../../api/auctions";
+import { HomeVipShowcase } from "./HomeVipShowcase";
 
-export function HomeHero() {
+export function HomeHero({ featured = [] }: { featured?: Auction[] }) {
   const navigate = useNavigate();
   const [query, setQuery] = useState("");
 
@@ -13,9 +15,9 @@ export function HomeHero() {
   }
 
   return (
-    <section className="hero-section" aria-labelledby="hero-title">
+    <section className="hero-section nv-home-hero" aria-labelledby="hero-title">
       <div className="hero-media" aria-hidden="true" />
-      <div className="container hero-layout">
+      <div className="container hero-layout nv-hero-layout">
         <div className="hero-copy">
           <p className="eyebrow">Nightfall Vault</p>
           <h1 id="hero-title"><span>A HKK-lapok</span><span>új otthona</span></h1>
@@ -34,6 +36,7 @@ export function HomeHero() {
             <Link className="button button-secondary" to="/vault">Virtuális mappám</Link>
           </div>
         </div>
+        <div className="nv-hero-vip"><HomeVipShowcase auctions={featured} /></div>
       </div>
     </section>
   );

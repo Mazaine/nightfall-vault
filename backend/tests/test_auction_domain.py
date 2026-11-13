@@ -568,7 +568,7 @@ def test_home_overview_counts_order_and_private_watch_aggregation() -> None:
     assert [item["id"] for item in data["soon_ending"]] == ids[:3]
     assert [item["id"] for item in data["new_auctions"]] == ids[:3]
     assert next(item for item in data["featured"] if item["id"] == ids[0])["bid_count"] == 2
-    assert len(statements) <= 19  # One bounded random-stock query, independent of card count
+    assert len(statements) <= 22  # Additional booster sample and two real inventory totals
     detail = client.get(f"/api/auctions/{ids[0]}")
     assert detail.status_code == 200
     assert detail.json()["watch_count"] == 1
@@ -611,6 +611,9 @@ def test_home_random_cards_only_include_available_visible_hkk_stock() -> None:
         background_response = client.get("/api/auctions/home?include_random=false", headers=auth_headers(seller))
         assert public.status_code == buyer_response.status_code == admin_response.status_code == background_response.status_code == 200
         assert background_response.json()["random_cards"] == []
+        assert background_response.json()["random_boosters"] == []
+        assert public.json()["cards_total"] == 1
+        assert public.json()["boosters_total"] == 0
         assert background_response.json()["active_count"] == admin_response.json()["active_count"]
         assert [item["id"] for item in public.json()["random_cards"]] == [ids[0]]
         assert [item["id"] for item in buyer_response.json()["random_cards"]] == [ids[0]]
@@ -767,7 +770,7 @@ def test_marketplace_default_rotates_sellers_without_reordering_price_sort() -> 
         random_cards = client.get("/api/auctions/home").json()["random_cards"]
         first_two = [row["seller_id"] for row in random_cards[:2]]
         assert set(first_two) == {seller_big.id, seller_small.id}
-        assert len(random_cards) == 8
+        assert len(random_cards) == 10
     finally:
         cleanup_test_data()
 

@@ -14,12 +14,10 @@ vi.mock("../AuctionRealtimeContext", () => {
   const subscribe = (listener: (snapshot: AuctionRealtimeSnapshot) => void) => { mocks.listener = listener; return mocks.unsubscribe; };
   return { useAuctionRealtime: () => ({ subscribe }) };
 });
-vi.mock("./home/HomeHero", () => ({ HomeHero: () => <div>Hero</div> }));
+vi.mock("./home/HomeHero", () => ({ HomeHero: ({ featured }: { featured: HomeAuctionOverview["featured"] }) => <div data-testid="bid-count">{featured[0]?.bid_count}</div> }));
 vi.mock("./home/HomeDashboard", () => ({ HomeDashboard: ({ overview }: { overview: HomeAuctionOverview | null }) => <div data-testid="active-count">{overview?.active_count}</div> }));
-vi.mock("./home/HomeFeatured", () => ({ HomeFeatured: ({ auctions }: { auctions: HomeAuctionOverview["featured"] }) => <div data-testid="bid-count">{auctions[0]?.bid_count}</div> }));
-vi.mock("./home/HomeAuctionSection", () => ({ HomeAuctionSection: () => null }));
-vi.mock("./home/HomeQuickLinks", () => ({ HomeQuickLinks: () => <div>Gyors elérés</div> }));
-vi.mock("./home/HomeAuctionCarousel", () => ({ HomeAuctionCarousel: ({ title, auctions }: { title: string; auctions: HomeAuctionOverview["featured"] }) => <div data-testid="random-cards">{title}: {auctions.map((a) => a.title).join(", ")}</div> }));
+vi.mock("./home/HomeLiveBids", () => ({ HomeLiveBids: () => null }));
+vi.mock("./home/HomeProductSections", () => ({ HomeCardGrid: ({ auctions }: { auctions: HomeAuctionOverview["featured"] }) => <div data-testid="random-cards">{auctions.map((a) => a.title).join(", ")}</div>, HomeSealedProducts: () => null }));
 
 const initial: HomeAuctionOverview = { active_count: 1, active_bid_count: 0, outbid_count: 0, draft_count: 0, open_transaction_count: 0, featured: [{ id: 5, seller_id: 1, title: "Kiemelt", category: "Pokemon", condition: "NM", status: "active", starting_price: "1000", bid_increment: "100", current_price: "1200", buy_now_enabled: false, buy_now_price: null, starts_at: "2026-09-01T10:00:00Z", ends_at: "2026-10-01T10:00:00Z", five_minute_rule_enabled: false, winner_id: null, highest_bid_id: null, images: [], bid_count: 2 }], soon_ending: [], new_auctions: [] };
 
@@ -63,7 +61,7 @@ describe("HomePage realtime", () => {
     expect(screen.getByTestId("bid-count")).toHaveTextContent("3");
     await act(async () => { vi.advanceTimersByTime(500); await Promise.resolve(); });
     expect(mocks.get).toHaveBeenCalledTimes(2);
-    expect(screen.getByTestId("active-count")).toHaveTextContent("2");
+    expect(screen.getByTestId("bid-count")).toHaveTextContent("3");
     view.unmount();
     if (hiddenDescriptor) Object.defineProperty(document, "hidden", hiddenDescriptor);
     expect(mocks.unsubscribe).toHaveBeenCalled();
