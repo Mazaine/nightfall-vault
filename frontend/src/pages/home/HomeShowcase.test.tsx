@@ -32,8 +32,16 @@ describe("Újratervezett főoldal", () => {
     render(<MemoryRouter><HomeLiveBids auctions={[listing(9, "auction")]} /></MemoryRouter>);
     expect(screen.getByText("Tesztlap 9")).toBeInTheDocument();
     expect(screen.getByText("3 licit")).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Hamarosan záruló aukciók" }).querySelector(".nv-bids-grid")).toHaveClass("nv-bids-grid-odd");
     expect(screen.getByText(/Licitálok · min. 1\s?600 Ft/)).toHaveAttribute("href", "/auctions/9");
     expect(screen.getByText(/Villámár 2\s?200 Ft/)).toHaveAttribute("href", "/auctions/9");
+  });
+
+  it("két aktív licit esetén a teljes szélességű kétoszlopos panelrácsot használja", () => {
+    render(<MemoryRouter><HomeLiveBids auctions={[listing(9, "auction"), listing(10, "auction")]} /></MemoryRouter>);
+    const grid = screen.getByRole("region", { name: "Hamarosan záruló aukciók" }).querySelector(".nv-bids-grid");
+    expect(grid).not.toHaveClass("nv-bids-grid-odd");
+    expect(grid?.querySelectorAll(".nv-bid-card")).toHaveLength(2);
   });
 
   it("a két soros laplista a szerver teljes kínálatának darabszámát mutatja", () => {
