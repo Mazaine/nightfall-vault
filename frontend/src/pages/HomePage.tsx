@@ -2,17 +2,15 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "../AuthContext";
 import { useAuctionRealtime } from "../AuctionRealtimeContext";
 import { getHomeAuctionOverview, type HomeAuctionOverview, type AuctionRealtimeSnapshot } from "../api/auctions";
-import { HomeFeatured } from "./home/HomeFeatured";
 import { HomeHero } from "./home/HomeHero";
 import { HomeDashboard } from "./home/HomeDashboard";
-import { HomeAuctionSection } from "./home/HomeAuctionSection";
-import { HomeAuctionCarousel } from "./home/HomeAuctionCarousel";
-import { HomeQuickLinks } from "./home/HomeQuickLinks";
+import { HomeLiveBids } from "./home/HomeLiveBids";
+import { HomeCardGrid, HomeSealedProducts } from "./home/HomeProductSections";
 import "./home/HomeLanding.css";
 
 function updateSnapshot(overview: HomeAuctionOverview, snapshot: AuctionRealtimeSnapshot): HomeAuctionOverview {
   const update = (items: HomeAuctionOverview["featured"]) => items.map((auction) => auction.id === snapshot.auction_id ? { ...auction, status: snapshot.status, current_price: snapshot.current_price, highest_bid_id: snapshot.highest_bid_id, winner_id: snapshot.winner_id, ends_at: snapshot.ends_at, bid_count: snapshot.bid_count } : auction);
-  return { ...overview, featured: update(overview.featured), soon_ending: update(overview.soon_ending), new_auctions: update(overview.new_auctions), random_cards: update(overview.random_cards ?? []) };
+  return { ...overview, featured: update(overview.featured), soon_ending: update(overview.soon_ending), new_auctions: update(overview.new_auctions), random_cards: update(overview.random_cards ?? []), random_boosters: update(overview.random_boosters ?? []) };
 }
 
 export function HomePage() {
@@ -32,6 +30,7 @@ export function HomePage() {
         setOverview((current) => ({
           ...next,
           random_cards: includeRandom ? (next.random_cards ?? []) : (current?.random_cards ?? []),
+          random_boosters: includeRandom ? (next.random_boosters ?? []) : (current?.random_boosters ?? []),
         }));
         if (includeRandom) randomSampleLoaded.current = true;
         setError("");
@@ -60,22 +59,12 @@ export function HomePage() {
   }, [refresh, subscribe]);
   return (
     <>
-      <HomeHero />
-      <HomeQuickLinks />
-      <HomeDashboard overview={overview} />
+      <HomeHero featured={overview?.featured ?? []} />
       {error && !overview ? <div className="container"><p role="alert">{error} <button className="button button-secondary" type="button" onClick={() => void refresh()}>Újrapróbálás</button></p></div> : null}
-      <HomeAuctionCarousel
-        title="Fedezz fel lapokat"
-        autoAdvance={false}
-        auctions={overview?.random_cards ?? []}
-        sectionClassName="home-discovery-section home-random-cards"
-        browsePath="/marketplace?tab=cards"
-        browseLabel="Összes lap"
-        isLoading={!overview && !error}
-        emptyTitle="Jelenleg nincs elérhető fix áras HKK-lap. Nézz körül a Piactéren!"
-      />
-      <HomeFeatured auctions={overview?.featured ?? []} isLoading={!overview && !error} />
-      <HomeAuctionSection title="Hamarosan lejár" auctions={overview?.soon_ending ?? []} />
+      <HomeLiveBids auctions={overview?.soon_ending ?? []} />
+      <HomeCardGrid auctions={overview?.random_cards ?? []} total={overview?.cards_total ?? 0} isLoading={!overview && !error} />
+      <HomeSealedProducts auctions={overview?.random_boosters ?? []} total={overview?.boosters_total ?? 0} />
+      {user ? <HomeDashboard overview={overview} /> : null}
     </>
   );
 }
