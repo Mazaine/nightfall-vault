@@ -38,7 +38,7 @@ export function AuctionLivePanel({
   const ended = !active && status !== "scheduled";
   return <article className="nv-bid-card" aria-label={`${title} aukció`}>
     <div className="nv-bid-image">
-      <Link className="nv-bid-cover" to={detailPath} aria-label={title}>
+      <Link className="nv-bid-cover" to={detailPath} aria-label={`Aukció képe: ${title}`}>
         {imageUrl ? <SafeImage src={imageUrl} alt={title} loading="lazy" decoding="async" width={350} height={490} /> : <span className="nv-no-image">Kép nélkül</span>}
       </Link>
       {(zoomImageUrl || imageUrl) && <CardImageZoom src={zoomImageUrl || imageUrl || ""} alt={title} />}
