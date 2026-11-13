@@ -7,7 +7,15 @@ import { HomeLiveBids } from "./HomeLiveBids";
 import { HomeCardGrid, HomeSealedProducts } from "./HomeProductSections";
 
 vi.mock("../../AuthContext", () => ({ useAuth: () => ({ isAuthenticated: false, user: null }) }));
-vi.mock("../../components/AuctionCard", () => ({ AuctionCard: ({ item }: { item: { title: string } }) => <article className="auction-card">{item.title}</article> }));
+vi.mock("../../components/AuctionCard", () => ({
+  AuctionCard: ({ item, variant, detailPath }: { item: { title: string; bidCount?: number; price: string; buyNowPrice?: string | null }; variant?: string; detailPath: string }) => variant === "live"
+    ? <article className="nv-bid-card" data-testid="shared-live-auction" data-detail={detailPath}>
+        <span>{item.title}</span><span>{item.bidCount} licit</span>
+        <button type="button">Licitálok · min. 1 600 Ft</button>
+        {item.buyNowPrice && <button type="button">⚡ Villámár {item.buyNowPrice}</button>}
+      </article>
+    : <article className="auction-card">{item.title}</article>,
+}));
 
 function listing(id: number, type: "auction" | "fixed" = "fixed"): Auction {
   return {
@@ -44,8 +52,9 @@ describe("Újratervezett főoldal", () => {
     expect(screen.getByText("Tesztlap 9")).toBeInTheDocument();
     expect(screen.getByText("3 licit")).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Hamarosan záruló aukciók" }).querySelector(".nv-bids-grid")).toHaveClass("nv-bids-grid-odd");
-    expect(screen.getByText(/Licitálok · min. 1\s?600 Ft/)).toHaveAttribute("href", "/auctions/9");
-    expect(screen.getByText(/Villámár 2\s?200 Ft/)).toHaveAttribute("href", "/auctions/9");
+    expect(screen.getByRole("button", { name: /Licitálok · min/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Villámár/ })).toBeInTheDocument();
+    expect(screen.getByTestId("shared-live-auction")).toHaveAttribute("data-detail", "/auctions/9");
   });
 
   it("két aktív licit esetén a teljes szélességű kétoszlopos panelrácsot használja", () => {
