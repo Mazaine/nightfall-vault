@@ -22,10 +22,18 @@ function listing(id: number, type: "auction" | "fixed" = "fixed"): Auction {
 }
 
 describe("Újratervezett főoldal", () => {
-  it("VIP nélkül nem jelenít meg kitalált árakat és hirdetéseket", () => {
+  it("VIP nélkül három valódi hirdetés nélküli helyet mutat, a mintával egyezően", () => {
     render(<MemoryRouter><HomeVipShowcase auctions={[]} /></MemoryRouter>);
-    expect(screen.getByText(/Jelenleg nincs aktív kiemelt ajánlat/)).toBeInTheDocument();
+    expect(screen.getAllByText("Itt lehetne a te hirdetésed")).toHaveLength(3);
+    expect(screen.getAllByRole("link", { name: "VIP kiemelés lehetősége" })).toHaveLength(3);
     expect(screen.queryByText(/Tesztlap/)).not.toBeInTheDocument();
+  });
+
+  it("egy valódi VIP mellett két szabad kiemelési hely marad", () => {
+    render(<MemoryRouter><HomeVipShowcase auctions={[listing(5, "auction")]} /></MemoryRouter>);
+    expect(screen.getByText("Tesztlap 5")).toBeInTheDocument();
+    expect(screen.getAllByText("Itt lehetne a te hirdetésed")).toHaveLength(2);
+    expect(screen.getByText(/kikiáltási ár/)).toBeInTheDocument();
   });
 
   it("az élő licitblokk valós árat, licitszámot és licitlépcsőt használ", () => {
