@@ -12,6 +12,7 @@ from app.core.rate_limit import check_rate_limit
 from app.db.session import get_db
 from app.dependencies.auth import get_optional_current_user, require_active_user, require_admin
 from app.models.auction import Auction, AuctionBidExclusion, AuctionBundleItem, AuctionMessage, AuctionPhotoRequest, AuctionReview, Bid, WatchlistItem
+from app.models.dicemagic import DiceMagicProduct
 from app.models.notification import Notification
 from app.models.transaction import AuctionTransaction
 from app.models.user import User
@@ -33,6 +34,20 @@ router = APIRouter(prefix="/api/auctions", tags=["auctions"])
 
 
 AUCTION_SORTS = {"balanced", "newest", "oldest", "highest_price", "lowest_price", "most_bids", "fewest_bids", "soon_ending", "buy_now_first"}
+
+
+def low_priority_dicemagic_card():
+    """Partner common/uncommon singles remain purchasable but not home recommendations."""
+    return and_(
+        Auction.shop_source == "dicemagic",
+        exists(
+            select(DiceMagicProduct.id).where(
+                DiceMagicProduct.auction_id == Auction.id,
+                DiceMagicProduct.snapshot["type"].as_string() == "card",
+                DiceMagicProduct.snapshot["rarity"].as_string().in_(("common", "uncommon")),
+            ).correlate(Auction)
+        ),
+    )
 
 
 def available_listing_quantity(auction: Auction) -> int | None:
@@ -165,12 +180,14 @@ def _apply_auction_sort(query, sort: str):
     if sort == "buy_now_first":
         return query.order_by(status_last, featured_first, Auction.buy_now_enabled.desc(), Auction.created_at.desc(), Auction.id.desc())
     if sort == "balanced":
-        # Default marketplace: each seller gets one slot per pass.
+        # Only the default discovery order deprioritizes common/uncommon DiceMagic cards.
+        # Apply before LIMIT/OFFSET so low-rarity cards cannot crowd out rare cards on page 1.
+        rarity_last = case((low_priority_dicemagic_card(), 1), else_=0)
         seller_round = func.row_number().over(
-            partition_by=(Auction.status, Auction.seller_id),
+            partition_by=(Auction.status, rarity_last, Auction.seller_id),
             order_by=(Auction.created_at.desc(), Auction.id.desc()),
         )
-        return query.order_by(status_last, seller_round, featured_first, Auction.created_at.desc(), Auction.id.desc())
+        return query.order_by(status_last, rarity_last, seller_round, featured_first, Auction.created_at.desc(), Auction.id.desc())
     return query.order_by(status_last, featured_first, Auction.created_at.desc(), Auction.id.desc())
 
 
@@ -384,16 +401,45 @@ def home_auction_overview(
         featured_ids = list(db.scalars(ordered.offset(start).limit(24)).all())
         if len(featured_ids) < min(24, featured_total):
             featured_ids.extend(db.scalars(ordered.limit(min(24, featured_total) - len(featured_ids))).all())
-    soon_ids = list(db.scalars(select(Auction.id).where(active, Auction.ends_at <= now + timedelta(hours=24)).order_by(Auction.ends_at.asc(), Auction.id.asc()).limit(4)).all())
+    # The homepage shows the four earliest-closing active auctions even if none
+    # expire within 24 hours; otherwise the section disappears entirely.
+    soon_ids = list(db.scalars(
+        select(Auction.id).where(active).order_by(Auction.ends_at.asc(), Auction.id.asc()).limit(4)
+    ).all())
     new_ids = list(db.scalars(select(Auction.id).where(active).order_by(Auction.starts_at.desc(), Auction.id.desc()).limit(4)).all())
     random_ids: list[int] = []
+    booster_ids: list[int] = []
+    available_stock = or_(
+        and_(Auction.shop_source.is_(None), Auction.vault_quantity > 0),
+        and_(Auction.shop_source.is_not(None), Auction.shop_stock > 0),
+    )
+    card_filter = and_(
+        Auction.status == "active",
+        Auction.listing_type == "fixed",
+        Auction.listing_format == "single",
+        Auction.category == "Hatalom Kártyái Kártyajáték",
+        Auction.deleted_at.is_(None),
+        Auction.starts_at <= now,
+        Auction.ends_at > now,
+        available_stock,
+        visible,
+    )
+    booster_filter = and_(
+        Auction.status == "active",
+        Auction.listing_type == "fixed",
+        Auction.listing_format == "bundle",
+        Auction.shop_source == "dicemagic",  # sync maps only type=booster to partner bundles
+        or_(Auction.shop_stock > 0, Auction.shop_stock.is_(None)),  # unknown quantity can be in_stock
+        Auction.deleted_at.is_(None),
+        Auction.starts_at <= now,
+        Auction.ends_at > now,
+        visible,
+    )
+    cards_total = int(db.scalar(select(func.count(Auction.id)).where(card_filter)) or 0)
+    boosters_total = int(db.scalar(select(func.count(Auction.id)).where(booster_filter)) or 0)
     if include_random:
         # Select once per page load, not after SSE/visibility refreshes.
         # Never bypass the marketplace's demo/shop visibility restrictions.
-        available_stock = or_(
-            and_(Auction.shop_source.is_(None), Auction.vault_quantity > 0),
-            and_(Auction.shop_source.is_not(None), Auction.shop_stock > 0),
-        )
         # Sample randomly within each seller, then alternate sellers.
         sample = select(
             Auction.id.label("id"),
@@ -401,25 +447,18 @@ def home_auction_overview(
                 partition_by=Auction.seller_id, order_by=func.random()
             ).label("seller_round"),
             func.random().label("tie"),
-        ).where(
-            Auction.status == "active",
-            Auction.listing_type == "fixed",
-            Auction.listing_format == "single",
-            Auction.category == "Hatalom Kártyái Kártyajáték",
-            Auction.deleted_at.is_(None),
-            Auction.starts_at <= now,
-            Auction.ends_at > now,
-            available_stock,
-            visible,
-        ).subquery()
+        ).where(card_filter, ~low_priority_dicemagic_card()).subquery()
         random_ids = list(db.scalars(
             select(sample.c.id).order_by(
                 sample.c.seller_round, sample.c.tie, sample.c.id
-            ).limit(8)
+            ).limit(10)
         ).all())
-    all_ids = set(featured_ids + soon_ids + new_ids + random_ids)
+        booster_ids = list(db.scalars(
+            select(Auction.id).where(booster_filter).order_by(func.random()).limit(12)
+        ).all())
+    all_ids = set(featured_ids + soon_ids + new_ids + random_ids + booster_ids)
     if not all_ids:
-        return HomeAuctionOverview(active_count=active_count, active_bid_count=active_bid_count, outbid_count=outbid_count, draft_count=draft_count, open_transaction_count=open_transaction_count, featured=[], soon_ending=[], new_auctions=[], random_cards=[])
+        return HomeAuctionOverview(active_count=active_count, active_bid_count=active_bid_count, outbid_count=outbid_count, draft_count=draft_count, open_transaction_count=open_transaction_count, featured=[], soon_ending=[], new_auctions=[], random_cards=[], random_boosters=[], cards_total=cards_total, boosters_total=boosters_total)
     home_statement = select(Auction).options(selectinload(Auction.seller), selectinload(Auction.images), joinedload(Auction.bundle_items), selectinload(Auction.highest_bid)).where(Auction.id.in_(all_ids))
     auctions = {auction.id: auction for auction in db.execute(home_statement).unique().scalars().all()}
     bid_counts = dict(db.execute(select(Bid.auction_id, func.count(Bid.id)).where(Bid.auction_id.in_(all_ids), Bid.status == "active").group_by(Bid.auction_id)).all())
@@ -446,7 +485,7 @@ def home_auction_overview(
             elif auction_id in watched_ids:
                 personal_status = "watched"
         items[auction_id] = auction_list_item(auction, int(bid_counts.get(auction_id, 0)), seller_average_rating=average, seller_review_count=review_count, viewer=current_user, viewer_personal_status=personal_status, viewer_is_watched=auction_id in watched_ids)
-    return HomeAuctionOverview(active_count=active_count, active_bid_count=active_bid_count, outbid_count=outbid_count, draft_count=draft_count, open_transaction_count=open_transaction_count, featured=[items[id] for id in featured_ids], soon_ending=[items[id] for id in soon_ids], new_auctions=[items[id] for id in new_ids], random_cards=[items[id] for id in random_ids])
+    return HomeAuctionOverview(active_count=active_count, active_bid_count=active_bid_count, outbid_count=outbid_count, draft_count=draft_count, open_transaction_count=open_transaction_count, featured=[items[id] for id in featured_ids], soon_ending=[items[id] for id in soon_ids], new_auctions=[items[id] for id in new_ids], random_cards=[items[id] for id in random_ids], random_boosters=[items[id] for id in booster_ids], cards_total=cards_total, boosters_total=boosters_total)
 
 
 @router.post("", response_model=AuctionResponse, status_code=status.HTTP_201_CREATED)

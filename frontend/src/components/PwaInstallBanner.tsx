@@ -1,10 +1,21 @@
+import { useEffect, useState } from "react";
 import { usePwaInstall } from "../hooks/usePwaInstall";
 import "./PwaInstallBanner.css";
 
+const MOBILE_BROWSER_QUERY = "(max-width: 760px) and (pointer: coarse)";
+
 export function PwaInstallBanner() {
+  const [isMobileBrowser, setIsMobileBrowser] = useState(() => window.matchMedia(MOBILE_BROWSER_QUERY).matches);
+  useEffect(() => {
+    const media = window.matchMedia(MOBILE_BROWSER_QUERY);
+    const update = () => setIsMobileBrowser(media.matches);
+    update();
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
   const { canInstall, dismissForNow, promptInstall } = usePwaInstall();
 
-  if (!canInstall) return null;
+  if (!canInstall || !isMobileBrowser) return null;
 
   return (
     <aside className="pwa-install-banner" aria-labelledby="pwa-install-title" aria-describedby="pwa-install-description">

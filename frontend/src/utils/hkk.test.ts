@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canUseFoil, formatHkkRarity, hkkCardImageUrl, normalizeHkkRarity, preferredHkkImageVariant } from "./hkk";
+import { canUseFoil, formatHkkRarity, formatHkkRarityLabel, hkkCardImageUrl, normalizeHkkRarity, preferredHkkImageVariant } from "./hkk";
 
 describe("HKK megjelenítési segédek", () => {
   it("a stabil numerikus HKK ID-t saját kép-proxy URL-re alakítja", () => {
@@ -33,6 +33,14 @@ describe("HKK megjelenítési segédek", () => {
     expect(formatHkkRarity("common")).toBe("common – Gyakori");
     expect(formatHkkRarity("uncommun")).toBe("uncommun – Nem gyakori");
     expect(formatHkkRarity("ultrarare")).toBe("ultrarare – Ultraritka");
+  });
+
+  it("a tömör kártyanézetben csak a magyar gyakoriságot jeleníti meg", () => {
+    expect(formatHkkRarityLabel("rare")).toBe("Ritka");
+    expect(formatHkkRarityLabel("uncommun")).toBe("Nem gyakori");
+    expect(formatHkkRarityLabel("common")).toBe("Gyakori");
+    expect(formatHkkRarityLabel(null)).toBeNull();
+    expect(formatHkkRarityLabel("ismeretlen")).toBe("ismeretlen");
   });
 
   it("a valós API gyakoriságértékeit normalizálja és csak ritkánál enged foilt", () => {

@@ -24,7 +24,12 @@ restart_previous_apps_on_error() {
 
 log "Compose-konfiguráció és image-ek ellenőrzése."
 compose config --quiet
-compose build --pull
+# backend, auction-scheduler and notification-outbox share one image tag.
+# Build it only once to avoid concurrent exporters racing on the same tag.
+for image_service in backend frontend reverse-proxy; do
+  log "Production image építése: $image_service"
+  compose build --pull "$image_service"
+done
 compose up -d postgres redis
 has_schema="$(compose exec -T postgres psql -At -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "select to_regclass('public.alembic_version') is not null")"
 if [[ "$has_schema" == t ]]; then

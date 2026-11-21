@@ -87,6 +87,34 @@ describe("VirtualVaultPage", () => {
     expect(prompt).not.toHaveBeenCalled();
   });
 
+  it("a gyűjtemény és saját cseremappa tömör lapadatai mellett megmaradnak a műveletek", async () => {
+    render(<VirtualVaultPage />);
+    await screen.findByText("Mi történt a mappádban?");
+    fireEvent.click(screen.getByRole("button", { name: "Gyűjtemény" }));
+    const ownedCard = (await screen.findByText("Xenó lárva")).closest<HTMLElement>(".vault-card")!;
+    const meta = ownedCard.querySelector(".vault-card-properties > small");
+    expect(meta).toHaveTextContent("Ritka");
+    expect(meta).toHaveAttribute("title", expect.stringContaining("Lény"));
+    expect(within(ownedCard).queryByText("Lény")).not.toBeInTheDocument();
+    expect(within(ownedCard).getByRole("button", { name: "Eladás vagy aukció" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Csere" }));
+    const tradeCard = (await screen.findByText("Xenó lárva")).closest<HTMLElement>(".vault-card")!;
+    expect(tradeCard).toHaveTextContent("2 db · Normál");
+    expect(tradeCard).not.toHaveTextContent("#101");
+    expect(within(tradeCard).getByRole("button", { name: "Eltávolítás a cseremappából" })).toBeInTheDocument();
+  });
+
+  it("érdeklődő hiányában nem mutat felesleges állapotüzenetet a cserelapon", async () => {
+    mocks.listTradeCards.mockResolvedValue([{ ...card, owner_id: 1, owner_username: "admin", seeker_count: 0 }]);
+    render(<VirtualVaultPage />);
+    await screen.findByText("Mi történt a mappádban?");
+    fireEvent.click(screen.getByRole("button", { name: "Csere" }));
+    const tradeCard = (await screen.findByText("Xenó lárva")).closest<HTMLElement>(".vault-card")!;
+    expect(within(tradeCard).queryByText("Még senki nem jelölte keresettnek.")).not.toBeInTheDocument();
+    expect(within(tradeCard).getByRole("button", { name: "Xenó lárva eladása" })).toBeInTheDocument();
+  });
+
   it("a Keresem közvetlenül kapcsolható, a Csere pedig mennyiséget kér", async () => {
     mocks.setVaultWanted.mockResolvedValue({ ...card, wanted: false });
     mocks.setCollectionTradeQuantities.mockResolvedValue({ action: "trade_quantities", processed_count: 1 });
@@ -212,11 +240,11 @@ describe("VirtualVaultPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Keresés" }));
     expect(await screen.findByRole("combobox", { name: "Orkling Normál példányszáma" })).toBeInTheDocument();
     expect(screen.queryByText("Normál ?")).not.toBeInTheDocument();
-    const unverified = screen.getByText("Más változat hozzáadása · még nem hitelesített").closest("details")!;
+    const unverified = screen.getByText("+ Változat").closest("details")!;
     const foil = screen.getByRole("combobox", { name: "Orkling Foil példányszáma" });
     expect(unverified).not.toHaveAttribute("open");
     expect(foil).not.toBeVisible();
-    fireEvent.click(within(unverified).getByText("Más változat hozzáadása · még nem hitelesített"));
+    fireEvent.click(within(unverified).getByText("+ Változat"));
     expect(foil).toBeVisible();
   });
 

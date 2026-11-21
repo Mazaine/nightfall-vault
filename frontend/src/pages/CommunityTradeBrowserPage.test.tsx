@@ -25,6 +25,18 @@ describe("CommunityTradeBrowserPage", () => {
     expect(screen.queryByText("Közösségi Cseremappa")).not.toBeInTheDocument();
   });
 
+  it("a cserelap kártyán nem ismétel technikai azonosítót és típust, a darabszám megmarad", async () => {
+    render(<MemoryRouter><CommunityTradeBrowserPage/></MemoryRouter>);
+    const title = await screen.findByText("Angyalgólem");
+    const cardNode = title.closest(".vault-card")!;
+    expect(cardNode).toHaveTextContent("Promóciós lapok (2026)");
+    expect(cardNode).toHaveTextContent("1 db");
+    expect(cardNode).not.toHaveTextContent("#12064");
+    expect(cardNode).not.toHaveTextContent("Lény");
+    expect(cardNode.querySelector(".card-image-preview")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Érdekel" })).toBeInTheDocument();
+  });
+
   it("a személyes Match jelzést csak kiegészítő információként mutatja és a meglévő egyeztetésbe lép", async () => {
     render(<MemoryRouter initialEntries={["/vault/community"]}><Routes><Route path="*" element={<><CommunityTradeBrowserPage/><Location/></>}/></Routes></MemoryRouter>);
     expect(await screen.findByText("Angyalgólem")).toBeInTheDocument();

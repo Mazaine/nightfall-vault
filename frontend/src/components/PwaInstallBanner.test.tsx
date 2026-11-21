@@ -5,11 +5,11 @@ import { PWA_INSTALL_DISMISSAL_KEY, PWA_INSTALL_DISMISSAL_MS, type BeforeInstall
 import { PwaInstallBanner } from "./PwaInstallBanner";
 import { PwaInstallProfileCard } from "./PwaInstallProfileCard";
 
-function setStandaloneMode(matches: boolean) {
+function setStandaloneMode(matches: boolean, mobile = true) {
   Object.defineProperty(window, "matchMedia", {
     configurable: true,
     value: vi.fn().mockImplementation((query: string) => ({
-      matches: query === "(display-mode: standalone)" && matches,
+      matches: query === "(display-mode: standalone)" ? matches : query === "(max-width: 760px) and (pointer: coarse)" && mobile,
       media: query,
       onchange: null,
       addEventListener: vi.fn(),
@@ -48,6 +48,14 @@ describe("PwaInstallBanner", () => {
   it("does not render without a beforeinstallprompt event", () => {
     render(<PwaInstallBanner />);
     expect(screen.queryByText("Nightfall Vault a telefonodon")).not.toBeInTheDocument();
+  });
+
+  it("never shows the install banner in desktop browsers even when installable", () => {
+    setStandaloneMode(false, false);
+    render(<PwaInstallBanner />);
+    dispatchInstallPrompt();
+    expect(screen.queryByText("Nightfall Vault a telefonodon")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Telepítés" })).not.toBeInTheDocument();
   });
 
   it("renders after a beforeinstallprompt event and suppresses automatic prompting", () => {

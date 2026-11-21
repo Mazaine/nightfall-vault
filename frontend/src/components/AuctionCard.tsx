@@ -12,6 +12,7 @@ import { CardImageZoom } from "./CardImageZoom";
 import { formatCardCondition, getCardCondition, type ReadableCardCondition } from "../data/cardConditions";
 import { addCartItem, announceCartChanged, checkoutCart } from "../api/cart";
 import { FixedPurchaseDialog } from "./FixedPurchaseDialog";
+import { AuctionLivePanel } from "./AuctionLivePanel";
 
 function moneyToCents(value: string | null | undefined) {
   const amount = Number(value);
@@ -78,6 +79,7 @@ type AuctionCardProps = {
   priceLabel?: string;
   showTimer?: boolean;
   showBidActions?: boolean;
+  variant?: "standard" | "live";
 };
 
 export function AuctionCard({
@@ -87,6 +89,7 @@ export function AuctionCard({
   priceLabel = "Jelenlegi licit",
   showTimer = true,
   showBidActions = true,
+  variant = "standard",
 }: AuctionCardProps) {
   const navigate = useNavigate();
   const { isAuthenticated, user } = useAuth();
@@ -269,6 +272,46 @@ export function AuctionCard({
     await submitQuickAction(selected.amount, selected.isBuyNow);
     setPendingBid(null);
   };
+
+  // The same presentation is used by the homepage and the marketplace's Auction tab.
+  // Preserve the existing quick-bid, withdrawal, watchlist and buy-now handlers.
+  if (variant === "live" && !isFixedPrice) {
+    const detailAction = <Link className="button button-primary" to={detailPath}>Aukció megtekintése</Link>;
+    const mainAction = personalStatus === "leading"
+      ? <button className="button button-secondary" type="button" disabled={isActionPending || !canWithdraw} title={item.withdrawalBlockReason ?? undefined} onClick={() => void exitAuction()}>{isActionPending ? "Feldolgozás..." : "Kiszállok"}</button>
+      : canUseQuickBid && showBidActions && item.status === "active" && nextBidAmount
+        ? <button className="button button-primary" type="button" disabled={isOwnAuction || isActionPending} title={isOwnAuction ? "A saját aukciódra nem licitálhatsz." : undefined} onClick={() => void requestQuickAction(nextBidAmount)}>Licitálok · min. {formatMoney(nextBidAmount)}</button>
+        : detailAction;
+    const secondaryAction = item.status === "active" && item.buyNowPrice && item.buyNowAmount && canUseQuickBid && showBidActions
+      ? <button className="nv-bid-buynow" type="button" disabled={isOwnAuction || isActionPending} title={isOwnAuction ? "A saját aukciódat nem csaphatod le." : undefined} onClick={() => void requestQuickAction(item.buyNowAmount ?? "", true)}>⚡ Villámár {formatCardMoney(item.buyNowPrice)}</button>
+      : null;
+    const watchAction = !isLocallyClosed && user?.id !== item.sellerId
+      ? <button className={`auction-watchlist-toggle${isWatched ? " is-active" : ""}`} type="button" aria-label={isWatchPending ? "Mentés…" : isWatched ? "Figyelem" : "Figyelőlistára"} aria-pressed={isWatched} title={isWatched ? "Figyelés kikapcsolása" : "Figyelőlistára teszem"} disabled={isWatchPending} onClick={() => void toggleWatchlist()}>{isWatched ? "★" : "☆"}</button>
+      : null;
+    return <>
+      <AuctionLivePanel
+        title={item.title}
+        detailPath={detailPath}
+        imageUrl={item.imageUrl}
+        zoomImageUrl={item.zoomImageUrl}
+        sellerName={item.sellerName}
+        sellerRating={item.sellerRating}
+        condition={cardCondition.value}
+        price={displayPrice}
+        bidCount={item.bidCount ?? 0}
+        status={isLocallyClosed ? "ended" : item.status ?? "active"}
+        endsAt={item.endsAt ?? ""}
+        fiveMinuteRuleEnabled={Boolean(item.fiveMinuteRuleEnabled)}
+        isFeatured={item.isFeatured}
+        isDemo={item.isDemo}
+        mainAction={mainAction}
+        secondaryAction={secondaryAction}
+        watchAction={watchAction}
+      />
+      {actionMessage && <p className="form-message auction-action-message" role="status" aria-live="polite">{actionMessage}</p>}
+      {pendingBid && <BidConfirmationDialog amountLabel={formatMoney(pendingBid.amount)} isBuyNow={pendingBid.isBuyNow} busy={isActionPending} onClose={() => { if (!isActionPending) setPendingBid(null); }} onConfirm={(disableFuture) => void confirmPendingBid(disableFuture)} />}
+    </>;
+  }
 
   return (
     <article

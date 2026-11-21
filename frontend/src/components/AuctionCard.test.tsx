@@ -96,6 +96,36 @@ describe("AuctionCard", () => {
     expect(screen.queryByRole("button", { name: "Licitálok" })).not.toBeInTheDocument();
   });
 
+  it("a főoldali élő panel Licitálok gombja API-licitet küld, nem navigál", async () => {
+    render(<MemoryRouter initialEntries={["/"]}><Routes><Route path="*" element={<><AuctionCard item={{ ...item, listingType: "auction", status: "active", endsAt: new Date(Date.now() + 3600000).toISOString() }} index={0} detailPath="/auctions/7" variant="live" /><Location /></>} /></Routes></MemoryRouter>);
+    const button = screen.getByRole("button", { name: /Licitálok · min/ });
+    expect(button).toBeInTheDocument();
+    fireEvent.click(button);
+    await waitFor(() => expect(mocks.placeAuctionBid).toHaveBeenCalledWith(7, "1300.00"));
+    expect(screen.getByTestId("location")).toHaveTextContent("/");
+    expect(mocks.showToast).toHaveBeenCalledWith(expect.objectContaining({ title: "Sikeres licit" }));
+  });
+
+  it("a főoldali villámár megerősítése után a villámáras műveletet végzi el helyben", async () => {
+    mocks.placeAuctionBid.mockResolvedValue({ id: 2, amount: "2000.00", reaches_buy_now: true });
+    render(<MemoryRouter initialEntries={["/"]}><Routes><Route path="*" element={<><AuctionCard item={{ ...item, listingType: "auction", status: "active", endsAt: new Date(Date.now() + 3600000).toISOString() }} index={0} detailPath="/auctions/7" variant="live" /><Location /></>} /></Routes></MemoryRouter>);
+    fireEvent.click(screen.getByRole("button", { name: /Villámár/ }));
+    expect(screen.getByRole("dialog", { name: "Villámvásárlás megerősítése" })).toBeInTheDocument();
+    expect(mocks.placeAuctionBid).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Villámvásárlás véglegesítése" }));
+    await waitFor(() => expect(mocks.placeAuctionBid).toHaveBeenCalledWith(7, "2000.00"));
+    expect(screen.getByTestId("location")).toHaveTextContent("/");
+    expect(mocks.showToast).toHaveBeenCalledWith(expect.objectContaining({ title: "Sikeres villámvásárlás" }));
+  });
+
+  it("a vendég a főoldali licitgombbal is biztonságosan a bejelentkezéshez jut", () => {
+    state.isAuthenticated = false;
+    render(<MemoryRouter initialEntries={["/"]}><Routes><Route path="*" element={<><AuctionCard item={{ ...item, listingType: "auction", status: "active", endsAt: new Date(Date.now() + 3600000).toISOString() }} index={0} detailPath="/auctions/7" variant="live" /><Location /></>} /></Routes></MemoryRouter>);
+    fireEvent.click(screen.getByRole("button", { name: /Licitálok · min/ }));
+    expect(screen.getByTestId("location")).toHaveTextContent("/login");
+    expect(mocks.placeAuctionBid).not.toHaveBeenCalled();
+  });
+
   it("a mobilrács ikonfigyelése teljes hozzáférhető névvel működik", () => {
     const view = render(<MemoryRouter><AuctionCard item={{ ...item, sellerId: 1, listingType: "fixed", statusLabel: "Aktív" }} index={0} detailPath="/auctions/7" /></MemoryRouter>);
     const button = screen.getByRole("button", { name: "Figyelőlistára" });

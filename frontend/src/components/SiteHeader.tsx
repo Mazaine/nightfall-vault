@@ -1,10 +1,11 @@
-import { KeyboardEvent as ReactKeyboardEvent, useEffect, useId, useRef, useState } from "react";
+import { KeyboardEvent as ReactKeyboardEvent, useCallback, useEffect, useId, useRef, useState } from "react";
 import { Link, NavLink, useLocation, useNavigate } from "react-router";
 import { useAuth } from "../AuthContext";
 import { getUnreadNotificationCount } from "../api/auctions";
 import { useNotifications } from "../NotificationContext";
 import { UNREAD_NOTIFICATION_COUNT_CHANGED } from "../utils/notificationEvents";
 import { CART_CHANGED_EVENT, getCart } from "../api/cart";
+import { HomeSearchOverlay, OPEN_HOME_SEARCH_EVENT } from "./HomeSearchOverlay";
 
 const navItems: { label: string; to: string; authenticated?: boolean; primary?: boolean; emphasis?: boolean }[] = [
   { label: "Kezdőlap", to: "/" },
@@ -30,6 +31,8 @@ const accountItems = [
 export function SiteHeader() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isAccountOpen, setIsAccountOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const closeSearch = useCallback(() => setSearchOpen(false), []);
   const { unreadCount, isRealtimeReady } = useNotifications();
   const [displayUnreadCount, setDisplayUnreadCount] = useState(unreadCount);
   const [cartCount, setCartCount] = useState(0);
@@ -47,6 +50,22 @@ export function SiteHeader() {
     setIsMenuOpen(false);
     setIsAccountOpen(false);
   }, [location.pathname]);
+
+  useEffect(() => {
+    const show = () => setSearchOpen(true);
+    const shortcut = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        show();
+      }
+    };
+    window.addEventListener("keydown", shortcut);
+    window.addEventListener(OPEN_HOME_SEARCH_EVENT, show);
+    return () => {
+      window.removeEventListener("keydown", shortcut);
+      window.removeEventListener(OPEN_HOME_SEARCH_EVENT, show);
+    };
+  }, []);
 
   useEffect(() => { setDisplayUnreadCount(unreadCount); }, [unreadCount]);
 
@@ -149,7 +168,7 @@ export function SiteHeader() {
         </nav>
 
         <div className="header-actions" aria-label="Fiókműveletek">
-          <Link className="icon-button icon-button-search" to="/marketplace" aria-label="Keresés a piactéren" />
+          <button className="icon-button icon-button-search nv-search-trigger" type="button" aria-label="Gyorskereső megnyitása" title="Keresés (Ctrl+K)" onClick={() => setSearchOpen(true)} />
           {isAuthenticated ? <Link className="cart-link icon-button" to="/cart" aria-label={`Kosár${cartCount ? `, ${cartCount} tétel` : ""}`}><svg className="cart-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3.5 9.5h17l-1.6 9H5.1l-1.6-9Z"/><path d="m8 9.5 4-5 4 5M8.5 13v2.5m3.5-2.5v2.5m3.5-2.5v2.5"/></svg>{cartCount > 0 ? <strong>{cartCount > 99 ? "99+" : cartCount}</strong> : null}</Link> : null}
           {isAuthenticated ? <Link className="notification-link icon-button" to="/account/notifications" aria-label={`Értesítések${displayUnreadCount ? `, ${displayUnreadCount} olvasatlan` : ""}`}><span className="visually-hidden">Értesítések</span>{displayUnreadCount > 0 ? <strong>{displayUnreadCount > 99 ? "99+" : displayUnreadCount}</strong> : null}</Link> : null}
           {isAuthenticated ? (
@@ -163,6 +182,7 @@ export function SiteHeader() {
           ) : <><Link className="button button-ghost login-button" to="/login">Belépés</Link><Link className="button button-primary register-button" to="/register">Regisztráció</Link></>}
         </div>
       </div>
+      <HomeSearchOverlay open={searchOpen} onClose={closeSearch} />
     </header>
   );
 }

@@ -113,7 +113,8 @@ def test_import_visibility_shared_cart_durable_order_and_stale_stock(monkeypatch
             summary = sync_products(db)
             assert summary["new"] == 2 and summary["boosters"] == 1
             booster = db.scalar(select(DiceMagicProduct).where(DiceMagicProduct.outer_id == "booster-fixture"))
-            assert db.get(Auction, booster.auction_id).listing_format == "bundle"
+            booster_auction_id = booster.auction_id
+            assert db.get(Auction, booster_auction_id).listing_format == "bundle"
             product = db.scalar(select(DiceMagicProduct).where(DiceMagicProduct.outer_id == "fixture-1"))
             auction_id = product.auction_id
             state(db).orders_enabled = True
@@ -129,6 +130,11 @@ def test_import_visibility_shared_cart_durable_order_and_stale_stock(monkeypatch
             "listing_type": "fixed", "listing_format": "bundle",
         }, headers=admin_headers).json()["items"]
         assert any(row["listing_format"] == "bundle" and row["shop_source"] == "dicemagic" for row in bundles)
+        # Booster quantities may be untracked (None): in_stock products still appear on home.
+        homepage = api.get("/api/auctions/home", headers=admin_headers)
+        assert homepage.status_code == 200, homepage.text
+        assert any(row["id"] == booster_auction_id for row in homepage.json()["random_boosters"])
+        assert homepage.json()["boosters_total"] >= 1
         singles = api.get("/api/auctions", params={
             "listing_type": "fixed", "listing_format": "single",
         }, headers=admin_headers).json()["items"]
@@ -189,6 +195,66 @@ def cleanup_dicemagic_tests():
         db.execute(delete(DiceMagicProduct)); db.execute(delete(AuctionMessage).where(AuctionMessage.auction_id.in_(auctions)))
         db.execute(delete(Auction).where(Auction.id.in_(auctions))); db.execute(delete(User).where(User.id.in_(ids)))
         db.execute(delete(DiceMagicSyncLog)); db.execute(delete(DiceMagicState)); db.commit()
+
+
+
+def test_public_dicemagic_rarity_controls_home_and_default_marketplace_order(monkeypatch):
+    """Common/uncommon partner cards are discoverable, but never recommended on home."""
+    from sqlalchemy import select
+    from fastapi.testclient import TestClient
+    from app.db.session import SessionLocal
+    from app.main import app
+    from app.models.dicemagic import DiceMagicProduct
+    from app.services.dicemagic import client as partner, sync_products, utcnow
+
+    partner_items = [
+        {**item(), "outer_id": f"rarity-{rarity or 'missing'}", "product_id": f"product-{index}",
+         "variant_id": f"variant-{index}", "name": f"Rarity fixture {index}",
+         "rarity": rarity, "price": str(price)}
+        for index, (rarity, price) in enumerate([
+            ("common", 100), ("uncommon", 200), ("rare", 300),
+            ("ultraRare", 400), (None, 500),
+        ])
+    ]
+    monkeypatch.setattr(partner, "products", lambda: {
+        "type": "all", "count": len(partner_items),
+        "generated_at": utcnow().isoformat(), "items": partner_items,
+    })
+    monkeypatch.setattr(settings, "dicemagic_visibility", "public")
+    cleanup_dicemagic_tests()
+    api = TestClient(app)
+    try:
+        with SessionLocal() as db:
+            sync_products(db)
+            products = db.scalars(select(DiceMagicProduct)).all()
+            ids = {row.snapshot["rarity"]: row.auction_id for row in products}
+
+        home_response = api.get("/api/auctions/home")
+        assert home_response.status_code == 200, home_response.text
+        home_ids = {row["id"] for row in home_response.json()["random_cards"]}
+        assert {ids["common"], ids["uncommon"]}.isdisjoint(home_ids)
+        assert {ids["rare"], ids["ultraRare"], ids[None]}.issubset(home_ids)
+
+        listing = api.get("/api/auctions", params={
+            "listing_type": "fixed", "listing_format": "single",
+            "seller": "DiceMagic", "sort": "balanced", "limit": 3,
+        })
+        assert listing.status_code == 200, listing.text
+        assert listing.json()["total"] == 5
+        assert {row["id"] for row in listing.json()["items"]} == {ids["rare"], ids["ultraRare"], ids[None]}
+        second = api.get("/api/auctions", params={
+            "listing_type": "fixed", "listing_format": "single",
+            "seller": "DiceMagic", "sort": "balanced", "limit": 3, "offset": 3,
+        })
+        assert {row["id"] for row in second.json()["items"]} == {ids["common"], ids["uncommon"]}
+
+        # A user-selected explicit price order is still authoritative.
+        price_sort = api.get("/api/auctions", params={
+            "listing_type": "fixed", "seller": "DiceMagic", "sort": "lowest_price",
+        })
+        assert [row["id"] for row in price_sort.json()["items"]][:2] == [ids["common"], ids["uncommon"]]
+    finally:
+        cleanup_dicemagic_tests()
 
 
 def test_public_partner_listing_checkout_and_lifetime_vip(monkeypatch):
@@ -278,6 +344,12 @@ def test_public_partner_listing_checkout_and_lifetime_vip(monkeypatch):
         entry = added.json()["items"][0]
         assert entry["shop_source"] == "dicemagic"
         assert entry["quantity"] == 2
+        assert entry["max_quantity"] == 3
+        overstock = api.post("/api/shop/dicemagic/cart", headers=buyer_headers, json={
+            "auction_id": auction_id, "quantity": 4,
+        })
+        assert overstock.status_code == 422
+        assert api.get("/api/cart", headers=buyer_headers).json()["items"][0]["quantity"] == 2
         assert api.get("/api/cart", headers=buyer_headers).json()["item_count"] == 1
         assert api.get("/api/cart", headers=other_headers).json()["item_count"] == 0
 

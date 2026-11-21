@@ -14,6 +14,14 @@
 .cart-item-copy p, .cart-item-copy small { margin: 0; color: var(--color-text-muted); }
 .cart-item label { display: grid; gap: .25rem; color: var(--color-text-muted); font-size: .78rem; }
 .cart-item select { width: 4.5rem; min-height: 2.5rem; }
+.cart-quantity { display: grid; gap: .25rem; color: var(--color-text-muted); font-size: .78rem; }
+.cart-quantity-stepper { display: flex; align-items: center; gap: .15rem; width: max-content; border: 1px solid var(--color-divider); border-radius: var(--radius-sm); overflow: hidden; }
+.cart-quantity-stepper button { width: 2.5rem; height: 2.5rem; border: 0; background: var(--color-surface); color: var(--color-text-primary); cursor: pointer; font: inherit; font-size: 1.2rem; }
+.cart-quantity-stepper button:disabled { opacity: .4; cursor: not-allowed; }
+.cart-quantity-stepper button:not(:disabled):hover { background: var(--color-surface-elevated); }
+.cart-quantity-stepper output { min-width: 2.1rem; text-align: center; color: var(--color-text-primary); font-size: .9rem; font-weight: 700; }
+.cart-quantity small { white-space: nowrap; }
+
 .cart-price, .cart-reservation { display: grid; gap: .2rem; }
 .cart-price span, .cart-reservation small { color: var(--color-text-muted); font-size: .78rem; }
 .cart-item.is-expired { border-color: rgb(245 158 11 / .55); }
@@ -44,8 +52,10 @@
   .cart-page { padding-block: var(--space-3); }
   .cart-item { grid-template-columns: 4rem minmax(0, 1fr); align-items: start; }
   .cart-item-image { grid-row: 1 / 3; width: 4rem; }
-  .cart-item > label, .cart-item > .cart-price, .cart-item > .cart-reservation, .cart-item > .button { grid-column: 1 / -1; }
+  .cart-item > label, .cart-item > .cart-quantity, .cart-item > .cart-price, .cart-item > .cart-reservation, .cart-item > .button { grid-column: 1 / -1; }
   .cart-item > label { grid-template-columns: 1fr auto; align-items: center; }
+  .cart-item > .cart-quantity { grid-template-columns: 1fr auto; align-items: center; }
+  .cart-item > .cart-quantity small { grid-column: 1 / -1; }
   .cart-item > .button { width: 100%; }
   .cart-summary { bottom: 4.5rem; justify-content: space-between; }
   .cart-summary .button { max-width: 12rem; }

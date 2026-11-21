@@ -31,9 +31,10 @@ describe("AuctionsPage", () => {
     expect(screen.getByRole("button", { name: "Rács" })).toHaveAttribute("aria-pressed", "true");
     fireEvent.click(screen.getByRole("button", { name: "Lista" }));
     expect(screen.getByRole("button", { name: "Lista" })).toHaveAttribute("aria-pressed", "true");
-    expect(document.querySelector(".marketplace-results-list")).toBeInTheDocument();
+    expect(document.querySelector(".marketplace-live-grid.is-list")).toBeInTheDocument();
+    expect(document.querySelector(".marketplace-live-grid .nv-bid-card")).toBeInTheDocument();
     expect(window.localStorage.getItem("nightfall-vault-marketplace-display-mode")).toBe("list");
-    expect(screen.getByRole("button", { name: "Licitálok" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Licitálok · min/ })).toBeInTheDocument();
     unmount();
     render(<MemoryRouter><AuctionsPage /></MemoryRouter>);
     expect(screen.getByRole("button", { name: "Lista" })).toHaveAttribute("aria-pressed", "true");
@@ -65,7 +66,18 @@ describe("AuctionsPage", () => {
     render(<MemoryRouter><AuctionsPage /></MemoryRouter>);
     expect(screen.getByRole("link", { name: "Aukció létrehozása" })).toHaveAttribute("href", "/auctions/create");
     expect(await screen.findByRole("link", { name: "Publikus aukció" })).toHaveAttribute("href", "/auctions/12");
-    expect(screen.getByRole("button", { name: "Licitálok" })).toBeInTheDocument();
+    expect(document.querySelector(".marketplace-live-grid .nv-bid-card")).toBeInTheDocument();
+    expect(screen.getByText("3 licit")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Licitálok · min/ })).toBeInTheDocument();
+  });
+
+
+  it("a fix áras Lapok fül az eredeti piactéri kártyákat használja", async () => {
+    mocks.listAuctions.mockResolvedValue({ items: [{ ...auction, listing_type: "fixed", listing_format: "single" }], total: 1, limit: 24, offset: 0 });
+    render(<MemoryRouter initialEntries={["/marketplace?tab=cards"]}><AuctionsPage /></MemoryRouter>);
+    await waitFor(() => expect(mocks.listAuctions).toHaveBeenCalledWith(expect.objectContaining({ listing_type: "fixed", listing_format: "single" })));
+    expect(document.querySelector(".marketplace-results-grid .auction-card")).toBeInTheDocument();
+    expect(document.querySelector(".marketplace-live-grid")).not.toBeInTheDocument();
   });
 
   it("üres backend válaszhoz értelmes állapotot ad", async () => {

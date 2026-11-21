@@ -568,11 +568,45 @@ def test_home_overview_counts_order_and_private_watch_aggregation() -> None:
     assert [item["id"] for item in data["soon_ending"]] == ids[:3]
     assert [item["id"] for item in data["new_auctions"]] == ids[:3]
     assert next(item for item in data["featured"] if item["id"] == ids[0])["bid_count"] == 2
-    assert len(statements) <= 19  # One bounded random-stock query, independent of card count
+    assert len(statements) <= 22  # Additional booster sample and two real inventory totals
     detail = client.get(f"/api/auctions/{ids[0]}")
     assert detail.status_code == 200
     assert detail.json()["watch_count"] == 1
     assert "watcher" not in detail.text.lower()
+    cleanup_test_data()
+
+
+def test_home_shows_nearest_active_auctions_beyond_24_hours() -> None:
+    """Active auctions remain on home even if all expire after the next day."""
+    cleanup_test_data()
+    seller = create_test_user("seller-home-long-auctions@auction-test.local", role="admin")
+    now = datetime.now(timezone.utc)
+    ids = []
+    # Insert the later-expiring one first to verify deadline ordering.
+    for index, remaining_days in enumerate((5, 3)):
+        response = client.post(
+            "/api/auctions",
+            json=auction_payload(title=f"Later closing {index}"),
+            headers=auth_headers(seller),
+        )
+        assert response.status_code == 201, response.text
+        auction_id = response.json()["id"]
+        ids.append(auction_id)
+        with SessionLocal() as db:
+            auction = db.get(Auction, auction_id)
+            auction.status = "active"
+            auction.starts_at = now - timedelta(hours=2)
+            auction.ends_at = now + timedelta(days=remaining_days)
+            db.commit()
+
+    response = client.get("/api/auctions/home")
+    assert response.status_code == 200, response.text
+    assert response.json()["active_count"] == 2
+    assert [item["id"] for item in response.json()["soon_ending"]] == [ids[1], ids[0]]
+
+    background = client.get("/api/auctions/home?include_random=false")
+    assert background.status_code == 200, background.text
+    assert [item["id"] for item in background.json()["soon_ending"]] == [ids[1], ids[0]]
     cleanup_test_data()
 
 
@@ -611,6 +645,9 @@ def test_home_random_cards_only_include_available_visible_hkk_stock() -> None:
         background_response = client.get("/api/auctions/home?include_random=false", headers=auth_headers(seller))
         assert public.status_code == buyer_response.status_code == admin_response.status_code == background_response.status_code == 200
         assert background_response.json()["random_cards"] == []
+        assert background_response.json()["random_boosters"] == []
+        assert public.json()["cards_total"] == 1
+        assert public.json()["boosters_total"] == 0
         assert background_response.json()["active_count"] == admin_response.json()["active_count"]
         assert [item["id"] for item in public.json()["random_cards"]] == [ids[0]]
         assert [item["id"] for item in buyer_response.json()["random_cards"]] == [ids[0]]
@@ -767,7 +804,7 @@ def test_marketplace_default_rotates_sellers_without_reordering_price_sort() -> 
         random_cards = client.get("/api/auctions/home").json()["random_cards"]
         first_two = [row["seller_id"] for row in random_cards[:2]]
         assert set(first_two) == {seller_big.id, seller_small.id}
-        assert len(random_cards) == 8
+        assert len(random_cards) == 10
     finally:
         cleanup_test_data()
 

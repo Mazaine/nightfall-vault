@@ -28,6 +28,13 @@ export function formatHkkRarity(value: string | null | undefined): string | null
   return label ? `${value} – ${label}` : value;
 }
 
+/** Short Hungarian rarity text for compact card grids; the detailed formatter remains available. */
+export function formatHkkRarityLabel(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const normalized = normalizeHkkRarity(value);
+  return normalized ? rarityLabels[normalized] ?? value : value;
+}
+
 export function hkkCardImageUrl(externalCardId: string, fallback: string | null | undefined, variant: "normal" | "foil" | "fa" | "gfa" = "normal"): string {
   const normalizedId = externalCardId.trim();
   if (/^[1-9][0-9]*$/.test(normalizedId)) {
