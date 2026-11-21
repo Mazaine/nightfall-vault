@@ -72,7 +72,7 @@ def catalog(request: Request, query: str = Query(min_length=2, max_length=180), 
 
 
 @router.post("/preview")
-async def preview(request: Request, file: UploadFile = File(...), source_id: int = Form(...), mapping: str = Form("{}"), header_row: int | None = Form(None), full_source: bool = Form(False), user=Depends(require_active_user), db: Session = Depends(get_db)):
+async def preview(request: Request, file: UploadFile = File(...), source_id: int | None = Form(None), mapping: str = Form("{}"), header_row: int | None = Form(None), full_source: bool = Form(False), user=Depends(require_active_user), db: Session = Depends(get_db)):
     check_rate_limit(request, "inventory_upload", 20, str(user.id))
     if len(mapping) > 16000:
         raise HTTPException(413, "Túl nagy oszlopmegfeleltetés.")

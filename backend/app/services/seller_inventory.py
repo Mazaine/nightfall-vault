@@ -286,13 +286,26 @@ def operation_read(op, *, offset=0, limit=100, pending_only=False):
         key = row.get("action", "error") if row.get("state") == "valid" else row.get("state", "error")
         counts[key] = counts.get(key, 0)+1
     visible = [{**row, "index": index} for index, row in enumerate(op.rows) if not pending_only or row.get("state") != "applied"]
-    return {"id": op.id, "kind": op.kind, "status": op.status, "source_id": op.source_id, "created_at": op.created_at, "total": len(op.rows), "visible_total": len(visible), "counts": counts, "context": op.context, "rows": visible[offset:offset+limit], "changes_count": len(op.changes), "version": digest([op.rows, op.status, op.changes, op.context])}
+    completed = set(op.context.get("lookup_attempted", []))
+    lookup_remaining = len({normalize(row["values"]["name"]) for row in op.rows if row.get("state") == "needs_card" and normalize(row["values"]["name"]) not in completed})
+    return {"id": op.id, "kind": op.kind, "status": op.status, "source_id": op.source_id, "created_at": op.created_at, "total": len(op.rows), "visible_total": len(visible), "lookup_remaining": lookup_remaining, "counts": counts, "context": op.context, "rows": visible[offset:offset+limit], "changes_count": len(op.changes), "version": digest([op.rows, op.status, op.changes, op.context])}
 
 
 def create_preview(db, user, source_id, data, filename, mapping=None, header_row=None, full_source=False):
     seller(db, user, lock=True)
-    src = source(db, user, source_id)
     parsed = parse_upload(data, filename, mapping or None, header_row, max_bytes=settings.inventory_csv_max_bytes, max_rows=settings.inventory_csv_max_rows)
+    if source_id is None:
+        claimed = {str(row["values"].get("source_id") or "") for row in parsed["rows"]} - {""}
+        if len(claimed) == 1 and next(iter(claimed)).isdigit():
+            source_id = source(db, user, int(next(iter(claimed)))).id
+        else:
+            owned = list(db.scalars(select(Source).where(Source.user_id == user.id).order_by(Source.id).limit(2)))
+            if len(owned) == 1:
+                source_id = owned[0].id
+            else:
+                db.execute(insert(Source).values(user_id=user.id, name="Fájlfeltöltés", mapping={}).on_conflict_do_nothing(index_elements=[Source.user_id, Source.name]))
+                source_id = db.scalar(select(Source.id).where(Source.user_id == user.id, Source.name == "Fájlfeltöltés"))
+    src = source(db, user, source_id)
     if parsed["needs_mapping"] and not mapping and src.mapping and set(src.mapping.values()).issubset(set(parsed["headers"])):
         parsed = parse_upload(data, filename, src.mapping, header_row, max_bytes=settings.inventory_csv_max_bytes, max_rows=settings.inventory_csv_max_rows)
     if parsed["needs_mapping"]:

@@ -454,3 +454,45 @@ def test_partial_import_review_hides_only_applied_rows_and_preserves_original_in
         assert edited["rows"][2]["state"] == "skipped"
     all_rows = client.get(f"/api/inventory/operations/{op['id']}", headers=headers(env[0])).json()
     assert all_rows["visible_total"] == 3 and len(all_rows["rows"]) == 3
+
+
+def test_simple_upload_does_not_require_source_selection(env):
+    response = client.post("/api/inventory/preview", headers=headers(env[0]), files={"file": ("lapok.csv", data(env[3]), "text/csv")})
+    assert response.status_code == 200, response.text
+    assert response.json()["source_id"] == env[2] and response.json()["counts"]["new"] == 1
+    with SessionLocal() as db:
+        assert not list(db.scalars(select(Auction).where(Auction.seller_id == env[0].id)))
+
+
+def test_simple_first_upload_creates_and_reuses_its_source(env):
+    with SessionLocal() as db:
+        db.delete(db.get(Source, env[2])); db.commit()
+    first = client.post("/api/inventory/preview", headers=headers(env[0]), files={"file": ("lapok.csv", data(env[3]), "text/csv")})
+    assert first.status_code == 200, first.text
+    second = client.post("/api/inventory/preview", headers=headers(env[0]), files={"file": ("uj_nev.csv", data(env[3]), "text/csv")})
+    assert second.status_code == 200 and second.json()["source_id"] == first.json()["source_id"]
+    with SessionLocal() as db:
+        sources = list(db.scalars(select(Source).where(Source.user_id == env[0].id)))
+        assert len(sources) == 1 and sources[0].name == "Fájlfeltöltés"
+
+
+def test_automatic_source_respects_nightfall_source_and_owner(env):
+    apply(env, preview(env))
+    with SessionLocal() as db:
+        exported = service.export_csv(db, env[0], source_id=env[2], include_inactive=True, include_empty=True)
+        db.add(Source(user_id=env[0].id, name="Másik", mapping={})); db.commit()
+    result = client.post("/api/inventory/preview", headers=headers(env[0]), files={"file": ("nightfall.csv", exported, "text/csv")})
+    assert result.status_code == 200 and result.json()["source_id"] == env[2]
+    denied = client.post("/api/inventory/preview", headers=headers(env[1]), files={"file": ("nightfall.csv", exported, "text/csv")})
+    assert denied.status_code == 404
+
+
+def test_unverified_names_have_resumable_lookup_progress(env, monkeypatch):
+    op = preview(env, b"name;quantity;price\nUnknown A;1;100\nUnknown B;1;100\n")
+    assert op["lookup_remaining"] == 2
+    monkeypatch.setattr(service, "catalog_search", lambda db, query: [])
+    with SessionLocal() as db:
+        first = service.resolve_batch(db, env[0], op["id"], limit=1)
+        assert first["lookup_remaining"] == 1 and first["counts"]["needs_card"] == 2
+        last = service.resolve_batch(db, env[0], op["id"], limit=1)
+        assert last["lookup_remaining"] == 0 and last["counts"]["needs_card"] == 2

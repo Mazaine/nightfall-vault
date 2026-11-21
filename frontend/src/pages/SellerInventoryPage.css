@@ -20,4 +20,19 @@
 .inventory-candidates label { display: flex; flex-direction: column; border: 1px solid #584060; padding: .5rem; }
 .inventory-candidates img { max-height: 140px; width: auto; max-width: 100%; object-fit: contain; }
 .seller-inventory summary { cursor: pointer; font-weight: 700; padding: .3rem 0; }
+.inventory-steps { display: flex; flex-wrap: wrap; gap: .65rem 2rem; padding-left: 1.5rem; color: #cdb5ee; }
+.inventory-upload-form { display: grid; gap: 1rem; margin: 1rem 0; }
+.inventory-file-choice { display: grid; gap: .6rem; font-size: 1.1rem; font-weight: 700; }
+.inventory-file-choice input { padding: 1rem; min-height: 58px; border: 2px dashed #785296; border-radius: .65rem; cursor: pointer; }
+.inventory-file-choice input::file-selector-button { padding: .7rem 1rem; margin-right: .8rem; border: 0; border-radius: .4rem; background: #6c2ab3; color: white; font-weight: 700; cursor: pointer; }
+.inventory-upload-form > button { justify-self: start; }
+.inventory-result-summary { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: .8rem; margin: 1rem 0; }
+.inventory-result-summary > div { display: grid; gap: .2rem; padding: .8rem; border: 1px solid #584060; border-radius: .6rem; min-width: 0; }
+.inventory-result-summary strong { font-size: 1.8rem; }
+.inventory-result-summary span { overflow-wrap: anywhere; }
+.inventory-check-progress { padding: 1rem; border: 1px solid #9464c6; border-radius: .7rem; background: #1b1027; }
+.inventory-advanced, .inventory-review-details { margin: .8rem 0; }
+.inventory-advanced > label { display: flex; align-items: center; gap: .6rem; margin: .7rem 0; }
+.inventory-review-details summary { min-height: 44px; }
+@media(max-width:600px) { .inventory-result-summary { grid-template-columns: minmax(0,1fr); } .inventory-result-summary > div { display:flex; align-items:center; gap:1rem; } .inventory-steps { display:grid; gap:.5rem; } .inventory-file-choice input { max-width:100%; font-size:.9rem; } }
 @media(max-width:767px) { .inventory-head { display: none; } .inventory-item { grid-template-columns: repeat(2,minmax(0,1fr)); padding: .9rem; border: 1px solid #44364c; border-radius: .6rem; margin: .7rem 0; } .inventory-item > :first-child { grid-column: 1/-1; } .selling-navigation a { font-size: .85rem; padding: .7rem .2rem; } }
