@@ -30,7 +30,11 @@ Saját fotónál az eladási pillanatkép független médiapéldányokat kap. A 
 3. Ellenőrizd az oszlopokat, az árakat és a pontos lapkiadást.
 4. A hiányzó neveket a meglévő HKK-lapkeresőből, tízes kötegekben ellenőrizheted. A kötegek a már ellenőrzött, többértelmű neveken is továbblépnek. Több találatnál kép, kiadás és HKK ID alapján válassz; ID kézi beírása nem kötelező.
 5. Az ütköző sorokat javítsd, kapcsold meglévő hirdetéshez, hagyd ki, vagy adj meg igazoltan külön fizikai készletcsoportot.
-6. Hagyd jóvá a kijelölt vagy következő legfeljebb 200 alkalmazható sort. A folyamat később folytatható; a már alkalmazott sor nem fut le kétszer.
+6. A **Hibátlan sorok feltöltése** művelet egyetlen jóváhagyással végigmenti az összes alkalmazható sort, legfeljebb 200-as tranzakciós kötegekben. Kijelölés esetén csak a kijelöltek kerülnek mentésre. A folyamat később folytatható; a már alkalmazott sor nem fut le kétszer.
+
+Mentés után az ellenőrzési listában csak a még nem alkalmazott sorok maradnak, lapozva. Az eredeti CSV-sorazonosítók megmaradnak, ezért a szűrt lista javítása és kijelölése sem módosíthat másik sort. A már feldolgozott tételek a **Már feltöltött sorok megjelenítése** kapcsolóval visszanézhetők; az importnapló nem törlődik. Ez a részleges feltöltés nem inaktivál hiányzó tételeket.
+
+A részleges feltöltés kiegészítésének ellenőrzése: 24 célzott backendteszt, a teljes frontendkör 380 tesztje, TypeScript, production build, Python compileall és `git diff --check` sikeres. A tesztek a szűrt lista eredeti sorazonosítóit, a jó/hibás sorok szétválasztását és a 200 sornál nagyobb, egy jóváhagyással végigfutó mentést is lefedik. Új migráció nem szükséges.
 
 Támogatott formátumok:
 

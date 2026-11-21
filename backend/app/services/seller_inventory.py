@@ -280,12 +280,13 @@ def plan_rows(db, user, op):
         op.context = {**op.context, "missing": missing_rows(db, user, op), "source_membership": membership}
 
 
-def operation_read(op, *, offset=0, limit=100):
+def operation_read(op, *, offset=0, limit=100, pending_only=False):
     counts = {key: 0 for key in ("new", "update", "unchanged", "error", "conflict", "needs_card", "skipped", "applied")}
     for row in op.rows:
         key = row.get("action", "error") if row.get("state") == "valid" else row.get("state", "error")
         counts[key] = counts.get(key, 0)+1
-    return {"id": op.id, "kind": op.kind, "status": op.status, "source_id": op.source_id, "created_at": op.created_at, "total": len(op.rows), "counts": counts, "context": op.context, "rows": op.rows[offset:offset+limit], "changes_count": len(op.changes), "version": digest([op.rows, op.status, op.changes, op.context])}
+    visible = [{**row, "index": index} for index, row in enumerate(op.rows) if not pending_only or row.get("state") != "applied"]
+    return {"id": op.id, "kind": op.kind, "status": op.status, "source_id": op.source_id, "created_at": op.created_at, "total": len(op.rows), "visible_total": len(visible), "counts": counts, "context": op.context, "rows": visible[offset:offset+limit], "changes_count": len(op.changes), "version": digest([op.rows, op.status, op.changes, op.context])}
 
 
 def create_preview(db, user, source_id, data, filename, mapping=None, header_row=None, full_source=False):

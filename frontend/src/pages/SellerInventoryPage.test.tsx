@@ -9,6 +9,8 @@ const op = { id: 8, kind: "import", status: "preview", total: 1, version: "a".re
 describe("Eladói készletkezelő", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.operation.mockResolvedValue({ ...op, visible_total: 0, counts: { applied: 1 }, rows: [] });
+    mocks.edit.mockResolvedValue(op);
     mocks.items.mockResolvedValue({ total: 1, items: [{ id: 2, name: "Árnyék", card_id: "123", graphic_type: "normal", edition: "2026", condition: "NM", free: 150, reserved: 2, pending: 3, price: 500, status: "active", retro: true, link: null }] });
     mocks.sources.mockResolvedValue([{ id: 1, name: "Saját Excel", mapping: {} }]); mocks.history.mockResolvedValue([]); mocks.upload.mockResolvedValue(op); mocks.apply.mockResolvedValue({ ...op, counts: { applied: 1 }, rows: [{ ...op.rows[0], state: "applied" }] }); mocks.bulk.mockResolvedValue({ ...op, kind: "bulk" });
   });
@@ -28,11 +30,11 @@ describe("Eladói készletkezelő", () => {
     fireEvent.submit(screen.getByRole("button", { name: "Importelőnézet" }).closest("form")!);
     await screen.findByRole("heading", { name: "Előnézet #8" });
     expect(mocks.apply).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("button", { name: "Alkalmazható sorok mentése (max. 200)" }));
+    fireEvent.click(screen.getByRole("button", { name: "Hibátlan sorok feltöltése" }));
     const dialog = screen.getByRole("dialog", { name: "Készletmódosítás megerősítése" });
     fireEvent.click(within(dialog).getByRole("button", { name: "Mégse" }));
     expect(mocks.apply).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("button", { name: "Alkalmazható sorok mentése (max. 200)" }));
+    fireEvent.click(screen.getByRole("button", { name: "Hibátlan sorok feltöltése" }));
     fireEvent.click(screen.getByRole("button", { name: "Jóváhagyom" }));
     await waitFor(() => expect(mocks.apply).toHaveBeenCalledWith(op, null, false));
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
@@ -45,6 +47,58 @@ describe("Eladói készletkezelő", () => {
     fireEvent.submit(screen.getByRole("button", { name: "Módosítások előnézete" }).closest("form")!);
     await waitFor(() => expect(mocks.bulk).toHaveBeenCalledWith(expect.objectContaining({ ids: [2], price_mode: "percent_down", price_value: 20 })));
     expect(mocks.apply).not.toHaveBeenCalled();
+  });
+  it("a jó sorokat feltölti és csak a hibás vagy bizonytalan sorokat hagyja az ellenőrzési listában", async () => {
+    const uncertain = { ...op.rows[0], index: 1, state: "needs_card", action: undefined, values: { ...op.rows[0].values, name: "Bizonytalan lap" }, issues: ["Válassz kiadást."] };
+    const invalid = { ...op.rows[0], index: 2, state: "error", action: undefined, values: { ...op.rows[0].values, name: "Hibás lap" }, issues: ["Hibás ár."] };
+    const mixed = { ...op, total: 3, counts: { new: 1, needs_card: 1, error: 1 }, rows: [op.rows[0], uncertain, invalid] };
+    const saved = { ...mixed, counts: { new: 0, applied: 1, needs_card: 1, error: 1 }, rows: [{ ...op.rows[0], state: "applied", index: 0 }, uncertain, invalid] };
+    mocks.upload.mockResolvedValue(mixed); mocks.apply.mockResolvedValue(saved);
+    mocks.operation.mockImplementation((_id, _offset, pending) => Promise.resolve(pending ? { ...saved, visible_total: 2, rows: [uncertain, invalid] } : saved));
+    render(<MemoryRouter><SellerInventoryPage /></MemoryRouter>);
+    await screen.findByRole("link", { name: "Árnyék" });
+    fireEvent.change(screen.getByLabelText("Forrás"), { target: { value: "1" } });
+    fireEvent.change(screen.getByLabelText("CSV vagy Excel"), { target: { files: [new File(["fixture"], "sample.csv")] } });
+    fireEvent.submit(screen.getByRole("button", { name: "Importelőnézet" }).closest("form")!);
+    fireEvent.click(await screen.findByRole("button", { name: "Hibátlan sorok feltöltése" }));
+    fireEvent.click(screen.getByRole("button", { name: "Jóváhagyom" }));
+    await screen.findByText(/1 sor sikeresen feldolgozva\. 2 sor maradt ellenőrzésre/);
+    const preview = within(screen.getByRole("heading", { name: "Előnézet #8" }).closest("section")!);
+    expect(preview.queryByText("Árnyék", { selector: "strong" })).not.toBeInTheDocument();
+    expect(preview.getByText("Bizonytalan lap")).toBeInTheDocument(); expect(preview.getByText("Hibás lap")).toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText("Már feltöltött sorok megjelenítése"));
+    await waitFor(() => expect(mocks.operation).toHaveBeenLastCalledWith(8, 0, false));
+    await waitFor(() => expect(preview.getByText("Árnyék", { selector: "strong" })).toBeInTheDocument());
+  });
+  it("egyetlen jóváhagyással végigmenti a 200 sornál nagyobb hibátlan importot", async () => {
+    const large = { ...op, total: 201, counts: { new: 201, applied: 0 } };
+    const first = { ...large, version: "b".repeat(64), counts: { new: 1, applied: 200 } };
+    const finished = { ...large, version: "c".repeat(64), counts: { new: 0, applied: 201 }, rows: [] };
+    mocks.upload.mockResolvedValue(large); mocks.apply.mockReset().mockResolvedValueOnce(first).mockResolvedValueOnce(finished); mocks.operation.mockResolvedValue(finished);
+    render(<MemoryRouter><SellerInventoryPage /></MemoryRouter>);
+    await screen.findByRole("link", { name: "Árnyék" });
+    fireEvent.change(screen.getByLabelText("Forrás"), { target: { value: "1" } });
+    fireEvent.change(screen.getByLabelText("CSV vagy Excel"), { target: { files: [new File(["fixture"], "sample.csv")] } });
+    fireEvent.submit(screen.getByRole("button", { name: "Importelőnézet" }).closest("form")!);
+    fireEvent.click(await screen.findByRole("button", { name: "Hibátlan sorok feltöltése" })); fireEvent.click(screen.getByRole("button", { name: "Jóváhagyom" }));
+    await screen.findByText(/201 sor sikeresen feldolgozva\. 0 sor maradt ellenőrzésre/);
+    expect(mocks.apply).toHaveBeenNthCalledWith(1, large, null, false);
+    expect(mocks.apply).toHaveBeenNthCalledWith(2, first, null, false);
+    expect(mocks.apply).toHaveBeenCalledTimes(2);
+  });
+  it("a feltöltöttek elrejtése után az eredeti sorazonosítóval javít", async () => {
+    const pendingRow = { ...op.rows[0], index: 237, state: "needs_card" };
+    const pending = { ...op, total: 238, visible_total: 1, counts: { applied: 237, needs_card: 1 }, rows: [pendingRow] };
+    mocks.upload.mockResolvedValue(pending); mocks.operation.mockResolvedValue(pending);
+    render(<MemoryRouter><SellerInventoryPage /></MemoryRouter>);
+    await screen.findByRole("link", { name: "Árnyék" });
+    fireEvent.change(screen.getByLabelText("Forrás"), { target: { value: "1" } });
+    fireEvent.change(screen.getByLabelText("CSV vagy Excel"), { target: { files: [new File(["fixture"], "sample.csv")] } });
+    fireEvent.submit(screen.getByRole("button", { name: "Importelőnézet" }).closest("form")!);
+    fireEvent.click(await screen.findByRole("button", { name: "Sor javítása / összekapcsolás" }));
+    const dialog = screen.getByRole("dialog", { name: "Importsor javítása" });
+    fireEvent.submit(within(dialog).getByRole("button", { name: "Előnézet frissítése" }).closest("form")!);
+    await waitFor(() => expect(mocks.edit).toHaveBeenCalledWith(8, 237, expect.any(Object)));
   });
   it("az ismeretlen oszlopokat külön megfeleltetéssel küldi újra", async () => {
     mocks.upload.mockResolvedValueOnce({ needs_mapping: true, headers: ["Lap", "Db", "Ft"], mapping: {}, header_row: 4 }).mockResolvedValueOnce(op);

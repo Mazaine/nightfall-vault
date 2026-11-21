@@ -431,3 +431,26 @@ def test_historical_sold_source_links_do_not_invalidate_complete_stock_export(en
     op = preview(env, exported, full_source=True)
     assert op["context"]["full_allowed"]
     assert str(old.id) not in {str(row["values"]["stock_item_id"]) for row in op["rows"]}
+
+
+def test_partial_import_review_hides_only_applied_rows_and_preserves_original_indices(env):
+    content = b"name;quantity;price;card_id\nUnknown first;1;100;\n" + f"Teszt lap;2;150;{env[3]}\n".encode() + b"Unknown last;1;100;\n"
+    op = preview(env, content)
+    assert op["counts"]["new"] == 1 and op["counts"]["needs_card"] == 2
+    done = apply(env, op)
+    assert done["counts"]["applied"] == 1
+    response = client.get(f"/api/inventory/operations/{op['id']}?pending_only=true", headers=headers(env[0]))
+    assert response.status_code == 200
+    review = response.json()
+    assert review["total"] == 3 and review["visible_total"] == 2
+    assert [row["index"] for row in review["rows"]] == [0, 2]
+    assert all(row["state"] == "needs_card" for row in review["rows"])
+    assert review["version"] == done["version"]
+    page = client.get(f"/api/inventory/operations/{op['id']}?pending_only=true&offset=1&limit=1", headers=headers(env[0])).json()
+    assert page["rows"][0]["index"] == 2
+    with SessionLocal() as db:
+        edited = service.edit_row(db, env[0], op["id"], page["rows"][0]["index"], {"skip": True})
+        assert edited["rows"][1]["state"] == "applied"
+        assert edited["rows"][2]["state"] == "skipped"
+    all_rows = client.get(f"/api/inventory/operations/{op['id']}", headers=headers(env[0])).json()
+    assert all_rows["visible_total"] == 3 and len(all_rows["rows"]) == 3

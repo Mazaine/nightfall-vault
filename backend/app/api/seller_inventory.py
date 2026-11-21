@@ -92,9 +92,9 @@ def history(page: int = Query(1, ge=1), user=Depends(require_active_user), db: S
 
 
 @router.get("/operations/{operation_id}")
-def read_operation(operation_id: int, offset: int = Query(0, ge=0), limit: int = Query(100, ge=1, le=100), user=Depends(require_active_user), db: Session = Depends(get_db)):
+def read_operation(operation_id: int, offset: int = Query(0, ge=0), limit: int = Query(100, ge=1, le=100), pending_only: bool = False, user=Depends(require_active_user), db: Session = Depends(get_db)):
     service.seller(db, user)
-    return service.operation_read(service.own_operation(db, user, operation_id), offset=offset, limit=limit)
+    return service.operation_read(service.own_operation(db, user, operation_id), offset=offset, limit=limit, pending_only=pending_only)
 
 
 class RowEdit(BaseModel):
