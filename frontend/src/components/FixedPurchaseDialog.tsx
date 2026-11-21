@@ -1,3 +1,4 @@
+import { QuantityInput } from "./QuantityInput";
 import { formatMoney } from "../utils/format";
 import { createPortal } from "react-dom";
 
@@ -27,9 +28,9 @@ export function FixedPurchaseDialog({
       <h2 id="fixed-purchase-title">Vásárlás megerősítése</h2>
       <p><strong>{title}</strong></p>
       <label>Mennyiség
-        <select aria-label="Vásárlási mennyiség" value={quantity} disabled={busy} onChange={(event) => onQuantityChange(Number(event.target.value))}>
+        {normalizedMax > 9 ? <QuantityInput label="Vásárlási mennyiség" value={quantity} max={normalizedMax} disabled={busy} onChange={onQuantityChange} /> : <select aria-label="Vásárlási mennyiség" value={quantity} disabled={busy} onChange={(event) => onQuantityChange(Number(event.target.value))}>
           {Array.from({ length: normalizedMax }, (_, index) => <option value={index + 1} key={index + 1}>{index + 1}</option>)}
-        </select>
+        </select>}
       </label>
       <dl className="fixed-purchase-summary">
         <div><dt>Egységár</dt><dd>{formatMoney(unitPrice)}</dd></div>

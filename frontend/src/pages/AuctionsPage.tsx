@@ -458,6 +458,7 @@ export function AuctionsPage() {
             {CARD_CONDITIONS.map((condition) => <option value={condition.value} key={condition.value}>{condition.nameHu} ({condition.value})</option>)}
           </select>
         </label>
+        <label className="toggle-row"><input type="checkbox" checked={filters.hatalom_era === "retro"} onChange={event => setFilters({ ...filters, category: event.target.checked ? "Hatalom Kártyái Kártyajáték" : filters.category, hatalom_era: event.target.checked ? "retro" : "" })} />Csak retró lapok</label>
         {filters.category === "Hatalom Kártyái Kártyajáték" ? <label>
           Hatalom-korszak
           <select value={filters.hatalom_era} onChange={(event) => setFilters({ ...filters, hatalom_era: event.target.value as HatalomEra | "" })}>

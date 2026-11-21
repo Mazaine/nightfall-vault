@@ -119,6 +119,7 @@ class AuctionBase(BaseModel):
 
 
 class AuctionCreate(AuctionBase):
+    quantity: int = Field(default=1, ge=1, le=2147483647, strict=True)
     creation_key: str | None = Field(default=None, min_length=36, max_length=36, pattern=r"^[0-9a-fA-F-]{36}$")
     seller_declaration_accepted: bool
     seller_declaration_version: str = Field(default="2026-07-11", min_length=4, max_length=20)
@@ -129,6 +130,8 @@ class AuctionCreate(AuctionBase):
 
     @model_validator(mode="after")
     def validate_declaration(self) -> "AuctionCreate":
+        if self.quantity != 1 and (self.listing_type != "fixed" or self.vault_collection_card_id or self.vault_trade_card_id):
+            raise ValueError("A mennyiségi mező önálló fix áras készlethez használható; a Vault-korlát nem változik.")
         if not self.seller_declaration_accepted:
             raise ValueError("Az eladói nyilatkozat elfogadása kötelező.")
         inventory_count = int(self.vault_collection_card_id is not None) + int(self.vault_trade_card_id is not None)
@@ -147,6 +150,7 @@ class AuctionCreate(AuctionBase):
 
 
 class AuctionUpdate(BaseModel):
+    quantity: int | None = Field(default=None, ge=0, le=2147483647, strict=True)
     title: str | None = Field(default=None, min_length=2, max_length=180)
     description: str | None = Field(default=None, min_length=10, max_length=5000)
     external_link_label: str | None = Field(default=None, max_length=80)

@@ -43,7 +43,7 @@ def available_listing_quantity(auction: Auction) -> int | None:
         return 1
     if auction.shop_source:
         return auction.shop_stock
-    return max(int(auction.vault_quantity or 0), 0)
+    return max(int(auction.vault_quantity if auction.vault_quantity is not None else 1), 0)
 
 
 def seller_rating_summary(db: Session, seller_id: int) -> tuple[float | None, int]:

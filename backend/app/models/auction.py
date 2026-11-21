@@ -30,7 +30,7 @@ class Auction(Base):
         CheckConstraint("(status = 'unsold' AND winner_id IS NULL) OR status <> 'unsold'", name="ck_auctions_unsold_has_no_winner"),
         CheckConstraint("listing_type IN ('auction', 'fixed')", name="ck_auctions_listing_type"),
         CheckConstraint("listing_format IN ('single', 'bundle')", name="ck_auctions_listing_format"),
-        CheckConstraint("vault_quantity IS NULL OR vault_quantity BETWEEN 1 AND 9", name="ck_auctions_vault_quantity"),
+        CheckConstraint("vault_quantity IS NULL OR (vault_quantity BETWEEN 0 AND 2147483647 AND ((listing_type = 'fixed' AND vault_collection_card_id IS NULL AND vault_trade_card_id IS NULL) OR vault_quantity BETWEEN 1 AND 9))", name="ck_auctions_vault_quantity"),
         CheckConstraint("reserve_price IS NULL OR reserve_price >= starting_price", name="ck_auctions_reserve_price_minimum"),
         CheckConstraint("reserve_price IS NULL OR buy_now_price IS NULL OR reserve_price <= buy_now_price", name="ck_auctions_reserve_price_buy_now"),
         UniqueConstraint("seller_id", "creation_key", name="uq_auctions_seller_creation_key"),
@@ -39,6 +39,7 @@ class Auction(Base):
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    stock_managed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
     shop_source: Mapped[str | None] = mapped_column(String(30), index=True)
     shop_stock: Mapped[int | None] = mapped_column(Integer)
     shop_image_url: Mapped[str | None] = mapped_column(String(1000))

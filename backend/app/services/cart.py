@@ -31,7 +31,7 @@ def _price(auction: Auction) -> Decimal:
 def _listed_quantity(auction: Auction) -> int:
     if auction.shop_source:
         return min(999, auction.shop_stock) if auction.shop_stock is not None else 999
-    return 1 if auction.listing_format == "bundle" else int(auction.vault_quantity or 1)
+    return 1 if auction.listing_format == "bundle" else int(auction.vault_quantity if auction.vault_quantity is not None else 1)
 
 
 def _validate_listing(auction: Auction | None, user_id: int) -> Auction:
@@ -182,8 +182,8 @@ def _reserve(db: Session, item: CartItem, auction: Auction, quantity: int, *, ex
 
 
 def add_cart_item(db: Session, user: User, auction_id: int, quantity: int) -> dict:
-    if quantity < 1 or quantity > 9:
-        raise HTTPException(status_code=422, detail="A darabszám 1 és 9 közötti lehet.")
+    if quantity < 1 or quantity > 2147483647:
+        raise HTTPException(status_code=422, detail="A darabszám pozitív, 32 bites egész legyen.")
     auction = _validate_listing(db.scalar(select(Auction).where(Auction.id == auction_id).with_for_update()), user.id)
     _validate_underlying_inventory(db, auction)
     if auction.listing_format == "bundle" and quantity != 1:
@@ -206,8 +206,8 @@ def add_cart_item(db: Session, user: User, auction_id: int, quantity: int) -> di
 
 
 def update_cart_item(db: Session, user: User, item_id: int, quantity: int, *, accept_price: bool = False) -> dict:
-    if quantity < 1 or quantity > 9:
-        raise HTTPException(status_code=422, detail="A darabszám 1 és 9 közötti lehet.")
+    if quantity < 1 or quantity > 2147483647:
+        raise HTTPException(status_code=422, detail="A darabszám pozitív, 32 bites egész legyen.")
     item = db.scalar(select(CartItem).join(Cart).where(CartItem.id == item_id, Cart.user_id == user.id, CartItem.status == "active").with_for_update())
     if item is None:
         raise HTTPException(status_code=404, detail="A kosártétel nem található.")
@@ -342,7 +342,7 @@ def _sold_snapshot(db: Session, auction: Auction, buyer_id: int, quantity: int, 
         db.flush()
         return sold
     total = _listed_quantity(auction)
-    if auction.listing_format == "bundle" or quantity == total:
+    if auction.listing_format == "bundle" or (quantity == total and not auction.stock_managed):
         if auction.listing_format != "bundle":
             auction.vault_quantity = None
         auction.status = "sold"
@@ -351,6 +351,8 @@ def _sold_snapshot(db: Session, auction: Auction, buyer_id: int, quantity: int, 
         db.add(auction)
         return auction
     auction.vault_quantity = total - quantity
+    if auction.stock_managed and auction.vault_quantity == 0:
+        auction.status = "draft"
     sold = Auction(
         seller_id=auction.seller_id, creation_key=str(uuid4()), batch_key=auction.batch_key,
         listing_type="fixed", listing_format="single", vault_collection_card_id=auction.vault_collection_card_id,
@@ -368,6 +370,8 @@ def _sold_snapshot(db: Session, auction: Auction, buyer_id: int, quantity: int, 
     )
     db.add_all([auction, sold])
     db.flush()
+    from app.services.stock_photo_snapshots import copy_stock_photos
+    copy_stock_photos(db, auction, sold)
     return sold
 
 
@@ -409,6 +413,9 @@ def checkout_private_cart(db: Session, user: User, idempotency_key: str, item_id
             db.add(item)
         if _available(db, auction) < item.quantity:
             raise HTTPException(status_code=409, detail=f"A(z) {auction.title} kért mennyisége már nem elérhető.")
+    total = sum((item.price_snapshot * item.quantity for item in items), Decimal("0"))
+    if total >= Decimal("1000000000000"):
+        raise HTTPException(422, "A vásárlás végösszege túllépi az elszámolás technikai határát. Bontsd kisebb ügyletekre.")
     grouped: dict[int, list[tuple[CartItem, Auction, Auction]]] = defaultdict(list)
     for item in items:
         source = auctions[item.auction_id]

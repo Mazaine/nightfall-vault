@@ -6,6 +6,8 @@ from typing import Literal
 
 
 class Settings(BaseSettings):
+    inventory_csv_max_bytes: int = Field(default=5_000_000, ge=1024, le=20_000_000)
+    inventory_csv_max_rows: int = Field(default=10000, ge=1, le=50000)
     dicemagic_enabled: bool = False
     dicemagic_client_id: str = ""
     dicemagic_client_secret: str = ""

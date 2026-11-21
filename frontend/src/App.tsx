@@ -42,6 +42,7 @@ const VipMembershipPage = lazy(() => import("./pages/VipMembershipPage").then((m
 const VirtualVaultPage = lazy(() => import("./pages/VirtualVaultPage").then((module) => ({ default: module.VirtualVaultPage })));
 const PublicTradeFolderPage = lazy(() => import("./pages/PublicTradeFolderPage").then((module) => ({ default: module.PublicTradeFolderPage })));
 const CommunityTradeBrowserPage = lazy(() => import("./pages/CommunityTradeBrowserPage").then((module) => ({ default: module.CommunityTradeBrowserPage })));
+const SellerInventoryPage = lazy(() => import("./pages/SellerInventoryPage").then((module) => ({ default: module.SellerInventoryPage })));
 const CartPage = lazy(() => import("./pages/CartPage").then((module) => ({ default: module.CartPage })));
 const AdminLayout = lazy(() => import("./pages/admin/AdminLayout").then((module) => ({ default: module.AdminLayout })));
 const AdminDiceMagicPage = lazy(() => import("./pages/admin/AdminDiceMagicPage").then((module) => ({ default: module.AdminDiceMagicPage })));
@@ -111,6 +112,7 @@ function App() {
               <Route path="/my-bids" element={<MyBidsPage />} />
               <Route path="/vault" element={<VirtualVaultPage />} />
               <Route path="/cart" element={<CartPage />} />
+              <Route path="/inventory" element={<SellerInventoryPage />} />
               <Route path="/watchlist" element={<Navigate to="/my-bids?state=watched" replace />} />
               <Route path="/saved-searches" element={<Navigate to="/auctions" replace />} />
             </Route>

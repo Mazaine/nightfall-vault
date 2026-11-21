@@ -1,0 +1,23 @@
+.seller-inventory { display: grid; gap: 1rem; }
+.selling-navigation { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: .5rem; margin-bottom: 1rem; }
+.selling-navigation a { padding: .9rem .6rem; border: 1px solid var(--border-color,#443052); border-radius: .65rem; text-align: center; }
+.selling-navigation a.is-active { background: #452071; color: #fff; }
+.selling-short { display: none; }
+@media(max-width:600px) { .selling-long { display:none; } .selling-short { display:inline; } }
+.inventory-toolbar { display: flex; flex-wrap: wrap; gap: .65rem; align-items: end; margin: .75rem 0; }
+.inventory-toolbar > *, .inventory-filters > *, .inventory-mapping > * { min-width: 0; }
+.inventory-filters, .inventory-mapping { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,180px),1fr)); gap: .75rem; }
+.seller-inventory input:not([type=checkbox]):not([type=radio]), .seller-inventory select { width: 100%; min-width: 0; }
+.inventory-head, .inventory-item { display: grid; grid-template-columns: minmax(0,2.5fr) minmax(0,1.3fr) minmax(0,1fr) minmax(0,1.4fr); gap: .8rem; padding: .9rem 0; border-bottom: 1px solid #44364c; }
+.inventory-item > * { min-width: 0; overflow-wrap: anywhere; }
+.seller-inventory small { display: block; opacity: .8; }
+.seller-inventory label:has(>input[type=checkbox]), .seller-inventory label:has(>input[type=radio]) { display: flex; gap: .5rem; align-items: center; }
+.inventory-preview-row { display: grid; gap: .4rem; padding: .8rem 0; border-bottom: 1px solid #44364c; }
+.inventory-preview-row button { justify-self: start; }
+.inventory-row-dialog { width: min(940px,calc(100vw - 24px)); max-height: calc(100dvh - 32px); overflow-y: auto; }
+.inventory-row-dialog form > label { display: flex; gap: .6rem; margin: .7rem 0; }
+.inventory-candidates { display: grid; grid-template-columns: repeat(auto-fill,minmax(140px,1fr)); gap: .7rem; max-height: 300px; overflow-y: auto; }
+.inventory-candidates label { display: flex; flex-direction: column; border: 1px solid #584060; padding: .5rem; }
+.inventory-candidates img { max-height: 140px; width: auto; max-width: 100%; object-fit: contain; }
+.seller-inventory summary { cursor: pointer; font-weight: 700; padding: .3rem 0; }
+@media(max-width:767px) { .inventory-head { display: none; } .inventory-item { grid-template-columns: repeat(2,minmax(0,1fr)); padding: .9rem; border: 1px solid #44364c; border-radius: .6rem; margin: .7rem 0; } .inventory-item > :first-child { grid-column: 1/-1; } .selling-navigation a { font-size: .85rem; padding: .7rem .2rem; } }

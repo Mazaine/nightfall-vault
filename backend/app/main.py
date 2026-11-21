@@ -354,6 +354,8 @@ app.add_middleware(
 )
 
 app.include_router(health_router)
+from app.api.seller_inventory import router as seller_inventory_router
+app.include_router(seller_inventory_router)
 app.include_router(social_preview_router)
 app.include_router(auth_router)
 app.include_router(blocks_router)

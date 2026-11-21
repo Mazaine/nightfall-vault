@@ -115,7 +115,7 @@ def refresh_stock(env, stock):
 
 
 def test_999_scoped_quantity_and_two_orders_share_existing_chat(env):
-    assert env.api.post("/api/cart/items", headers=env.headers, json={"auction_id": env.private_id, "quantity": 10}).status_code == 422
+    assert env.api.post("/api/cart/items", headers=env.headers, json={"auction_id": env.private_id, "quantity": 10}).status_code == 409
     assert env.api.post("/api/admin/integrations/dicemagic/cart", headers=env.headers, json={"auction_id": env.shop_id, "quantity": 1000}).status_code == 422
     result, _ = prepare_mixed(env, "quantity-999-fixture", private=False, quantity=999)
     order_id = result["external_orders"][0]["id"]
@@ -167,12 +167,11 @@ def test_mixed_checkout_failure_preserves_private_sale_and_stable_retry(env, cod
         assert env.api.get("/api/cart", headers=env.headers).json()["items"] == []
 
 
-def test_normal_database_quantity_constraint_does_not_allow_ten(env):
+def test_normal_database_quantity_constraint_allows_ten(env):
     with SessionLocal() as db:
         cart = Cart(user_id=env.buyer_id); db.add(cart); db.flush()
         db.add(CartItem(cart_id=cart.id, auction_id=env.private_id, quantity=10, price_snapshot=100, status="active"))
-        with pytest.raises(IntegrityError):
-            db.flush()
+        db.flush()
         db.rollback()
 
 

@@ -193,7 +193,10 @@ def create_auction(db: Session, auction_create: AuctionCreate, seller: User) -> 
         ))
         if existing is not None:
             if existing.status == "draft":
-                retry_update = AuctionUpdate(**auction_create.model_dump(exclude={"creation_key", "seller_declaration_accepted", "seller_declaration_version", "listing_type", "vault_collection_card_id", "vault_trade_card_id", "vault_quantity"}))
+                excluded = {"creation_key", "seller_declaration_accepted", "seller_declaration_version", "listing_type", "vault_collection_card_id", "vault_trade_card_id", "vault_quantity"}
+                if existing.listing_type != "fixed" or existing.vault_collection_card_id or existing.vault_trade_card_id:
+                    excluded.add("quantity")
+                retry_update = AuctionUpdate(**auction_create.model_dump(exclude=excluded))
                 return update_auction(db, existing, retry_update, seller)
             return existing
     vault_card = None
@@ -238,7 +241,8 @@ def create_auction(db: Session, auction_create: AuctionCreate, seller: User) -> 
         vault_trade_card_id=vault_trade_card.id if vault_trade_card else None,
         vault_external_card_id=(vault_card or vault_trade_card).external_card_id if (vault_card or vault_trade_card) else None,
         vault_print_variant=(vault_card or vault_trade_card).print_variant if (vault_card or vault_trade_card) else None,
-        vault_quantity=auction_create.vault_quantity if (vault_card or vault_trade_card) else None,
+        vault_quantity=auction_create.vault_quantity if (vault_card or vault_trade_card) else (auction_create.quantity if auction_create.listing_type == "fixed" else None),
+        stock_managed=auction_create.listing_type == "fixed" and not (vault_card or vault_trade_card),
         title=auction_create.title,
         description=auction_create.description,
         external_link_label=auction_create.external_link_label,
@@ -323,6 +327,18 @@ def update_auction(db: Session, auction: Auction, auction_update: AuctionUpdate,
     if auction.status not in EDITABLE_OWNER_STATUSES and user.role != "admin":
         raise HTTPException(status_code=409, detail="Ebben az aukcióállapotban az aukció nem módosítható.")
     update_data = auction_update.model_dump(exclude_unset=True)
+    if "quantity" in update_data:
+        quantity = update_data.pop("quantity")
+        if quantity is not None:
+            if auction.listing_type != "fixed" or auction.listing_format != "single" or auction.shop_source or auction.vault_collection_card_id or auction.vault_trade_card_id:
+                raise HTTPException(422, "Ez a mennyiség csak önálló fix áras készletnél szerkeszthető.")
+            from app.services.seller_inventory import reserved_quantity
+            if quantity < reserved_quantity(db, auction.id):
+                raise HTTPException(409, "A foglalt készlet nem csökkenthető.")
+            auction.vault_quantity = quantity
+            auction.stock_managed = True
+            if quantity == 0:
+                auction.status = "draft"
     resulting_category = update_data.get("category", auction.category)
     resulting_hatalom_era = update_data.get("hatalom_era", auction.hatalom_era)
     if resulting_hatalom_era is not None and resulting_category != "Hatalom Kártyái Kártyajáték":
@@ -394,6 +410,8 @@ def validate_activation_requirements(auction: Auction) -> None:
 
 def activate_auction(db: Session, auction: Auction, user: User) -> Auction:
     require_owner_or_admin(auction, user)
+    if auction.listing_type == "fixed" and auction.stock_managed and auction.vault_quantity == 0:
+        raise HTTPException(422, "Nullás készletű hirdetés nem aktiválható.")
     validate_activation_requirements(auction)
     current_time = now_utc()
     auction.starts_at = normalize_start_for_activation(auction.starts_at, current_time)

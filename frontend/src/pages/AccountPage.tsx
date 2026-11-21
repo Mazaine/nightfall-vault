@@ -563,6 +563,7 @@ export function AccountPage({ section }: { section: "bids" | "auctions" | "creat
       return;
     }
     const safeUpdate = {
+      ...(formData.has("quantity") ? { quantity: Number(formData.get("quantity")) } : {}),
       title: String(formData.get("title") ?? "").trim(),
       description: String(formData.get("description") ?? "").trim(),
       ...(hasActiveVip ? {
@@ -766,6 +767,7 @@ export function AccountPage({ section }: { section: "bids" | "auctions" | "creat
                                   <input name="title" type="text" defaultValue={auction.title} required maxLength={180} aria-invalid={Boolean(editAuctionFieldErrors.title)} aria-describedby={editAuctionFieldErrors.title ? `edit-title-error-${auction.id}` : undefined} onChange={() => clearEditAuctionFieldError("title")} />
                                   {editAuctionFieldErrors.title ? <small className="auth-field-error" id={`edit-title-error-${auction.id}`}>{editAuctionFieldErrors.title}</small> : <small>2–180 karakter.</small>}
                                 </label>
+                                {auction.listing_type === "fixed" && auction.listing_format !== "bundle" && !auction.shop_source && !auction.vault_collection_card_id && !auction.vault_trade_card_id && <label>Elérhető darabszám<input name="quantity" type="number" min={0} max={2147483647} step={1} defaultValue={auction.vault_quantity ?? 1} required /></label>}
                                 <label>
                                   Kategória
                                   <select name="category" value={editCategory} aria-invalid={Boolean(editAuctionFieldErrors.category)} aria-describedby={editAuctionFieldErrors.category ? `edit-category-error-${auction.id}` : undefined} onChange={(event) => { setEditCategory(event.target.value); clearEditAuctionFieldError("category"); }}>

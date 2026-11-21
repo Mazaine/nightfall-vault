@@ -20,7 +20,7 @@ class Cart(Base):
 class CartItem(Base):
     __tablename__ = "cart_items"
     __table_args__ = (
-        CheckConstraint("(shop_source IS NULL AND quantity BETWEEN 1 AND 9) OR (shop_source IS NOT NULL AND shop_source = 'dicemagic' AND quantity BETWEEN 1 AND 999)", name="ck_cart_items_quantity"),
+        CheckConstraint("(shop_source IS NULL AND quantity BETWEEN 1 AND 2147483647) OR (shop_source = 'dicemagic' AND quantity BETWEEN 1 AND 999)", name="ck_cart_items_quantity"),
         CheckConstraint("status IN ('active', 'removed', 'checked_out')", name="ck_cart_items_status"),
         CheckConstraint("price_snapshot > 0", name="ck_cart_items_price_snapshot"),
         UniqueConstraint("cart_id", "auction_id", name="uq_cart_items_cart_auction"),
@@ -44,7 +44,7 @@ class CartItem(Base):
 class InventoryReservation(Base):
     __tablename__ = "inventory_reservations"
     __table_args__ = (
-        CheckConstraint("quantity BETWEEN 1 AND 9", name="ck_inventory_reservations_quantity"),
+        CheckConstraint("quantity BETWEEN 1 AND 2147483647", name="ck_inventory_reservations_quantity"),
         CheckConstraint("status IN ('active', 'expired', 'released', 'consumed')", name="ck_inventory_reservations_status"),
         CheckConstraint("expires_at > starts_at", name="ck_inventory_reservations_window"),
         UniqueConstraint("cart_item_id", name="uq_inventory_reservations_cart_item"),

@@ -8,11 +8,11 @@ from app.schemas.dicemagic import ShopCheckout
 
 class CartItemCreate(BaseModel):
     auction_id: int = Field(gt=0)
-    quantity: int = Field(default=1, ge=1, le=9)
+    quantity: int = Field(default=1, ge=1, le=2147483647, strict=True)
 
 
 class CartItemUpdate(BaseModel):
-    quantity: int = Field(ge=1, le=9)
+    quantity: int = Field(ge=1, le=2147483647, strict=True)
     accept_price: bool = False
 
 

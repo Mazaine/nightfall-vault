@@ -90,7 +90,7 @@ class TransactionConversationMessage(Base):
 class AuctionTransactionItem(Base):
     __tablename__ = "auction_transaction_items"
     __table_args__ = (
-        CheckConstraint("(shop_source IS NULL AND quantity BETWEEN 1 AND 9) OR (shop_source IS NOT NULL AND shop_source = 'dicemagic' AND quantity BETWEEN 1 AND 999)", name="ck_auction_transaction_items_quantity"),
+        CheckConstraint("(shop_source IS NULL AND quantity BETWEEN 1 AND 2147483647) OR (shop_source = 'dicemagic' AND quantity BETWEEN 1 AND 999)", name="ck_auction_transaction_items_quantity"),
         CheckConstraint("unit_price > 0", name="ck_auction_transaction_items_unit_price"),
         UniqueConstraint("transaction_id", "auction_id", name="uq_auction_transaction_items_transaction_auction"),
         Index("ix_auction_transaction_items_auction", "auction_id"),

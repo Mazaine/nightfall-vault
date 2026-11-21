@@ -32,8 +32,8 @@ function localIso(date: Date) {
   return shifted.toISOString().slice(0, 16);
 }
 
-export function ListingComposer({ source, compact = false, onClose, onDone }: { source?: ListingSource; compact?: boolean; onClose?: () => void; onDone?: (auctionId: number) => void }) {
-  const [mode, setMode] = useState<"fixed" | "auction">("fixed");
+export function ListingComposer({ source, compact = false, onClose, onDone, initialMode = "fixed", hideMode = false }: { source?: ListingSource; compact?: boolean; onClose?: () => void; onDone?: (auctionId: number) => void; initialMode?: "fixed" | "auction"; hideMode?: boolean }) {
+  const [mode, setMode] = useState<"fixed" | "auction">(initialMode);
   const [variantId, setVariantId] = useState(source?.variants.find((item) => !item.variant_needs_review && (item.available_listing_quantity ?? item.quantity) > 0)?.id ?? 0);
   const selectedVariant = source?.variants.find((item) => item.id === variantId && !item.variant_needs_review);
   const availableQuantity = selectedVariant?.available_listing_quantity ?? selectedVariant?.quantity ?? 0;
@@ -106,6 +106,8 @@ export function ListingComposer({ source, compact = false, onClose, onDone }: { 
         ends_at: endsAt.toISOString(),
         five_minute_rule_enabled: mode === "auction",
         seller_declaration_accepted: true,
+        quantity: !source && mode === "fixed" ? Number(data.get("quantity") || 1) : 1,
+        hatalom_era: data.has("retro") ? "retro" : null,
       });
       for (let index = 0; index < files.length; index += 1) await uploadAuctionImage(auction.id, files[index], index === cover);
       await activateAuction(auction.id);
@@ -117,9 +119,11 @@ export function ListingComposer({ source, compact = false, onClose, onDone }: { 
   }
 
   return <form className={`listing-composer ${compact ? "is-compact" : ""}`} onSubmit={submit}>
-    <div className="listing-mode" role="tablist" aria-label="Hirdetés típusa"><button type="button" role="tab" aria-selected={mode === "fixed"} className={mode === "fixed" ? "is-active" : ""} onClick={() => setMode("fixed")}>Fix áras eladás</button><button type="button" role="tab" aria-selected={mode === "auction"} className={mode === "auction" ? "is-active" : ""} onClick={() => setMode("auction")}>Aukció</button></div>
+    {!hideMode && <div className="listing-mode" role="tablist" aria-label="Hirdetés típusa"><button type="button" role="tab" aria-selected={mode === "fixed"} className={mode === "fixed" ? "is-active" : ""} onClick={() => setMode("fixed")}>Fix áras eladás</button><button type="button" role="tab" aria-selected={mode === "auction"} className={mode === "auction" ? "is-active" : ""} onClick={() => setMode("auction")}>Aukció</button></div>}
     {source ? <div className="listing-source"><CardImagePreview card={{ external_card_id: source.externalCardId, card_name: source.cardName, image_url: source.imageUrl }} preview={false}/><div><strong>{source.cardName}</strong><small>HKK #{source.externalCardId}{source.edition ? ` · ${source.edition}` : ""}</small></div></div> : <label>Név<input name="title" required minLength={2} maxLength={180}/></label>}
+    <label className="toggle-row"><input type="checkbox" name="retro" />Retró HKK-lap</label>
     <div className="listing-fields">
+      {!source && mode === "fixed" && <label>Elérhető darabszám<input name="quantity" type="number" min={1} max={2147483647} step={1} defaultValue={1} required /></label>}
       {source ? <label>Változat<select value={variantId} onChange={(event) => { setVariantId(Number(event.target.value)); setQuantity(1); }}>{source.variants.filter((item) => !item.variant_needs_review && (item.available_listing_quantity ?? item.quantity) > 0).map((item) => <option key={item.id} value={item.id}>{variantLabel[item.print_variant]} · {item.available_listing_quantity ?? item.quantity} db szabad</option>)}</select></label> : <label>Kategória<select name="category">{categories.map((category) => <option key={category}>{category}</option>)}</select></label>}
       {source ? <label>Darabszám<select value={quantity} onChange={(event) => setQuantity(Number(event.target.value))}>{Array.from({ length: Math.max(availableQuantity, 1) }, (_, index) => <option key={index + 1}>{index + 1}</option>)}</select></label> : null}
       <label>{mode === "fixed" ? "Fix ár" : "Kikiáltási ár"}<span className="listing-money-input"><input name="price" type="number" min="1" step="1" required/><span>Ft</span></span></label>

@@ -121,6 +121,7 @@ export type BatchFixedListingPayload = {
 };
 
 export type AuctionCreatePayload = {
+  quantity?: number;
   creation_key?: string;
   listing_type?: "auction" | "fixed";
   vault_collection_card_id?: number | null;
