@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SellerInventoryPage } from "./SellerInventoryPage";
@@ -14,6 +14,54 @@ describe("Eladói készletkezelő", () => {
     mocks.edit.mockResolvedValue(op);
     mocks.items.mockResolvedValue({ total: 1, items: [{ id: 2, name: "Árnyék", card_id: "123", graphic_type: "normal", edition: "2026", condition: "NM", free: 150, reserved: 2, pending: 3, price: 500, status: "active", retro: true, link: null }] });
     mocks.sources.mockResolvedValue([{ id: 1, name: "Saját Excel", mapping: {} }]); mocks.history.mockResolvedValue([]); mocks.upload.mockResolvedValue(op); mocks.apply.mockResolvedValue({ ...op, counts: { applied: 1 }, rows: [{ ...op.rows[0], state: "applied" }] }); mocks.bulk.mockResolvedValue({ ...op, kind: "bulk" });
+  });
+  it("beolvasáskor határozatlan, lapellenőrzéskor mérhető progress bart mutat, majd eltünteti", async () => {
+    let finishUpload!: (value: unknown) => void, finishLookup!: (value: unknown) => void;
+    mocks.upload.mockReturnValue(new Promise(resolve => { finishUpload = resolve; }));
+    mocks.resolve.mockReturnValue(new Promise(resolve => { finishLookup = resolve; }));
+    render(<MemoryRouter><SellerInventoryPage /></MemoryRouter>);
+    await screen.findByRole("link", { name: "Árnyék" });
+    fireEvent.change(screen.getByLabelText("Táblázat kiválasztása"), { target: { files: [new File(["fixture"], "lapok.csv")] } });
+    expect(screen.getByRole("progressbar", { name: "Fájl feltöltése és beolvasása" })).not.toHaveAttribute("value");
+    await act(async () => { finishUpload({ ...op, lookup_remaining: 10 }); });
+    const bar = screen.getByRole("progressbar", { name: "Lapok ellenőrzése" });
+    expect(bar).toHaveAttribute("max", "10"); expect(bar).toHaveAttribute("value", "0");
+    expect(screen.getByText("0 / 10 · 0%")).toBeInTheDocument();
+    await act(async () => { finishLookup({ ...op, lookup_remaining: 0 }); });
+    await waitFor(() => expect(screen.queryByRole("progressbar")).not.toBeInTheDocument());
+    expect(mocks.apply).not.toHaveBeenCalled();
+  });
+  it("mentéskor progress bart mutat és hiba esetén nem jelez sikeres befejezést", async () => {
+    let failSave!: (reason: Error) => void;
+    mocks.apply.mockReturnValue(new Promise((_resolve, reject) => { failSave = reject; }));
+    render(<MemoryRouter><SellerInventoryPage /></MemoryRouter>);
+    await screen.findByRole("link", { name: "Árnyék" });
+    fireEvent.change(screen.getByLabelText("Táblázat kiválasztása"), { target: { files: [new File(["fixture"], "lapok.csv")] } });
+    fireEvent.click(await screen.findByRole("button", { name: "Jó lapok feltöltése" }));
+    expect(screen.getByRole("progressbar", { name: "Lapok mentése" })).toHaveAttribute("max", "1");
+    expect(screen.getByRole("progressbar")).toHaveAttribute("value", "0");
+    await act(async () => { failSave(new Error("A mentés nem sikerült.")); });
+    await screen.findByText("A mentés nem sikerült.");
+    expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
+    expect(screen.queryByText(/sor sikeresen feldolgozva/)).not.toBeInTheDocument();
+  });
+  it("több mentési kötegnél a visszaigazolt sorok szerint lépteti a sávot", async () => {
+    const large = { ...op, total: 201, counts: { new: 201, applied: 0 } };
+    const done = { ...large, counts: { new: 0, applied: 201 }, rows: [] };
+    let finishSave!: (value: unknown) => void;
+    mocks.upload.mockResolvedValue(large);
+    mocks.apply.mockResolvedValueOnce({ ...large, counts: { new: 1, applied: 200 } }).mockReturnValueOnce(new Promise(resolve => { finishSave = resolve; }));
+    mocks.operation.mockResolvedValue(done);
+    render(<MemoryRouter><SellerInventoryPage /></MemoryRouter>);
+    await screen.findByRole("link", { name: "Árnyék" });
+    fireEvent.change(screen.getByLabelText("Táblázat kiválasztása"), { target: { files: [new File(["fixture"], "lapok.csv")] } });
+    fireEvent.click(await screen.findByRole("button", { name: "Jó lapok feltöltése" }));
+    await waitFor(() => expect(screen.getByRole("progressbar")).toHaveAttribute("value", "200"));
+    expect(screen.getByRole("progressbar")).toHaveAttribute("max", "201");
+    expect(screen.getByText("200 / 201 · 99%")).toBeInTheDocument();
+    await act(async () => { finishSave(done); });
+    await screen.findByText(/201 sor sikeresen feldolgozva/);
+    expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
   });
   it("minden eladónak megjeleníti a készletet és a három feladási lehetőséget", async () => {
     render(<MemoryRouter><SellerInventoryPage /></MemoryRouter>);

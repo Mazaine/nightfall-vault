@@ -15,6 +15,7 @@ const stateNames: Record<string, string> = { valid: "Alkalmazható", new: "Új",
 export function SellerInventoryPage() {
   const mounted = useRef(true), stopChecking = useRef(false);
   const [checking, setChecking] = useState(false);
+  const [progress, setProgress] = useState<{ label: string; done?: number; total?: number } | null>(null);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; stopChecking.current = true; }; }, []);
   const [limits, setLimits] = useState({ max_bytes: 5000000, max_rows: 10000 });
   const [items, setItems] = useState<api.StockItem[]>([]), [sources, setSources] = useState<api.StockSource[]>([]);
@@ -35,7 +36,7 @@ export function SellerInventoryPage() {
   async function run(action: () => Promise<void>) {
     setBusy(true); setMessage("");
     try { await action(); } catch (error) { setMessage(error instanceof Error ? error.message : "A művelet nem sikerült."); }
-    finally { setBusy(false); }
+    finally { setBusy(false); setProgress(null); }
   }
   useEffect(() => {
     let active = true;
@@ -49,11 +50,13 @@ export function SellerInventoryPage() {
   const visibleTotal = op ? pendingOnly ? op.total - (op.counts.applied || 0) : op.total : 0;
   async function checkNames(initial: api.StockOperation) {
     stopChecking.current = false; setChecking(true);
+    const total = initial.lookup_remaining || 0;
+    setProgress({ label: "Lapok ellenőrzése", done: 0, total });
     try {
       return await checkInventoryNames(initial, {
         resolve: api.resolveStock,
         stopped: () => stopChecking.current || !mounted.current,
-        progress: next => { if (mounted.current) { showOperation(next); setMessage(`Lapok ellenőrzése… ${next.lookup_remaining || 0} név van még hátra.`); } },
+        progress: next => { if (mounted.current) { showOperation(next); setProgress({ label: "Lapok ellenőrzése", done: Math.max(0, Math.min(total, total - (next.lookup_remaining || 0))), total }); setMessage(`Lapok ellenőrzése… ${next.lookup_remaining || 0} név van még hátra.`); } },
       });
     } finally { if (mounted.current) setChecking(false); }
   }
@@ -66,6 +69,7 @@ export function SellerInventoryPage() {
   async function prepareFile(chosen: File, selectedMapping = mapping) {
     if (busy) return;
     await run(async () => {
+      setProgress({ label: "Fájl feltöltése és beolvasása" });
       const data = new FormData(); data.set("file", chosen); if (sourceId) data.set("source_id", sourceId); data.set("full_source", String(full));
       if (selectedMapping) { data.set("mapping", JSON.stringify(selectedMapping.mapping)); data.set("header_row", String(selectedMapping.header_row)); }
       const result = await api.uploadStock(data);
@@ -95,11 +99,15 @@ export function SellerInventoryPage() {
       const chosen = rowSelection.length ? [...rowSelection] : null;
       const ready = (value: api.StockOperation) => (value.counts.new || 0) + (value.counts.update || 0) + (value.counts.unchanged || 0);
       let result = op;
+      const startApplied = op.counts.applied || 0;
+      const progressTotal = missing ? 0 : chosen ? chosen.length : ready(op);
+      setProgress({ label: missing ? "Készlet egyeztetése" : "Lapok mentése", done: 0, total: progressTotal });
       try {
         do {
           const previousReady = ready(result);
           result = await api.applyStock(result, missing ? [] : chosen, missing);
           setOp(result);
+          setProgress({ label: missing ? "Készlet egyeztetése" : "Lapok mentése", done: Math.min(progressTotal, Math.max(0, (result.counts.applied || 0) - startApplied)), total: progressTotal });
           setMessage(`Feldolgozva: ${result.counts.applied || 0} / ${result.total} sor…`);
           if (missing || chosen || ready(result) >= previousReady) break;
         } while (ready(result) > 0);
@@ -121,7 +129,12 @@ export function SellerInventoryPage() {
     <SellingNavigation />
     <header><h1>Készletkezelő</h1><p>Válaszd ki a táblázatodat. Megkeressük a lapokat, és csak a kérdéses tételeket kell átnézned.</p></header>
     {message && <p className="form-message" role="status">{message}</p>}
-    {checking && <div className="inventory-check-progress" role="status"><strong>Lapok keresése folyamatban…</strong><p>Nagy listánál ez néhány percig tarthat. Nem kell egyesével kattintgatnod.</p><button className="button button-ghost" onClick={() => { stopChecking.current = true; setMessage("Az aktuális ellenőrzés után megállunk. A felismert lapok megmaradnak."); }}>Ellenőrzés megállítása</button></div>}
+    {progress && <div className="inventory-check-progress" aria-busy="true">
+      <div className="inventory-progress-heading"><strong>{progress.label}</strong>{Boolean(progress.total) && <span>{progress.done || 0} / {progress.total} · {Math.floor((progress.done || 0) / progress.total! * 100)}%</span>}</div>
+      <progress className="inventory-progress-bar" aria-label={progress.label} max={progress.total || 1} value={progress.total ? progress.done || 0 : undefined} />
+      <small>{checking ? "Az ellenőrzött nevek száma látható. A kérdéses lapok külön maradnak javításra." : progress.total ? "A sáv a visszaigazolt, feldolgozott sorok alapján frissül." : "A fájlt feldolgozzuk, kérjük, várj…"}</small>
+      {checking && <button className="button button-ghost" onClick={() => { stopChecking.current = true; setMessage("Az aktuális ellenőrzés után megállunk. A felismert lapok megmaradnak."); }}>Ellenőrzés megállítása</button>}
+    </div>}
 
     <section className="side-panel inventory-upload-simple" aria-label="Lapok feltöltése">
       <ol className="inventory-steps"><li>Fájl kiválasztása</li><li>Automatikus ellenőrzés</li><li>Jó lapok feltöltése</li></ol>
