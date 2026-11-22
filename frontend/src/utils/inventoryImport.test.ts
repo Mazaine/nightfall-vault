@@ -1,7 +1,11 @@
 import { expect, it, vi } from "vitest";
-import { checkInventoryNames } from "./inventoryImport";
+import { checkInventoryNames, inventoryTemplateCsv, inventoryTemplateHref } from "./inventoryImport";
 import type { StockOperation } from "../api/inventory";
 const initial = { id: 1, lookup_remaining: 20 } as StockOperation;
+it("az üres minta a beküldött HKK Piac fejlécét tartalmazza, példányok vagy kitalált adatok nélkül", () => {
+  expect(inventoryTemplateCsv).toBe("\uFEFFname;graphic_type;quantity;price;card_id;note\r\n");
+  expect(decodeURIComponent(inventoryTemplateHref.split(",")[1])).toBe(inventoryTemplateCsv);
+});
 it("végigellenőrzi a neveket kézi kötegkattintások nélkül, egymás utáni kérésekkel", async () => {
   const middle = { ...initial, lookup_remaining: 10 }, done = { ...initial, lookup_remaining: 0 };
   const resolve = vi.fn().mockResolvedValueOnce(middle).mockResolvedValueOnce(done), progress = vi.fn(), wait = vi.fn().mockResolvedValue(undefined);

@@ -5,7 +5,7 @@ import { SellingNavigation } from "../components/SellingNavigation";
 import { CardImagePreview } from "../components/CardImagePreview";
 import { CARD_CONDITIONS } from "../data/cardConditions";
 import "./SellerInventoryPage.css";
-import { checkInventoryNames } from "../utils/inventoryImport";
+import { checkInventoryNames, inventoryTemplateHref } from "../utils/inventoryImport";
 
 const fieldLabels: Record<string, string> = { name: "Lapnév", quantity: "Darabszám", price: "Egységár (Ft)", card_id: "HKK ID", edition: "Kiadás / év", graphic_type: "Változat", variant_edition: "Foil vagy kiadás éve", condition: "Állapot", retro: "Retró", status: "Státusz", stock_item_id: "Készletazonosító", listing_id: "Hirdetésazonosító", source_id: "Forrásazonosító", version: "Verzió", physical_group: "Fizikai csoport" };
 const variantNames: Record<string, string> = { normal: "Normál", foil: "Foil", fa: "FA", gfa: "GFA" };
@@ -126,6 +126,18 @@ export function SellerInventoryPage() {
     <section className="side-panel inventory-upload-simple" aria-label="Lapok feltöltése">
       <ol className="inventory-steps"><li>Fájl kiválasztása</li><li>Automatikus ellenőrzés</li><li>Jó lapok feltöltése</li></ol>
       <h2>Lapok feltöltése táblázatból</h2><p>Excel- vagy CSV-fájlt választhatsz. A feltöltés előtt mindent ellenőrzünk.</p>
+      <div className="inventory-template">
+        <a className="button button-secondary" href={inventoryTemplateHref} download="hkk_keszlet_minta.csv">Üres mintatáblázat letöltése</a>
+        <p>Nyisd meg Excelben, másold bele a készletedet, mentsd CSV-ként, majd válaszd ki itt a fájlt.</p>
+        <details><summary>Mit írjak az oszlopokba?</summary><dl>
+          <dt>name</dt><dd>Lapnév (kötelező).</dd>
+          <dt>graphic_type</dt><dd>Változat: normal, foil, full art vagy golden full art. Üresen Normál; az FA és GFA rövidítés is jó.</dd>
+          <dt>quantity</dt><dd>Darabszám (kötelező, egész szám; 9-nél több is lehet).</dd>
+          <dt>price</dt><dd>Darabonkénti ár forintban (kötelező, pozitív egész szám).</dd>
+          <dt>card_id</dt><dd>HKK ID, ha ismered. Üresen megkeressük a lapot; több kiadás esetén választanod kell.</dd>
+          <dt>note</dt><dd>Saját megjegyzés, nem kerül a hirdetésbe.</dd>
+        </dl></details>
+      </div>
       {unfinished && !op && <button className="button button-secondary" disabled={busy} onClick={() => void run(async () => { const saved = await api.stockOperation(unfinished.id, 0, true); showOperation(saved); if (saved.lookup_remaining) { await checkNames(saved); await refreshOperation(saved.id); } setMessage(stopChecking.current ? "Az ellenőrzést megállítottuk; később folytathatod." : "A jó lapokat most feltöltheted."); })}>Előző feltöltés folytatása</button>}
       <form onSubmit={upload} className="inventory-upload-form">
 

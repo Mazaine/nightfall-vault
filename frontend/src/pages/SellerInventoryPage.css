@@ -22,6 +22,11 @@
 .seller-inventory summary { cursor: pointer; font-weight: 700; padding: .3rem 0; }
 .inventory-steps { display: flex; flex-wrap: wrap; gap: .65rem 2rem; padding-left: 1.5rem; color: #cdb5ee; }
 .inventory-upload-form { display: grid; gap: 1rem; margin: 1rem 0; }
+.inventory-template { min-width: 0; margin: 1rem 0; }
+.inventory-template .button { max-width: 100%; white-space: normal; text-align: center; }
+.inventory-template dl { display: grid; grid-template-columns: auto minmax(0,1fr); gap: .5rem 1rem; }
+.inventory-template dt { font-weight: 700; }
+.inventory-template dd { margin: 0; overflow-wrap: anywhere; }
 .inventory-file-choice { display: grid; gap: .6rem; font-size: 1.1rem; font-weight: 700; }
 .inventory-file-choice input { padding: 1rem; min-height: 58px; border: 2px dashed #785296; border-radius: .65rem; cursor: pointer; }
 .inventory-file-choice input::file-selector-button { padding: .7rem 1rem; margin-right: .8rem; border: 0; border-radius: .4rem; background: #6c2ab3; color: white; font-weight: 700; cursor: pointer; }

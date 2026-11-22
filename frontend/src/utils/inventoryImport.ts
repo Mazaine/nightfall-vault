@@ -1,5 +1,9 @@
 import type { StockOperation } from "../api/inventory";
 
+// Header-only HKK Piac CSV: Excel recognizes UTF-8 accents through the BOM.
+export const inventoryTemplateCsv = "\uFEFFname;graphic_type;quantity;price;card_id;note\r\n";
+export const inventoryTemplateHref = `data:text/csv;charset=utf-8,${encodeURIComponent(inventoryTemplateCsv)}`;
+
 /** Sequential, resumable lookup; keep the existing 20/minute server guard. */
 export async function checkInventoryNames(initial: StockOperation, options: {
   resolve: (id: number) => Promise<StockOperation>;

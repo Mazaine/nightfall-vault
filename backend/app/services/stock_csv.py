@@ -132,6 +132,8 @@ def parse_upload(data, filename, mapping=None, header_row=None, *, max_bytes=5_0
                 errors.append(str(exc))
             mixed = normalize(values.get("variant_edition", ""))
             variant = normalize(values.get("graphic_type") or (mixed if mixed in ("foil", "fa", "gfa", "normal") else "normal"))
+            # HKK Piac exports use the full English names for FA and GFA.
+            variant = {"full art": "fa", "golden full art": "gfa"}.get(variant, variant)
             if mixed and re.fullmatch(r"\d{4}", mixed) and not values.get("edition"):
                 values["edition"] = mixed
             if mixed and not re.fullmatch(r"\d{4}", mixed) and mixed not in ("foil", "fa", "gfa", "normal"):

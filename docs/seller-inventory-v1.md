@@ -109,3 +109,15 @@ Vizuális ellenőrzés izolált, mintaadatokat adó API-val: 1920, 1440, 1280, 1
 5. Készíts teljes forrásexportot az inaktív és nullás tételekkel, majd részleges kijelölt exportot is. Ellenőrizd az eltérő teljes-egyeztetési jogosultságot.
 6. Az előzményekben ellenőrizd a visszavonást. Vásárlás/szerkesztés után az elavult visszavonásnak blokkoltnak kell lennie.
 7. Piactér Aukciók és Lapok fül: Csak retró lapok, további szűrő és lapozás együtt.
+
+## HKK Piac mintafájl és üres sablon – 2026. november 22.
+
+A készletfeltöltés tetején az **Üres mintatáblázat letöltése** hivatkozás fejlécet tartalmazó, UTF-8 BOM-os, pontosvesszős CSV-t ad: `name;graphic_type;quantity;price;card_id;note`. Nincs benne kitalált lap vagy feltöltendő példasor. A fájl Excelben kitölthető, CSV-ként elmenthető, majd visszatölthető. Az oszlopmagyarázat külön lenyitható, így nem zsúfolja a felületet.
+
+Kötelező: lapnév, egész darabszám és pozitív egész Ft/db ár. A változat üresen Normál; a HKK ID opcionális, de a konkrét kiadás felismerését segíti. A `note` nem importált hirdetésleírás. A forrásválasztó az alapfolyamatban nem kötelező.
+
+A beküldött `hkk_piac_feltoltes.csv` 529 sorát a tényleges parserrel, adatbázisírás nélkül ellenőriztük. Mindegyik feldolgozható oszlopmegfeleltetés nélkül: 442 normal, 70 foil, 14 full art és 3 golden full art. A két hosszú változatnév korábban ismeretlen volt; most pontosan FA, illetve GFA lesz belőlük. Ez nem igazolja a konkrét kiadás változatjogosultságát: a meglévő katalógus- és készletvalidáció továbbra is lefut az előnézetben és a mentésnél.
+
+Manuális próba: `/inventory` → üres minta letöltése → saját készlet bemásolása → fájl kiválasztása → automatikus előnézet → **Jó lapok feltöltése**. A bizonytalan vagy hibás sorok a javítási listában maradnak; a sablon letöltése önmagában nem indít importot.
+
+A jelen körben nincs új migráció és nincs felhasználói készletet módosító művelet. A Docker daemon nem érhető el, ezért az adatbázisos backendteszteket nem futtattuk. A tényleges parserből elkülönítve futtatott regressziós tesztek: 9 sikeres eset (változatnevek, üres sablon, BOM, elválasztók, mennyiség, ár és XLSX kompatibilitás). A teljes frontendteszt-készlet 387/387 sikeres (68 fájl); a TypeScript-ellenőrzés, production build és `git diff --check` is sikeres. Böngészős végponttól végpontig tartó új ellenőrzés Docker nélkül nem történt.

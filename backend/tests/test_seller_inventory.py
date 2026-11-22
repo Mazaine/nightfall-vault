@@ -81,6 +81,23 @@ def test_parser_formats_quotes_bom_and_unit_price():
         parse_upload(b"name;quantity;price\nLap;1;50\nLap2;1;50", "a.csv", max_rows=1)
 
 
+@pytest.mark.parametrize("input_variant,expected", [("normal", "normal"), ("foil", "foil"), ("full art", "fa"), ("golden full art", "gfa"), ("FA", "fa"), ("GFA", "gfa")])
+def test_user_hkk_piac_csv_variant_names(input_variant, expected):
+    content = f"\ufeffname;graphic_type;quantity;price;card_id;note\r\nÁrnyék;{input_variant};13;1500;10256;\r\n".encode()
+    parsed = parse_upload(content, "hkk_piac_feltoltes.csv")
+    assert not parsed["needs_mapping"] and parsed["format"] == "hkk-piac"
+    row = parsed["rows"][0]
+    assert not row["errors"]
+    assert row["values"]["graphic_type"] == expected
+    assert row["values"]["quantity"] == 13 and row["values"]["price"] == 1500
+    assert row["values"]["card_id"] == "10256"
+
+
+def test_empty_hkk_piac_template_has_no_importable_items():
+    parsed = parse_upload("\ufeffname;graphic_type;quantity;price;card_id;note\r\n".encode(), "hkk_keszlet_minta.csv")
+    assert not parsed["needs_mapping"] and parsed["rows"] == []
+
+
 def test_sample_excel_layout_fourth_row_and_mixed_year():
     sheet = '''<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>
     <row r="4"><c r="D4" t="inlineStr"><is><t>Kartya neve</t></is></c><c r="E4" t="inlineStr"><is><t>Foil vagy több kiadas eseten kiadas eve</t></is></c><c r="F4" t="inlineStr"><is><t>Darabszam</t></is></c><c r="G4" t="inlineStr"><is><t>Ar per db (HUF)</t></is></c><c r="H4" t="inlineStr"><is><t>Darabszammal felszorzott ar</t></is></c></row>

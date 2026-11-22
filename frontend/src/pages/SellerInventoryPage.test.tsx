@@ -23,6 +23,16 @@ describe("Eladói készletkezelő", () => {
     fireEvent.change(screen.getByLabelText("Név / HKK ID"), { target: { value: "123" } });
     await waitFor(() => expect(mocks.items.mock.lastCall?.[0].get("query")).toBe("123"));
   });
+  it("a feltöltés mellett az üres minta bejelentkezett készlet nélkül is letölthető", async () => {
+    mocks.items.mockResolvedValue({ total: 0, items: [] });
+    mocks.sources.mockResolvedValue([]);
+    render(<MemoryRouter><SellerInventoryPage /></MemoryRouter>);
+    const download = screen.getByRole("link", { name: "Üres mintatáblázat letöltése" });
+    expect(download).toHaveAttribute("download", "hkk_keszlet_minta.csv");
+    expect(decodeURIComponent(download.getAttribute("href")!.split(",")[1])).toBe("\uFEFFname;graphic_type;quantity;price;card_id;note\r\n");
+    expect(mocks.upload).not.toHaveBeenCalled(); expect(mocks.apply).not.toHaveBeenCalled();
+    await waitFor(() => expect(mocks.sources).toHaveBeenCalled());
+  });
   it("elég a fájl kiválasztása: a forrás nem kötelező, a lapkeresés automatikus, publikálás csak a főgombbal", async () => {
     mocks.upload.mockResolvedValue({ ...op, lookup_remaining: 1 });
     render(<MemoryRouter><SellerInventoryPage /></MemoryRouter>);
